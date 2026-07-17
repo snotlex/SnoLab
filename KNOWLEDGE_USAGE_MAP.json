@@ -1,0 +1,214 @@
+{
+  "equations": {
+    "targetStrength": {
+      "definitionFile": "src/engine/dreuxKnowledgeBase.ts",
+      "consumingFiles": [
+        "src/engine/dreuxGorisseCore.ts",
+        "src/concreteTypes.ts",
+        "src/components/EngineeringKnowledgeCenter.tsx"
+      ],
+      "status": "HARDCODED_DUPLICATION",
+      "notes": "Equation is defined descriptively as metadata in the knowledge base, but implemented mathematically in hardcoded blocks inside dreuxGorisseCore.ts and concreteTypes.ts."
+    },
+    "cementStrengthApproximation": {
+      "definitionFile": "src/engine/dreuxKnowledgeBase.ts",
+      "consumingFiles": [
+        "src/engine/dreuxGorisseCore.ts",
+        "src/concreteTypes.ts",
+        "src/components/EngineeringKnowledgeCenter.tsx"
+      ],
+      "status": "HARDCODED_DUPLICATION",
+      "notes": "Empirical coefficient 1.1 is hardcoded separately in core calculation and custom concrete type validators."
+    },
+    "waterCementRatio": {
+      "definitionFile": "src/engine/dreuxKnowledgeBase.ts",
+      "consumingFiles": [
+        "src/engine/dreuxGorisseCore.ts",
+        "src/components/EngineeringKnowledgeCenter.tsx"
+      ],
+      "status": "HARDCODED_DUPLICATION",
+      "notes": "Bolomey equation is hardcoded mathematically in the calculation engine; knowledge base record serves as UI metadata only."
+    },
+    "pivotPointY": {
+      "definitionFile": "src/engine/dreuxKnowledgeBase.ts",
+      "consumingFiles": [
+        "src/engine/dreuxGorisseCore.ts",
+        "src/components/EngineeringKnowledgeCenter.tsx"
+      ],
+      "status": "HARDCODED_DUPLICATION",
+      "notes": "Pivot point Y coordinate computation is hardcoded inside dreuxGorisseCore.ts."
+    },
+    "moistureAdjustment": {
+      "definitionFile": "src/engine/dreuxKnowledgeBase.ts",
+      "consumingFiles": [
+        "src/engine/dreuxGorisseCore.ts",
+        "src/components/EngineeringKnowledgeCenter.tsx"
+      ],
+      "status": "HARDCODED_DUPLICATION",
+      "notes": "Aggregates wet weight compensation formulas are implemented directly in code."
+    },
+    "freeWaterCorrection": {
+      "definitionFile": "src/engine/dreuxKnowledgeBase.ts",
+      "consumingFiles": [
+        "src/engine/dreuxGorisseCore.ts",
+        "src/components/EngineeringKnowledgeCenter.tsx"
+      ],
+      "status": "HARDCODED_DUPLICATION",
+      "notes": "Water batching adjustments are calculated in-line in dreuxGorisseCore.ts."
+    }
+  },
+  "lookupTables": {
+    "standardDeviation": {
+      "definitionFile": "src/engine/dreuxKnowledgeBase.ts",
+      "consumingFiles": [
+        "src/engine/dreuxGorisseCore.ts",
+        "src/components/EngineeringKnowledgeCenter.tsx"
+      ],
+      "status": "ACTIVE_CONSUMPTION",
+      "notes": "Directly accessed via DREUX_KNOWLEDGE_BASE.lookupTables.standardDeviation.data inside the core."
+    },
+    "dreuxAggregateFactorG": {
+      "definitionFile": "src/engine/dreuxKnowledgeBase.ts",
+      "consumingFiles": [
+        "src/engine/dreuxGorisseCore.ts",
+        "src/components/EngineeringKnowledgeCenter.tsx"
+      ],
+      "status": "ACTIVE_CONSUMPTION",
+      "notes": "Directly accessed via DREUX_KNOWLEDGE_BASE.lookupTables.dreuxAggregateFactorG.data inside the core."
+    },
+    "baseWaterDemand": {
+      "definitionFile": "src/engine/dreuxKnowledgeBase.ts",
+      "consumingFiles": [
+        "src/engine/dreuxGorisseCore.ts",
+        "src/components/EngineeringKnowledgeCenter.tsx"
+      ],
+      "status": "ACTIVE_CONSUMPTION",
+      "notes": "Directly accessed via DREUX_KNOWLEDGE_BASE.lookupTables.baseWaterDemand.data inside the core."
+    },
+    "slumpCorrectionFactor": {
+      "definitionFile": "src/engine/dreuxKnowledgeBase.ts",
+      "consumingFiles": [
+        "src/engine/dreuxGorisseCore.ts",
+        "src/components/EngineeringKnowledgeCenter.tsx"
+      ],
+      "status": "ACTIVE_CONSUMPTION",
+      "notes": "Directly accessed via DREUX_KNOWLEDGE_BASE.lookupTables.slumpCorrectionFactor.data inside the core."
+    },
+    "compactnessGamma0": {
+      "definitionFile": "src/engine/dreuxKnowledgeBase.ts",
+      "consumingFiles": [
+        "src/engine/dreuxGorisseCore.ts",
+        "src/components/EngineeringKnowledgeCenter.tsx"
+      ],
+      "status": "ACTIVE_CONSUMPTION",
+      "notes": "Directly accessed via DREUX_KNOWLEDGE_BASE.lookupTables.compactnessGamma0.data inside the core."
+    },
+    "slumpCompacityAdjustment": {
+      "definitionFile": "src/engine/dreuxKnowledgeBase.ts",
+      "consumingFiles": [
+        "src/engine/dreuxGorisseCore.ts",
+        "src/components/EngineeringKnowledgeCenter.tsx"
+      ],
+      "status": "ACTIVE_CONSUMPTION",
+      "notes": "Directly accessed via DREUX_KNOWLEDGE_BASE.lookupTables.slumpCompacityAdjustment.data inside the core."
+    },
+    "shapeCompacityAdjustment": {
+      "definitionFile": "src/engine/dreuxKnowledgeBase.ts",
+      "consumingFiles": [
+        "src/engine/dreuxGorisseCore.ts",
+        "src/components/EngineeringKnowledgeCenter.tsx"
+      ],
+      "status": "ACTIVE_CONSUMPTION",
+      "notes": "Directly accessed via DREUX_KNOWLEDGE_BASE.lookupTables.shapeCompacityAdjustment.data inside the core."
+    },
+    "baseGranularConstantK0": {
+      "definitionFile": "src/engine/dreuxKnowledgeBase.ts",
+      "consumingFiles": [
+        "src/engine/dreuxGorisseCore.ts",
+        "src/components/EngineeringKnowledgeCenter.tsx"
+      ],
+      "status": "ACTIVE_CONSUMPTION",
+      "notes": "Directly accessed via DREUX_KNOWLEDGE_BASE.lookupTables.baseGranularConstantK0.data inside the core."
+    },
+    "scmDefaultDensities": {
+      "definitionFile": "src/engine/dreuxKnowledgeBase.ts",
+      "consumingFiles": [
+        "src/engine/dreuxGorisseCore.ts",
+        "src/components/EngineeringKnowledgeCenter.tsx"
+      ],
+      "status": "ACTIVE_CONSUMPTION",
+      "notes": "Directly accessed via DREUX_KNOWLEDGE_BASE.lookupTables.scmDefaultDensities.data inside the core."
+    }
+  },
+  "validationLimits": {
+    "absoluteVolumeToleranceL": {
+      "definitionFile": "src/engine/dreuxKnowledgeBase.ts",
+      "consumingFiles": [
+        "src/engine/constants.ts"
+      ],
+      "status": "DUPLICATED_BUT_UNUSED_IN_KBASE",
+      "notes": "The database value is unused; instead, the value is imported from src/engine/constants.ts."
+    },
+    "maxSuperplasticizerDosagePercent": {
+      "definitionFile": "src/engine/dreuxKnowledgeBase.ts",
+      "consumingFiles": [
+        "src/engine/constants.ts",
+        "src/engine/validateInputs.ts"
+      ],
+      "status": "DUPLICATED_BUT_UNUSED_IN_KBASE",
+      "notes": "validateInputs.ts uses hardcoded checks or values imported from constants.ts instead of accessing DREUX_KNOWLEDGE_BASE."
+    },
+    "minBinderContentKgM3": {
+      "definitionFile": "src/engine/dreuxKnowledgeBase.ts",
+      "consumingFiles": [
+        "src/engine/dreuxGorisseCore.ts",
+        "src/engine/constants.ts"
+      ],
+      "status": "ACTIVE_AND_DUPLICATED",
+      "notes": "Directly read inside dreuxGorisseCore.ts, but also duplicated in constants.ts."
+    },
+    "cementDensityDefaultKgM3": {
+      "definitionFile": "src/engine/dreuxKnowledgeBase.ts",
+      "consumingFiles": [
+        "src/engine/dreuxGorisseCore.ts"
+      ],
+      "status": "ACTIVE_CONSUMPTION",
+      "notes": "Directly read inside dreuxGorisseCore.ts at line 168 as fallback."
+    },
+    "waterPHRange": {
+      "definitionFile": "src/engine/dreuxKnowledgeBase.ts",
+      "consumingFiles": [],
+      "status": "UNUSED",
+      "notes": "Defined in limits but never verified in suitability or validation gates."
+    },
+    "maxWaterChloridePpm": {
+      "definitionFile": "src/engine/dreuxKnowledgeBase.ts",
+      "consumingFiles": [],
+      "status": "UNUSED",
+      "notes": "Defined in limits but never verified in suitability or validation gates."
+    },
+    "maxWaterSulphatePpm": {
+      "definitionFile": "src/engine/dreuxKnowledgeBase.ts",
+      "consumingFiles": [],
+      "status": "UNUSED",
+      "notes": "Defined in limits but never verified in suitability or validation gates."
+    },
+    "highFiberDosageThresholdKgM3": {
+      "definitionFile": "src/engine/dreuxKnowledgeBase.ts",
+      "consumingFiles": [],
+      "status": "UNUSED",
+      "notes": "Defined in limits but never verified in suitability or validation gates."
+    }
+  },
+  "concreteCategories": {
+    "allCategories": {
+      "definitionFile": "src/engine/dreuxKnowledgeBase.ts",
+      "consumingFiles": [
+        "src/concreteTypes.ts",
+        "src/engine/suitabilityGate.ts"
+      ],
+      "status": "KNOWLEDGE_LAYER_BYPASS_VIOLATION",
+      "notes": "The concreteCategories validationRules and evaluate callbacks defined in dreuxKnowledgeBase.ts are never executed. Instead, identical validation logic is implemented in a decoupled manner inside src/concreteTypes.ts and src/engine/suitabilityGate.ts, causing high architectural fragmentation."
+    }
+  }
+}

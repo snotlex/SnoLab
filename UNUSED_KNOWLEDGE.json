@@ -1,0 +1,44 @@
+[
+  {
+    "id": "evaluate_concrete_category_rules_fn",
+    "name": "evaluateConcreteCategoryRules Function",
+    "type": "Function",
+    "file": "src/engine/dreuxKnowledgeBase.ts",
+    "description": "This function is designed to run the callbacks on concreteCategories but is completely dead code. It is never imported, called, or referenced by the calculation engine or the front-end components."
+  },
+  {
+    "id": "concrete_categories_validation_rules",
+    "name": "Category validationRules and evaluate Callbacks",
+    "type": "Array / Callbacks",
+    "file": "src/engine/dreuxKnowledgeBase.ts",
+    "description": "Each concrete category contains a 'validationRules' list with dynamic 'evaluate' callbacks. Because evaluateConcreteCategoryRules is dead code, none of these 20+ custom evaluation callbacks are ever executed. Instead, identical checks are performed by suitabilityGate.ts."
+  },
+  {
+    "id": "limit_water_ph_range",
+    "name": "Water pH Range Limit (waterPHRange)",
+    "type": "Property",
+    "file": "src/engine/dreuxKnowledgeBase.ts",
+    "description": "Defined under validationLimits as [6.5, 8.5], but is never checked in suitabilityGate.ts, validationGate.ts, or validateInputs.ts."
+  },
+  {
+    "id": "limit_max_water_chloride",
+    "name": "Maximum Water Chloride (maxWaterChloridePpm)",
+    "type": "Property",
+    "file": "src/engine/dreuxKnowledgeBase.ts",
+    "description": "Defined as 500 ppm in validationLimits, but is never used anywhere in calculation or validation logic."
+  },
+  {
+    "id": "limit_max_water_sulphate",
+    "name": "Maximum Water Sulphate (maxWaterSulphatePpm)",
+    "type": "Property",
+    "file": "src/engine/dreuxKnowledgeBase.ts",
+    "description": "Defined as 2000 ppm in validationLimits, but is never checked or validated against user water inputs."
+  },
+  {
+    "id": "limit_high_fiber_dosage",
+    "name": "High Fiber Dosage Threshold (highFiberDosageThresholdKgM3)",
+    "type": "Property",
+    "file": "src/engine/dreuxKnowledgeBase.ts",
+    "description": "Defined as 80.0 kg/m³ to flag excessive fiber dosages, but is completely unused in all engine validation gates."
+  }
+]

@@ -1,0 +1,99 @@
+[
+  {
+    "id": "min_binder_content",
+    "name": "Minimum Binder Content (minBinderContentKgM3)",
+    "files": [
+      "src/engine/dreuxKnowledgeBase.ts",
+      "src/engine/constants.ts"
+    ],
+    "description": "The minimum binder threshold for concrete designs (250 kg/m³) is defined in both the central knowledge limits and the constants.ts file, creating a redundant declaration."
+  },
+  {
+    "id": "absolute_volume_tolerance",
+    "name": "Absolute Volume Tolerance (absoluteVolumeToleranceL)",
+    "files": [
+      "src/engine/dreuxKnowledgeBase.ts",
+      "src/engine/constants.ts"
+    ],
+    "description": "The absolute volume tolerance (10 liters) is defined in validationLimits and replicated as ABSOLUTE_VOLUME_TOLERANCE_L in constants.ts."
+  },
+  {
+    "id": "max_superplasticizer_dosage",
+    "name": "Maximum Superplasticizer Dosage (maxSuperplasticizerDosagePercent)",
+    "files": [
+      "src/engine/dreuxKnowledgeBase.ts",
+      "src/engine/constants.ts"
+    ],
+    "description": "The limit for superplasticizer dosage (5%) is defined in validationLimits and duplicated in constants.ts."
+  },
+  {
+    "id": "gpc_compatibility_rules",
+    "name": "Geopolymer Concrete (GPC) Validation Logic",
+    "files": [
+      "src/engine/dreuxKnowledgeBase.ts",
+      "src/concreteTypes.ts",
+      "src/engine/suitabilityGate.ts"
+    ],
+    "description": "The rule prohibiting Portland cement and requiring SCMs (Fly Ash/Slag) with chemical activators is defined as static data in dreuxKnowledgeBase.ts, duplicated as a schema validator in concreteTypes.ts, and fully implemented as imperative code checks in suitabilityGate.ts."
+  },
+  {
+    "id": "hsc_compatibility_rules",
+    "name": "High Strength Concrete (HSC) Validation Logic",
+    "files": [
+      "src/engine/dreuxKnowledgeBase.ts",
+      "src/concreteTypes.ts",
+      "src/engine/suitabilityGate.ts"
+    ],
+    "description": "Rules requiring cement class >= 52.5, superplasticizers, and silica fume are duplicated across the knowledge base, concrete type configs, and the suitability gate check."
+  },
+  {
+    "id": "scc_compatibility_rules",
+    "name": "Self-Consolidating Concrete (SCC) Validation Logic",
+    "files": [
+      "src/engine/dreuxKnowledgeBase.ts",
+      "src/concreteTypes.ts",
+      "src/engine/suitabilityGate.ts"
+    ],
+    "description": "Limiting aggregate diameter (Dmax <= 16mm), requiring superplasticizers, limestone filler, and viscosity modifying agents (VMA) is validated in three separate files."
+  },
+  {
+    "id": "frc_compatibility_rules",
+    "name": "Fiber-Reinforced Concrete (FRC) Validation Logic",
+    "files": [
+      "src/engine/dreuxKnowledgeBase.ts",
+      "src/concreteTypes.ts",
+      "src/engine/suitabilityGate.ts"
+    ],
+    "description": "Checking for fiber selection and non-zero dosage is defined in the categories knowledge rules, concrete type configs, and suitabilityGate.ts."
+  },
+  {
+    "id": "lwc_hwc_density_limits",
+    "name": "Lightweight and Heavyweight Concrete Density Limits",
+    "files": [
+      "src/engine/dreuxKnowledgeBase.ts",
+      "src/concreteTypes.ts",
+      "src/engine/suitabilityGate.ts"
+    ],
+    "description": "Validating aggregate density (<2000 kg/m³ for lightweight and >3000 kg/m³ for heavyweight) is duplicated across the category parameters, type metadata, and suitability checks."
+  },
+  {
+    "id": "rcc_slump_limit",
+    "name": "Roller-Compacted Concrete (RCC) Slump Check",
+    "files": [
+      "src/engine/dreuxKnowledgeBase.ts",
+      "src/concreteTypes.ts",
+      "src/engine/suitabilityGate.ts"
+    ],
+    "description": "RCC zero-slump limit (<= 2 cm) is defined inside the concreteCategories validationRules and also replicated in suitabilityGate.ts."
+  },
+  {
+    "id": "shotcrete_dmax_limit",
+    "name": "Shotcrete Max Aggregate Size (Dmax) Check",
+    "files": [
+      "src/engine/dreuxKnowledgeBase.ts",
+      "src/concreteTypes.ts",
+      "src/engine/suitabilityGate.ts"
+    ],
+    "description": "The maximum aggregate diameter check (Dmax <= 16mm) to prevent hose blocking is defined as a validation rule in the knowledge base, type configs, and suitability gate."
+  }
+]

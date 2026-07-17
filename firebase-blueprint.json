@@ -1,0 +1,203 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile with activation status",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Authentication User UID"
+        },
+        "email": {
+          "type": "string",
+          "description": "Email address of the user"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Display name of the user"
+        },
+        "activated": {
+          "type": "boolean",
+          "description": "Activation status of the user by admin"
+        },
+        "materialsSeeded": {
+          "type": "boolean",
+          "description": "Whether the user's default materials library has been seeded"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last update timestamp"
+        }
+      },
+      "required": ["uid", "email", "displayName", "activated", "createdAt", "updatedAt"]
+    },
+    "MixDesign": {
+      "title": "MixDesign",
+      "description": "A saved concrete mix design including inputs and parameters",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "description": "The UID of the user who saved this mix"
+        },
+        "name": {
+          "type": "string",
+          "description": "Name given to the concrete mix design"
+        },
+        "inputs": {
+          "type": "object",
+          "description": "Full JSON inputs of the mix design matching MixDesignInput"
+        },
+        "currency": {
+          "type": "string",
+          "description": "The selected currency code for the mix pricing"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Update timestamp"
+        }
+      },
+      "required": ["ownerId", "name", "inputs", "createdAt", "updatedAt"]
+    },
+    "UserMaterial": {
+      "title": "UserMaterial",
+      "description": "Custom or modified engineering material added by the user",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique material ID"
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "Owner user UID"
+        },
+        "name": {
+          "type": "string",
+          "description": "Material Name Arabic"
+        },
+        "englishName": {
+          "type": "string",
+          "description": "Material Name English"
+        },
+        "type": {
+          "type": "string",
+          "description": "Base type"
+        },
+        "category": {
+          "type": "string",
+          "description": "Unified structural category"
+        },
+        "density": {
+          "type": "number",
+          "description": "Absolute density"
+        },
+        "absorption": {
+          "type": "number",
+          "description": "Water absorption percentage"
+        },
+        "status": {
+          "type": "string",
+          "description": "Active or suspended status"
+        },
+        "ApprovalStatus": {
+          "type": "string",
+          "description": "Approval status of material"
+        },
+        "createdBy": {
+          "type": "string",
+          "description": "Creator of material"
+        },
+        "createdDate": {
+          "type": "string",
+          "description": "Creation date"
+        },
+        "updatedDate": {
+          "type": "string",
+          "description": "Update date"
+        }
+      },
+      "required": ["id", "ownerId", "name", "englishName", "type", "category", "density", "absorption", "status", "ApprovalStatus"]
+    },
+    "EmailLog": {
+      "title": "EmailLog",
+      "description": "Log of sent emails to users",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "The UID of the user"
+        },
+        "email": {
+          "type": "string",
+          "description": "The email address of the recipient"
+        },
+        "date": {
+          "type": "string",
+          "description": "Date of sending (YYYY-MM-DD)"
+        },
+        "time": {
+          "type": "string",
+          "description": "Time of sending (HH:MM:SS)"
+        },
+        "deliveryStatus": {
+          "type": "string",
+          "description": "sent or failed status"
+        },
+        "emailType": {
+          "type": "string",
+          "description": "Account Activation"
+        },
+        "error": {
+          "type": "string",
+          "description": "Error message if failed"
+        },
+        "attempts": {
+          "type": "integer",
+          "description": "Number of send attempts"
+        },
+        "mode": {
+          "type": "string",
+          "description": "real or simulation"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Firestore server timestamp"
+        }
+      },
+      "required": ["userId", "email", "date", "time", "deliveryStatus", "emailType", "attempts", "mode"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Collection of user profiles with activation status"
+    },
+    "/email_logs/{logId}": {
+      "schema": "EmailLog",
+      "description": "Collection of system email delivery logs"
+    },
+    "/user_mixes/{mixId}": {
+      "schema": "MixDesign",
+      "description": "Collection of saved concrete mix designs per user"
+    },
+    "/user_materials/{materialId}": {
+      "schema": "UserMaterial",
+      "description": "Collection of custom or modified engineering materials per user"
+    }
+  }
+}

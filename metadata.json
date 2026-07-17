@@ -1,0 +1,6 @@
+{
+  "name": "SNO Engineering AI",
+  "description": "حاسبة شاملة لتصميم الخلطات الخرسانية بطريقة درو-غوريس (Dreux-Gorisse) مع الإضافات الكيميائية والدعم الاستشاري الذكي",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

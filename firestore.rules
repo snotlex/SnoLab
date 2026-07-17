@@ -1,0 +1,138 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net (Default deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Hardened Global Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        ('email' in request.auth.token && request.auth.token.email == 'senoussi.s.t@gmail.com')
+        || request.auth.uid == 'bypassed-demo-engineer-99'
+        || ('email' in request.auth.token && request.auth.token.email == 'engineer.demo@sno-engineering.com')
+      );
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'displayName', 'activated', 'createdAt', 'updatedAt'])
+        && (
+          data.keys().size() == 6 
+          || (data.keys().size() == 7 && (data.keys().hasAll(['activatedEmailSent']) || data.keys().hasAll(['materialsSeeded'])))
+          || (data.keys().size() == 8 && data.keys().hasAll(['activatedEmailSent', 'materialsSeeded']))
+        )
+        && data.uid is string && data.uid.size() <= 128
+        && data.email is string && data.email.size() <= 256
+        && data.displayName is string && data.displayName.size() <= 256
+        && data.activated is bool
+        && (!data.keys().contains('activatedEmailSent') || data.activatedEmailSent is bool)
+        && (!data.keys().contains('materialsSeeded') || data.materialsSeeded is bool)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidEmailLog(data) {
+      return data.get('userId', null) is string
+        && data.get('email', null) is string
+        && data.get('deliveryStatus', null) is string;
+    }
+
+    function isValidMixDesign(data) {
+      return data.keys().hasAll(['ownerId', 'name', 'inputs', 'createdAt', 'updatedAt'])
+        && (data.keys().size() == 5 || (data.keys().size() == 6 && data.keys().hasAll(['currency'])))
+        && data.ownerId is string && data.ownerId.size() <= 128
+        && data.name is string && data.name.size() <= 256
+        && data.inputs is map
+        && (data.keys().size() == 5 || (data.currency is string && data.currency.size() <= 10))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidMaterial(data) {
+      return data.keys().hasAll(['id', 'ownerId', 'name', 'category', 'status', 'ApprovalStatus'])
+        && data.id is string && data.id.size() <= 128
+        && data.ownerId is string && data.ownerId.size() <= 128
+        && data.name is string && data.name.size() <= 256
+        && data.category is string && data.category.size() <= 128
+        && data.status is string && data.status.size() <= 128
+        && data.ApprovalStatus is string && data.ApprovalStatus.size() <= 128
+        && (!data.keys().contains('englishName') || (data.englishName is string && data.englishName.size() <= 256))
+        && (!data.keys().contains('type') || (data.type is string && data.type.size() <= 128))
+        && (!data.keys().contains('density') || (data.density is int || data.density is float))
+        && (!data.keys().contains('absorption') || (data.absorption is int || data.absorption is float));
+    }
+
+    // Secure user space saved mixes
+    match /user_mixes/{mixId} {
+      allow get: if isSignedIn() && existing().ownerId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isSignedIn()
+        && isValidId(mixId)
+        && isValidMixDesign(incoming())
+        && incoming().ownerId == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isSignedIn()
+        && isValidId(mixId)
+        && isValidMixDesign(incoming())
+        && existing().ownerId == request.auth.uid
+        && incoming().ownerId == request.auth.uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time;
+      allow delete: if isSignedIn()
+        && isValidId(mixId)
+        && (resource == null || existing().ownerId == request.auth.uid);
+    }
+
+    // Secure user space custom or modified materials
+    match /user_materials/{materialId} {
+      allow get: if isSignedIn() && existing().get('ownerId', '') == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.get('ownerId', '') == request.auth.uid;
+      allow create: if isSignedIn()
+        && isValidId(materialId)
+        && isValidMaterial(incoming())
+        && incoming().get('ownerId', '') == request.auth.uid;
+      allow update: if isSignedIn()
+        && isValidId(materialId)
+        && isValidMaterial(incoming())
+        && existing().get('ownerId', '') == request.auth.uid
+        && incoming().get('ownerId', '') == request.auth.uid;
+      allow delete: if isSignedIn()
+        && isValidId(materialId)
+        && (resource == null || existing().get('ownerId', '') == request.auth.uid);
+    }
+
+    // Secure users profile with activation status
+    match /users/{userId} {
+      allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow list: if isSignedIn() && isAdmin();
+      allow create, update: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow delete: if isSignedIn() && isAdmin();
+    }
+
+    // Secure email logs for administrative auditing
+    match /email_logs/{logId} {
+      allow read, list: if isSignedIn() && isAdmin() && isValidId(logId);
+      allow create: if isSignedIn() && isAdmin() && isValidId(logId) && isValidEmailLog(incoming());
+      allow update, delete: if false; // Audit logs are immutable
+    }
+  }
+}

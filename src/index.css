@@ -1,0 +1,284 @@
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;750&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Cairo", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  /* Custom slate scale extensions to resolve the non-standard colors used in the app */
+  --color-slate-105: #f4f6f9;
+  --color-slate-150: #ebf0f6;
+  --color-slate-205: #dae2ec;
+  --color-slate-250: #d1dbe5;
+  --color-slate-350: #b0b9c6;
+  --color-slate-355: #a3afbf;
+  --color-slate-440: #7e8d9f;
+  --color-slate-450: #708090;
+  --color-slate-455: #6b7a90;
+  --color-slate-505: #5e6f82;
+  --color-slate-550: #55687d;
+  --color-slate-650: #4a5768;
+  --color-slate-655: #404d5e;
+  --color-slate-705: #354356;
+  --color-slate-750: #2d3748;
+  --color-slate-755: #2a3544;
+  --color-slate-805: #222d3d;
+  --color-slate-850: #1b2230;
+  --color-slate-855: #171f2a;
+
+  /* Custom indigo scale extensions */
+  --color-indigo-150: #e8ecfb;
+  --color-indigo-405: #7983f2;
+  --color-indigo-550: #5951e6;
+
+  /* Custom emerald scale extensions */
+  --color-emerald-350: #54d9a3;
+  --color-emerald-605: #059669;
+}
+
+body {
+  font-family: "Cairo", "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Accessibility contrast adjustments for Light Theme */
+#main-layout-root:not(.dark),
+#sno-landing-page-root:not(.dark) {
+  color: #1E293B !important;
+}
+
+#main-layout-root:not(.dark) .text-slate-900,
+#main-layout-root:not(.dark) .text-slate-855,
+#main-layout-root:not(.dark) .text-slate-850,
+#main-layout-root:not(.dark) .text-slate-805,
+#main-layout-root:not(.dark) .text-slate-800,
+#main-layout-root:not(.dark) .text-slate-755,
+#main-layout-root:not(.dark) .text-slate-750,
+#main-layout-root:not(.dark) .text-slate-705,
+#main-layout-root:not(.dark) .text-stone-900,
+#main-layout-root:not(.dark) .text-stone-800,
+#main-layout-root:not(.dark) .text-\[\#0F172A\],
+#sno-landing-page-root:not(.dark) .text-slate-900,
+#sno-landing-page-root:not(.dark) .text-slate-855,
+#sno-landing-page-root:not(.dark) .text-slate-850,
+#sno-landing-page-root:not(.dark) .text-slate-805,
+#sno-landing-page-root:not(.dark) .text-slate-800,
+#sno-landing-page-root:not(.dark) .text-slate-755,
+#sno-landing-page-root:not(.dark) .text-slate-750,
+#sno-landing-page-root:not(.dark) .text-slate-705,
+#sno-landing-page-root:not(.dark) .text-stone-900,
+#sno-landing-page-root:not(.dark) .text-stone-800,
+#sno-landing-page-root:not(.dark) .text-\[\#0F172A\] {
+  color: #1E293B !important;
+}
+
+#main-layout-root:not(.dark) .text-slate-655,
+#main-layout-root:not(.dark) .text-slate-650,
+#main-layout-root:not(.dark) .text-slate-600,
+#main-layout-root:not(.dark) .text-slate-550,
+#main-layout-root:not(.dark) .text-slate-505,
+#main-layout-root:not(.dark) .text-slate-500,
+#main-layout-root:not(.dark) .text-slate-455,
+#main-layout-root:not(.dark) .text-slate-450,
+#main-layout-root:not(.dark) .text-slate-440,
+#main-layout-root:not(.dark) .text-slate-400,
+#main-layout-root:not(.dark) .text-stone-600,
+#main-layout-root:not(.dark) .text-stone-500,
+#sno-landing-page-root:not(.dark) .text-slate-655,
+#sno-landing-page-root:not(.dark) .text-slate-650,
+#sno-landing-page-root:not(.dark) .text-slate-600,
+#sno-landing-page-root:not(.dark) .text-slate-550,
+#sno-landing-page-root:not(.dark) .text-slate-505,
+#sno-landing-page-root:not(.dark) .text-slate-500,
+#sno-landing-page-root:not(.dark) .text-slate-455,
+#sno-landing-page-root:not(.dark) .text-slate-450,
+#sno-landing-page-root:not(.dark) .text-slate-440,
+#sno-landing-page-root:not(.dark) .text-slate-400,
+#sno-landing-page-root:not(.dark) .text-stone-600,
+#sno-landing-page-root:not(.dark) .text-stone-500 {
+  color: #475569 !important;
+}
+
+
+/* 
+=============================================================================
+   PROFESSIONAL CONCRETE MIX DESIGN PRINT STYLESHEET
+   Standardizes browser printout sizing for A4 portrait engineering documents.
+=============================================================================
+*/
+@media print {
+  /* Set exact page dimensions and standard portrait margins */
+  @page {
+    size: A4 portrait;
+    margin: 12mm 15mm 15mm 15mm;
+  }
+
+  /* Reset layout basics to guarantee black/slate text on pure white backgrounds */
+  html, body {
+    background-color: #ffffff !important;
+    background-image: none !important;
+    color: #0f172a !important; /* slate-900 */
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+    font-size: 10pt !important;
+    line-height: 1.35 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important; /* Keeps table accent bars & progress percents visible */
+  }
+
+  /* Force hidden elements on interactive UI widgets */
+  header,
+  footer,
+  aside,
+  button,
+  input,
+  select,
+  textarea,
+  iframe,
+  #inputs-control-rail,
+  #mixwizard-inputs-panel,
+  #metric-parameters-card,
+  #ingredient-split-panel,
+  #scale-proportion-dashboard,
+  #quick-spec-dashboard,
+  #admixture-selector-section,
+  #batch-scaler-container,
+  .print\:hidden {
+    display: none !important;
+    height: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+  }
+
+  /* Open the workspace to full printable width */
+  main,
+  #main-content-grid,
+  #mixwizard-grid-workspace {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+    border: none !important;
+  }
+
+  /* Force output panel containing our recipe report to consume full page space */
+  #outputs-display-board,
+  #mixwizard-outputs-panel {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+  }
+
+  /* Strip card border/shadow lines for clean document printing */
+  #concrete-mix-report-card {
+    display: block !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+    width: 100% !important;
+  }
+
+  /* Make sure side-by-side tables are balanced inside grid layouts */
+  .grid,
+  .lg\:grid-cols-2 {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 16px !important;
+    width: 100% !important;
+  }
+
+  /* Format table styling to clear, thick printable borders and readability */
+  table {
+    border-collapse: collapse !important;
+    width: 100% !important;
+    margin-top: 4px !important;
+    margin-bottom: 4px !important;
+  }
+
+  thead {
+    display: table-header-group !important;
+  }
+
+  tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  th, td {
+    border: 1px solid #cbd5e1 !important; /* slate-300 */
+    padding: 6px 8px !important;
+    font-size: 8.5pt !important;
+    color: #000000 !important;
+    background: transparent !important;
+    word-break: keep-all !important;
+  }
+
+  th {
+    background-color: #f1f5f9 !important; /* slate-100 */
+    font-weight: bold !important;
+    color: #0f172a !important;
+  }
+
+  /* Ensure background color highlights for scale quantities print perfectly */
+  .bg-amber-500\/5,
+  .bg-amber-500\/10,
+  .bg-amber-500\/20,
+  .bg-slate-50,
+  .bg-slate-105\/50,
+  .bg-slate-105 {
+    background-color: #f1f5f9 !important; /* slate-50 */
+  }
+
+  /* Ensure the left highlighting borders print cleanly on report tables */
+  .border-l-4 {
+    border-left: 4px solid #d97706 !important; /* solid amber-600 */
+  }
+
+  /* Print progress bar percentages for material ratios with real solid colors */
+  .bg-slate-900,
+  .dark\:bg-slate-800 {
+    background-color: #0f172a !important;
+  }
+  .bg-sky-600,
+  .dark\:bg-sky-700 {
+    background-color: #0284c7 !important;
+  }
+  .bg-amber-500 {
+    background-color: #d97706 !important;
+  }
+  .bg-stone-500 {
+    background-color: #716b64 !important;
+  }
+  
+  /* Text and details sizing adjusters */
+  .text-xs {
+    font-size: 8.5pt !important;
+  }
+  .text-\[10px\] {
+    font-size: 7.5pt !important;
+  }
+  .text-xl {
+    font-size: 13pt !important;
+  }
+  .mb-5 {
+    margin-bottom: 8px !important;
+  }
+  .p-5, .p-6 {
+    padding: 12px !important;
+  }
+
+  /* Prevent page cutoff within sections */
+  #concrete-mix-report-card > div,
+  #concrete-mix-report-card > section {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+}

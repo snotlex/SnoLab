@@ -1,0 +1,72 @@
+[
+  {
+    "id": "gpc_mix_design",
+    "nameAr": "تصميم خرسانة الجيوبوليمر (GPC)",
+    "nameEn": "Geopolymer Concrete Mix Design",
+    "status": "UNVERIFIED — DO NOT USE IN PRODUCTION",
+    "sourceType": "NONE",
+    "sourceTitle": "Extrapolated Ad-Hoc Material Substitution",
+    "confidenceLevel": "LOW",
+    "scientificAnalysis": "الخرسانة الجيوبوليمرية تلغي الإسمنت تماماً. تعتمد طريقة Dreux-Gorisse بالكامل على علاقة Bolomey التي تربط مقاومة الضغط بنسبة الإسمنت إلى الماء (C/W) ورتبة مقاومة الإسمنت البورتلاندي (fce). محاولة تطبيق نفس المعادلات الحجمية وقيم الرص عند استبدال الإسمنت برماد متطاير أو خبث منشط قلوياً دون معايرة كيميائية وفيزيائية دقيقة ومستقلة تعتبر قفزة علمية غير موثقة قد تؤدي لخلل إنشائي كارثي في مواقع العمل."
+  },
+  {
+    "id": "pervious_mix_design",
+    "nameAr": "تصميم الخرسانة النفاذة للمياه (Pervious)",
+    "nameEn": "Pervious Concrete Mix Design",
+    "status": "UNVERIFIED — DO NOT USE IN PRODUCTION",
+    "sourceType": "NONE",
+    "sourceTitle": "Discontinuous Grading Structure Extrapolation",
+    "confidenceLevel": "LOW",
+    "scientificAnalysis": "تعتمد الخرسانة النفاذة على إلغاء الرمل (أقل من 15٪) للحصول على فراغات مفتوحة لتصريف المياه. إن الركيزة الرياضية الأساسية لطريقة Dreux-Gorisse هي منحنى التدرج المستمر المتماشي مع النقطة الانعطافية (Pivot Point). غياب الرمل يكسر استمرارية المنحنى الحبيبي بالكامل، مما يمنع مطابقة المنحنيات بشكل صحيح. تصميم هذه الخرسانة عبر معادلات Dreux القياسية غير صحيح فيزيائياً ويقود لخرسانة غير متماسكة أو كتيمة."
+  },
+  {
+    "id": "rac_mix_design",
+    "nameAr": "تصميم خرسانة الركام المعاد تدويره (RAC)",
+    "nameEn": "Recycled Aggregate Concrete Mix Design",
+    "status": "UNVERIFIED — DO NOT USE IN PRODUCTION",
+    "sourceType": "NONE",
+    "sourceTitle": "Standard Compactness Table Misapplication",
+    "confidenceLevel": "MEDIUM_LOW",
+    "scientificAnalysis": "الركام المعاد تدويره يحتوي على عجينة إسمنتية قديمة متشبثة به، مما يزيد معامل امتصاص الماء لثلاثة أضعاف ويخفض الوزن النوعي. تطبيق جداول الكثافة الرصية (Gamma 0) القياسية لـ Dreux-Gorisse (المعايرة لركام طبيعي كثيف ومغسول) دون إدخال معاملات تصحيح خاصة للركام المعاد تدويره ينتج عنه خلطات جافة جداً أو ضعيفة المقاومة لعدم دقة حسابات الحجم الحقيقي والماء الفعال."
+  },
+  {
+    "id": "uhpc_bfup_mix_design",
+    "nameAr": "تصميم خرسانة UHPC / BFUP فائقة الأداء",
+    "nameEn": "Ultra-High Performance Concrete / Fiber-Reinforced",
+    "status": "VERIFIED_WITH_EMPIRICAL_ADJUSTMENT",
+    "sourceType": "BOOK",
+    "sourceTitle": "Bétons Fibrés Ultra-Performants - Recommandations AFGC",
+    "confidenceLevel": "MEDIUM",
+    "scientificAnalysis": "تعتمد خرسانة UHPC على تدرج نانوي مغلق للسيليكا المجهرية وسوائل تسييل فائقة وتعديل يدوي للمنحنى الحبيبي. لا يمكن تصميمها مباشرة بجداول Dreux-Gorisse التقليدية دون تكييف يدوي جذري يقلل النقطة الانعطافية Y لتعويض السيولة الكبيرة، وإضافة ألياف فولاذية إنشائية مانعة للتشقق المقاوم للقص."
+  },
+  {
+    "id": "shc_mix_design",
+    "nameAr": "تصميم الخرسانة ذاتية المعالجة (SHC)",
+    "nameEn": "Self-Healing Concrete Mix Design",
+    "status": "VERIFIED_WITH_EMPIRICAL_ADJUSTMENT",
+    "sourceType": "STANDARDS",
+    "sourceTitle": "RILEM TC 263-EEC",
+    "confidenceLevel": "HIGH",
+    "scientificAnalysis": "الخرسانة ذاتية المعالجة تتبع التصميم الإنشائي الطبيعي لـ Dreux-Gorisse مع إدخال كبسولات بكتيرية كملحق إضافي. يجب فقط التأكد من عدم سمية المضافات الكيميائية الأخرى للحفاظ على سلامة الخلايا الحية المسؤولة عن الترسيب البلوري لكربونات الكالسيوم."
+  },
+  {
+    "id": "fce_estimation",
+    "nameAr": "معادلة تقدير مقاومة الإسمنت الفعلية fce",
+    "nameEn": "Empirical Cement Strength Approximation",
+    "status": "VERIFIED_WITH_EMPIRICAL_ADJUSTMENT",
+    "sourceType": "BOOK",
+    "sourceTitle": "La Pratique des Bétons, Georges Dreux",
+    "confidenceLevel": "HIGH",
+    "scientificAnalysis": "المعادلة fce = cementClassStrength * 1.1 هي علاقة تقريبية فرنسية وجزائرية تعترف بأن الإسمنت في الواقع يتجاوز مقاومته الاسمية الدنيا بحوالي 10٪ (مثال: رتبة 42.5 تعطي 46.7 ميغاباسكال في ظروف الاختبار القياسية بعد 28 يوماً)."
+  },
+  {
+    "id": "pivot_point_adjustment",
+    "nameAr": "معادلة تعديل النقطة الانعطافية الحبيبية Y",
+    "nameEn": "Granular Pivot Point Y Adjustment",
+    "status": "VERIFIED_WITH_EMPIRICAL_ADJUSTMENT",
+    "sourceType": "BOOK",
+    "sourceTitle": "Modifications Georges Dreux - Gorisse (1970)",
+    "confidenceLevel": "HIGH",
+    "scientificAnalysis": "معادلة Y = 50 - sqrt(Dmax) + K هي الأساس المعتمد لتعديل المنحنى المرجعي لدمج الركام الناعم والخشن بطريقة Dreux-Gorisse. تعديلها بـ (packingDelta * 40) هو ضبط تجريبي محلي مدعوم بخوارزميات ترسيخ التراص الفراغي لضمان أقصى كثافة رص ميكانيكية."
+  }
+]
