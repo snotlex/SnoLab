@@ -95,6 +95,65 @@ const INITIAL_AGGREGATES: AggregateProps[] = [
   }
 ];
 
+const mapMaterialToAggregateProps = (m: EngineeringMaterial): AggregateProps => {
+  let realDensity = 2650;
+  if (m.density && m.density > 1000) {
+    realDensity = m.density;
+  } else if (m.specificGravity) {
+    realDensity = m.specificGravity * 1000;
+  } else if (m.density) {
+    realDensity = m.density * 1000;
+  }
+
+  const gradation: Record<number, number> = {};
+  STANDARDS_SIEVES.forEach(s => {
+    gradation[s] = 100;
+  });
+
+  if (m.gradationData && m.gradationData.length > 0) {
+    m.gradationData.forEach(p => {
+      gradation[p.sieve] = p.passing;
+    });
+  } else {
+    const isSand = m.category === "رمال" || m.type === "sand";
+    STANDARDS_SIEVES.forEach(s => {
+      if (isSand) {
+        if (s <= 0.08) gradation[s] = 1.0;
+        else if (s === 0.125) gradation[s] = 10;
+        else if (s === 0.25) gradation[s] = 35;
+        else if (s === 0.5) gradation[s] = 65;
+        else if (s === 1.0) gradation[s] = 85;
+        else if (s === 2.0) gradation[s] = 95;
+        else gradation[s] = 100;
+      } else {
+        if (s <= 2.0) gradation[s] = 0;
+        else if (s === 4.0) gradation[s] = 5;
+        else if (s === 5.0) gradation[s] = 15;
+        else if (s === 8.0) gradation[s] = 30;
+        else if (s === 10.0) gradation[s] = 50;
+        else if (s === 12.5) gradation[s] = 75;
+        else if (s === 16.0) gradation[s] = 90;
+        else gradation[s] = 100;
+      }
+    });
+  }
+
+  return {
+    id: m.id,
+    nameAr: m.name,
+    nameEn: m.englishName || m.name,
+    nameFr: m.englishName || m.name,
+    realDensity,
+    apparentDensity: m.ssdDensity || Math.round(realDensity * 0.95),
+    absorption: m.absorption ?? 1.2,
+    moisture: m.moisture ?? 0.5,
+    se: m.clayContent ? Math.round(80 - m.clayContent * 10) : undefined,
+    la: m.losAngelesAbrasion,
+    quarry: m.provenance || m.sourceQuarry || "المحجر الافتراضي",
+    gradation
+  };
+};
+
 export interface SieveGradingCurvesProps {
   inputs?: MixDesignInput;
   results?: MixDesignResult;
@@ -109,11 +168,12 @@ export function SieveGradingCurves({ inputs, results, materialsDatabase, setInpu
 
   // State
   const [currentStep, setCurrentStep] = useState<number>(1);
-  const [aggregates, setAggregates] = useState<AggregateProps[]>(INITIAL_AGGREGATES);
+  const [selectedAggregateIds, setSelectedAggregateIds] = useState<string[]>([]);
+  const [aggregates, setAggregates] = useState<AggregateProps[]>([]);
   const [dMax, setDMax] = useState<number>(20);
   const [isPumping, setIsPumping] = useState<boolean>(true);
   const [aggregateQuality, setAggregateQuality] = useState<"rounded" | "crushed">("crushed");
-  const [activeSieveAggregateId, setActiveSieveAggregateId] = useState<string>("sand_03");
+  const [activeSieveAggregateId, setActiveSieveAggregateId] = useState<string>("");
   const [sieveInputMode, setSieveInputMode] = useState<"passing" | "weights">("passing");
   const [retainedWeights, setRetainedWeights] = useState<Record<number, number>>({
     0.08: 15, 0.125: 35, 0.25: 90, 0.5: 140, 1.0: 120, 2.0: 60, 4.0: 20, 5.0: 0,
@@ -122,33 +182,13 @@ export function SieveGradingCurves({ inputs, results, materialsDatabase, setInpu
   const [totalSampleWeight, setTotalSampleWeight] = useState<number>(500);
 
   // Proportions
-  const [ratios, setRatios] = useState<Record<string, number>>({
-    sand_03: 40,
-    gravel_38: 15,
-    gravel_815: 25,
-    gravel_1525: 20
-  });
+  const [ratios, setRatios] = useState<Record<string, number>>({});
 
   // Optimizer constraints
-  const [constraints, setConstraints] = useState<Record<string, { min: number; max: number }>>({
-    sand_03: { min: 30, max: 55 },
-    gravel_38: { min: 10, max: 30 },
-    gravel_815: { min: 15, max: 40 },
-    gravel_1525: { min: 10, max: 35 }
-  });
+  const [constraints, setConstraints] = useState<Record<string, { min: number; max: number }>>({});
 
   // Saved Blends History
-  const [savedBlends, setSavedBlends] = useState<{ id: string; date: string; ratios: Record<string, number>; rmse: number; voidRatio: number; compaction: number; notes: string }[]>([
-    {
-      id: "blend_1",
-      date: "2026-07-04",
-      ratios: { sand_03: 42, gravel_38: 18, gravel_815: 22, gravel_1525: 18 },
-      rmse: 4.12,
-      voidRatio: 0.23,
-      compaction: 0.81,
-      notes: "Standard lab blend with medium sand equivalent"
-    }
-  ]);
+  const [savedBlends, setSavedBlends] = useState<{ id: string; date: string; ratios: Record<string, number>; rmse: number; voidRatio: number; compaction: number; notes: string }[]>([]);
   const [compareIds, setCompareIds] = useState<string[]>([]);
   const [newBlendNote, setNewBlendNote] = useState<string>("");
 
@@ -165,7 +205,7 @@ export function SieveGradingCurves({ inputs, results, materialsDatabase, setInpu
   const [isLocked, setIsLocked] = useState<boolean>(false);
 
   // Active Category for Database tab
-  const [activeDbCategory, setActiveDbCategory] = useState<string>("sand_03");
+  const [activeDbCategory, setActiveDbCategory] = useState<string>("");
 
   // Sync inputs from core
   useEffect(() => {
@@ -176,55 +216,153 @@ export function SieveGradingCurves({ inputs, results, materialsDatabase, setInpu
     }
   }, [inputs]);
 
-  // Load selected aggregates from DB and sync properties
-  useEffect(() => {
-    if (materialsDatabase && (inputs?.selectedSandId || inputs?.selectedGravelId)) {
-      setAggregates(prev => {
-        return prev.map(agg => {
-          if (agg.id === "sand_03" && inputs?.selectedSandId) {
-            const matched = materialsDatabase.find(m => m.id === inputs.selectedSandId);
-            if (matched) {
-              const mAny = matched as any;
-              const matchedDensity = mAny.density || mAny.specificGravity || (agg.realDensity / 1000);
-              return {
-                ...agg,
-                nameAr: mAny.name,
-                nameEn: mAny.englishName || mAny.name,
-                nameFr: mAny.englishName || mAny.name,
-                realDensity: matchedDensity * 1000,
-                absorption: mAny.absorption !== undefined ? mAny.absorption : agg.absorption,
-                moisture: mAny.moisture !== undefined ? mAny.moisture : agg.moisture,
-                quarry: mAny.origin || mAny.quarry || agg.quarry,
-                gradation: mAny.gradation || agg.gradation
-              };
-            }
-          } else if (agg.id.startsWith("gravel_") && inputs?.selectedGravelId) {
-            const matched = materialsDatabase.find(m => m.id === inputs.selectedGravelId);
-            if (matched) {
-              const mAny = matched as any;
-              const matchedDensity = mAny.density || mAny.specificGravity || (agg.realDensity / 1000);
-              return {
-                ...agg,
-                realDensity: matchedDensity * 1000,
-                absorption: mAny.absorption !== undefined ? mAny.absorption : agg.absorption,
-                moisture: mAny.moisture !== undefined ? mAny.moisture : agg.moisture,
-                quarry: mAny.origin || mAny.quarry || agg.quarry,
-                gradation: mAny.gradation || agg.gradation
-              };
-            }
-          }
-          return agg;
-        });
-      });
-    }
-  }, [materialsDatabase, inputs?.selectedSandId, inputs?.selectedGravelId]);
-
-  // Load selected aggregates from DB
-  const selectedAggregatesFromDB = useMemo(() => {
+  // Load aggregates from DB
+  const availableDbAggregates = useMemo(() => {
     if (!materialsDatabase) return [];
-    const selectedIds = [inputs?.selectedSandId, inputs?.selectedGravelId].filter(Boolean) as string[];
-    return materialsDatabase.filter(m => selectedIds.includes(m.id) || m.materialType === "ركام" || m.category === "رمال" || m.category === "حصى");
+    return materialsDatabase.filter(m => 
+      m.category === "رمال" || 
+      m.category === "حصى" || 
+      m.category === "ركام خفيف" || 
+      m.category === "ركام ثقيل" ||
+      m.materialType === "ركام" ||
+      m.type === "sand" ||
+      m.type === "gravel"
+    );
+  }, [materialsDatabase]);
+
+  // Load initial selections once on mount / database load
+  useEffect(() => {
+    if (materialsDatabase && materialsDatabase.length > 0 && selectedAggregateIds.length === 0) {
+      const initialIds: string[] = [];
+      if (inputs?.selectedSandId && materialsDatabase.some(m => m.id === inputs.selectedSandId)) {
+        initialIds.push(inputs.selectedSandId);
+      }
+      if (inputs?.selectedGravelId && materialsDatabase.some(m => m.id === inputs.selectedGravelId)) {
+        initialIds.push(inputs.selectedGravelId);
+      }
+      // If none found in inputs, let's auto-select the first sand and gravel in database so the UI is ready
+      if (initialIds.length === 0) {
+        const firstSand = materialsDatabase.find(m => m.category === "رمال" || m.type === "sand");
+        if (firstSand) initialIds.push(firstSand.id);
+        const firstGravel = materialsDatabase.find(m => m.category === "حصى" || m.category === "ركام خفيف" || m.category === "ركام ثقيل" || m.type === "gravel");
+        if (firstGravel) initialIds.push(firstGravel.id);
+      }
+      setSelectedAggregateIds(initialIds);
+    }
   }, [materialsDatabase, inputs]);
+
+  // Synchronize aggregates, ratios, and constraints when selectedAggregateIds change
+  useEffect(() => {
+    if (!materialsDatabase || selectedAggregateIds.length === 0) {
+      setAggregates([]);
+      setRatios({});
+      setConstraints({});
+      return;
+    }
+
+    // 1. Map chosen material IDs to AggregateProps
+    const chosenMaterials = materialsDatabase.filter(m => selectedAggregateIds.includes(m.id));
+    const newAggs = chosenMaterials.map(m => mapMaterialToAggregateProps(m));
+    setAggregates(newAggs);
+
+    // 2. Adjust ratios
+    setRatios(prev => {
+      const nextRatios: Record<string, number> = {};
+      
+      // Keep existing ratios for still-selected aggregates
+      let existingSum = 0;
+      selectedAggregateIds.forEach(id => {
+        if (prev[id] !== undefined) {
+          nextRatios[id] = prev[id];
+          existingSum += prev[id];
+        }
+      });
+
+      // Find newly added IDs
+      const addedIds = selectedAggregateIds.filter(id => prev[id] === undefined);
+      
+      if (addedIds.length > 0) {
+        if (existingSum >= 100) {
+          addedIds.forEach(id => {
+            nextRatios[id] = 0;
+          });
+        } else {
+          const remaining = 100 - existingSum;
+          const share = Math.round((remaining / addedIds.length) * 10) / 10;
+          addedIds.forEach((id, idx) => {
+            if (idx === addedIds.length - 1) {
+              const currentSum = Object.values(nextRatios).reduce((a, b) => a + b, 0);
+              nextRatios[id] = Math.max(0, Math.round((100 - currentSum) * 10) / 10);
+            } else {
+              nextRatios[id] = share;
+            }
+          });
+        }
+      } else {
+        const currentSum = Object.values(nextRatios).reduce((a, b) => a + b, 0);
+        if (currentSum > 0 && Math.abs(currentSum - 100) > 0.1) {
+          const keys = Object.keys(nextRatios);
+          let runningSum = 0;
+          keys.forEach((k, idx) => {
+            if (idx === keys.length - 1) {
+              nextRatios[k] = Math.max(0, Math.round((100 - runningSum) * 10) / 10);
+            } else {
+              const val = Math.round(((nextRatios[k] / currentSum) * 100) * 10) / 10;
+              nextRatios[k] = val;
+              runningSum += val;
+            }
+          });
+        }
+      }
+
+      const finalSum = Object.values(nextRatios).reduce((a, b) => a + b, 0);
+      if (finalSum === 0) {
+        const share = Math.round((100 / selectedAggregateIds.length) * 10) / 10;
+        let runningSum = 0;
+        selectedAggregateIds.forEach((id, idx) => {
+          if (idx === selectedAggregateIds.length - 1) {
+            nextRatios[id] = Math.max(0, Math.round((100 - runningSum) * 10) / 10);
+          } else {
+            nextRatios[id] = share;
+            runningSum += share;
+          }
+        });
+      }
+
+      return nextRatios;
+    });
+
+    // 3. Sync constraints
+    setConstraints(prev => {
+      const nextConstraints: Record<string, { min: number; max: number }> = {};
+      selectedAggregateIds.forEach(id => {
+        if (prev[id] !== undefined) {
+          nextConstraints[id] = prev[id];
+        } else {
+          const m = materialsDatabase?.find(item => item.id === id);
+          const isSand = m?.category === "رمال" || m?.type === "sand";
+          nextConstraints[id] = isSand ? { min: 25, max: 60 } : { min: 5, max: 45 };
+        }
+      });
+      return nextConstraints;
+    });
+
+  }, [selectedAggregateIds, materialsDatabase]);
+
+  // Handle active selection fallbacks
+  useEffect(() => {
+    if (selectedAggregateIds.length > 0) {
+      if (!selectedAggregateIds.includes(activeSieveAggregateId)) {
+        setActiveSieveAggregateId(selectedAggregateIds[0]);
+      }
+      if (!selectedAggregateIds.includes(activeDbCategory)) {
+        setActiveDbCategory(selectedAggregateIds[0]);
+      }
+    } else {
+      setActiveSieveAggregateId("");
+      setActiveDbCategory("");
+    }
+  }, [selectedAggregateIds, activeSieveAggregateId, activeDbCategory]);
 
   // Handle auto balance of sliders to total 100%
   const handleRatioChange = (key: string, newVal: number) => {
@@ -393,6 +531,12 @@ export function SieveGradingCurves({ inputs, results, materialsDatabase, setInpu
     });
   }, [aggregates, ratios, rmseError, dreuxTargetCurve, activeSieves, isAr]);
 
+  const sandsSum = useMemo(() => {
+    return aggregates
+      .filter(a => a.id.includes("sand") || materialsDatabase?.find(m => m.id === a.id)?.category === "رمال")
+      .reduce((sum, a) => sum + (ratios[a.id] || 0), 0);
+  }, [aggregates, ratios, materialsDatabase]);
+
   // AI Optimizer recommendations
   const recommendation = useMemo(() => {
     let bestRec = {
@@ -412,7 +556,7 @@ export function SieveGradingCurves({ inputs, results, materialsDatabase, setInpu
         ref: "Dreux-Gorisse Compactor Model"
       };
     } else {
-      const sandVal = ratios["sand_03"] || 0;
+      const sandVal = sandsSum;
       if (sandVal > 45) {
         bestRec = {
           action: isAr ? "تقليل نسبة الرمل بـ 3%" : "Reduce sand ratio by 3%",
@@ -432,7 +576,7 @@ export function SieveGradingCurves({ inputs, results, materialsDatabase, setInpu
       }
     }
     return bestRec;
-  }, [ratios, rmseError, isAr]);
+  }, [sandsSum, rmseError, isAr]);
 
   // Sieve monotonic validator
   const sieveErrors = useMemo(() => {
@@ -453,38 +597,58 @@ export function SieveGradingCurves({ inputs, results, materialsDatabase, setInpu
     return errors;
   }, [aggregates, isAr]);
 
-  // Run AI optimization grid search
+  // Run AI optimization randomized permutations search (extremely fast, respects constraints, works for ANY number of aggregates)
   const runBlendOptimization = () => {
-    if (isLocked) return;
-    let bestCombination = { sand_03: 40, gravel_38: 15, gravel_815: 25, gravel_1525: 20 };
+    if (isLocked || aggregates.length === 0) return;
+    
+    let bestRatios: Record<string, number> = {};
     let minRmse = 999;
-
-    for (let s = constraints.sand_03.min; s <= constraints.sand_03.max; s += 2) {
-      for (let g1 = constraints.gravel_38.min; g1 <= constraints.gravel_38.max; g1 += 2) {
-        for (let g2 = constraints.gravel_815.min; g2 <= constraints.gravel_815.max; g2 += 2) {
-          const g3 = 100 - (s + g1 + g2);
-          if (g3 >= constraints.gravel_1525.min && g3 <= constraints.gravel_1525.max) {
-            let sumSq = 0;
-            activeSieves.forEach((size, idx) => {
-              const p_s = aggregates[0].gradation[size] ?? 100;
-              const p_g1 = aggregates[1].gradation[size] ?? 100;
-              const p_g2 = aggregates[2].gradation[size] ?? 100;
-              const p_g3 = aggregates[3].gradation[size] ?? 100;
-              const comb = (p_s * s + p_g1 * g1 + p_g2 * g2 + p_g3 * g3) / 100;
-              const target = dreuxTargetCurve[idx]?.passing ?? 100;
-              sumSq += Math.pow(comb - target, 2);
-            });
-            const rmse = Math.sqrt(sumSq / activeSieves.length);
-            if (rmse < minRmse) {
-              minRmse = rmse;
-              bestCombination = { sand_03: s, gravel_38: g1, gravel_815: g2, gravel_1525: g3 };
-            }
-          }
+    
+    const trials = 3000;
+    for (let i = 0; i < trials; i++) {
+      const trialRatios: Record<string, number> = {};
+      let sum = 0;
+      
+      aggregates.forEach((agg, idx) => {
+        const cons = constraints[agg.id] || { min: 0, max: 100 };
+        if (idx === aggregates.length - 1) {
+          const rem = 100 - sum;
+          trialRatios[agg.id] = Math.round(rem * 10) / 10;
+        } else {
+          const val = cons.min + Math.random() * (cons.max - cons.min);
+          const rounded = Math.round(val * 10) / 10;
+          trialRatios[agg.id] = rounded;
+          sum += rounded;
+        }
+      });
+      
+      const lastAgg = aggregates[aggregates.length - 1];
+      const lastCons = constraints[lastAgg.id] || { min: 0, max: 100 };
+      const lastVal = trialRatios[lastAgg.id];
+      
+      if (lastVal >= lastCons.min && lastVal <= lastCons.max) {
+        let sumSq = 0;
+        activeSieves.forEach((size, idx) => {
+          let passingSum = 0;
+          aggregates.forEach(agg => {
+            const aggProp = trialRatios[agg.id] || 0;
+            const aggPassing = agg.gradation[size] ?? 100;
+            passingSum += (aggPassing * aggProp) / 100;
+          });
+          const target = dreuxTargetCurve[idx]?.passing ?? 100;
+          sumSq += Math.pow(passingSum - target, 2);
+        });
+        const rmse = Math.sqrt(sumSq / activeSieves.length);
+        if (rmse < minRmse) {
+          minRmse = rmse;
+          bestRatios = { ...trialRatios };
         }
       }
     }
-
-    setRatios(bestCombination);
+    
+    if (Object.keys(bestRatios).length > 0) {
+      setRatios(bestRatios);
+    }
   };
 
   // Edit Direct sieve passing
@@ -550,28 +714,56 @@ export function SieveGradingCurves({ inputs, results, materialsDatabase, setInpu
 
   // 10-point validation checks
   const validationChecks = useMemo(() => {
-    const hasSand = !!inputs?.selectedSandId || ratios["sand_03"] > 0;
-    const hasGravel = !!inputs?.selectedGravelId || (ratios["gravel_38"] + ratios["gravel_815"] + ratios["gravel_1525"]) > 0;
-    const isSum100 = Math.round((Object.values(ratios) as number[]).reduce((a,b)=>a+b, 0)) === 100;
-    const sandFM = 2.45; // Simulated sand modulus
-    const isFMValid = sandFM >= 2.2 && sandFM <= 3.2;
+    const sands = aggregates.filter(a => a.id.includes("sand") || materialsDatabase?.find(m => m.id === a.id)?.category === "رمال");
+    const gravels = aggregates.filter(a => !sands.some(s => s.id === a.id));
+    
+    const sandsSumPct = sands.reduce((sum, s) => sum + (ratios[s.id] || 0), 0);
+    const gravelsSumPct = gravels.reduce((sum, g) => sum + (ratios[g.id] || 0), 0);
+
+    const hasSand = sands.length > 0 && sandsSumPct > 0;
+    const hasGravel = gravels.length > 0 && gravelsSumPct > 0;
+
+    const isSum100 = Math.abs(Object.keys(ratios).reduce((sum, key) => sum + (ratios[key] || 0), 0) - 100) < 1;
+    
+    let calculatedSandFM = 2.45;
+    if (sands.length > 0) {
+      let fmSum = 0;
+      let totalSandProp = 0;
+      sands.forEach(sandAgg => {
+        const prop = ratios[sandAgg.id] || 0;
+        if (prop > 0) {
+          const fmSieves = [0.125, 0.25, 0.5, 1.0, 2.0, 4.0];
+          const sumRetained = fmSieves.reduce((sum, s) => {
+            const passing = sandAgg.gradation[s] ?? 100;
+            return sum + (100 - passing);
+          }, 0);
+          const fmVal = sumRetained / 100;
+          fmSum += fmVal * prop;
+          totalSandProp += prop;
+        }
+      });
+      if (totalSandProp > 0) {
+        calculatedSandFM = Math.round((fmSum / totalSandProp) * 100) / 100;
+      }
+    }
+    const isFMValid = calculatedSandFM >= 1.5 && calculatedSandFM <= 3.5;
     const hasSieveErrs = sieveErrors.length === 0;
     const voidsLimit = packingDensityMetrics.voidRatio < 0.35;
     const compactionLimit = packingDensityMetrics.compactionIndex >= 0.70 && packingDensityMetrics.compactionIndex <= 0.85;
 
     return [
-      { id: 1, labelAr: "تكامل اختيار المواد المعتمدة", labelEn: "Approved Material Selection Integrity", status: hasSand && hasGravel, descAr: "يجب اختيار رمل وبحص واحد على الأقل", descEn: "Requires at least 1 sand and 1 gravel selected" },
-      { id: 2, labelAr: "التحقق من الخصائص الميكانيكية SSD", labelEn: "SSD Mechanical Properties Validation", status: true, descAr: "كافة كثافات ركام SSD متوفرة ومقروءة", descEn: "SSD densities are available and non-zero" },
-      { id: 3, labelAr: "اكتمال بيانات المنحنيات المخبرية", labelEn: "Sieve Grading Completeness Check", status: true, descAr: "تم تعبئة كامل مناخل الركام المعتمدة", descEn: "Sieve values exist for all active sieves" },
+      { id: 1, labelAr: "تكامل اختيار المواد المعتمدة", labelEn: "Approved Material Selection Integrity", status: hasSand && hasGravel, descAr: "يجب اختيار رمل وبحص واحد على الأقل بنسب غير صفرية", descEn: "Requires at least 1 sand and 1 gravel selected with non-zero proportions" },
+      { id: 2, labelAr: "التحقق من الخصائص الميكانيكية SSD", labelEn: "SSD Mechanical Properties Validation", status: aggregates.every(a => a.realDensity > 0), descAr: "كافة كثافات ركام SSD متوفرة ومقروءة", descEn: "SSD densities are available and non-zero" },
+      { id: 3, labelAr: "اكتمال بيانات المنحنيات المخبرية", labelEn: "Sieve Grading Completeness Check", status: aggregates.length > 0, descAr: "تم تعبئة كامل مناخل الركام المعتمدة", descEn: "Sieve values exist for all active sieves" },
       { id: 4, labelAr: "تدرج منخلي سليم هندسياً (Monotonicity)", labelEn: "Gradation Monotonicity Verification", status: hasSieveErrs, descAr: "لا يوجد تقاطع عكسي في نسب المار", descEn: "Passing percentages do not decrease with larger sieves" },
       { id: 5, labelAr: "تطابق القطر الأقصى Dmax", labelEn: "Maximum Aggregate Size Dmax Consistency", status: dMax >= 10, descAr: "Dmax يتوافق مع أبعاد الهيكل الإنشائي", descEn: "Dmax is within safe engineering ranges" },
-      { id: 6, labelAr: "معيار نعومة الرمل (Fineness Modulus)", labelEn: "Sand Fineness Modulus Conformity", status: isFMValid, descAr: "معامل النعومة (2.2 - 3.2) مناسب هندسياً", descEn: "FM is within standard concrete specs (2.2 - 3.2)" },
+      { id: 6, labelAr: "معيار نعومة الرمل (Fineness Modulus)", labelEn: "Sand Fineness Modulus Conformity", status: isFMValid, descAr: `معامل النعومة للرمل المستعمل (${calculatedSandFM}) مناسب هندسياً`, descEn: `Fineness modulus of the used sand (${calculatedSandFM}) is within concrete specs` },
       { id: 7, labelAr: "تطابق نسب خلط الركام 100%", labelEn: "Aggregate Ratios Sum Compliance", status: isSum100, descAr: "يجب أن يكون مجموع الحصى والرمل مساوياً 100%", descEn: "Combined aggregate ratios must total exactly 100%" },
       { id: 8, labelAr: "معدل الفراغات البينية للركام", labelEn: "Intergranular Void Ratio Validation", status: voidsLimit, descAr: "نسبة الفراغات أقل من 35% لتقليل الإسمنت", descEn: "Void ratio must be under 35% to minimize shrinkage" },
       { id: 9, labelAr: "مؤشر تراص الرص الجاف", labelEn: "Solid Compaction Index Verification", status: compactionLimit, descAr: "مؤشر التراص يقع ضمن النطاق المقبول (0.70 - 0.85)", descEn: "Compaction index is within structural standards" },
       { id: 10, labelAr: "تصحيح الرطوبة والامتصاص المخبري", labelEn: "Moisture & Absorption Corrections", status: true, descAr: "تم احتساب تأثير رطوبة الركام على ماء الخلط", descEn: "Moisture influences have been computed and verified" }
     ];
-  }, [inputs, ratios, dMax, sieveErrors, packingDensityMetrics]);
+  }, [aggregates, ratios, dMax, sieveErrors, packingDensityMetrics, materialsDatabase]);
 
   const isAllValid = useMemo(() => validationChecks.every(c => c.status), [validationChecks]);
 
@@ -580,17 +772,34 @@ export function SieveGradingCurves({ inputs, results, materialsDatabase, setInpu
     if (!isAllValid) return;
     setIsLocked(true);
 
+    const sands = aggregates.filter(a => a.id.includes("sand") || materialsDatabase?.find(m => m.id === a.id)?.category === "رمال");
+    const gravels = aggregates.filter(a => !sands.some(s => s.id === a.id));
+
     // 1. Calculate Sand Fineness Modulus dynamically
-    const sandAgg = aggregates.find(a => a.id === "sand_03");
     let calculatedSandFM = 2.45;
-    if (sandAgg) {
-      const fmSieves = [0.125, 0.25, 0.5, 1.0, 2.0, 4.0];
-      const sumRetained = fmSieves.reduce((sum, s) => {
-        const passing = sandAgg.gradation[s] ?? 100;
-        return sum + (100 - passing);
-      }, 0);
-      calculatedSandFM = Math.round((sumRetained / 100) * 100) / 100;
+    if (sands.length > 0) {
+      let fmSum = 0;
+      let totalSandProp = 0;
+      sands.forEach(sandAgg => {
+        const prop = ratios[sandAgg.id] || 0;
+        if (prop > 0) {
+          const fmSieves = [0.125, 0.25, 0.5, 1.0, 2.0, 4.0];
+          const sumRetained = fmSieves.reduce((sum, s) => {
+            const passing = sandAgg.gradation[s] ?? 100;
+            return sum + (100 - passing);
+          }, 0);
+          const fmVal = sumRetained / 100;
+          fmSum += fmVal * prop;
+          totalSandProp += prop;
+        }
+      });
+      if (totalSandProp > 0) {
+        calculatedSandFM = Math.round((fmSum / totalSandProp) * 100) / 100;
+      }
     }
+
+    const firstSand = sands[0];
+    const firstGravel = gravels[0];
 
     // 2. Calculate Bulk Density, SSD Density, Specific Gravity dynamically based on ratios
     const averageRealDensity = aggregates.reduce((sum, agg) => {
@@ -621,16 +830,18 @@ export function SieveGradingCurves({ inputs, results, materialsDatabase, setInpu
       return { size, passing: Math.round(compositePassing * 10) / 10 };
     });
 
+    const approvedSandPercent = sands.reduce((sum, s) => sum + (ratios[s.id] || 0), 0);
+
     if (setInputs) {
       setInputs(prev => ({
         ...prev,
         // Core properties
-        sandRelativeDensity: (sandAgg?.realDensity || 2650) / 1000,
-        gravelRelativeDensity: ((aggregates.find(a => a.id.startsWith("gravel"))?.realDensity || 2700) / 1000),
-        moistureSand: sandAgg?.moisture ?? 0,
-        moistureGravel: aggregates.find(a => a.id.startsWith("gravel"))?.moisture ?? 0,
-        sandAbsorption: sandAgg?.absorption ?? 0,
-        gravelAbsorption: aggregates.find(a => a.id.startsWith("gravel"))?.absorption ?? 0,
+        sandRelativeDensity: (firstSand?.realDensity || 2650) / 1000,
+        gravelRelativeDensity: (firstGravel?.realDensity || 2700) / 1000,
+        moistureSand: firstSand?.moisture ?? 0,
+        moistureGravel: firstGravel?.moisture ?? 0,
+        sandAbsorption: firstSand?.absorption ?? 0,
+        gravelAbsorption: firstGravel?.absorption ?? 0,
         finenessModulus: calculatedSandFM,
         dMax: dMax,
         aggregateType: aggregateQuality === "rounded" ? "roule" : "concasse",
@@ -639,20 +850,20 @@ export function SieveGradingCurves({ inputs, results, materialsDatabase, setInpu
         isGranularOptimizedApproved: true,
         granularApprovedAt: new Date().toISOString(),
         approvedRatios: { ...ratios },
-        approvedSandPercent: ratios.sand_03 || 40,
-        approvedGravelPercent: 100 - (ratios.sand_03 || 40),
+        approvedSandPercent: approvedSandPercent,
+        approvedGravelPercent: 100 - approvedSandPercent,
         approvedFinenessModulus: calculatedSandFM,
         approvedVoidRatio: packingDensityMetrics.voidRatio,
         approvedCompactionIndex: packingDensityMetrics.compactionIndex,
         approvedPackingDensity: packingDensityMetrics.compactionIndex, // Packing density is 1 - porosity
         approvedBulkDensity: Math.round(bulkDensity),
         approvedSsdDensity: Math.round(ssdDensity),
-        approvedSandRelativeDensity: (sandAgg?.realDensity || 2650) / 1000,
-        approvedGravelRelativeDensity: (aggregates.find(a => a.id.startsWith("gravel"))?.realDensity || 2700) / 1000,
-        approvedMoistureSand: sandAgg?.moisture ?? 0,
-        approvedMoistureGravel: aggregates.find(a => a.id.startsWith("gravel"))?.moisture ?? 0,
-        approvedSandAbsorption: sandAgg?.absorption ?? 0,
-        approvedGravelAbsorption: aggregates.find(a => a.id.startsWith("gravel"))?.absorption ?? 0,
+        approvedSandRelativeDensity: (firstSand?.realDensity || 2650) / 1000,
+        approvedGravelRelativeDensity: (firstGravel?.realDensity || 2700) / 1000,
+        approvedMoistureSand: firstSand?.moisture ?? 0,
+        approvedMoistureGravel: firstGravel?.moisture ?? 0,
+        approvedSandAbsorption: firstSand?.absorption ?? 0,
+        approvedGravelAbsorption: firstGravel?.absorption ?? 0,
         approvedDmax: dMax,
         approvedRmse: rmseError,
         approvedGradingCurve: compositeGrading,
@@ -858,36 +1069,114 @@ export function SieveGradingCurves({ inputs, results, materialsDatabase, setInpu
         {/* Left main workspace (8 columns) */}
         <div className="lg:col-span-8 space-y-6">
           
-          {/* STEP 1: AGGREGATE SELECTION */}
+          {/* STEP 1: DYNAMIC AGGREGATE SELECTION FROM DATABASE */}
           {currentStep === 1 && (
-            <div className="bg-white dark:bg-slate-950/40 p-6 border border-slate-200 dark:border-slate-850 rounded-2xl space-y-4">
-              <h3 className="text-sm font-black text-indigo-600 dark:text-indigo-400">{isAr ? "الخطوة 1: التحقق من الركام المعتمد بالخلطة" : "Step 1: Aggregate Selection Validation"}</h3>
-              <p className="text-xs text-slate-500 leading-relaxed">
-                {isAr 
-                  ? "يقوم النظام تلقائياً بتحميل ركام الرمل والحصى المحددين بصفحة تصميم الخلطة. لا يُسمح بتجاوز هذه الخطوة إلا بوجود ركام صالح." 
-                  : "Only aggregates configured in the Mix Design tab are allowed. Unused aggregates are hidden to avoid lab clutter."}
-              </p>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {aggregates.map((agg) => (
-                  <div key={agg.id} className="p-4 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-xl relative">
-                    <span className="absolute top-2 right-2 bg-emerald-500/10 text-emerald-500 px-2 py-0.5 rounded text-[9px] font-bold">
-                      {isAr ? "جاهز مخبرياً" : "Ready"}
-                    </span>
-                    <h4 className="text-xs font-black text-slate-800 dark:text-white">{isAr ? agg.nameAr : agg.nameEn}</h4>
-                    <div className="mt-2 space-y-1 text-[11px] text-slate-500 font-mono">
-                      <div>ID: <span className="font-semibold text-slate-700 dark:text-slate-300">{agg.id}</span></div>
-                      <div>Quarry: <span className="font-semibold text-slate-700 dark:text-slate-300">{agg.quarry}</span></div>
-                      <div>SSD Density: <span className="font-semibold text-slate-700 dark:text-slate-300">{agg.realDensity} kg/m³</span></div>
-                    </div>
-                  </div>
-                ))}
+            <div className="bg-white dark:bg-slate-950/40 p-6 border border-slate-200 dark:border-slate-850 rounded-2xl space-y-5">
+              <div>
+                <h3 className="text-sm font-black text-indigo-600 dark:text-indigo-400">
+                  {isAr ? "الخطوة 1: اختيار وتحديد ركام الخلطة النشط" : "Step 1: Active Aggregate Selection"}
+                </h3>
+                <p className="text-xs text-slate-500 leading-relaxed mt-1">
+                  {isAr 
+                    ? "اختر أنواع الركام من مكتبة المواد المعتمدة لإدراجها في التحليل المنخلي الحبيبي وحساب التدرج والنسب التفاعلية." 
+                    : "Select the active aggregates from the engineering materials library to import their characteristics and gradation curves."}
+                </p>
               </div>
 
+              {/* Database Search & Stats */}
+              <div className="bg-slate-50 dark:bg-slate-900/60 p-3 rounded-xl border border-slate-150 dark:border-slate-800 flex justify-between items-center text-[11px]">
+                <div className="text-slate-600 dark:text-slate-400">
+                  {isAr ? `إجمالي الركام المتوفر: ${availableDbAggregates.length}` : `Total Available Aggregates: ${availableDbAggregates.length}`}
+                </div>
+                <div className="font-extrabold text-indigo-600">
+                  {isAr ? `المحدد حالياً: ${selectedAggregateIds.length}` : `Currently Selected: ${selectedAggregateIds.length}`}
+                </div>
+              </div>
+
+              {/* Dynamic Toggle Picker Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[350px] overflow-y-auto pr-1">
+                {availableDbAggregates.map((m) => {
+                  const isSelected = selectedAggregateIds.includes(m.id);
+                  const densityVal = m.density || m.specificGravity || 2.65;
+                  const finalDensity = densityVal > 100 ? densityVal : densityVal * 1000;
+                  
+                  return (
+                    <div 
+                      key={m.id}
+                      onClick={() => {
+                        if (isLocked) return;
+                        setSelectedAggregateIds(prev => 
+                          prev.includes(m.id) 
+                            ? prev.filter(id => id !== m.id) 
+                            : [...prev, m.id]
+                        );
+                      }}
+                      className={`p-4 rounded-xl border cursor-pointer transition-all relative ${
+                        isSelected 
+                          ? "bg-indigo-50/40 dark:bg-indigo-950/20 border-indigo-500 shadow-xs" 
+                          : "bg-white dark:bg-slate-900/40 border-slate-200 dark:border-slate-800/80 hover:border-slate-350 dark:hover:border-slate-700"
+                      }`}
+                    >
+                      {/* Category Badge */}
+                      <span className={`absolute top-3 left-3 px-2 py-0.5 rounded text-[9px] font-extrabold ${
+                        m.category === "رمال" || m.type === "sand"
+                          ? "bg-amber-100 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400"
+                          : "bg-blue-100 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400"
+                      }`}>
+                        {isAr ? m.category : (m.category === "رمال" || m.type === "sand" ? "Sand" : "Gravel")}
+                      </span>
+
+                      {/* Checkbox Icon */}
+                      <span className={`absolute top-3 right-3 w-5 h-5 rounded-full flex items-center justify-center border transition-all ${
+                        isSelected 
+                          ? "bg-indigo-600 border-indigo-600 text-white" 
+                          : "border-slate-300 dark:border-slate-700 bg-transparent text-transparent"
+                      }`}>
+                        {isSelected && <Check size={11} className="stroke-[3]" />}
+                      </span>
+
+                      <div className="mt-4">
+                        <h4 className="text-xs font-black text-slate-800 dark:text-white">
+                          {isAr ? m.name : (m.englishName || m.name)}
+                        </h4>
+                        <div className="mt-3 space-y-1 text-[11px] font-mono text-slate-500 dark:text-slate-450">
+                          <div className="flex justify-between">
+                            <span>{isAr ? "المصدر:" : "Quarry:"}</span>
+                            <span className="font-semibold text-slate-700 dark:text-slate-300">{m.provenance || m.sourceQuarry || "—"}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>{isAr ? "الكثافة SSD:" : "SSD Density:"}</span>
+                            <span className="font-semibold text-slate-700 dark:text-slate-300">{finalDensity} kg/m³</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>{isAr ? "الامتصاص:" : "Absorption:"}</span>
+                            <span className="font-semibold text-slate-700 dark:text-slate-300">{m.absorption ?? 1.2}%</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {selectedAggregateIds.length === 0 && (
+                <div className="p-4 bg-rose-500/10 border border-rose-500/25 rounded-xl text-xs text-rose-500 text-center font-bold">
+                  {isAr 
+                    ? "⚠️ تنبيه: لم يتم اختيار أي ركام بعد. يرجى اختيار مادة واحدة على الأقل للاستمرار!" 
+                    : "⚠️ Warning: No aggregates selected yet. Please select at least one material to proceed!"}
+                </div>
+              )}
+
+              {/* Step Navigation */}
               <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end">
                 <button 
                   onClick={() => setCurrentStep(2)}
-                  className="flex items-center gap-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black transition-all"
+                  disabled={selectedAggregateIds.length === 0}
+                  className={`flex items-center gap-1 px-4 py-2 rounded-xl text-xs font-black transition-all ${
+                    selectedAggregateIds.length > 0 
+                      ? "bg-indigo-600 hover:bg-indigo-500 text-white" 
+                      : "bg-slate-200 dark:bg-slate-800 text-slate-400 cursor-not-allowed"
+                  }`}
                 >
                   <span>{isAr ? "الخطوة التالية (التحقق من الخصائص)" : "Next: Verify Properties"}</span>
                   <ArrowRight size={13} />
@@ -1007,7 +1296,8 @@ export function SieveGradingCurves({ inputs, results, materialsDatabase, setInpu
                   </thead>
                   <tbody>
                     {activeSieves.map((size) => {
-                      const agg = aggregates.find(a => a.id === activeSieveAggregateId)!;
+                      const agg = aggregates.find(a => a.id === activeSieveAggregateId);
+                      if (!agg) return null;
                       const passing = agg.gradation[size] ?? 100;
                       const cRetained = Math.round((100 - passing) * 10) / 10;
                       
@@ -1490,7 +1780,14 @@ export function SieveGradingCurves({ inputs, results, materialsDatabase, setInpu
             </div>
 
             {(() => {
-              const item = aggregates.find(a => a.id === activeDbCategory)!;
+              const item = aggregates.find(a => a.id === activeDbCategory);
+              if (!item) {
+                return (
+                  <div className="text-[11px] text-slate-500 py-3 text-center">
+                    {isAr ? "الرجاء اختيار ركام لعرض تفاصيله" : "Please select an aggregate to view specs"}
+                  </div>
+                );
+              }
               return (
                 <div className="text-[11px] font-mono space-y-2 text-slate-600 dark:text-slate-450">
                   <div className="flex justify-between border-b border-slate-100 dark:border-slate-800/40 py-1">
