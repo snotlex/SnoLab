@@ -27,6 +27,8 @@ import {
 import { DREUX_KNOWLEDGE_BASE } from "../engine/dreuxKnowledgeBase";
 import { MixDesignInput, MixDesignResult } from "../types";
 import { ENCYCLOPEDIA_TERMS, EncyclopediaTerm } from "../data/engineeringEncyclopedia";
+import { DreuxEncyclopediaPdfContainer } from "./DreuxEncyclopediaPdfContainer";
+import { sanitizeDocumentForPdf, patchWinGCS, replaceOklchWithRgb, replaceOklabWithRgb } from "../utils/pdfColorSanitizer";
 
 interface EngineeringKnowledgeCenterProps {
   inputs: MixDesignInput;
@@ -64,6 +66,116 @@ export const EngineeringKnowledgeCenter: React.FC<EngineeringKnowledgeCenterProp
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
   const [zoomedTable, setZoomedTable] = useState<string | null>(null);
   const [tableSearch, setTableSearch] = useState("");
+
+  // PDF Export State
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [pdfProgress, setPdfProgress] = useState(0);
+  const [pdfStatusMsg, setPdfStatusMsg] = useState("");
+
+  // Handler to generate and download full Dreux-Gorisse Encyclopedia PDF
+  const handleDownloadDreuxEncyclopediaPDF = async () => {
+    try {
+      setIsGeneratingPdf(true);
+      setPdfProgress(10);
+      setPdfStatusMsg(
+        language === "ar" 
+          ? "جاري تهيئة محرك المعالجة والمستندات القياسية..." 
+          : "Initializing document rendering engine & libraries..."
+      );
+
+      const [html2canvasModule, jsPdfModule] = await Promise.all([
+        import("html2canvas"),
+        import("jspdf")
+      ]);
+
+      const html2canvas = html2canvasModule.default || html2canvasModule;
+      const jsPDF = jsPdfModule.jsPDF || jsPdfModule.default || jsPdfModule;
+
+      setPdfProgress(25);
+      setPdfStatusMsg(
+        language === "ar"
+          ? "جاري معالجة صفحات موسوعة دروغوريس الشاملة (7 صفحات A4)..."
+          : "Processing Dreux-Gorisse Encyclopedia pages (7 A4 pages)..."
+      );
+
+      await sanitizeDocumentForPdf(document);
+      await new Promise(res => setTimeout(res, 350));
+
+      const pdfRoot = document.getElementById("dreux-encyclopedia-pdf-export-root");
+      const pageContainers = pdfRoot ? pdfRoot.querySelectorAll(".dreux-pdf-page") : [];
+
+      if (!pageContainers || pageContainers.length === 0) {
+        throw new Error("Dreux PDF page containers not found in DOM.");
+      }
+
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4"
+      });
+
+      for (let i = 0; i < pageContainers.length; i++) {
+        const pageEl = pageContainers[i] as HTMLElement;
+        const pageNum = i + 1;
+        setPdfProgress(25 + Math.round((i / pageContainers.length) * 65));
+        setPdfStatusMsg(
+          language === "ar"
+            ? `جاري معالجة وتحويل الصفحة ${pageNum} من ${pageContainers.length} إلى PDF...`
+            : `Rendering page ${pageNum} of ${pageContainers.length} to PDF...`
+        );
+
+        const canvas = await html2canvas(pageEl, {
+          scale: 2,
+          useCORS: true,
+          allowTaint: true,
+          backgroundColor: "#ffffff",
+          logging: false,
+          onclone: (clonedDoc) => {
+            if (clonedDoc.defaultView) {
+              patchWinGCS(clonedDoc.defaultView);
+            }
+            // Sanitize style attributes in cloned document
+            const clonedInlineStyles = clonedDoc.querySelectorAll("[style]");
+            clonedInlineStyles.forEach(elem => {
+              const styleAttr = elem.getAttribute("style");
+              if (styleAttr && /oklch|oklab/i.test(styleAttr)) {
+                let updatedStyle = replaceOklchWithRgb(styleAttr);
+                updatedStyle = replaceOklabWithRgb(updatedStyle);
+                elem.setAttribute("style", updatedStyle);
+              }
+            });
+          }
+        });
+
+        const imgData = canvas.toDataURL("image/jpeg", 0.98);
+
+        if (i > 0) {
+          pdf.addPage();
+        }
+
+        pdf.addImage(imgData, "JPEG", 0, 0, 210, 297);
+      }
+
+      setPdfProgress(95);
+      setPdfStatusMsg(
+        language === "ar"
+          ? "جاري حفظ وتنزيل ملف PDF..."
+          : "Saving & downloading complete Dreux Encyclopedia PDF..."
+      );
+
+      pdf.save("Mousooat_Dreux_Gorisse_Complete_Encyclopedia.pdf");
+
+      setPdfProgress(100);
+      await new Promise(res => setTimeout(res, 400));
+    } catch (err) {
+      console.error("Failed to generate Dreux Encyclopedia PDF:", err);
+      alert(language === "ar" ? "حدث خطأ أثناء تصدير ملف PDF، يرجى إعادة المحاولة." : "Error exporting PDF, please try again.");
+    } finally {
+      setIsGeneratingPdf(false);
+      setPdfProgress(0);
+      setPdfStatusMsg("");
+    }
+  };
 
   // Translate text according to language selection
   const t = (key: string): string => {
@@ -194,31 +306,52 @@ export const EngineeringKnowledgeCenter: React.FC<EngineeringKnowledgeCenterProp
           </p>
         </div>
 
-        {/* METHOD STANDARD TABS SELECTOR */}
-        <div className="bg-slate-100 dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 p-1.5 rounded-2xl flex items-center gap-1 shrink-0">
+        {/* HEADER RIGHT CONTROLS: PDF DOWNLOAD BUTTON & METHOD STANDARD TABS */}
+        <div className="flex flex-wrap items-center gap-2.5">
+          {/* DOWNLOAD COMPLETE DREUX ENCYCLOPEDIA PDF BUTTON */}
           <button
-            onClick={() => setActiveMethod("dreux")}
-            className={`px-3 py-2 text-xs font-black rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${activeMethod === "dreux" ? "bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-450 shadow-md" : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"}`}
+            onClick={handleDownloadDreuxEncyclopediaPDF}
+            disabled={isGeneratingPdf}
+            className="px-4 py-2.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-800 text-white font-black text-xs rounded-2xl shadow-lg hover:shadow-blue-500/20 transition-all cursor-pointer flex items-center gap-2 border border-blue-400/30 disabled:opacity-50 active:scale-95"
+            title={language === "ar" ? "تحميل موسوعة دروغوريس الكاملة بصيغة PDF (7 صفحات A4)" : "Download Complete Dreux Encyclopedia PDF"}
           >
-            <span>🇫🇷</span>
-            <span>{language === "ar" ? "دروكس-غوريس" : "Dreux-Gorisse"}</span>
+            <Download size={15} className={isGeneratingPdf ? "animate-bounce text-blue-200" : "text-white"} />
+            <span>
+              {isGeneratingPdf
+                ? (language === "ar" ? "جاري تجهيز PDF..." : "Generating PDF...")
+                : (language === "ar" ? "تحميل الموسوعة (PDF)" : language === "fr" ? "Télécharger L'Encyclopédie (PDF)" : "Download Encyclopedia (PDF)")}
+            </span>
+            <span className="text-[9.5px] bg-white/20 text-white font-mono px-1.5 py-0.5 rounded-md font-bold border border-white/20">
+              7 A4
+            </span>
           </button>
-          <button
-            onClick={() => setActiveMethod("aci")}
-            className={`px-3 py-2 text-xs font-black rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${activeMethod === "aci" ? "bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-450 shadow-md" : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 opacity-60"}`}
-          >
-            <span>🇺🇸</span>
-            <span>ACI 211.1</span>
-            <span className="text-[9px] bg-amber-500/10 text-amber-500 px-1 py-0.5 rounded text-[8px]">قريباً</span>
-          </button>
-          <button
-            onClick={() => setActiveMethod("doe")}
-            className={`px-3 py-2 text-xs font-black rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${activeMethod === "doe" ? "bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-450 shadow-md" : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 opacity-60"}`}
-          >
-            <span>🇬🇧</span>
-            <span>DOE UK</span>
-            <span className="text-[9px] bg-amber-500/10 text-amber-500 px-1 py-0.5 rounded text-[8px]">قريباً</span>
-          </button>
+
+          {/* METHOD STANDARD TABS SELECTOR */}
+          <div className="bg-slate-100 dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 p-1.5 rounded-2xl flex items-center gap-1 shrink-0">
+            <button
+              onClick={() => setActiveMethod("dreux")}
+              className={`px-3 py-2 text-xs font-black rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${activeMethod === "dreux" ? "bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-450 shadow-md" : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"}`}
+            >
+              <span>🇫🇷</span>
+              <span>{language === "ar" ? "دروكس-غوريس" : "Dreux-Gorisse"}</span>
+            </button>
+            <button
+              onClick={() => setActiveMethod("aci")}
+              className={`px-3 py-2 text-xs font-black rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${activeMethod === "aci" ? "bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-450 shadow-md" : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 opacity-60"}`}
+            >
+              <span>🇺🇸</span>
+              <span>ACI 211.1</span>
+              <span className="text-[9px] bg-amber-500/10 text-amber-500 px-1 py-0.5 rounded text-[8px]">قريباً</span>
+            </button>
+            <button
+              onClick={() => setActiveMethod("doe")}
+              className={`px-3 py-2 text-xs font-black rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${activeMethod === "doe" ? "bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-450 shadow-md" : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 opacity-60"}`}
+            >
+              <span>🇬🇧</span>
+              <span>DOE UK</span>
+              <span className="text-[9px] bg-amber-500/10 text-amber-500 px-1 py-0.5 rounded text-[8px]">قريباً</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -927,21 +1060,32 @@ export const EngineeringKnowledgeCenter: React.FC<EngineeringKnowledgeCenterProp
             {/* 9. SECTION: ENGINEERING ENCYCLOPEDIA */}
             {activeSection === "encyclopedia" && (
               <div className="space-y-6 animate-fade-in text-right" dir={language === "ar" ? "rtl" : "ltr"}>
-                {/* Banner / Header */}
-                <div className="bg-gradient-to-r from-blue-600/10 via-indigo-600/5 to-transparent border border-blue-500/10 p-5 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                  <div className="space-y-1">
-                    <h3 className="text-sm font-black text-slate-950 dark:text-slate-50 flex items-center gap-2">
-                      <BookOpen size={16} className="text-blue-500" />
-                      {language === "ar" ? "المستودع المركزي للمصطلحات الهندسية" : language === "fr" ? "Répertoire Central des Termes Techniques" : "Central Engineering Terminology Repository"}
+                {/* Banner / Header with PDF Download Action */}
+                <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white p-5 md:p-6 rounded-3xl flex flex-col md:flex-row items-start md:items-center justify-between gap-5 border border-blue-500/20 shadow-xl relative overflow-hidden">
+                  <div className="space-y-1.5 text-right relative z-10">
+                    <div className="inline-flex items-center gap-2 px-2.5 py-0.5 bg-blue-500/20 text-blue-300 rounded-full text-[10px] font-mono font-bold uppercase tracking-wider">
+                      <BookOpen size={11} />
+                      {language === "ar" ? "موسوعة دروغوريس الشاملة M-DREUX-2026" : "Dreux Formulation Reference"}
+                    </div>
+                    <h3 className="text-base md:text-lg font-black text-white tracking-tight">
+                      {language === "ar" ? "تحميل موسوعة دروغوريس الكاملة (PDF 7 صفحات)" : language === "fr" ? "Télécharger l'Encyclopédie Complète en PDF" : "Download Full Dreux Encyclopedia (PDF Manual)"}
                     </h3>
-                    <p className="text-[11px] text-slate-505 dark:text-slate-400">
+                    <p className="text-xs text-slate-300/90 max-w-2xl font-sans leading-relaxed">
                       {language === "ar" 
-                        ? "دليل تفاعلي شامل لشرح وتوضيح معاني المصطلحات، المقاييس الفيزيائية، والمعايير القياسية الحاكمة لتصميم الخلطات الخرسانية."
+                        ? "تحتوي على الدستور العلمي الكامل لطريقة دروكس-غوريس، المعادلات الرياضية، جداول المعايرة الفرنسية (NF EN 206)، قاموس المصطلحات، ومثال تطبيقي كامل محلول خطوة بخطوة."
                         : language === "fr"
-                        ? "Un guide interactif complet expliquant les termes clés, les lois physiques et les normes régissant la formulation du béton."
-                        : "A comprehensive interactive repository of terminology, physical properties, and standard codes governing concrete mix designs."}
+                        ? "Guide complet de la méthode Dreux-Gorisse, équations, tableaux NF EN 206, dictionnaire technique et exemple d'application entièrement résolu."
+                        : "Complete handbook covering Dreux-Gorisse concrete formulation principles, NF EN 206 calibration tables, equations, terms dictionary, and step-by-step solved example."}
                     </p>
                   </div>
+                  <button
+                    onClick={handleDownloadDreuxEncyclopediaPDF}
+                    disabled={isGeneratingPdf}
+                    className="px-5 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-slate-950 font-black text-xs rounded-2xl shadow-xl hover:shadow-emerald-500/20 transition-all flex items-center gap-2.5 shrink-0 cursor-pointer disabled:opacity-50 active:scale-95 border border-emerald-300/40 relative z-10"
+                  >
+                    <Download size={16} className={isGeneratingPdf ? "animate-bounce" : ""} />
+                    <span>{language === "ar" ? "تحميل الموسوعة الكاملة PDF" : "Download Complete Encyclopedia PDF"}</span>
+                  </button>
                 </div>
 
                 {/* Categories Filter Tabs */}
@@ -1172,6 +1316,42 @@ export const EngineeringKnowledgeCenter: React.FC<EngineeringKnowledgeCenterProp
           </div>
         </div>
       )}
+
+      {/* PDF GENERATION PROGRESS MODAL OVERLAY */}
+      {isGeneratingPdf && (
+        <div className="fixed inset-0 z-[100] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#0F172A] border border-blue-500/30 rounded-3xl p-8 max-w-md w-full shadow-2xl text-center space-y-5 animate-fade-in" dir={language === "ar" ? "rtl" : "ltr"}>
+            <div className="w-16 h-16 bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center mx-auto text-3xl animate-bounce">
+              📘
+            </div>
+            <div className="space-y-2">
+              <h3 className="text-base font-black text-slate-900 dark:text-slate-100">
+                {language === "ar" ? "جاري تحضير وتحزيم موسوعة دروغوريس PDF..." : "Preparing Dreux Encyclopedia PDF..."}
+              </h3>
+              <p className="text-xs text-slate-500 font-sans leading-relaxed">
+                {pdfStatusMsg}
+              </p>
+            </div>
+
+            {/* Progress Bar */}
+            <div className="space-y-1.5">
+              <div className="w-full bg-slate-100 dark:bg-slate-800 h-3 rounded-full overflow-hidden p-0.5 border border-slate-200 dark:border-slate-700">
+                <div 
+                  className="bg-gradient-to-r from-blue-600 via-indigo-600 to-emerald-500 h-full rounded-full transition-all duration-300"
+                  style={{ width: `${pdfProgress}%` }}
+                />
+              </div>
+              <div className="flex justify-between items-center text-[10px] font-mono text-slate-400 font-bold">
+                <span>M-DREUX-ENC-2026</span>
+                <span className="text-blue-600 dark:text-blue-400">{pdfProgress}%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* HIDDEN PRINTABLE A4 DREUX ENCYCLOPEDIA TEMPLATE */}
+      <DreuxEncyclopediaPdfContainer language={language} />
 
     </div>
   );

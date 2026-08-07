@@ -43,6 +43,7 @@ import { CONCRETE_TYPES_CATALOG, getConcreteTypeDetails, CONCRETE_TYPE_CONFIGS }
 import { LogicalResultsSummary } from "./components/LogicalResultsSummary";
 import { isUserMaterial } from "./engine/suitabilityGate";
 import { SnoLabLogo } from "./components/SnoLabLogo";
+import { STRUCTURAL_ELEMENTS, getStructuralElementById } from "./data/structuralElements";
 
 // Lazy-loaded heavy panels for core bundle size optimization
 const RecipeReport = React.lazy(() => import("./components/RecipeReport").then(m => ({ default: m.RecipeReport })));
@@ -987,21 +988,17 @@ export default function App() {
             };
 
             // Ensure correct types for checked fields if they are present
-            if (matToSave.englishName !== undefined) {
+            if (matToSave.englishName !== undefined && matToSave.englishName !== null) {
               matToSave.englishName = String(matToSave.englishName || "Unnamed Material");
             }
-            if (matToSave.type !== undefined) {
+            if (matToSave.type !== undefined && matToSave.type !== null) {
               matToSave.type = String(matToSave.type || "other");
             }
-            if (matToSave.density !== undefined) {
+            if (matToSave.density !== undefined && matToSave.density !== null && matToSave.category !== "إضافات كيميائية") {
               const parsedDensity = Number(matToSave.density);
-              if (isNaN(parsedDensity) || parsedDensity <= 0) {
-                alert(language === "ar" ? "الكثافة المدخلة غير صالحة! يرجى إدخال كثافة صحيحة." : "Invalid density value! Please enter a valid positive density.");
-                return;
-              }
-              matToSave.density = parsedDensity;
+              matToSave.density = isNaN(parsedDensity) ? 0 : parsedDensity;
             }
-            if (matToSave.absorption !== undefined) {
+            if (matToSave.absorption !== undefined && matToSave.absorption !== null) {
               const parsedAbs = Number(matToSave.absorption);
               matToSave.absorption = isNaN(parsedAbs) ? 0 : parsedAbs;
             }
@@ -6759,6 +6756,76 @@ export default function App() {
                         <p className="text-[11px] text-slate-650 dark:text-slate-350 leading-relaxed">
                           {t("selected_method_desc")}
                         </p>
+
+                        {/* Structural Element Selection */}
+                        <div className={`mt-3 p-3.5 bg-sky-500/5 rounded-xl border border-sky-500/15 space-y-2 ${isRtl ? "text-right" : "text-left"} font-sans`}>
+                          <div className="flex justify-between items-center">
+                            <label className="text-xs font-black text-slate-800 dark:text-slate-200 block">
+                              {language === "ar" ? "العنصر الإنشائي المراد صبه:" : language === "fr" ? "Élément Structural :" : "Target Structural Element:"}
+                            </label>
+                            <span className="text-[10px] font-mono text-sky-600 dark:text-sky-400 bg-sky-500/10 px-2 py-0.5 rounded font-bold">
+                              {STRUCTURAL_ELEMENTS.length} {language === "ar" ? "عناصر معتمدة" : "Elements"}
+                            </span>
+                          </div>
+
+                          <select
+                            value={inputs.structuralElement || "column"}
+                            onChange={(e) => {
+                              const elemId = e.target.value;
+                              const elemConfig = getStructuralElementById(elemId);
+                              setInputs(prev => ({
+                                ...prev,
+                                structuralElement: elemId,
+                                slump: elemConfig.recommendedSlump.target,
+                                dMax: elemConfig.recommendedDmax,
+                                exposureClass: elemConfig.defaultExposureClass
+                              }));
+                            }}
+                            className="w-full text-xs p-2.5 rounded border border-sky-300/30 dark:border-sky-700/40 bg-white dark:bg-slate-900/50 text-slate-900 dark:text-white font-bold focus:outline-none focus:ring-1 focus:ring-sky-500 cursor-pointer"
+                          >
+                            {STRUCTURAL_ELEMENTS.map(elem => (
+                              <option key={elem.id} value={elem.id}>
+                                {language === "ar" ? elem.nameAr : language === "fr" ? elem.nameFr : elem.nameEn}
+                              </option>
+                            ))}
+                          </select>
+
+                          {/* Active Structural Element Engineering Specs & Advice Badge */}
+                          {(() => {
+                            const curElem = getStructuralElementById(inputs.structuralElement || "column");
+                            if (!curElem) return null;
+                            return (
+                              <div className="p-3 bg-white dark:bg-slate-900/70 rounded-lg border border-sky-500/20 text-xs space-y-2 text-right">
+                                <div className="flex items-center justify-between text-[11px] font-bold text-sky-700 dark:text-sky-300">
+                                  <span>{language === "ar" ? curElem.nameAr : curElem.nameEn}</span>
+                                  <span className="bg-sky-500/10 text-sky-600 px-2 py-0.5 rounded font-mono text-[10px]">
+                                    {language === "ar" ? "المواصفات الموصى بها" : "Recommended Specs"}
+                                  </span>
+                                </div>
+                                <p className="text-[10.5px] text-slate-600 dark:text-slate-400 leading-snug">
+                                  {curElem.descriptionAr}
+                                </p>
+                                <div className="grid grid-cols-3 gap-1.5 pt-1 border-t border-slate-100 dark:border-slate-800 text-center font-mono text-[10px]">
+                                  <div className="bg-sky-50 dark:bg-slate-800 p-1.5 rounded">
+                                    <span className="text-slate-400 block text-[9px] font-sans">{language === "ar" ? "الهبوط Slump" : "Slump"}</span>
+                                    <span className="font-bold text-sky-600">{curElem.recommendedSlump.min}-{curElem.recommendedSlump.max} cm</span>
+                                  </div>
+                                  <div className="bg-sky-50 dark:bg-slate-800 p-1.5 rounded">
+                                    <span className="text-slate-400 block text-[9px] font-sans">{language === "ar" ? "الركام Dmax" : "Dmax"}</span>
+                                    <span className="font-bold text-sky-600">{curElem.recommendedDmax} mm</span>
+                                  </div>
+                                  <div className="bg-sky-50 dark:bg-slate-800 p-1.5 rounded">
+                                    <span className="text-slate-400 block text-[9px] font-sans">{language === "ar" ? "أدنى إسمنت" : "Min Cement"}</span>
+                                    <span className="font-bold text-sky-600">{curElem.minCementKgM3} kg/m³</span>
+                                  </div>
+                                </div>
+                                <div className="bg-amber-500/10 dark:bg-amber-500/5 p-2 rounded text-[10px] text-amber-700 dark:text-amber-400 border border-amber-500/20">
+                                  <strong>💡 {language === "ar" ? "توصية هندسية:" : "Advice:"}</strong> {curElem.engineeringAdviceAr}
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </div>
                         
                         <div className="mt-2.5">
                           <MethodReadinessChecklist 

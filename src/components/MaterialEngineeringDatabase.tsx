@@ -372,7 +372,7 @@ export function MaterialEngineeringDatabase({
   };
   
   // Tab state: "system" vs "user"
-  const [activeSourceTab, setActiveSourceTab] = useState<"system" | "user">("system");
+  const [activeSourceTab, setActiveSourceTab] = useState<"system" | "user">("user");
 
   // Filter states for System Materials
   const [systemSearchQuery, setSystemSearchQuery] = useState(() => {
@@ -1218,7 +1218,7 @@ export function MaterialEngineeringDatabase({
       return m;
     });
 
-    onUpdateMaterials([oldVersionRecord, ...updatedList]);
+    onUpdateMaterials(updatedList);
     setSelectedMaterialId(existingMat.id);
     setIsEditing(false);
     setEditConfirmationData(null);
@@ -2988,12 +2988,21 @@ export function MaterialEngineeringDatabase({
         status: formState.status || "نشط",
         createdDate: new Date().toISOString().split('T')[0],
         updatedDate: new Date().toISOString().split('T')[0],
-        createdBy: "senoussi.s.t@gmail.com"
+        createdBy: "المستخدم",
+        source: "user",
+        ownerId: "user_created"
       };
 
       onUpdateMaterials([newMat, ...materials]);
       setSelectedMaterialId(generatedId);
       setIsAdding(false);
+      setActiveSourceTab("user");
+      showToast(
+        language === "ar"
+          ? `تم إضافة مادة "${newMat.name}" بنجاح إلى مكتبة مواد المستخدم!`
+          : `Material "${newMat.name}" added successfully to User Materials!`,
+        "success"
+      );
     } else if (isEditing && activeMaterial) {
       const existingMat = materials.find(m => m.id === activeMaterial.id);
       if (!existingMat) return;
@@ -3156,7 +3165,7 @@ export function MaterialEngineeringDatabase({
         });
       } else {
         // No differences found, save directly
-        onUpdateMaterials([oldVersionRecord, ...updatedList]);
+        onUpdateMaterials(updatedList);
         setSelectedMaterialId(existingMat.id);
         setIsEditing(false);
         showToast(
@@ -6288,9 +6297,39 @@ export function MaterialEngineeringDatabase({
                           ? "bg-rose-500/10 text-rose-500" 
                           : "bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-rose-450 hover:bg-slate-200"
                       }`}
+                      title={language === "ar" ? "المفضلة" : "Favorite"}
                     >
                       <Heart size={12} className={isFav ? "fill-current" : ""} />
                     </button>
+
+                    {onUpdateMaterials && (
+                      <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedMaterialId(mat.id);
+                            setIsEditing(true);
+                            setIsAdding(false);
+                            setFormState(mat);
+                          }}
+                          title={language === "ar" ? "تعديل المادة" : "Edit Material"}
+                          className="p-1.5 rounded-lg bg-slate-100 hover:bg-blue-100 hover:text-blue-600 dark:bg-slate-800 dark:hover:bg-blue-900/40 text-slate-500 dark:text-slate-400 transition-colors cursor-pointer"
+                        >
+                          <Edit3 size={12} />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedMaterialId(mat.id);
+                            setShowDeleteConfirm(true);
+                          }}
+                          title={language === "ar" ? "حذف المادة" : "Delete Material"}
+                          className="p-1.5 rounded-lg bg-slate-100 hover:bg-rose-100 hover:text-rose-600 dark:bg-slate-800 dark:hover:bg-rose-900/40 text-slate-500 dark:text-slate-400 transition-colors cursor-pointer"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    )}
                     {isMaterialCurrentlyActiveInInputs(mat) && (
                       <span className="p-1 px-2.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-450 border border-emerald-500/25 rounded-lg text-[9px] font-black font-sans shrink-0 block">
                         {t("active_in_mix")}
@@ -6376,6 +6415,29 @@ export function MaterialEngineeringDatabase({
                 </div>
               );
             })
+          ) : activeSourceTab === "user" && userCount === 0 ? (
+            <div className="text-center py-16 px-6 bg-slate-50 dark:bg-slate-900/20 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 space-y-3">
+              <div className="w-14 h-14 bg-emerald-500/10 text-emerald-500 rounded-full flex items-center justify-center mx-auto">
+                <Plus size={28} />
+              </div>
+              <h4 className="text-sm font-black text-slate-800 dark:text-white">
+                {language === "ar" ? "المكتبة فارغة حالياً" : "Library is currently empty"}
+              </h4>
+              <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto leading-relaxed">
+                {language === "ar" 
+                  ? "لم تقم بإضافة أي مواد هندسية بعد. يمكنك إضافة مواد جديدة مخصصة بالضغط على الزر أدناه." 
+                  : "You haven't added any engineering materials yet. Click below to add your first material."}
+              </p>
+              {onUpdateMaterials && (
+                <button
+                  onClick={handleAddNewClick}
+                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-md inline-flex items-center gap-2 cursor-pointer mt-2"
+                >
+                  <Plus size={16} />
+                  <span>{language === "ar" ? "إضافة أول مادة هندسية" : "Add First Material"}</span>
+                </button>
+              )}
+            </div>
           ) : (
             <div className="text-center py-20 bg-slate-50 dark:bg-slate-900/20 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
               <span className="p-4 bg-slate-100 dark:bg-slate-800 inline-block rounded-full text-slate-400 mb-2">
@@ -8704,6 +8766,55 @@ export function MaterialEngineeringDatabase({
                 className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black transition-all shadow-md shadow-emerald-600/10 active:scale-95 cursor-pointer"
               >
                 {language === "ar" ? "إغلاق ملخص الاستيراد" : "Close Ingestion Report"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CUSTOM CONFIRMATION MODAL OVERLAY */}
+      {customConfirm && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in" dir={language === "ar" ? "rtl" : "ltr"}>
+          <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-md w-full space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400">
+                <AlertTriangle size={20} />
+                <h4 className="text-sm font-black">{customConfirm.title}</h4>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (customConfirm.onCancel) customConfirm.onCancel();
+                  setCustomConfirm(null);
+                }}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+              {customConfirm.message}
+            </p>
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => {
+                  if (customConfirm.onCancel) customConfirm.onCancel();
+                  setCustomConfirm(null);
+                }}
+                className="px-4 py-2 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer"
+              >
+                {language === "ar" ? "إلغاء" : "Cancel"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  customConfirm.onConfirm();
+                  setCustomConfirm(null);
+                }}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-black transition-all shadow-md shadow-rose-600/10 cursor-pointer"
+              >
+                {language === "ar" ? "تأكيد الحذف" : "Confirm Delete"}
               </button>
             </div>
           </div>

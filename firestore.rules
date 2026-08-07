@@ -74,50 +74,63 @@ service cloud.firestore {
         && data.category is string && data.category.size() <= 128
         && data.status is string && data.status.size() <= 128
         && data.ApprovalStatus is string && data.ApprovalStatus.size() <= 128
-        && (!data.keys().contains('englishName') || (data.englishName is string && data.englishName.size() <= 256))
-        && (!data.keys().contains('type') || (data.type is string && data.type.size() <= 128))
-        && (!data.keys().contains('density') || (data.density is int || data.density is float))
-        && (!data.keys().contains('absorption') || (data.absorption is int || data.absorption is float));
+        && (!data.keys().contains('englishName') || data.englishName == null || (data.englishName is string && data.englishName.size() <= 256))
+        && (!data.keys().contains('type') || data.type == null || (data.type is string && data.type.size() <= 128))
+        && (!data.keys().contains('density') || data.density == null || data.density is int || data.density is float || data.density is string)
+        && (!data.keys().contains('absorption') || data.absorption == null || data.absorption is int || data.absorption is float || data.absorption is string);
     }
 
     // Secure user space saved mixes
     match /user_mixes/{mixId} {
-      allow get: if isSignedIn() && existing().ownerId == request.auth.uid;
-      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow get: if isSignedIn() && (existing().ownerId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
       allow create: if isSignedIn()
         && isValidId(mixId)
         && isValidMixDesign(incoming())
-        && incoming().ownerId == request.auth.uid
+        && (incoming().ownerId == request.auth.uid || isAdmin())
         && incoming().createdAt == request.time
         && incoming().updatedAt == request.time;
       allow update: if isSignedIn()
         && isValidId(mixId)
         && isValidMixDesign(incoming())
-        && existing().ownerId == request.auth.uid
-        && incoming().ownerId == request.auth.uid
+        && (existing().ownerId == request.auth.uid || isAdmin())
+        && (incoming().ownerId == request.auth.uid || isAdmin())
         && incoming().createdAt == existing().createdAt
         && incoming().updatedAt == request.time;
       allow delete: if isSignedIn()
         && isValidId(mixId)
-        && (resource == null || existing().ownerId == request.auth.uid);
+        && (resource == null || existing().ownerId == request.auth.uid || isAdmin());
     }
 
     // Secure user space custom or modified materials
     match /user_materials/{materialId} {
-      allow get: if isSignedIn() && existing().get('ownerId', '') == request.auth.uid;
-      allow list: if isSignedIn() && resource.data.get('ownerId', '') == request.auth.uid;
+      allow get: if isSignedIn() && (existing().get('ownerId', '') == request.auth.uid || existing().get('ownerId', '') == '' || existing().get('ownerId', '') == 'user_created' || existing().get('ownerId', '') == 'senoussi.s.t@gmail.com' || isAdmin());
+      allow list: if isSignedIn();
       allow create: if isSignedIn()
         && isValidId(materialId)
         && isValidMaterial(incoming())
-        && incoming().get('ownerId', '') == request.auth.uid;
+        && (incoming().get('ownerId', '') == request.auth.uid || isAdmin());
       allow update: if isSignedIn()
         && isValidId(materialId)
         && isValidMaterial(incoming())
-        && existing().get('ownerId', '') == request.auth.uid
-        && incoming().get('ownerId', '') == request.auth.uid;
+        && (
+          existing().get('ownerId', '') == request.auth.uid 
+          || existing().get('ownerId', '') == '' 
+          || existing().get('ownerId', '') == 'user_created' 
+          || existing().get('ownerId', '') == 'senoussi.s.t@gmail.com'
+          || isAdmin()
+        )
+        && (incoming().get('ownerId', '') == request.auth.uid || isAdmin());
       allow delete: if isSignedIn()
         && isValidId(materialId)
-        && (resource == null || existing().get('ownerId', '') == request.auth.uid);
+        && (
+          resource == null 
+          || existing().get('ownerId', '') == request.auth.uid 
+          || existing().get('ownerId', '') == '' 
+          || existing().get('ownerId', '') == 'user_created'
+          || existing().get('ownerId', '') == 'senoussi.s.t@gmail.com'
+          || isAdmin()
+        );
     }
 
     // Secure users profile with activation status
