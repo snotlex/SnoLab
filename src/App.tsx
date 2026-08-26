@@ -46,12 +46,16 @@ import { SnoLabLogo } from "./components/SnoLabLogo";
 import { STRUCTURAL_ELEMENTS, getStructuralElementById } from "./data/structuralElements";
 
 // Lazy-loaded heavy panels for core bundle size optimization
+const LaboratoryDashboard = React.lazy(() => import("./components/materials-lab/LaboratoryDashboard").then(m => ({ default: m.LaboratoryDashboard })));
+import { INITIAL_MATERIAL_TESTS } from "./data/seedMaterialTests";
+import { MaterialTestRecord, TestApprovalStatus } from "./types/laboratoryTypes";
+import { applyTestToMaterial } from "./services/materialLabSync";
 const RecipeReport = React.lazy(() => import("./components/RecipeReport").then(m => ({ default: m.RecipeReport })));
 const ChemicalDosageMonitor = React.lazy(() => import("./components/ChemicalDosageMonitor").then(m => ({ default: m.ChemicalDosageMonitor })));
 const SieveGradingCurves = React.lazy(() => import("./components/SieveGradingCurves").then(m => ({ default: m.SieveGradingCurves })));
 const CostAnalysisDashboard = React.lazy(() => import("./components/CostAnalysisDashboard").then(m => ({ default: m.CostAnalysisDashboard })));
-const AcademicLabPanel = React.lazy(() => import("./components/AcademicLabPanel").then(m => ({ default: m.AcademicLabPanel })));
-const LaboratoryValidationPanel = React.lazy(() => import("./components/LaboratoryValidationPanel").then(m => ({ default: m.LaboratoryValidationPanel })));
+
+
 const DreuxMethodPanel = React.lazy(() => import("./components/DreuxMethodPanel").then(m => ({ default: m.DreuxMethodPanel })));
 const EngineeringKnowledgeCenter = React.lazy(() => import("./components/EngineeringKnowledgeCenter").then(m => ({ default: m.EngineeringKnowledgeCenter })));
 const MaterialEngineeringDatabase = React.lazy(() => import("./components/MaterialEngineeringDatabase").then(m => ({ default: m.MaterialEngineeringDatabase })));
@@ -580,9 +584,10 @@ export default function App() {
     | "optimization"
     | "journal"
     | "plant"
-    | "academic_lab"
+    | "materials_lab"
     | "methodology"
     | "materials_library"
+    | "materials_lab"
     | "cement_database"
     | "aggregates_database"
     | "admixtures_database"
@@ -658,6 +663,26 @@ export default function App() {
     "Mediterranean ReadyMix Co.",
     "Sonatrach Refinement Group"
   ];
+
+  
+  // State for Materials Laboratory Characterization System
+  const [materialTestRecords, setMaterialTestRecords] = useState<MaterialTestRecord[]>(() => {
+    try {
+      const saved = localStorage.getItem("snolab_material_tests_v1");
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error("Failed to load material tests:", e);
+    }
+    return INITIAL_MATERIAL_TESTS;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("snolab_material_tests_v1", JSON.stringify(materialTestRecords));
+    } catch (e) {
+      console.error("Failed to persist material tests:", e);
+    }
+  }, [materialTestRecords]);
 
   const [materialsDatabase, setMaterialsDatabase] = useState<EngineeringMaterial[]>(() => {
     try {
@@ -1495,27 +1520,31 @@ export default function App() {
     return projects.find(p => p.id === activeProjectId) || projects[0];
   }, [projects, activeProjectId]);
 
-  // Derived active step value for Workflow Stepper
+  // Derived active step value for Workflow Stepper (Core Project Lifecycle: Setup -> Materials -> Formulation -> Calibration -> Results -> Report)
   const activeStep = useMemo(() => {
     switch (activeSidebarTab) {
       case "saved_projects":
-        return 1;
+      case "cloud_storage":
+        return 1; // 1. Ø¥Ù†Ø´Ø§Ø¡ Ø§Ù„Ù…Ø´Ø±ÙˆØ¹
       case "materials_library":
       case "cement_database":
       case "aggregates_database":
       case "admixtures_database":
-        return 2;
-      case "sieve":
-        return 3;
+      case "materials":
+        return 2; // 2. Ø§Ø®ØªÙŠØ§Ø± Ø§Ù„Ù…ÙˆØ§Ø¯
       case "calculator":
+        return 3; // 3. ØªØ­Ø¶ÙŠØ± Ø§Ù„Ø®Ù„Ø·Ø©
       case "optimization":
-        return 4;
+      case "simulation":
+        return 4; // 4. Ù…Ø¹Ø§ÙŠØ±Ø© Ø§Ù„Ø®Ù„Ø·Ø©
       case "cost":
-        return 5;
+      case "forecasting":
+      case "performance_analysis":
+        return 5; // 5. ØªØ­Ù„ÙŠÙ„ Ø§Ù„Ù†ØªØ§Ø¦Ø¬
       case "reports":
       case "compliance_reports":
       case "journal":
-        return 6;
+        return 6; // 6. Ø§Ù„ØªÙ‚Ø±ÙŠØ± Ø§Ù„Ù†Ù‡Ø§Ø¦ÙŠ
       default:
         return 3;
     }
@@ -1534,16 +1563,16 @@ export default function App() {
         setActiveSidebarTab("materials_library");
         break;
       case 3:
-        setActiveSidebarTab("sieve");
+        setActiveSidebarTab("calculator"); // 3. ØªØ­Ø¶ÙŠØ± Ø§Ù„Ø®Ù„Ø·Ø©
         break;
       case 4:
-        setActiveSidebarTab("calculator");
+        setActiveSidebarTab("optimization"); // 4. Ù…Ø¹Ø§ÙŠØ±Ø© Ø§Ù„Ø®Ù„Ø·Ø©
         break;
       case 5:
-        setActiveSidebarTab("cost");
+        setActiveSidebarTab("cost"); // 5. ØªØ­Ù„ÙŠÙ„ Ø§Ù„Ù†ØªØ§Ø¦Ø¬
         break;
       case 6:
-        setActiveSidebarTab("reports");
+        setActiveSidebarTab("reports"); // 6. Ø§Ù„ØªÙ‚Ø±ÙŠØ± Ø§Ù„Ù†Ù‡Ø§Ø¦ÙŠ
         break;
     }
   };
@@ -4435,9 +4464,17 @@ export default function App() {
                     <button 
                       onClick={() => { setViewMode("workspace"); setActiveSidebarTab("materials_library"); }}
                       className={`p-2.5 rounded-xl transition-all cursor-pointer ${viewMode === "workspace" && activeSidebarTab === "materials_library" ? "bg-blue-600 text-white shadow-lg" : "text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"}`}
-                      title={language === "ar" ? "Ù…ÙƒØªØ¨Ø© SnoLab" : language === "fr" ? "BibliothÃ¨que SnoLab" : "SnoLab Library"}
+                      title={language === "ar" ? "Ù…ÙƒØªØ¨Ø© SnoLab Ù„Ù„Ù…ÙˆØ§Ø¯" : "Materials Library"}
                     >
                       <Database size={18} />
+                    </button>
+                    {/* MATERIALS TESTING LAB */}
+                    <button 
+                      onClick={() => { setViewMode("workspace"); setActiveSidebarTab("materials_lab"); }}
+                      className={`p-2.5 rounded-xl transition-all cursor-pointer ${viewMode === "workspace" && activeSidebarTab === "materials_lab" ? "bg-blue-600 text-white shadow-lg" : "text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"}`}
+                      title={language === "ar" ? "Ù…Ø®Ø¨Ø± Ø®ØµØ§Ø¦Øµ Ø§Ù„Ù…ÙˆØ§Ø¯ ÙˆØ§Ù„ØªØ­Ù‚Ù‚ Ø§Ù„Ù…Ø®Ø¨Ø±ÙŠ" : "Materials Testing Lab"}
+                    >
+                      <FlaskConical size={18} />
                     </button>
 
                     {/* COST MANAGEMENT */}
@@ -4644,7 +4681,7 @@ export default function App() {
                             <span className="text-[11px] truncate">{language === "ar" ? "ØªØµØ¯ÙŠØ± ÙˆØ·Ø¨Ø§Ø¹Ø© ØªÙ‚Ø§Ø±ÙŠØ± PDF" : language === "fr" ? "Rapports PDF" : "PDF Reports"}</span>
                           </button>
                           <button 
-                            onClick={() => { setViewMode("workspace"); setActiveSidebarTab("lab_validation"); }}
+                            onClick={() => { setViewMode("workspace"); setActiveSidebarTab("materials_lab"); }}
                             className={`flex items-center gap-1 px-2.5 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800/40 rounded transition-all w-full cursor-pointer ${viewMode === "workspace" && activeSidebarTab === "lab_validation" ? "bg-amber-500/10 dark:bg-amber-950/20 text-amber-600 dark:text-amber-400 font-bold" : "text-slate-600 dark:text-slate-355 hover:text-blue-500"}`}
                           >
                             <span className="font-mono text-slate-300 dark:text-slate-700 select-none shrink-0">
@@ -4738,7 +4775,7 @@ export default function App() {
                     <div className="space-y-1 mt-1">
                       <div className="flex items-center gap-1.5 w-full text-[10px] font-black text-violet-500 dark:text-violet-400 uppercase tracking-widest font-mono select-none">
                         <GraduationCap size={12} className="text-violet-505 shrink-0" />
-                        <span>{t("academic_lab")}</span>
+                        <span>{t("materials_lab")}</span>
                       </div>
                       <div className="flex flex-col pl-2 pr-1.5 space-y-0.5">
                         <button 
@@ -4756,7 +4793,7 @@ export default function App() {
                         </button>
                         <button 
                           onClick={() => {
-                            setActiveSidebarTab("academic_lab");
+                            setActiveSidebarTab("materials_lab");
                           }}
                           className={`flex items-center gap-1 px-2 py-1 hover:bg-slate-50 dark:hover:bg-slate-800/40 rounded transition-all w-full cursor-pointer ${activeSidebarTab === "academic_lab" ? "text-violet-600 dark:text-violet-400 font-bold bg-violet-50 dark:bg-violet-950/20" : "text-slate-600 dark:text-slate-355 hover:text-violet-550"}`}
                         >
@@ -4843,9 +4880,9 @@ export default function App() {
                       setViewMode("workspace");
                       if (key === "materials") setActiveSidebarTab("materials_library");
                       else if (key === "granular") setActiveSidebarTab("optimization");
-                      else if (key === "validation") setActiveSidebarTab("lab_validation");
+                      else if (key === "validation") setActiveSidebarTab("materials_lab");
                       else if (key === "mixDesign") setActiveSidebarTab("calculator");
-                      else if (key === "trialMix") setActiveSidebarTab("academic_lab");
+                      else if (key === "trialMix") setActiveSidebarTab("materials_lab");
                       else if (key === "report") setActiveSidebarTab("reports");
                     };
 
@@ -4909,10 +4946,10 @@ export default function App() {
                 {[
                   { num: 1, label: t("workflow.step1.label"), desc: t("workflow.step1.desc"), icon: Folder, tab: "saved_projects" },
                   { num: 2, label: t("workflow.step2.label"), desc: t("workflow.step2.desc"), icon: Database, tab: "materials_library" },
-                  { num: 3, label: t("workflow.step4.label"), desc: t("workflow.step4.desc"), icon: Activity, tab: "sieve" },
-                  { num: 4, label: t("workflow.step3.label"), desc: t("workflow.step3.desc"), icon: Calculator, tab: "calculator" },
-                  { num: 5, label: t("workflow.step7.label"), desc: t("workflow.step7.desc"), icon: Coins, tab: "cost" },
-                  { num: 6, label: t("workflow.step8.label"), desc: t("workflow.step8.desc"), icon: FileText, tab: "reports" },
+                  { num: 3, label: t("workflow.step3.label"), desc: t("workflow.step3.desc"), icon: Calculator, tab: "calculator" },
+                  { num: 4, label: t("workflow.step4.label"), desc: t("workflow.step4.desc"), icon: Sliders, tab: "optimization" },
+                  { num: 5, label: t("workflow.step5.label"), desc: t("workflow.step5.desc"), icon: TrendingUp, tab: "cost" },
+                  { num: 6, label: t("workflow.step6.label"), desc: t("workflow.step6.desc"), icon: FileText, tab: "reports" },
                 ].map((st) => {
                   const IconComp = st.icon;
                   const isDone = st.num < activeStep;
@@ -5061,35 +5098,35 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Column 2: Source B - Granulometry & Sieve Center (4 Cols) */}
+                  {/* Column 2: Source B - Laboratory QC & Characterization (4 Cols) */}
                   <div className="lg:col-span-4 bg-white dark:bg-slate-950/60 rounded-xl border border-slate-200/60 dark:border-slate-800/80 p-4 flex flex-col gap-3 shadow-sm relative group hover:border-indigo-500/45 dark:hover:border-indigo-500/40 transition-all duration-300">
                     <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-900/60">
                       <span className="text-[9.5px] font-black text-indigo-600 dark:text-indigo-400 bg-indigo-500/15 px-2 py-0.5 rounded-md font-mono">
-                        {language === "ar" ? "Ø§Ù„Ù…ØµØ¯Ø± Ø§Ù„Ø«Ø§Ù†ÙŠ: Ù…Ø±ÙƒØ² ØªØ­Ù„ÙŠÙ„ Ø§Ù„ØºØ±Ø§Ø¨ÙŠÙ„" : language === "fr" ? "Source B: GranulomÃ©trie" : "Source B: Sieve Analyzer"}
+                        {language === "ar" ? "Ø§Ù„Ù…ØµØ¯Ø± Ø§Ù„Ø«Ø§Ù†ÙŠ: Ø¨ÙŠØ§Ù†Ø§Øª Ø§Ù„ØªØ­Ù‚Ù‚ ÙˆØ§Ù„ØªØ­ÙƒÙ… Ø§Ù„Ù…Ø®Ø¨Ø±ÙŠ" : language === "fr" ? "Source B: ContrÃ´le & VÃ©rification Labo" : "Source B: Laboratory QC & Verification"}
                       </span>
-                      <Activity size={13} className="text-indigo-550 dark:text-indigo-400" />
+                      <FlaskConical size={13} className="text-indigo-500 dark:text-indigo-400" />
                     </div>
 
                     <div className="flex flex-col gap-2.5">
-                      {/* Sieve Stream Info */}
+                      {/* QC Stream Info */}
                       <div className="bg-indigo-500/5 dark:bg-indigo-500/10 p-3 rounded-lg border border-indigo-500/15 text-right flex flex-col gap-2">
                         <div className="flex items-center justify-between">
                           <span className="text-[9.5px] font-bold text-indigo-600 dark:text-indigo-300 font-mono">
-                            {inputs.finenessModulus || 2.65}
+                            {inputs.finenessModulus ? `FM: ${inputs.finenessModulus}` : "FM: 2.65"}
                           </span>
                           <span className="text-[10.5px] font-black text-slate-800 dark:text-slate-200">
-                            {language === "ar" ? "Ù…Ø¹Ø§Ù…Ù„ Ø§Ù„Ù†Ø¹ÙˆÙ…Ø© Ø§Ù„ÙØ¹Ù„ÙŠ" : "Fineness Modulus (FM)"}
+                            {language === "ar" ? "Ø®ØµØ§Ø¦Øµ ÙˆØªÙˆØµÙŠÙ Ø§Ù„Ù…ÙˆØ§Ø¯ Ø§Ù„Ù…Ø®Ø¨Ø±ÙŠØ©" : "Material Lab Specifications"}
                           </span>
                         </div>
-                        <p className="text-[9px] text-slate-450 dark:text-slate-400 leading-tight">
-                          {language === "ar" ? "ÙŠØªÙ… Ø­Ø³Ø§Ø¨Ù‡ ÙˆØ¨Ø«Ù‡ ÙÙˆØ±ÙŠØ§Ù‹ Ù…Ù† Ù†ØªØ§Ø¦Ø¬ Ù…Ù†Ø§Ø®Ù„ Ø§Ù„Ø±ÙƒØ§Ù… Ø§Ù„Ù…Ø¹ØªÙ…Ø¯Ø© ÙÙŠ Ù…Ø±ÙƒØ² Ø§Ù„ØºØ±Ø¨Ù„Ø© Ù„ØªØ­Ø¯ÙŠØ¯ Ø§Ø³ØªØ¬Ø§Ø¨Ø© Ø§Ù„Ø®Ù„Ø·Ø© Ø§Ù„Ù…ÙŠÙƒØ§Ù†ÙŠÙƒÙŠØ©." : "Streamed live from the physical sieve analysis tests to fine-tune sand and gravel proportioning."}
+                        <p className="text-[9px] text-slate-500 dark:text-slate-400 leading-tight">
+                          {language === "ar" ? "ØªÙØ±Ø¨Ø· Ù†ØªØ§Ø¦Ø¬ Ø§Ù„ÙØ­ÙˆØµØ§Øª Ø§Ù„Ù…Ø®Ø¨Ø±ÙŠØ© (Ø§Ù„ÙƒØ«Ø§ÙØ©ØŒ Ø§Ù„Ø§Ù…ØªØµØ§ØµØŒ Ø§Ù„Ù†Ø¹ÙˆÙ…Ø©ØŒ Ø§Ù„ØºØ±Ø¨Ù„Ø©ØŒ Ø§Ù„Ù…ÙƒØ§ÙØ¦ Ø§Ù„Ø±Ù…Ù„ÙŠ) Ø¨Ø§Ù„Ù…ÙˆØ§Ø¯ ÙˆØªÙØºØ°Ù‰ ØªÙ„Ù‚Ø§Ø¦ÙŠØ§Ù‹ Ù„Ù…Ø­Ø±Ùƒ Ø§Ù„Ø­Ø³Ø§Ø¨ Ø¯ÙˆÙ† Ø¥Ù‚Ø­Ø§Ù…Ù‡Ø§ ÙƒØ®Ø·ÙˆØ© ÙÙŠ Ù…Ø®Ø·Ø· Ø§Ù„Ø¹Ù…Ù„ÙŠØ§Øª." : "Material test data (density, absorption, fineness, granulometry, sand equivalent) feeds into the engine automatically without being a workflow step."}
                         </p>
                       </div>
 
                       {/* Blending Optimization Target */}
                       <div className="bg-slate-50/50 dark:bg-slate-900/30 p-2.5 rounded-lg border border-slate-100/80 dark:border-slate-800/40 text-right flex flex-col gap-1.5">
                         <span className="text-[10px] font-black text-slate-700 dark:text-slate-300">
-                          {language === "ar" ? "Ø§Ù„ØªØ¯Ø±Ø¬ Ø§Ù„Ø­Ø¨ÙŠØ¨ÙŠ Ø§Ù„Ù…Ø³ØªÙ‡Ø¯Ù" : "Grading Target Controls"}
+                          {language === "ar" ? "Ø§Ù„Ø®ØµØ§Ø¦Øµ Ø§Ù„Ø­Ø¨ÙŠØ¨ÙŠØ© Ø§Ù„Ù…Ø³ØªÙ‡Ø¯ÙØ©" : "Target Physical Properties"}
                         </span>
                         <div className="grid grid-cols-2 gap-1.5 text-[9px] font-mono text-slate-500">
                           <div>
@@ -5100,7 +5137,7 @@ export default function App() {
                           </div>
                         </div>
                         <div className="text-[8.5px] font-bold text-blue-600 dark:text-blue-400 border-t border-slate-100/40 dark:border-slate-800/20 pt-1 mt-1 text-left">
-                          {language === "ar" ? "â† ÙŠØªÙ… ØªØºØ°ÙŠØ© Ù…Ù†Ø­Ù†Ù‰ Dreux-Gorisse ÙÙˆØ±ÙŠØ§Ù‹" : "â† Actively feeding Dreux-Gorisse optimal curve"}
+                          {language === "ar" ? "â† ØªØºØ°ÙŠØ© Ù…Ø­Ø±Ùƒ Ø§Ù„Ø®Ù„Ø·Ø§Øª ØªÙ„Ù‚Ø§Ø¦ÙŠØ§Ù‹" : "â† Auto-fed to calculation engine"}
                         </div>
                       </div>
                     </div>
@@ -5123,11 +5160,11 @@ export default function App() {
                         </span>
                         <div className="text-[11px] font-black text-slate-100">
                           {activeStep === 1 && (language === "ar" ? "Ø³Ø¬Ù„ Ø§Ù„Ù…Ø´Ø§Ø±ÙŠØ¹ Ø§Ù„Ù‡Ù†Ø¯Ø³ÙŠ" : "Project specifications processor")}
-                          {activeStep === 2 && (language === "ar" ? "ØªØµÙÙŠØ© ÙˆÙØ±Ø² Ù‚Ø§Ø¹Ø¯Ø© Ø§Ù„Ø®Ø§Ù…Ø§Øª" : "Materials DB live querying")}
-                          {activeStep === 3 && (language === "ar" ? "Ø®ÙˆØ§Ø±Ø²Ù…ÙŠØ© Ø¯Ø±Ùˆ-ØºÙˆØ±ÙŠØ³ Ø§Ù„Ù…Ø«Ù„Ù‰" : "Dreux-Gorisse curve optimizer")}
-                          {activeStep === 4 && (language === "ar" ? "Ø§Ù„Ø­Ø³Ø§Ø¨ Ø§Ù„Ø­Ø¬Ù…ÙŠ ÙˆØ§Ù„ÙˆØ²Ù†ÙŠ Ù„Ù„Ø¨ÙŠØªÙˆÙ†" : "Volumetric Mix Engine")}
-                          {activeStep === 5 && (language === "ar" ? "Ù…Ø­Ù„Ù„ Ø§Ù„Ø¬Ø¯ÙˆÙ‰ Ø§Ù„ÙƒÙ„ÙÙŠØ© ÙˆØ§Ù„Ù…Ø§Ø±Ø¬Ù†" : "Feasibility & Cost Solver")}
-                          {activeStep === 6 && (language === "ar" ? "Ù…ÙˆÙ„Ø¯ ÙˆØ«ÙŠÙ‚Ø© Ø§Ù„Ø§Ø¹ØªÙ…Ø§Ø¯ ÙˆØ§Ù„Ù€ PDF" : "Certified PDF Compiler")}
+                          {activeStep === 2 && (language === "ar" ? "ØªØµÙÙŠØ© ÙˆÙØ±Ø² Ù‚Ø§Ø¹Ø¯Ø© Ø§Ù„Ø®Ø§Ù…Ø§Øª ÙˆØ§Ù„Ù…ÙˆØ§Ø¯" : "Materials DB live querying")}
+                          {activeStep === 3 && (language === "ar" ? "ØµÙŠØ§ØºØ© ÙˆØªØ­Ø¶ÙŠØ± Ø§Ù„Ø®Ù„Ø·Ø© Ø§Ù„Ø®Ø±Ø³Ø§Ù†ÙŠØ©" : "Mix Proportioning & Formulation Engine")}
+                          {activeStep === 4 && (language === "ar" ? "Ù…Ø¹Ø§ÙŠØ±Ø© Ø§Ù„Ø®Ù„Ø·Ø© ÙˆØ¶Ø¨Ø· Ø§Ù„Ø®Ù„Ø·Ø§Øª Ø§Ù„ØªØ¬Ø±ÙŠØ¨ÙŠØ©" : "Mix Calibration & Trial Batches")}
+                          {activeStep === 5 && (language === "ar" ? "ØªØ­Ù„ÙŠÙ„ Ø§Ù„Ù†ÙÙ‚Ø§Øª ÙˆØ§Ù„Ù…ÙŠØ²Ø§Ù†ÙŠØ© ÙˆØ§Ù„Ø¬Ø¯ÙˆÙ‰ Ø§Ù„ÙƒÙ„ÙÙŠØ©" : "Expense & Budget Analysis Engine")}
+                          {activeStep === 6 && (language === "ar" ? "ØªÙˆÙ„ÙŠØ¯ Ø§Ù„ØªÙ‚Ø±ÙŠØ± Ø§Ù„Ù†Ù‡Ø§Ø¦ÙŠ ÙˆÙˆØ«ÙŠÙ‚Ø© Ø§Ù„Ø§Ø¹ØªÙ…Ø§Ø¯ PDF" : "Certified PDF Compiler")}
                         </div>
                       </div>
 
@@ -5155,11 +5192,11 @@ export default function App() {
                 <div className="mt-4 flex items-center justify-between text-[9px] font-black tracking-wider uppercase font-mono text-slate-400 dark:text-slate-500 select-none">
                   <span>{language === "ar" ? "ØªØªØ¨Ø¹ Ø³Ø±ÙŠØ§Ù† ØªØ¯ÙÙ‚ Ø§Ù„Ø¨ÙŠØ§Ù†Ø§Øª Ø§Ù„Ù‡Ù†Ø¯Ø³ÙŠØ©" : "Process Flow Telemetry"}</span>
                   <div className="flex gap-2 items-center">
-                    <span className="text-[10px] text-blue-500 dark:text-blue-400 font-bold">{language === "ar" ? "Ø§Ù„Ù…ÙˆØ§Ø¯" : "Material Library"}</span>
+                    <span className="text-[10px] text-blue-500 dark:text-blue-400 font-bold">{language === "ar" ? "Ø§Ù„Ù…Ø´Ø±ÙˆØ¹ ÙˆØ§Ù„Ù…ÙˆØ§Ø¯" : "Setup & Materials"}</span>
                     <span className="w-4 h-[1px] bg-slate-300 dark:bg-slate-800"></span>
-                    <span className="text-[10px] text-indigo-500 dark:text-indigo-400 font-bold">{language === "ar" ? "Ø§Ù„ØºØ±Ø¨Ù„Ø©" : "Granulometry"}</span>
+                    <span className="text-[10px] text-indigo-500 dark:text-indigo-400 font-bold">{language === "ar" ? "Ø§Ù„ØªØ­Ø¶ÙŠØ± ÙˆØ§Ù„Ù…Ø¹Ø§ÙŠØ±Ø©" : "Formulation & Calibration"}</span>
                     <span className="w-4 h-[1px] bg-slate-300 dark:bg-slate-800"></span>
-                    <span className="text-[10px] text-emerald-500 dark:text-emerald-400 font-bold">{language === "ar" ? "Ø§Ù„Ø­Ø³Ø§Ø¨ ÙƒÙˆØ¯ÙŠØ§Ù‹" : "SNO Engine"}</span>
+                    <span className="text-[10px] text-emerald-500 dark:text-emerald-400 font-bold">{language === "ar" ? "Ø§Ù„Ù†ØªØ§Ø¦Ø¬ ÙˆØ§Ù„ØªÙ‚Ø±ÙŠØ±" : "Results & Report"}</span>
                   </div>
                   <span>{language === "ar" ? "Ø§Ø¹ØªÙ…Ø§Ø¯ ÙƒÙˆØ¯ÙŠ Ù…ØªÙƒØ§Ù…Ù„ 100%" : "SNO COMPLIANCE 100%"}</span>
                 </div>
@@ -8797,1061 +8834,67 @@ max="0.95"
                                 {language === "fr" ? "Adjuvants & Additions" : language === "en" ? "Admixtures & Additions" : "Ø§Ù„Ø¥Ø¶Ø§ÙØ§Øª Ø§Ù„Ù…Ø¹Ø¯Ù†ÙŠØ© ÙˆØ§Ù„ÙƒÙŠÙ…ÙŠØ§Ø¦ÙŠØ©"}
                               </td>
                               <td className="p-3 text-center font-mono">
-                                {`${Math.round(costBreakdown.additionsWeight).toLocaleString()} kg`}
-                              </td>
-                              <td className="p-3 text-center font-mono text-slate-500">
-                                {formatCurrency(costBreakdown.avgAdditionsUnitPrice)}/kg
-                              </td>
-                              <td className="p-3 text-center font-mono text-blue-500 font-bold">
-                                {formatCurrency(costBreakdown.additionsCost)}
-                              </td>
-                            </tr>
-                          )}
-
-                          {/* Row 6: Labor Cost */}
-                          {costBreakdown.laborCost > 0 && (
-                            <tr>
-                              <td className="p-3 font-bold text-slate-900 dark:text-slate-100">
-                                {language === "fr" ? "Main d'Å“uvre" : language === "en" ? "Labor Cost" : "Ø§Ù„ÙŠØ¯ Ø§Ù„Ø¹Ø§Ù…Ù„Ø© ÙˆØ§Ù„ØªØ´ØºÙŠÙ„ Ù„Ù„Ø®Ø±Ø³Ø§Ù†Ø©"}
-                              </td>
-                              <td className="p-3 text-center font-mono">
-                                {`${inputs.batchVolume} mÂ³`}
-                              </td>
-                              <td className="p-3 text-center font-mono text-slate-500">
-                                {formatCurrency(inputs.priceLabor)}/mÂ³
-                              </td>
-                              <td className="p-3 text-center font-mono text-blue-500 font-bold">
-                                {formatCurrency(costBreakdown.laborCost)}
-                              </td>
-                            </tr>
-                          )}
-
-                        </tbody>
-                      </table>
-                    </div>
-
-                    {/* GRAND TOTAL ROW */}
-                    <div className={`p-3.5 bg-slate-100 dark:bg-slate-800/40 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center text-xs font-extrabold text-slate-900 dark:text-white ${language === "ar" ? "flex-row-reverse" : "flex-row"}`}>
-                      <div className={language === "ar" ? "text-right" : "text-left"}>
-                        <span>{localizedLabel("Ø§Ù„Ù…Ø¬Ù…ÙˆØ¹ Ø§Ù„ÙƒÙ„ÙŠ Ø§Ù„ØªÙ‚Ø¯ÙŠØ±ÙŠ Ù„Ù„ÙˆØ¬Ø¨Ø© Ø´Ø§Ù…Ù„ Ø§Ù„ÙŠØ¯ Ø§Ù„Ø¹Ø§Ù…Ù„Ø©", "Total estimÃ© de la gÃ¢chÃ©e (incl. main d'Å“uvre)", "Estimated Grand Total for the Batch (incl. labor)")}</span>
-                        <div className="text-[10px] text-slate-400 font-sans font-medium mt-0.5">
-                          {language === "fr" ? `Pour un volume de ${inputs.batchVolume} mÂ³` : language === "en" ? `For a batch volume of ${inputs.batchVolume} mÂ³` : `Ù„Ø­Ø¬Ù… ÙˆØ¬Ø¨Ø© ${inputs.batchVolume} Ù…Â³ Ø¨Ø®Ø±Ø³Ø§Ù†Ø© Ø·Ø§Ø²Ø¬Ø©`}
-                        </div>
-                      </div>
-                      <div className="font-mono text-[#10B981] font-black text-sm">
-                        {formatCurrency(costBreakdown.grandTotalCost)}
-                      </div>
-                    </div>
-
-                  </div>
-
-                  {/* Dynamic Pie Chart Box (5 Cols) */}
-                  <div className={`lg:col-span-5 bg-slate-50 dark:bg-slate-800/20 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm flex flex-col justify-between ${language === "ar" ? "text-right" : "text-left"}`}>
-                    
-                    <div>
-                      <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest font-sans mb-1">{localizedLabel("Ø§Ù„Ø±Ø³Ù… Ø§Ù„Ø¯Ø§Ø¦Ø±ÙŠ Ù„ØªÙˆØ²ÙŠØ¹ Ø§Ù„ÙƒÙ„ÙØ© (Breakdown)", "Graphique de rÃ©partition des coÃ»ts", "Cost Distribution Pie Chart")}</h4>
-                      <p className="text-[10px] text-slate-400 font-sans">
-                        {localizedLabel("Ù…Ø®Ø·Ø· ÙŠÙˆØ¶Ø­ Ø§Ù„Ù†Ø³Ø¨Ø© Ø§Ù„Ù…Ø¦ÙˆÙŠØ© Ù„Ù…Ø³Ø§Ù‡Ù…Ø© ÙƒÙ„ Ù…Ø§Ø¯Ø© Ø£ÙˆÙ„ÙŠØ© Ø®Ø§Ù… Ø¨Ø§Ù„Ø®Ù„Ø·Ø© ÙÙŠ Ø§Ù„ØªÙƒÙ„ÙØ© Ø§Ù„ÙƒÙ„ÙŠØ© Ù„Ù„Ù…ÙˆØ§Ø¯", "Graphique circulaire illustrant la contribution en pourcentage de chaque ingrÃ©dient", "Pie chart showing the percentage contribution of each material ingredient")}
-                      </p>
-                    </div>
-
-                    {/* Recharts Donut Pie Chart */}
-                    <div className="relative h-56 flex justify-center items-center mt-4">
-                      {costBreakdown.totalMaterialCost > 0 ? (
-                        <>
-                          <ResponsiveContainer width="100%" height="100%">
-                            <RechartsPieChart>
-                              <Pie
-                                data={[
-                                  { name: localizedLabel("Ø§Ù„Ø¥Ø³Ù…Ù†Øª", "Ciment", "Cement"), value: costBreakdown.cementCost, color: "#3B82F6" },
-                                  { name: localizedLabel("Ø§Ù„Ø±Ù…Ù„", "Sable", "Sand"), value: costBreakdown.sandCost, color: "#F59E0B" },
-                                  { name: localizedLabel("Ø§Ù„Ø­ØµÙ‰", "Gravier", "Gravel"), value: costBreakdown.gravelCost, color: "#EF4444" },
-                                  { name: localizedLabel("Ø§Ù„Ù…Ø§Ø¡", "Eau", "Water"), value: costBreakdown.waterCost, color: "#06B6D4" },
-                                  { name: localizedLabel("Ø§Ù„Ø¥Ø¶Ø§ÙØ§Øª", "Adjuvants", "Admixtures"), value: costBreakdown.additionsCost, color: "#A855F7" }
-                                ].filter(d => d.value > 0)}
-                                cx="50%"
-                                cy="50%"
-                                innerRadius={55}
-                                outerRadius={75}
-                                paddingAngle={3}
-                                dataKey="value"
-                              >
-                                {[
-                                  { name: localizedLabel("Ø§Ù„Ø¥Ø³Ù…Ù†Øª", "Ciment", "Cement"), value: costBreakdown.cementCost, color: "#3B82F6" },
-                                  { name: localizedLabel("Ø§Ù„Ø±Ù…Ù„", "Sable", "Sand"), value: costBreakdown.sandCost, color: "#F59E0B" },
-                                  { name: localizedLabel("Ø§Ù„Ø­ØµÙ‰", "Gravier", "Gravel"), value: costBreakdown.gravelCost, color: "#EF4444" },
-                                  { name: localizedLabel("Ø§Ù„Ù…Ø§Ø¡", "Eau", "Water"), value: costBreakdown.waterCost, color: "#06B6D4" },
-                                  { name: localizedLabel("Ø§Ù„Ø¥Ø¶Ø§ÙØ§Øª", "Adjuvants", "Admixtures"), value: costBreakdown.additionsCost, color: "#A855F7" }
-                                ].filter(d => d.value > 0).map((entry, index) => (
-                                  <Cell key={`cell-${index}`} fill={entry.color} />
-                                ))}
-                              </Pie>
-                              <Tooltip formatter={(value: any) => [formatCurrency(value as number), localizedLabel("Ø§Ù„ÙƒÙ„ÙØ©", "CoÃ»t", "Cost")]} />
-                            </RechartsPieChart>
-                          </ResponsiveContainer>
-                          {/* Inner Label */}
-                          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                            <span className="text-[9px] text-slate-400 uppercase font-black tracking-wider">
-                              {localizedLabel("ÙƒÙ„ÙØ© Ø§Ù„Ù…ÙˆØ§Ø¯", "CoÃ»t MatÃ©riaux", "Materials Cost")}
-                            </span>
-                            <span className="text-xs font-black text-slate-800 dark:text-white font-mono">
-                              {formatCurrency(costBreakdown.totalMaterialCost)}
-                            </span>
-                          </div>
-                        </>
-                      ) : (
-                        <div className="text-xs text-slate-400 font-sans text-center">
-                          {localizedLabel(
-                             "Ø§Ù„Ø±Ø¬Ø§Ø¡ Ø¥Ø¯Ø®Ø§Ù„ Ø£Ø³Ø¹Ø§Ø± Ù„Ù„Ù…ÙˆØ§Ø¯ Ù„Ø¹Ø±Ø¶ ØªÙØµÙŠÙ„ Ø§Ù„ØªÙˆØ²ÙŠØ¹ Ø§Ù„Ø¯Ø§Ø¦Ø±ÙŠ",
-                             "Veuillez entrer les prix des matÃ©riaux pour afficher la rÃ©partition.",
-                             "Please enter material unit costs to view breakdown chart."
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Dynamic Legend */}
-                    {costBreakdown.totalMaterialCost > 0 && (
-                      <div className="grid grid-cols-2 gap-x-2 gap-y-1.5 mt-4 text-[10px] border-t border-slate-200 dark:border-slate-800/80 pt-3">
-                        {[
-                          { name: localizedLabel("Ø§Ù„Ø¥Ø³Ù…Ù†Øª", "Ciment", "Cement"), value: costBreakdown.cementCost, color: "#3B82F6", pct: costBreakdown.percentages.cement },
-                          { name: localizedLabel("Ø§Ù„Ø±Ù…Ù„", "Sable", "Sand"), value: costBreakdown.sandCost, color: "#F59E0B", pct: costBreakdown.percentages.sand },
-                          { name: localizedLabel("Ø§Ù„Ø­ØµÙ‰", "Gravier", "Gravel"), value: costBreakdown.gravelCost, color: "#EF4444", pct: costBreakdown.percentages.gravel },
-                          { name: localizedLabel("Ø§Ù„Ù…Ø§Ø¡", "Eau", "Water"), value: costBreakdown.waterCost, color: "#06B6D4", pct: costBreakdown.percentages.water },
-                          { name: localizedLabel("Ø§Ù„Ø¥Ø¶Ø§ÙØ§Øª", "Adjuvants", "Admixtures"), value: costBreakdown.additionsCost, color: "#A855F7", pct: costBreakdown.percentages.additions }
-                        ].filter(item => item.value > 0).map((item, idx) => (
-                          <div key={idx} className={`flex items-center gap-1.5 ${language === "ar" ? "justify-end" : "justify-start"}`}>
-                            {language !== "ar" && <span className="text-slate-600 dark:text-slate-400 font-sans">{item.name}</span>}
-                            <span className="text-slate-500 dark:text-slate-400 font-mono font-bold">({item.pct.toFixed(1)}%)</span>
-                            {language === "ar" && <span className="text-slate-600 dark:text-slate-400 font-sans">{item.name}</span>}
-                            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                  </div>
-
-                </div>
-
-                {/* Advanced Profit, Regional & AI Cost Optimization Surcharge Dashboard */}
-                <CostAnalysisDashboard 
-                  inputs={inputs}
-                  setInputs={setInputs}
-                  results={results}
-                  costBreakdown={costBreakdown}
-                  formatCurrency={formatCurrency}
-                  getCurrencySymbol={getCurrencySymbol}
-                  language={language}
-                />
-
-              </div>
-            )}
-
-            {/* TAB CONTENT: 5. TECHNICAL REPORTS */}
-            {activeSidebarTab === "reports" && (
-              <div className="space-y-6 animate-fade-in" id="reports-tab-panel">
-                
-                {/* Central Calculation Validation Gate Panel */}
-                <CalculationValidationGatePanel 
-                  validation={validationGate} 
-                  onNavigateToInputs={() => setActiveSidebarTab("calculator")} 
-                  language={language}
-                  setActiveSidebarTab={setActiveSidebarTab}
-                  materialsDatabase={materialsDatabase}
-                  inputs={inputs}
-                />
-
-                {validationGate.isValidForReport ? (
-                  <>
-                    {/* Logical engineering sequence results summary */}
-                    <LogicalResultsSummary 
-                      inputs={inputs}
-                      results={results}
-                      language={language}
-                      materialsDatabase={materialsDatabase}
-                      setActiveSidebarTab={setActiveSidebarTab}
-                    />
-
-                    {/* Embedded Printable report component */}
-                    <RecipeReport 
-                      result={results} 
-                      input={inputs} 
-                      activeProject={activeProject} 
-                      materialsDatabase={materialsDatabase} 
-                      onChangeInputs={(updated) => setInputs(prev => ({ ...prev, ...updated }))}
-                      onChangeProjectDetails={(details) => {
-                        if (details.name !== undefined) setCurrentProject(details.name);
-                        if (details.client !== undefined) setCurrentClient(details.client);
-                        if (details.plant !== undefined) setCurrentPlant(details.plant);
-                      }}
-                    />
-
-                    {/* Additional reports advisory notes */}
-                    <div className={`bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm space-y-3.5 ${language === "ar" ? "text-right" : "text-left"}`}>
-                      <h4 className="text-xs font-black text-slate-850 dark:text-slate-150">
-                        {localizedLabel("ØªÙˆØµÙŠØ§Øª Ø¥Ø¹Ø¯Ø§Ø¯ Ø§Ù„Ø®Ù„Ø·Ø© Ø§Ù„ØªØ¬Ø±ÙŠØ¨ÙŠØ© (Lab Trial Mix Audit)", "Recommandations pour l'essai de gÃ¢che laboratoire (Lab Trial)", "Lab Trial Mix Audit Recommendations")}
-                      </h4>
-                      <p className="text-xs text-slate-550 leading-relaxed font-sans">
-                        {localizedLabel(
-                          "Ø§Ù„Ø®Ù„Ø·Ø§Øª Ø§Ù„Ø®Ø±Ø³Ø§Ù†ÙŠØ© ØªØµÙ†Ù Ù…ÙˆØ§Ø¯Ø§Ù‹ Ø¥Ù†Ø´Ø§Ø¦ÙŠØ© Ø«Ù‚ÙŠÙ„Ø©. ØªØ¶Ù…Ù† Ù‡Ø°Ù‡ Ø§Ù„Ø¢Ù„ÙŠØ© Ù…Ø±Ø¬Ø¹ÙŠØ© Ù‡Ù†Ø¯Ø³ÙŠØ© Ø¯Ù‚ÙŠÙ‚Ø© Ù„Ù„Ø­Ø³Ø§Ø¨Ø§Øª. ÙŠÙÙ†ØµØ­ Ø¯ÙˆÙ…Ø§Ù‹ Ø¨Ø¥Ù†Ø´Ø§Ø¡ Ø®Ù„Ø·Ø© ØªØ¬Ø±ÙŠØ¨ÙŠØ© (Trial Mix) ÙÙŠ Ù…Ø¹Ù…Ù„ ÙØ­Øµ Ø§Ù„Ù…ÙˆØ§Ø¯ Ù„Ù„ØªØ­Ù‚Ù‚ Ù…Ù† Ù‚ÙŠÙ… Ø§Ù„ØªÙ…ÙŠØ¹ Ø§Ù„ÙØ¹Ù„ÙŠ ÙˆØ§Ù„Ø§Ù†Ø²Ù„Ø§Ù‚ ÙˆØ§Ù„Ø§Ù†Ø¶ØºØ§Ø· Ù‚Ø¨Ù„ ØµØ¨ Ø§Ù„Ø£Ø¹Ù…Ø¯Ø© Ø£Ùˆ ØªØºØ·ÙŠØ§Øª Ø§Ù„ÙƒÙ…Ø±Ø§Øª Ø§Ù„Ø­Ø§Ù…Ù„Ø©.",
-                          "Les mÃ©langes de bÃ©ton sont considÃ©rÃ©s comme des matÃ©riaux de construction lourds. Ce mÃ©canisme assure une rÃ©fÃ©rence d'ingÃ©nierie prÃ©cise pour les calculs. Il est toujours conseillÃ© de rÃ©aliser une gÃ¢chÃ©e d'essai (Trial Mix) dans un laboratoire d'essais pour vÃ©rifier l'affaissement et la rÃ©sistance avant le coulage.",
-                          "Concrete mixtures are heavy construction materials. This system ensures high-accuracy engineering reference for calculations. It is always recommended to carry out a laboratory trial mix to verify fresh slumps and compression metrics prior to active construction works."
-                        )}
-                      </p>
-                    </div>
-                  </>
-                ) : (
-                  <div className="bg-rose-500/5 dark:bg-rose-950/5 border border-rose-200/40 dark:border-rose-900/40 rounded-xl p-6 text-center text-slate-500 text-xs font-sans">
-                    {language === "ar" 
-                      ? "ØªÙ… Ø­Ø¬Ø¨ Ø¹Ø±Ø¶ ÙˆØªØµØ¯ÙŠØ± Ø§Ù„ØªÙ‚Ø±ÙŠØ± ÙˆÙ…Ø³ØªÙ†Ø¯ Ø§Ù„Ù€ PDF Ø¨Ø§Ù„ÙƒØ§Ù…Ù„ ØªÙ„Ù‚Ø§Ø¦ÙŠØ§Ù‹ Ø¨Ù…ÙˆØ¬Ø¨ Ù†Ø¸Ø§Ù… Ø¨ÙˆØ§Ø¨Ø© Ø§Ù„Ù…Ø¹Ø§ÙŠØ±Ø© Ø§Ù„Ù‡Ù†Ø¯Ø³ÙŠØ© Ù„ÙˆØ¬ÙˆØ¯ Ø£Ø®Ø·Ø§Ø¡ Ø­Ø³Ø§Ø¨ÙŠØ© Ø­Ø±Ø¬Ø©."
-                      : "The Technical Report preview and PDF download have been blocked automatically by the Calculation Validation Gate due to critical errors."}
-                  </div>
-                )}
-
-              </div>
-            )}
-
-            {/* TAB CONTENT: 5.6. VISUAL CONCRETE SIMULATION */}
-            {activeSidebarTab === "simulation" && (
-              <div className="space-y-6 animate-fade-in" id="visual-simulation-tab-panel">
-                <VisualConcreteSimulation />
-              </div>
-            )}
-
-            {/* TAB CONTENT: 5.7. SIEVE GRADING CURVES */}
-            {activeSidebarTab === "sieve" && (
-              <div className="space-y-6 animate-fade-in" id="sieve-grading-tab-panel">
-                <SieveGradingCurves 
-                  inputs={inputs}
-                  results={results}
-                  materialsDatabase={materialsDatabase}
-                  setInputs={setInputs}
-                />
-              </div>
-            )}
-
-            {/* TAB CONTENT: CIVIL ENGINEERING ACADEMIC LAB */}
-            {activeSidebarTab === "academic_lab" && (
-              <div className="space-y-6 animate-fade-in" id="academic-lab-tab-panel">
-                <AcademicLabPanel 
-                  language={language}
-                  themeMode={themeMode}
-                />
-              </div>
-            )}
-
-            {/* TAB CONTENT: LABORATORY VALIDATION MODULE */}
-            {activeSidebarTab === "lab_validation" && (
-              <div className="space-y-6 animate-fade-in" id="laboratory-validation-tab-panel">
-                <LaboratoryValidationPanel 
-                  activeProject={projects.find(p => p.id === activeProjectId) || projects[0]}
-                  projects={projects}
-                  setProjects={setProjects}
-                  materialsDatabase={materialsDatabase}
-                  onSaveValidationRecord={(updatedProj) => {
-                    const record = updatedProj.validationRecords?.[updatedProj.validationRecords.length - 1];
-                    if (record) {
-                      setNotifications(prev => [
-                        {
-                          id: String(Date.now()),
-                          textAr: `ØªÙ… ØªØ³Ø¬ÙŠÙ„ ÙØ­Øµ Ù…Ø®Ø¨Ø±ÙŠ Ø¬Ø¯ÙŠØ¯ Ù„Ù€ ${record.name} Ø¨Ø¯Ù‚Ø© Ù…Ø·Ø§Ø¨Ù‚Ø© Ø¹ÙŠØ§Ø±ÙŠØ© ${record.validationScore}%`,
-                          textFr: `Enregistrement validation labo ${record.name}: score de ${record.validationScore}%`,
-                          textEn: `New lab validation batch filed for ${record.name} with accuracy ${record.validationScore}%`,
-                          read: false
-                        },
-                        ...prev
-                      ]);
-                      
-                      setActivityLogs(prev => [
-                        {
-                          id: String(Date.now()),
-                          timestamp: new Date(),
-                          descriptionAr: `Ø¥Ø¯Ø®Ø§Ù„ ÙØ­Øµ Ø§Ù„ØªØ­Ù‚Ù‚ Ø§Ù„Ù…Ø®Ø¨Ø±ÙŠ Ù„Ù„Ø®Ø±Ø³Ø§Ù†Ø©: ${record.name} (Ø§Ù„Ø¯Ù‚Ø©: ${record.validationScore}%)`,
-                          descriptionFr: `EntrÃ©e validation laboratoire de bÃ©ton : ${record.name} (Score: ${record.validationScore}%)`,
-                          descriptionEn: `Concrete quality audit record registered: ${record.name} (Accuracy: ${record.validationScore}%)`,
-                          type: record.status === "PASSED" ? "success" : record.status === "WARNING" ? "warning" : "error"
-                        },
-                        ...prev
-                      ]);
-                    }
-                  }}
-                />
-              </div>
-            )}
-
-            {/* TAB CONTENT: DREUX-GORISSE SCIENTIFIC METHODOLOGY GUIDELINES */}
-            {activeSidebarTab === "methodology" && (
-              <div className="space-y-6 animate-fade-in" id="dreux-methodology-tab-panel">
-                <EngineeringKnowledgeCenter 
-                  inputs={inputs} 
-                  results={results} 
-                  setActiveSidebarTab={setActiveSidebarTab}
-                  language={language}
-                />
-              </div>
-            )}
-
-            {/* TAB CONTENT: CALCULATION JOURNAL */}
-            {activeSidebarTab === "journal" && (
-              <div className="space-y-6 animate-fade-in" id="calculation-journal-tab-panel">
-                <CalculationJournal 
-                  inputs={inputs} 
-                  result={results} 
-                />
-              </div>
-            )}
-
-            {/* TAB CONTENT: MATERIALS DATABASE TABS */}
-            {activeSidebarTab === "materials_library" && (
-              <div className="space-y-6 animate-fade-in" id="materials-library-tab-panel">
-                <MaterialEngineeringDatabase 
-                  inputs={inputs}
-                  setInputs={setInputs}
-                  handleSandPreset={handleSandPreset}
-                  handleGravelPreset={handleGravelPreset}
-                  customMaterialImages={customMaterialImages}
-                  generatingMaterialKey={generatingMaterialKey}
-                  handleGenerateMaterialImage={handleGenerateMaterialImage}
-                  generationError={generationError}
-                  materials={materialsDatabase}
-                  onUpdateMaterials={handleUpdateMaterials}
-                  onClearAllMaterials={handleClearAllMaterials}
-                  defaultType="all"
-                />
-              </div>
-            )}
-
-            {/* TAB CONTENT: OPTIMIZATION AND AI MIX OPTIMIZER */}
-            {activeSidebarTab === "optimization" && (
-              <div className="space-y-6 animate-fade-in" id="mix-optimization-tab-panel">
-                <MixOptimizationPanel 
-                  inputs={inputs} 
-                  setInputs={setInputs} 
-                  results={results} 
-                  currency={currency} 
-                />
-              </div>
-            )}
-
-            {/* TAB CONTENT: STRENGTH FORECASTING AND AGING MODEL */}
-            {activeSidebarTab === "forecasting" && (
-              <div className="space-y-6 animate-fade-in" id="strength-forecasting-tab-panel">
-                <StrengthSimulationPanel 
-                  inputs={inputs} 
-                  results={results} 
-                />
-              </div>
-            )}
-
-            {/* TAB CONTENT: COMPLIANCE REPORTS Panel */}
-            {activeSidebarTab === "compliance_reports" && (
-              <div className={`space-y-6 animate-fade-in ${isRtl ? "text-right" : "text-left"}`} id="compliance-reports-panel">
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                  
-                  {/* Left Column: Report compliance visual card */}
-                  <div className="lg:col-span-7 bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
-                    <ReportCompliance result={results} />
-                  </div>
-
-                  {/* Right Column: Normative code checklist */}
-                  <div className="lg:col-span-5 bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
-                    <h3 className="text-sm font-black text-slate-900 dark:text-white border-b border-slate-100 dark:border-slate-800 pb-2">
-                      Ù…ØµÙÙˆÙØ© Ø§Ù„Ù…Ø·Ø§Ø¨Ù‚Ø© Ù…Ø¹ Ø§Ù„ÙƒÙˆØ¯ Ø§Ù„ÙˆØ·Ù†ÙŠ ÙˆØ§Ù„Ø¬Ø²Ø§Ø¦Ø±ÙŠ Ù„Ù„Ù…Ù†Ø´Ø¢Øª
-                    </h3>
-                    
-                    <div className="space-y-3 font-sans">
-                      <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-900/30 p-2.5 rounded-lg border border-slate-150 dark:border-slate-800">
-                        <span className="text-[10px] bg-emerald-500/10 text-emerald-500 px-2 py-0.5 rounded-full font-mono">Ù…Ø·Ø§Ø¨Ù‚ PASS</span>
-                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200">CBA 93 (ØªØµÙ…ÙŠÙ… Ø§Ù„Ù‡ÙŠØ§ÙƒÙ„ Ø§Ù„Ø®Ø±Ø³Ø§Ù†ÙŠØ©)</span>
-                      </div>
-                      <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-900/30 p-2.5 rounded-lg border border-slate-150 dark:border-slate-800">
-                        <span className="text-[10px] bg-emerald-500/10 text-emerald-500 px-2 py-0.5 rounded-full font-mono">Ù…Ø·Ø§Ø¨Ù‚ PASS</span>
-                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200">NA 5071 / EN 206 (Ù…ÙˆØ§ØµÙØ§Øª Ø§Ù„Ø®Ø±Ø³Ø§Ù†Ø©)</span>
-                      </div>
-                      <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-900/30 p-2.5 rounded-lg border border-slate-150 dark:border-slate-800">
-                        <span className="text-[10px] bg-emerald-500/10 text-emerald-500 px-2 py-0.5 rounded-full font-mono">Ù…Ø·Ø§Ø¨Ù‚ PASS</span>
-                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200">DTR-B.C.2.43 (Ø§Ù„Ù‚ÙˆØ§Ø¹Ø¯ Ø§Ù„ÙÙ†ÙŠØ©)</span>
-                      </div>
-                    </div>
-                  </div>
-
-                </div>
-              </div>
-            )}
-
-            {/* TAB CONTENT: PERFORMANCE ANALYSIS Dashboard */}
-            {activeSidebarTab === "performance_analysis" && (
-              <div className={`space-y-6 animate-fade-in ${isRtl ? "text-right" : "text-left"}`} id="performance-analysis-panel">
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                  
-                  {/* Left Column: Strength Development Chart and Slump Visualizer */}
-                  <div className="lg:col-span-8 space-y-6">
-                    <div className="bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
-                      <h4 className="text-[10px] font-black text-blue-600 dark:text-blue-400 font-mono text-left leading-none">STRENGTH EVOLUTION MODEL</h4>
-                      <h3 className="text-base font-black text-slate-900 dark:text-white flex items-center justify-end gap-2 leading-none">
-                        <span>Ù…Ø®Ø·Ø· Ù†Ù…Ùˆ Ù…Ù‚Ø§ÙˆÙ…Ø© Ø§Ù„Ø®Ø±Ø³Ø§Ù†Ø© Ø¹Ø¨Ø± Ø§Ù„Ø²Ù…Ù† (fck_t)</span>
-                        <Activity size={18} className="text-blue-500" />
-                      </h3>
-                      <p className="text-xs text-slate-550 leading-relaxed font-sans">
-                        Ù…Ø³ØªÙ…Ø¯ Ù…Ù† Ù†Ù…ÙˆØ°Ø¬ Ø§Ù„Ù†Ø¶Ø¬ Ø§Ù„Ø®Ø±Ø³Ø§Ù†ÙŠ Ø§Ù„Ø­Ø±ÙƒÙŠ Ùˆ Ø¯Ø±Ø§Ø³Ø© Ù†ÙˆØ¹ Ø§Ù„Ø£Ø³Ù…Ù†Øª Ø§Ù„Ù…Ø³ØªØ®Ø¯Ù… ÙÙŠ Ø§Ù„Ø®Ù„Ø·Ø© {inputs.cementType}.
-                      </p>
-                      
-                      {/* Interactive Strength Chart */}
-                      <div className="bg-slate-50/50 dark:bg-slate-900/20 p-2.5 rounded-xl border border-slate-200/50 dark:border-slate-805">
-                        <StrengthDevelopmentChart 
-                          data={results.strengthEvolution || []} 
-                          fck28={inputs.fck28} 
-                        />
-                      </div>
-                    </div>
-
-                    {/* Slump visualizer */}
-                    <div className="bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
-                      <h4 className="text-[10px] font-black text-amber-500 font-mono text-left leading-none">CONCRETE WORKABILITY & COHESION</h4>
-                      <h3 className="text-base font-black text-slate-900 dark:text-white flex items-center justify-end gap-2 leading-none">
-                        <span>Ù…Ø­Ø§ÙƒØ§Ø© Ù‡Ø¨ÙˆØ· Ù…Ø®Ø±ÙˆØ· Ø£Ø¨Ø±Ø§Ù…Ø² ÙˆØ§Ù„ØªØ´ØºÙŠÙ„ÙŠØ© Ø§Ù„ÙÙ†ÙŠØ©</span>
-                        <Sliders size={18} className="text-amber-500 animate-pulse" />
-                      </h3>
-                      <ConcreteSlumpVisualizer 
-                        slumpValue={inputs.slump}
-                        waterContent={results.waterContentActual}
-                        cementWeight={results.cementWeight}
-                        airContent={inputs.airContent}
-                        sandRatio={Math.round(results.sandPercent)}
-                        gravelRatio={Math.round(results.gravelPercent)}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Right Column: Mix Quality Score Card & Chemical Dosage Monitor */}
-                  <div className="lg:col-span-4 space-y-6">
-                    <MixQualityScore 
-                      wcRatio={results.wcRatioAdjusted} 
-                      fck28={inputs.fck28} 
-                      controlClass={inputs.controlClass} 
-                      aggregateQuality={inputs.aggregateQuality} 
-                      hasPumping={inputs.hasPumping}
-                      admixturesCount={results?.admixtureWeights?.length ?? 0}
-                      exposureClass={inputs.exposureClass}
-                      sandAbsorption={activeResolvedMats.sand?.absorption}
-                      gravelAbsorption={activeResolvedMats.gravel?.absorption}
-                      sandFineness={activeResolvedMats.sand?.finenessModulus}
-                      admixtureRatio={inputs.dosageSuper}
-                      codeCompliance={results.standardsCompliance?.every(item => item.status === "compliant")}
-                      finalDensity={results.totalFreshDensity}
-                    />
-                    
-                    <div className="bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xl space-y-3">
-                      <ChemicalDosageMonitor 
-                        fck28={inputs.fck28} 
-                        dosageSuper={inputs.dosageSuper} 
-                        dosageSilicaFume={inputs.dosageSilicaFume} 
-                        dosageFlyAsh={inputs.dosageFlyAsh} 
-                        selectedAdmixtureId={inputs.selectedAdmixtureId}
-                        materialsDatabase={materialsDatabase}
-                        dosageRetarder={inputs.dosageRetarder}
-                        dosageAccelerator={inputs.dosageAccelerator}
-                        dosageAir={inputs.dosageAir}
-                      />
-                    </div>
-                  </div>
-
-                </div>
-              </div>
-            )}
-
-            {/* TAB CONTENT: ENGINEERING ASSISTANT Portal */}
-            {activeSidebarTab === "engineering_assistant" && (
-              <div className={`space-y-6 animate-fade-in ${isRtl ? "text-right" : "text-left"}`} id="engineering-assistant-panel">
-                <div className="bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-[#1E293B] rounded-2xl p-6 shadow-xl space-y-6">
-                  <div className="flex items-center justify-between border-b border-slate-150 dark:border-slate-800 pb-3 flex-row-reverse">
-                    <h3 className="text-sm font-black text-[#1e293b] dark:text-white flex items-center gap-2">
-                      <Sparkles size={16} className="text-[#0ea5e9] animate-pulse" />
-                      <span>Ø§Ù„Ù…Ø³Ø§Ø¹Ø¯ Ø§Ù„Ù‡Ù†Ø¯Ø³ÙŠ Ø§Ù„Ø°ÙƒÙŠ SNO AI</span>
-                    </h3>
-                    <span className="text-[10px] font-mono tracking-widest text-[#0ea5e9] font-bold">INTEL_LOGIC</span>
-                  </div>
-
-                  <p className="text-xs text-slate-550 font-sans leading-relaxed">
-                    Ù…Ø³ØªØ´Ø§Ø± Ø§Ù„Ø°ÙƒØ§Ø¡ Ø§Ù„Ø§ØµØ·Ù†Ø§Ø¹ÙŠ Ù…Ù‡ÙŠØ£ Ù„Ù…Ø·Ø§Ø¨Ù‚Ø© Ø§Ù„Ù…Ø¹Ø§ÙŠÙŠØ± Ø§Ù„ÙÙ†ÙŠØ© Ø§Ù„Ø¬Ø²Ø§Ø¦Ø±ÙŠØ© ÙˆØ§Ù„Ø¹Ø§Ù„Ù…ÙŠØ©. Ø§Ù†Ù‚Ø± Ø¹Ù„Ù‰ Ø§Ù„Ø£Ø³Ø¦Ù„Ø© Ø§Ù„Ø³Ø±ÙŠØ¹Ø© Ø£Ø¯Ù†Ø§Ù‡ Ù„Ù…Ø³Ø§Ø¡Ù„ØªÙ‡ ÙˆÙ…Ø­Ø§ÙƒØ§Ø© Ø§Ù„ØªÙˆØµÙŠØ© Ø§Ù„Ù‡Ù†Ø¯Ø³ÙŠØ© ÙÙˆØ±Ø§Ù‹.
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* TAB CONTENT: MIX VERSIONS Panel */}
-            {activeSidebarTab === "mix_versions" && (
-              <div className="space-y-6 animate-fade-in text-right">
-                <MixVersioningPanel
-                  activeProject={activeProject}
-                  inputs={inputs}
-                  results={results}
-                  onSaveVersion={handleSaveVersion}
-                  onRestoreVersion={handleRestoreVersion}
-                  onDeleteVersion={handleDeleteVersion}
-                />
-              </div>
-            )}
-
-            {/* TAB CONTENT: ADMIN PANEL */}
-            {activeSidebarTab === "admin" && (
-              <AdminPanel themeMode={themeMode} />
-            )}
-
-            {/* TAB CONTENT: 6. SETTINGS AND CODES */}
-            {activeSidebarTab === "settings" && (
-              <div className="bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm space-y-6 animate-fade-in" id="settings-tab-panel">
-                
-                <div className="border-b border-slate-100 dark:border-slate-800 pb-3">
-                  <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-1.5">
-                    <Settings size={16} className="text-blue-500" />
-                    <span>{language === "ar" ? "Ù…Ø·Ø§Ø¨Ù‚Ø© Ø§Ù„Ù…Ø¹Ø§ÙŠÙŠØ± ÙˆØ§Ù„Ø¯Ø³Ø§ØªÙŠØ± Ø§Ù„Ù‡Ù†Ø¯Ø³ÙŠØ© Ø§Ù„ÙØ¹Ù‘Ø§Ù„Ø©" : language === "fr" ? "ConformitÃ© aux Codes & Normes Techniques" : "Engineering Codes & Standards Compliance"}</span>
-                  </h3>
-                  <p className="text-xs text-slate-550 mt-1">
-                    {language === "ar" ? "Ø§Ø®ØªØ± Ù„ØºØ© Ø§Ù„ÙˆØ§Ø¬Ù‡Ø© ÙˆÙƒÙˆØ¯ Ø§Ù„ØªØµÙ…ÙŠÙ… Ù„ØªØ´ØºÙŠÙ„ Ù…Ø¹Ø§Ø¯Ù„Ø§Øª ØªÙ‚ÙŠÙŠÙ… Ø§Ù„ÙƒÙ…ÙŠØ§Øª ÙˆØ§Ù„Ø­Ø¬ÙˆÙ…." : language === "fr" ? "SÃ©lectionnez la langue et la norme pour exÃ©cuter les calculs de volumes." : "Select the interface language and design standard to execute volumetric equations."}
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* TAB CONTENT: SAVED PROJECTS AND STORAGE */}
-            {(activeSidebarTab === "saved_projects" || activeSidebarTab === "cloud_storage") && (
-              <div className={`space-y-6 animate-fade-in ${isRtl ? "text-right" : "text-left"} font-sans`} id="projects-vault-panel">
-                
-                {/* 1. Active Project Status Indicator */}
-                <div className="bg-gradient-to-r from-indigo-950 to-slate-950 text-white rounded-2xl p-6 shadow-xl relative overflow-hidden">
-                  <div className="absolute top-0 right-0 left-0 h-1 bg-indigo-500"></div>
-                  <div className="flex justify-between items-start flex-row-reverse">
-                    <div>
-                      <span className="text-[10px] font-bold tracking-widest text-indigo-400 font-mono block uppercase">ACTIVE ENGINEERING PROJECT</span>
-                      <h4 className="text-lg font-black mt-1 text-white">{currentProject}</h4>
-                      <p className="text-xs text-slate-350 mt-1">Ø§Ù„Ø¹Ù…ÙŠÙ„ Ø§Ù„ÙØ¹Ù‘Ø§Ù„: <span className="text-slate-100 font-bold">{currentClient}</span> | Ù…Ø­Ø·Ø© Ø®Ù„Ø· Ø§Ù„Ø¨ÙŠØªÙˆÙ†: <span className="text-slate-100 font-bold">{currentPlant}</span></p>
-                    </div>
-                    <span className="bg-indigo-550/20 text-indigo-300 text-[10px] font-bold px-2.5 py-1 rounded-full border border-indigo-500/30">Ù†Ø´Ø· Ø§Ù„Ø¢Ù†</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-4 mt-6 border-t border-slate-800 pt-4 text-center">
-                    <div>
-                      <span className="text-[10px] text-slate-400 block">Ù…Ù‚Ø§ÙˆÙ…Ø© Ù…Ø³ØªÙ‡Ø¯ÙØ© fck28</span>
-                      <span className="font-mono text-base font-bold text-indigo-300">{inputs.fck28} MPa</span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-slate-400 block">Ù‚ÙˆØ§Ù… Ø§Ù„Ø³Ù„Ù…Ø¨ Ø§Ù„Ù…Ø³ØªÙ‡Ø¯Ù</span>
-                      <span className="font-mono text-base font-bold text-indigo-300">{inputs.slump} cm</span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-slate-400 block">Ø§Ù„Ø±Ù…Ù„ Ø§Ù„Ù…Ø¹ØªÙ…Ø¯</span>
-                      <span className="font-sans text-xs font-bold text-indigo-300 truncate block">{inputs.sandType}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 2. Create Project Form */}
-                <div className="bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-[#1E293B] rounded-2xl p-6 shadow-xl space-y-4">
-                  <div className="flex justify-between items-center border-b border-slate-150 dark:border-slate-800 pb-3 flex-row-reverse">
-                    <h3 className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5 uppercase leading-none">
-                      <PlusCircle size={15} className="text-emerald-500" />
-                      <span>ØªØ¯Ø´ÙŠÙ† Ù…Ø´Ø±ÙˆØ¹ Ù‡Ù†Ø¯Ø³ÙŠ Ø¬Ø¯ÙŠØ¯</span>
-                    </h3>
-                    <span className="text-[9px] font-mono tracking-widest text-emerald-500 font-bold">CREATE NEW SITE RECORD</span>
-                  </div>
-
-                  <form onSubmit={handleCreateProject} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-bold text-slate-500">Ø§Ø³Ù… Ø§Ù„Ù…Ø´Ø±ÙˆØ¹ Ø§Ù„Ø¥Ù†Ø´Ø§Ø¦ÙŠ *</label>
-                      <input 
-                        type="text" 
-                        required
-                        value={newProjName}
-                        onChange={(e) => setNewProjName(e.target.value)}
-                        placeholder="Ù…Ø«Ø§Ù„: Ø¨Ø±Ø¬ Ø®Ù„ÙŠØ¬ Ø§Ù„Ø¬Ø²Ø§Ø¦Ø± Ø§Ù„Ø³ÙƒÙ†ÙŠ"
-                        className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-850 rounded-xl px-3 py-1.5 text-xs text-right text-slate-800 dark:text-slate-100 focus:ring-1 focus:ring-emerald-500 font-sans outline-none"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-bold text-slate-500">Ø§Ù„Ø¹Ù…ÙŠÙ„ / Ù…Ø§Ù„Ùƒ Ø§Ù„Ù…Ø´Ø±ÙˆØ¹</label>
-                      <input 
-                        type="text" 
-                        value={newProjClient}
-                        onChange={(e) => setNewProjClient(e.target.value)}
-                        placeholder="Ù…Ø«Ø§Ù„: ÙˆØ²Ø§Ø±Ø© Ø§Ù„Ø³ÙƒÙ† ÙˆØ§Ù„Ø¹Ù…Ø±Ø§Ù† Ø§Ù„Ø¬Ø²Ø§Ø¦Ø±ÙŠØ©"
-                        className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-850 rounded-xl px-3 py-1.5 text-xs text-right text-slate-800 dark:text-slate-100 focus:ring-1 focus:ring-emerald-500 font-sans outline-none"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-bold text-slate-500">Ø®Ø±Ø³Ø§Ù†Ø© fck28 Ø§Ù„Ù…Ø·Ù„ÙˆØ¨Ø© (MPa) *</label>
-                      <input 
-                        type="number" 
-                        required
-                        min="10"
-                        max="80"
-                        value={newProjStrength}
-                        onChange={(e) => setNewProjStrength(Number(e.target.value))}
-                        placeholder="Ù…Ø«Ø§Ù„: 30"
-                        className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-850 rounded-xl px-3 py-1.5 text-xs text-right text-slate-800 dark:text-slate-100 focus:ring-1 focus:ring-emerald-500 font-mono outline-none"
-                      />
-                    </div>
-                    <div className="space-y-1 flex flex-col justify-end col-span-1">
-                      <button 
-                        type="submit"
-                        className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs py-2 rounded-xl cursor-pointer transition-all flex items-center justify-center gap-1.5 shadow-sm shadow-emerald-600/10"
-                      >
-                        <PlusCircle size={14} />
-                        <span>Ø¥Ù†Ø´Ø§Ø¡ Ø§Ù„Ù…Ø´Ø±ÙˆØ¹ ÙˆØªÙØ¹ÙŠÙ„Ù‡</span>
-                      </button>
-                    </div>
-                  </form>
-                </div>
-
-                {/* 3. List of Saved Projects */}
-                <div className="bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-[#1E293B] rounded-2xl p-6 shadow-xl space-y-4">
-                  <div className="flex justify-between items-center border-b border-slate-150 dark:border-slate-800 pb-3 flex-row-reverse">
-                    <h3 className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5 uppercase leading-none">
-                      <Briefcase size={15} className="text-blue-500" />
-                      <span>Ù‚Ø¨Ùˆ Ø§Ù„Ù…Ø´Ø§Ø±ÙŠØ¹ ÙˆØ³Ø¬Ù„Ø§Øª Ø§Ù„ØµØ¨</span>
-                    </h3>
-                    <span className="text-[9px] font-mono tracking-widest text-blue-500 font-bold">PROJECT DATABASE ({projects.length})</span>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {projects.map((proj) => {
-                      const isActive = proj.id === activeProjectId;
-                      return (
-                        <div 
-                          key={proj.id} 
-                          className={`p-4 rounded-xl border transition-all flex flex-col justify-between ${
-                            isActive 
-                              ? "bg-blue-50/20 dark:bg-blue-950/10 border-blue-200 dark:border-blue-800/40 shadow-sm" 
-                              : "bg-slate-50/50 dark:bg-slate-900/10 border-slate-150 dark:border-slate-850 hover:border-slate-350 dark:hover:border-slate-750"
-                          }`}
-                        >
-                          <div className="space-y-2">
-                            <div className="flex justify-between items-start flex-row-reverse">
-                              <div className="text-right">
-                                <h4 className="font-extrabold text-xs text-slate-900 dark:text-slate-100">{proj.name}</h4>
-                                <p className="text-[10px] text-slate-400 mt-0.5">Ø§Ù„Ø¹Ù…ÙŠÙ„: <span className="font-semibold text-slate-600 dark:text-slate-350">{proj.client}</span></p>
-                              </div>
-                              <div className="flex flex-col items-end gap-1">
-                                {isActive ? (
-                                  <span className="text-[9px] bg-blue-600 text-white font-bold px-2.5 py-0.5 rounded-full">
-                                    {language === "ar" ? "Ù†Ø´Ø·" : language === "fr" ? "Actif" : "Active"}
-                                  </span>
-                                ) : (
-                                  <span className="text-[9px] bg-slate-200 dark:bg-slate-800 text-slate-550 dark:text-slate-400 font-bold px-2.5 py-0.5 rounded-full">
-                                    {language === "ar" ? "Ù…ØºÙ„Ù‚" : language === "fr" ? "FermÃ©" : "Archived"}
-                                  </span>
-                                )}
-                                <span className={`text-[8px] font-black px-1.5 py-0.5 rounded border uppercase font-mono tracking-wider ${
-                                  proj.workflowStatus === "Approved" ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" :
-                                  proj.workflowStatus === "Under Review" ? "bg-amber-500/10 text-amber-600 border-amber-500/20" :
-                                  "bg-slate-500/10 text-slate-500 border-slate-500/20"
-                                }`}>
-                                  {proj.workflowStatus === "Approved" ? (language === "ar" ? "Ù…Ù‚Ø¨ÙˆÙ„" : "Approved") :
-                                   proj.workflowStatus === "Under Review" ? (language === "ar" ? "Ù…Ø±Ø§Ø¬Ø¹Ø©" : "Under Review") :
-                                   (language === "ar" ? "Ù…Ø³ÙˆØ¯Ø©" : "Draft")}
-                                </span>
-                              </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-2 text-right text-[10px] text-slate-500 dark:text-slate-400 pt-2 border-t border-slate-100 dark:border-slate-800/60 font-mono">
-                              <div>{language === "ar" ? "Ù…Ù‚Ø§ÙˆÙ…Ø© fck28:" : language === "fr" ? "RÃ©sistance fck28 :" : "Strength fck28:"} <span className="font-bold text-slate-700 dark:text-slate-300">{proj.inputs.fck28} MPa</span></div>
-                              <div>{language === "ar" ? "Ù…Ø­Ø·Ø© Ø§Ù„Ø®Ù„Ø·:" : language === "fr" ? "Centrale Ã  bÃ©ton :" : "Batch Plant:"} <span className="font-bold text-slate-700 dark:text-slate-300">{proj.plant}</span></div>
-                            </div>
-
-                            {/* Unified Project Engineering Audit Trail */}
-                            {proj.auditTrail && (
-                              <div className="mt-3 pt-2 border-t border-dashed border-slate-200 dark:border-slate-800 text-right space-y-1.5">
-                                <span className="text-[9px] font-bold text-slate-400 block tracking-wider font-mono">
-                                  {language === "ar" ? "Ø³Ø¬Ù„ ØªØ¯Ù‚ÙŠÙ‚ Ø§Ù„Ù†Ø¸Ø§Ù… Ø§Ù„ÙÙ†ÙŠ" : "CIVIL AUDIT TRAIL"}
-                                </span>
-                                <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[9px] text-slate-505 font-mono">
-                                  <div>{language === "ar" ? "Ø§Ù„Ù…Ø±Ø§Ù‚Ø¨:" : language === "fr" ? "Inspecteur :" : "Inspector:"} <span className="font-semibold text-slate-600 dark:text-slate-300">{proj.auditTrail.createdBy}</span></div>
-                                  <div>{language === "ar" ? "Ø§Ù„Ù…ØµØ¯Ø±:" : "DB:"} <span className="font-semibold text-slate-600 dark:text-slate-300">SNO-DB v3.5L</span></div>
-                                  <div>{language === "ar" ? "Ø§Ù„Ø¥Ù†Ø´Ø§Ø¡:" : "Created:"} <span className="font-semibold text-slate-600 dark:text-slate-300">{proj.auditTrail.createdAt}</span></div>
-                                  <div>{language === "ar" ? "Ø§Ù„ØªØ¹Ø¯ÙŠÙ„:" : "Modified:"} <span className="font-semibold text-slate-600 dark:text-slate-300">{new Date(proj.auditTrail.lastModifiedAt).toLocaleDateString()}</span></div>
-                                </div>
-                                {proj.auditTrail.revisionHistory && proj.auditTrail.revisionHistory.length > 0 && (
-                                  <div className="bg-slate-500/5 dark:bg-slate-900/40 p-1.5 rounded text-[8px] text-slate-500 dark:text-slate-400 font-mono max-h-16 overflow-y-auto mt-1 scrollbar-thin">
-                                    <strong className="block text-[8px] text-slate-600 dark:text-slate-400 mb-0.5">
-                                      {language === "ar" ? "Ø§Ù„ØªØ¹Ø¯ÙŠÙ„Ø§Øª Ø§Ù„Ù…Ù‡Ù†Ø¯Ø³Ø©:" : language === "fr" ? "Modifications techniques :" : "Engineering Modifications:"}
-                                    </strong>
-                                    {proj.auditTrail.revisionHistory.map((rev, rIdx) => (
-                                      <div key={rIdx} className="border-b border-slate-150 dark:border-slate-800 pb-0.5 last:border-none last:pb-0">
-                                        â€¢ {rev}
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="flex justify-between items-center mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/40 flex-row-reverse select-none">
-                            <div className="flex gap-2">
-                              {!isActive && (
-                                <button
-                                  onClick={() => switchProject(proj.id)}
-                                  className="text-[10px] bg-blue-600 hover:bg-blue-500 text-white font-extrabold px-3 py-1.5 rounded-lg cursor-pointer transition-all"
-                                >
-                                  ÙØªØ­ Ø§Ù„Ù…Ø´Ø±ÙˆØ¹
-                                </button>
-                              )}
-                              {isActive && (
-                                <button 
-                                  onClick={() => {
-                                    if (!validationGate.isValidForReport) {
-                                      alert(language === "ar" 
-                                        ? "Ù„Ø§ ÙŠÙ…ÙƒÙ† ØªÙ†Ø²ÙŠÙ„ Ø£Ùˆ Ø·Ø¨Ø§Ø¹Ø© Ø§Ù„ØªÙ‚Ø±ÙŠØ± Ù„Ø¹Ø¯Ù… Ù…Ø·Ø§Ø¨Ù‚Ø© Ø§Ù„Ù…Ø¯Ø®Ù„Ø§Øª Ø£Ùˆ Ø§Ù„Ù†ØªØ§Ø¦Ø¬ Ù„Ù„Ù…Ø¹Ø§ÙŠÙŠØ± ÙˆØ§Ù„Ù…Ù‚Ø§ÙŠÙŠØ³ Ø§Ù„Ù‡Ù†Ø¯Ø³ÙŠØ©." 
-                                        : "Cannot download or print the report because inputs or results do not comply with engineering standards.");
-                                      return;
-                                    }
-                                    window.print();
-                                  }}
-                                  className="text-[10px] bg-slate-800 hover:bg-slate-700 dark:bg-slate-805 dark:hover:bg-slate-800 text-slate-200 font-extrabold px-3 py-1.5 rounded-lg cursor-pointer transition-all flex items-center gap-1"
-                                >
-                                  Ø·Ø¨Ø§Ø¹Ø© Ø§Ù„ØªÙ‚Ø±ÙŠØ± PDF
-                                </button>
-                              )}
-                              {projects.length > 1 && (
-                                <button
-                                  onClick={() => {
-                                    setProjects(prev => prev.filter(p => p.id !== proj.id));
-                                    if (isActive) {
-                                      const remaining = projects.filter(p => p.id !== proj.id);
-                                      if (remaining.length > 0) {
-                                        switchProject(remaining[0].id);
-                                      }
-                                    }
-                                  }}
-                                  className="text-[10px] bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 font-extrabold px-2 py-1.5 rounded-lg cursor-pointer transition-all"
-                                >
-                                  Ø­Ø°Ù
-                                </button>
-                              )}
-                            </div>
-                            <div className="flex flex-col items-start gap-1">
-                              <span className="text-[9px] text-slate-400 font-mono">ØªØ§Ø±ÙŠØ® Ø§Ù„Ø¨Ø¯Ø¡: {proj.createdDate}</span>
-                              <div className="flex items-center gap-1 bg-slate-150/40 dark:bg-slate-800/80 p-0.5 px-1.5 rounded-lg border border-slate-200/50 dark:border-slate-800">
-                                <span className="text-[8px] text-slate-500 font-bold">Ø§Ù„ØªØ¯ÙÙ‚:</span>
-                                <select
-                                  value={proj.workflowStatus || "Draft"}
-                                  onChange={(e) => {
-                                    const status = e.target.value as any;
-                                    setProjects(prev => prev.map(p => p.id === proj.id ? { ...p, workflowStatus: status } : p));
-                                  }}
-                                  className="text-[8px] font-extrabold bg-transparent border-none text-slate-700 dark:text-slate-300 focus:outline-none cursor-pointer outline-none"
-                                >
-                                  <option value="Draft" className="bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300">Ù…Ø³ÙˆØ¯Ø© / Draft</option>
-                                  <option value="Under Review" className="bg-white dark:bg-slate-900 text-amber-600">ØªØ­Øª Ø§Ù„Ù…Ø±Ø§Ø¬Ø¹Ø© / Review</option>
-                                  <option value="Approved" className="bg-white dark:bg-slate-900 text-emerald-600 font-bold">Ù…Ù‚Ø¨ÙˆÙ„ Ù„Ù„ØµØ¨ / Approved</option>
-                                </select>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-              </div>
-            )}
-
-            {/* TAB CONTENT: MIX VERSIONS Panel */}
-            {activeSidebarTab === "mix_versions" && (
-              <div className="space-y-6 animate-fade-in text-right">
-                <MixVersioningPanel
-                  activeProject={activeProject}
-                  inputs={inputs}
-                  results={results}
-                  onSaveVersion={handleSaveVersion}
-                  onRestoreVersion={handleRestoreVersion}
-                  onDeleteVersion={handleDeleteVersion}
-                />
-              </div>
-            )}
-
-            {/* TAB CONTENT: 6. SETTINGS AND CODES */}
-            {activeSidebarTab === "settings" && (
-              <div className="bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm space-y-6 animate-fade-in" id="settings-tab-panel">
-                
-                <div className="border-b border-slate-100 dark:border-slate-800 pb-3">
-                  <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-1.5">
-                    <Settings size={16} className="text-blue-500" />
-                    <span>{language === "ar" ? "Ù…Ø·Ø§Ø¨Ù‚Ø© Ø§Ù„Ù…Ø¹Ø§ÙŠÙŠØ± ÙˆØ§Ù„Ø¯Ø³Ø§ØªÙŠØ± Ø§Ù„Ù‡Ù†Ø¯Ø³ÙŠØ© Ø§Ù„ÙØ¹Ù‘Ø§Ù„Ø©" : language === "fr" ? "ConformitÃ© aux Codes & Normes Techniques" : "Engineering Codes & Standards Compliance"}</span>
-                  </h3>
-                  <p className="text-xs text-slate-550 mt-1">
-                    {language === "ar" ? "Ø§Ø®ØªØ± Ù„ØºØ© Ø§Ù„ÙˆØ§Ø¬Ù‡Ø© ÙˆÙƒÙˆØ¯ Ø§Ù„ØªØµÙ…ÙŠÙ… Ù„ØªØ´ØºÙŠÙ„ Ù…Ø¹Ø§Ø¯Ù„Ø§Øª ØªÙ‚ÙŠÙŠÙ… Ø§Ù„ÙƒÙ…ÙŠØ§Øª ÙˆØ§Ù„Ø­Ø¬ÙˆÙ…." : language === "fr" ? "SÃ©lectionnez la langue et la norme pour exÃ©cuter les calculs de volumes." : "Select the interface language and design standard to execute volumetric equations."}
-                  </p>
-                </div>
-
-            {/* LANGUAGE SELECTION */}
-                <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200/50 dark:border-slate-800/80 space-y-3" id="lang-selection-container">
-                  <span className="text-xs font-black text-slate-700 dark:text-slate-300 block">
-                    {t("language_selection")}
-                  </span>
-                  <div className="grid grid-cols-3 gap-2">
-                    <button
-                      onClick={() => setLanguage("ar")}
-                      className={`py-2 px-1 text-xs font-black rounded-lg border transition-all cursor-pointer text-center flex items-center justify-center gap-1.5 ${
-                        language === "ar"
-                          ? "bg-blue-600 text-white border-blue-600 shadow-md"
-                          : "bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800"
-                      }`}
-                    >
-                      ğŸ‡¸ğŸ‡¦ {t("lang_ar")}
-                    </button>
-                    <button
-                      onClick={() => setLanguage("fr")}
-                      className={`py-2 px-1 text-xs font-black rounded-lg border transition-all cursor-pointer text-center flex items-center justify-center gap-1.5 ${
-                        language === "fr"
-                          ? "bg-blue-600 text-white border-blue-600 shadow-md"
-                          : "bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800"
-                      }`}
-                    >
-                      ğŸ‡«ğŸ‡· {t("lang_fr")}
-                    </button>
-                    <button
-                      onClick={() => setLanguage("en")}
-                      className={`py-2 px-1 text-xs font-black rounded-lg border transition-all cursor-pointer text-center flex items-center justify-center gap-1.5 ${
-                        language === "en"
-                          ? "bg-blue-600 text-white border-blue-600 shadow-md"
-                          : "bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800"
-                      }`}
-                    >
-                      ğŸ‡ºğŸ‡¸ {t("lang_en")}
-                    </button>
-                  </div>
-                </div>
-
-                {/* DISPLAY UNITS INDICATOR (100% METRIC ONLY) */}
-                <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200/50 dark:border-slate-800/80">
-                  <div className="flex justify-between items-center text-xs font-black animate-fade-in">
-                    <span className="text-slate-700 dark:text-slate-300">
-                      {language === "ar" ? "Ù†Ø¸Ø§Ù… Ø§Ù„ÙˆØ­Ø¯Ø§Øª Ø§Ù„Ù†Ø´Ø·:" : language === "fr" ? "SystÃ¨me des unitÃ©s :" : "Active System of Units:"}
-                    </span>
-                    <span className="px-2.5 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 rounded-md border border-blue-200/50 text-[11px] font-mono uppercase">
-                      {language === "ar" ? "Ø§Ù„Ù…ØªØ±ÙŠ Ø§Ù„Ù‡Ù†Ø¯Ø³ÙŠ SI" : "SI Metric Only"}
-                    </span>
-                  </div>
-                </div>
-
-                {/* active selection method */}
-                <div className="space-y-3 font-sans text-right">
-                  <div>
-                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-2 flex items-center justify-between">
-                      <span>{language === "ar" ? "Ù…Ù†Ù‡Ø¬ÙŠØ© Ø§Ù„ÙØ±Ù… Ø§Ù„ÙˆØ±Ø§Ø«ÙŠ ÙˆÙ„ØªØ±Ø§ØµÙ Ø§Ù„Ø­Ø¬Ø± Ø§Ù„Ù…Ø·Ù„ÙˆØ¨ Ø¨Ø§Ù„Ø®Ù„Ø§Ø·Ø©:" : language === "fr" ? "MÃ©thodologie d'empilement granulaire :" : "Methodology of Granular Packing Density:"}</span>
-                      <span className="text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded border border-indigo-200/50 dark:border-indigo-800/40">
-                        {language === "ar" ? "Ù…Ù†Ù‡Ø¬ÙŠØ© ØªØµÙ…ÙŠÙ… Ù…ØªÙƒØ§Ù…Ù„Ø©" : language === "fr" ? "Conception intÃ©grÃ©e" : "Integrated Design"}
-                      </span>
-                    </label>
-                    <div className="w-full text-xs p-3 rounded-lg border border-indigo-150/40 dark:border-slate-800 bg-indigo-50/10 dark:bg-slate-900 text-slate-850 dark:text-slate-100 font-semibold text-right leading-relaxed">
-                      {language === "ar" ? "Ø·Ø±ÙŠÙ‚Ø© Ø¯Ø±Ùˆ-ØºÙˆØ±ÙŠØ³ Ø§Ù„ÙØ±Ù†Ø³ÙŠØ©/Ø§Ù„Ø¬Ø²Ø§Ø¦Ø±ÙŠØ© Ø§Ù„Ù…Ø¹ØªÙ…Ø¯Ø© (Dreux-Gorisse) - Ø·Ø±ÙŠÙ‚Ø© ÙˆØ­ÙŠØ¯Ø© Ù…Ù‚ÙÙ„Ø©" : language === "fr" ? "MÃ©thode agrÃ©Ã©e Dreux-Gorisse (France/AlgÃ©rie) - Option verrouillÃ©e" : "Approved Dreux-Gorisse method (France/Algeria) - Locked choice"}
-                    </div>
-                  </div>
-
-                  {/* Method Information Panel */}
-                  {METHOD_CONFIGS[inputs.selectedMethod] && (() => {
-                    const methodInfo = METHOD_CONFIGS[inputs.selectedMethod];
-                    return (
-                      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm space-y-3 relative overflow-hidden text-right leading-relaxed transition-all">
-                        {/* Decorative background badge */}
-                        <div className="absolute top-0 left-0 bg-blue-500/10 text-blue-600 dark:text-blue-400 px-3 py-1 text-[9px] font-black uppercase rounded-br-lg tracking-wider font-mono">
-                          {methodInfo.classification === "complete" ? "Complete Method" : "Supporting Model"}
-                        </div>
-
-                        <div className="pt-2">
-                          <h4 className="text-sm font-black text-slate-800 dark:text-slate-100 flex items-center gap-2 justify-end">
-                            <span>{methodInfo.nameAr}</span>
-                            <Info className="w-4 h-4 text-blue-500 shrink-0" />
-                          </h4>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-3 text-xs border-y border-slate-150 dark:border-slate-800 py-3 text-slate-600 dark:text-slate-400">
-                          <div>
-                            <span className="block text-[10px] text-slate-400 font-bold mb-0.5">Ø§Ù„Ø¹Ø§Ø¦Ù„ ÙˆØ§Ù„Ù…Ù†Ø´Ø£:</span>
-                            <span className="font-semibold text-slate-700 dark:text-slate-200">{methodInfo.origin}</span>
-                          </div>
-                          <div>
-                            <span className="block text-[10px] text-slate-400 font-bold mb-0.5">Ø³Ù†Ø© Ø§Ù„Ø§Ø¹ØªÙ…Ø§Ø¯:</span>
-                            <span className="font-mono font-bold text-slate-700 dark:text-slate-200">{methodInfo.year}</span>
-                          </div>
-                        </div>
-
-                        <div className="space-y-2 text-xs">
-                          <div>
-                            <b className="text-slate-700 dark:text-slate-300 block text-[11px] mb-0.5">Ù…Ø¬Ø§Ù„Ø§Øª ÙˆØ¯ÙˆØ§Ø¹ÙŠ Ø§Ù„ØªØ·Ø¨ÙŠÙ‚:</b>
-                            <p className="text-slate-550 dark:text-slate-400 leading-normal text-[11px]">{methodInfo.applicationAr}</p>
-                          </div>
-                          
-                          <div className="bg-slate-50 dark:bg-slate-950 p-2.5 rounded-lg border border-slate-150 dark:border-slate-850/60 font-mono text-[11px] text-center text-blue-600 dark:text-blue-400">
-                            <span className="block text-[9px] text-slate-400 font-sans font-bold mb-1 text-right">Ø§Ù„Ù…Ø¹Ø§Ø¯Ù„Ø© Ø§Ù„Ø­Ø§ÙƒÙ…Ø© Ø§Ù„Ø£Ø³Ø§Ø³ÙŠØ©:</span>
-                            <strong className="text-center block text-sm font-black dir-ltr text-slate-700 dark:text-slate-200">{methodInfo.formulaAr}</strong>
-                          </div>
-
-                          <div className="grid grid-cols-2 gap-3 pt-1">
-                            <div className="bg-emerald-500/5 p-2 rounded border border-emerald-500/10">
-                              <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-black block mb-0.5">Ø§Ù„Ù†Ù‚Ø§Ø· Ø§Ù„Ø¥ÙŠØ¬Ø§Ø¨ÙŠØ© ÙˆØ§Ù„ÙˆØ§Ù‚Ø¹ÙŠØ©:</span>
-                              <p className="text-slate-500 dark:text-slate-450 leading-normal text-[10px]">{methodInfo.prosAr}</p>
-                            </div>
-                            <div className="bg-amber-500/5 p-2 rounded border border-amber-500/10">
-                              <span className="text-[10px] text-amber-600 dark:text-amber-400 font-black block mb-0.5">Ø§Ù„Ø¹ÙŠÙˆØ¨ ÙˆØ§Ù„Ù…Ø­Ø§Ø°ÙŠØ± Ø¨Ø§Ù„ÙˆØ±Ø´Ø©:</span>
-                              <p className="text-slate-500 dark:text-slate-450 leading-normal text-[10px]">{methodInfo.consAr}</p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
-
-                <div>
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                    ÙØ¦Ø© Ø§Ù„ØªØ¹Ø±Ø¶ Ø§Ù„Ø¨ÙŠØ¦ÙŠ Ù„Ù„Ù…ØªØ§Ù†Ø© (Exposure Durability Class):
-                  </label>
-                  <select
-                    value={inputs.exposureClass}
-                    onChange={(e) => setInputs(prev => ({ ...prev, exposureClass: e.target.value }))}
-                    className="w-full text-xs p-2.5 rounded border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none"
-                  >
-                    <option value="X0">X0 - Ù„Ø§ ÙŠÙˆØ¬Ø¯ Ø®Ø·Ø± ØµØ¯Ø£ Ø£Ùˆ Ø¶Ø±Ø± Ø¨ÙŠØ¦ÙŠ (Ø¯Ø§Ø®Ù„ÙŠ Ø¬Ø§Ù ÙƒÙ„ÙŠØ§Ù‹)</option>
-                    <option value="XC1">XC1 - ÙƒØ±Ø¨Ù†Ø©: Ø¬Ø§Ù Ø£Ùˆ Ø±Ø·Ø¨ Ø¨Ø§Ø³ØªÙ…Ø±Ø§Ø± (Ø®Ø±Ø³Ø§Ù†Ø© Ø¯Ø§Ø®Ù„ Ø§Ù„Ù…Ù†Ø´Ø¢Øª Ù…ØºØ·Ø§Ø©)</option>
-                    <option value="XC2">XC2 - ÙƒØ±Ø¨Ù†Ø©: Ø±Ø·Ø¨ØŒ ØºÙŠØ± Ø§Ø¹ØªÙŠØ§Ø¯ÙŠ (Ø£Ø³Ø§Ø³Ø§Øª Ù…Ø³ØªÙ…Ø±Ø©ØŒ Ù…Ø±Ø´Ø­Ø§Øª Ù…ÙŠØ§Ù‡)</option>
-                    <option value="XC3">XC3 - ÙƒØ±Ø¨Ù†Ø©: Ø±Ø·ÙˆØ¨Ø© Ù…ØªÙˆØ³Ø·Ø© (Ø¹Ù†Ø§ØµØ± Ø®Ø§Ø±Ø¬ÙŠØ© Ù…Ø¹Ø±Ø¶Ø© Ù„Ø´Ø¯Ø© Ø§Ù„Ø£Ù…Ø·Ø§Ø±)</option>
-                    <option value="XC4">XC4 - ÙƒØ±Ø¨Ù†Ø©: Ø±Ø·Ø¨ ÙˆØ¬Ø§Ù Ù…ØªÙ†Ø§ÙˆØ¨ (Ø£Ø¹Ø¶Ø§Ø¡ Ø®Ø§Ø±Ø¬ÙŠØ© Ø¨Ø¬ÙˆØ§Ø± ÙÙ†Ø§Ø¡ Ø®Ø§Ø±Ø¬ÙŠ)</option>
-                    <option value="XD1">XD1 - ÙƒÙ„ÙˆØ±ÙŠØ¯Ø§Øª: Ø±Ø·ÙˆØ¨Ø© Ù…ØªÙˆØ³Ø·Ø© (Ø§Ù„Ø®Ø±Ø³Ø§Ù†Ø© Ø§Ù„Ù‚Ø±ÙŠØ¨Ø© Ù…Ù† Ø±Ø°Ø§Ø° Ø¹ÙŠØ§Ø±ÙŠ)</option>
-                    <option value="XD2">XD2 - ÙƒÙ„ÙˆØ±ÙŠØ¯Ø§Øª: Ø±Ø·Ø¨ Ø¨Ø§Ø³ØªÙ…Ø±Ø§Ø± (Ø§Ù„Ù…Ù†Ø´Ø¢Øª Ø§Ù„ØµÙ†Ø§Ø¹ÙŠØ© Ø§Ù„ÙƒÙŠÙ…Ø§ÙˆÙŠØ© Ø§Ù„Ù…ØºÙ…ÙˆØ±Ø©)</option>
-                    <option value="XS1">XS1 - Ù…ÙŠØ§Ù‡ Ù…Ø§Ù„Ø­Ø©: Ù‡ÙˆØ§Ø¡ ÙŠØ­Ù…Ù„ Ù…Ù„Ø­ Ø§Ù„Ø¨Ø­Ø± (Ø§Ù„Ù…Ù†Ø´Ø¢Øª Ø§Ù„Ø³Ø§Ø­Ù„ÙŠØ© Ø§Ù„Ù‚Ø±ÙŠØ¨Ø©)</option>
-                    <option value="XS2">XS2 - Ù…ÙŠØ§Ù‡ Ù…Ø§Ù„Ø­Ø©: Ù…ØºÙ…ÙˆØ± ÙƒÙ„ÙŠØ§Ù‹ ÙÙŠ Ù…ÙŠØ§Ù‡ Ø§Ù„Ø¨Ø­Ø±</option>
-                    <option value="XS3">XS3 - Ù…ÙŠØ§Ù‡ Ù…Ø§Ù„Ø­Ø©: Ù…Ù†Ø·Ù‚Ø© ØªØ°Ø¨Ø°Ø¨ Ù…ÙŠØ§Ù‡ Ø§Ù„Ø¨Ø­Ø± ÙˆØªÙŠØ§Ø±Ø§Øª Ø§Ù„Ù…Ø¯ ÙˆØ§Ù„Ø¬Ø²Ø± (Ù…ØªØ·Ù„Ø¨ ØµØ§Ø±Ù…)</option>
-                    <option value="XA1">XA1 - ÙƒÙŠÙ…ÙŠØ§Ø¦ÙŠ: ØªØ±Ø¨Ø©/Ù…ÙŠØ§Ù‡ Ø¬ÙˆÙÙŠØ© Ø¹Ø¯ÙˆØ§Ù†ÙŠØ© Ø¶Ø¹ÙŠÙØ©</option>
-                    <option value="XA2">XA2 - ÙƒÙŠÙ…ÙŠØ§Ø¦ÙŠ: ØªØ±Ø¨Ø©/Ù…ÙŠØ§Ù‡ Ø¬ÙˆÙÙŠØ© Ø¹Ø¯ÙˆØ§Ù†ÙŠØ© Ù…ØªÙˆØ³Ø·Ø©</option>
-                    <option value="XA3">XA3 - ÙƒÙŠÙ…ÙŠØ§Ø¦ÙŠ: ØªØ±Ø¨Ø©/Ù…ÙŠØ§Ù‡ Ø¬ÙˆÙÙŠØ© Ø¹Ø¯ÙˆØ§Ù†ÙŠØ© Ø´Ø¯ÙŠØ¯Ø© Ø¬Ø¯Ø§Ù‹</option>
-                  </select>
-                </div>
-
-                {/* Comparisons table */}
-                <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden p-3.5 space-y-3 bg-slate-50 dark:bg-slate-900">
-                  <span className="text-xs font-black text-slate-800 dark:text-slate-300 block text-right border-b border-slate-200 dark:border-slate-800 pb-2">
-                    {language === "fr" ? "RÃ©sumÃ© des dosages de mÃ©lange Dreux-Gorisse (kg/mÂ³) :" : language === "en" ? "Dreux-Gorisse Mix Quantity Summary (kg/mÂ³) :" : "Ù…Ù„Ø®Øµ ÙƒÙ…ÙŠØ§Øª Ø®Ù„Ø·Ø© Dreux-Gorisse (kg/mÂ³):"}
-                  </span>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-right text-[11px] font-mono whitespace-nowrap">
-                      <thead>
-                        <tr className="text-slate-400 border-b border-slate-200 dark:border-slate-800">
-                          <th className="p-2 text-right">{language === "fr" ? "Formulation" : language === "en" ? "Methodology" : "Ø·Ø±ÙŠÙ‚Ø© Ø§Ù„ØµÙŠØ§ØºØ©"}</th>
-                          <th className="p-2 text-center">{language === "fr" ? "Ciment" : language === "en" ? "Cement" : "Ø§Ù„Ø¥Ø³Ù…Ù†Øª"}</th>
-                          <th className="p-2 text-center">{language === "fr" ? "Eau" : language === "en" ? "Water" : "Ø§Ù„Ù…Ø§Ø¡"}</th>
-                          <th className="p-2 text-center">{language === "fr" ? "Sable" : language === "en" ? "Sand" : "Ø§Ù„Ø±Ù…Ù„"}</th>
-                          <th className="p-2 text-center">{language === "fr" ? "Gravier" : language === "en" ? "Gravel" : "Ø§Ù„Ø­ØµÙ‰"}</th>
-                          <th className="p-2 text-center text-emerald-400">W/C</th>
-                          <th className="p-2 text-center">
-                            {language === "fr" ? `CoÃ»t (${getCurrencySymbol()}/mÂ³)` : language === "en" ? `Cost (${getCurrencySymbol()}/mÂ³)` : `Ø§Ù„ÙƒÙ„ÙØ© (${getCurrencySymbol()}/mÂ³)`}
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-150 dark:divide-slate-800">
-                        {results.mixQuantitySummary?.map((item) => (
-                          <tr key={item.methodId} className={inputs.selectedMethod === item.methodId ? "bg-blue-500/10 font-bold" : ""}>
-                            <td className="p-2 text-right text-slate-800 dark:text-slate-100">{item.methodName}</td>
-                            <td className="p-2 text-center">{item.cement}</td>
-                            <td className="p-2 text-center">{item.water}</td>
-                            <td className="p-2 text-center">{item.sand}</td>
-                            <td className="p-2 text-center">{item.gravel}</td>
-                            <td className="p-2 text-center text-emerald-500 dark:text-emerald-400 font-bold">{item.wcRatio}</td>
-                            <td className="p-2 text-center font-bold text-[#10B981]">{formatCurrency(item.cost)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                {/* Standards compliance checks list */}
-                <div className="space-y-3 text-right">
-                  <span className="text-xs font-black text-slate-450 block">Ù…ØµÙÙˆÙØ© Ù…Ø·Ø§Ø¨Ù‚Ø© Ø§Ù„Ø§Ø®ØªØ¨Ø§Ø±Ø§Øª Ø§Ù„ÙÙ†ÙŠØ© Ø§Ù„Ø£ÙˆØªÙˆÙ…Ø§ØªÙŠÙƒÙŠØ©:</span>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {results.standardsCompliance?.map((item, idx) => (
-                      <div key={idx} className="p-3 bg-slate-50 dark:bg-slate-850 rounded border border-slate-200 dark:border-slate-800">
-                        <div className="flex justify-between items-center text-xs font-bold font-sans">
-                          <span>{item.parameter} ({item.standardName})</span>
-                          <span className={item.status === "compliant" ? "text-emerald-500" : "text-amber-500"}>
-                            {item.status === "compliant" ? "âœ“ Ù…Ø·Ø§Ø¨Ù‚" : "âš  ÙŠØ­ØªØ§Ø¬ Ù…Ø±Ø§Ø¬Ø¹Ø©"}
-                          </span>
-                        </div>
-                        <div className="text-[10px] text-slate-500 mt-1 font-sans">
-                          Ø§Ù„Ø§Ø´ØªØ±Ø§Ø·: {item.requirement} â€¢ Ø§Ù„ÙØ¹Ù„ÙŠ Ø¨Ø§Ù„Ø®Ù„Ø·Ø©: {item.actual}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Dynamic Concrete Method Information Card */}
-                <div className="pt-2">
-                  <MethodInfoCard methodId={inputs.selectedMethod} />
-                </div>
-
-              </div>
-            )}
-
-            {/* INVITATION TO FLOATING AI ADVISOR */}
-            <div className={`p-4 bg-slate-900 border border-slate-850 rounded-xl flex items-center justify-between gap-4 ${language === "ar" ? "flex-row-reverse text-right" : "flex-row text-left"}`}>
-              <div className={`flex items-center gap-2.5 ${language === "ar" ? "flex-row-reverse" : "flex-row"}`}>
-                <div className="p-2 bg-indigo-600/20 text-indigo-400 rounded-lg animate-pulse shrink-0">
-                  <Sparkles size={18} />
-                </div>
-                <div>
-                  <h4 className="text-xs font-black text-indigo-405 dark:text-indigo-400">
-                    {language === "ar" ? "Ù‡Ù„ ØªØ­ØªØ§Ø¬ Ù„Ù…Ø±Ø§Ø¬Ø¹Ø© ÙÙˆØ±ÙŠØ© Ù„Ø®Ù„Ø·ØªÙƒ Ø§Ù„Ø®Ø±Ø³Ø§Ù†ÙŠØ©ØŸ" : language === "fr" ? "Besoin d'une rÃ©vision immÃ©diate de votre formule ?" : "Need an immediate review of your concrete formula?"}
-                  </h4>
-                  <p className="text-[10px] text-slate-400 mt-0.5 leading-relaxed">
-                    {language === "ar" ? "Ù…Ø³ØªØ´Ø§Ø±Ù†Ø§ Ø§Ù„Ø°ÙƒÙŠ ÙŠØ·ÙˆÙ Ù…Ø¹Ùƒ ÙÙŠ ÙƒØ§ÙØ© ØµÙØ­Ø§Øª Ø§Ù„Ù…Ù†ØµØ© ÙˆÙ…Ø³ØªØ¹Ø¯ Ù„ØªÙ‚Ø¯ÙŠÙ… ØªØ´Ø®ÙŠØµ Ù‡Ù†Ø¯Ø³ÙŠ ÙˆØªØ·Ø¨ÙŠÙ‚ Ø§Ù„ØªØ¹Ø¯ÙŠÙ„Ø§Øª Ø¨Ø¶ØºØ·Ø© Ø²Ø± ÙˆØ§Ø­Ø¯Ø©." : language === "fr" ? "Notre conseiller intelligent vous accompagne sur toutes les pages et propose des corrections en un clic." : "Our smart advisor stays with you across the platform and provides technical diagnostics and optimizations in a single click."}
-                  </p>
-                </div>
-              </div>
-              <span className="text-[10px] text-indigo-400 border border-indigo-500/20 bg-indigo-500/5 px-2.5 py-1 rounded-md font-sans shrink-0 uppercase tracking-widest font-bold">
-                {language === "ar" ? "Ù†Ø´Ø· Ø¨Ø§Ù„Ø£Ø³ÙÙ„ â†˜" : language === "fr" ? "ACTIF EN BAS â†˜" : "ACTIVE BELOW â†˜"}
-              </span>
-            </div>
-
-            </>
-            )}
-          </main>
-
-        </div>
-
-      </div>
-
-      {/* FOOTER AND LEGAL NOTES */}
-      <footer className="max-w-7xl mx-auto px-6 py-6 border-t border-slate-200 dark:border-slate-800 mt-12 grid grid-cols-1 md:grid-cols-2 gap-8 text-xs text-slate-500 font-sans print:hidden">
-        <div>
-          <h3 className="font-bold text-slate-700 dark:text-slate-300 mb-2">
-            {language === "ar" ? "Ù…Ù†Ù‡Ø¬ Ø§Ù„ØªØ¯Ø±Ø¬ Ø§Ù„Ù‚ÙŠØ§Ø³ÙŠ Ù„Ø¯Ø±Ùˆ-ØºÙˆØ±ÙŠØ³ (Dreux-Gorisse Model):" : language === "fr" ? "MÃ©thode Standard de formulation de Dreux-Gorisse :" : "Dreux-Gorisse Mix Design Standard Model:"}
-          </h3>
-          <p className="leading-relaxed">
-            {language === "ar" 
-              ? "Ù…Ù†Ù‡Ø§Ø¬ ØªØµÙ…ÙŠÙ… Ø¹Ù„Ù…ÙŠ Ø±ÙŠØ§Ø¯ÙŠ ÙŠÙ‡Ø¯Ù Ù„ØªØ­Ù‚ÙŠÙ‚ Ø§Ù„ÙƒØ«Ø§ÙØ© Ø§Ù„ØªØ±Ø§ØµÙŠØ© Ø§Ù„Ø¹Ø¸Ù…Ù‰ (Aggregate Packing Density) Ù„ØªÙ‚Ù„ÙŠÙ„ Ø­Ø¬Ù… Ø§Ù„ÙØ±Ø§ØºØ§Øª Ø§Ù„Ø´Ø¹Ø±ÙŠØ© Ø§Ù„Ø®ÙÙŠØ© Ø¯Ø§Ø®Ù„ Ø®Ø±Ø³Ø§Ù†Ø© Ø§Ù„Ù…ÙˆÙ‚Ø¹ØŒ ÙˆÙ…Ù† Ø«Ù… ØªÙˆÙÙŠØ± Ù†Ø³Ø¨Ø© Ø§Ù„Ø¥Ø³Ù…Ù†Øª Ù„Ø¥Ù†ØªØ§Ø¬ Ø®Ø±Ø³Ø§Ù†Ø© Ø§Ù‚ØªØµØ§Ø¯ÙŠØ© Ø¹Ø§Ù„ÙŠØ© Ø§Ù„Ø¬ÙˆØ¯Ø© ØªÙ†Ø§Ù‡Ø¶ Ù‚ÙˆÙ‰ Ø§Ù„Ø¶ØºØ· ÙˆØ§Ù„Ø´Ø¯ Ø§Ù„Ø­Ø±ÙƒÙŠ ÙˆÙ…ÙƒØ§ÙØ­Ø© Ø§Ù„ØªØ¢ÙƒÙ„ Ø§Ù„Ù…Ù„ÙˆØ­ÙŠ." 
-              : language === "fr"
-              ? "Une approche scientifique pionniÃ¨re visant Ã  maximiser la densitÃ© de compacitÃ© des granulats, limitant ainsi les vides capillaires et optimisant le dosage en ciment pour obtenir un bÃ©ton Ã©conomique, durable, rÃ©sistant Ã  la compression et Ã  la corrosion saline."
-              : "A pioneering scientific design methodology aimed at achieving maximum aggregate packing density to decrease invisible capillary voids, optimizing cement ratios to yield cost-effective, high-quality concrete with robust compressive strength and resistance to saline erosion."}
-          </p>
-        </div>
-        <div>
-          <h3 className="font-bold text-slate-700 dark:text-slate-300 mb-2">
-            {language === "ar" ? "Ù…Ø¹Ø§Ù…Ù„ ÙˆÙ…Ø¹Ø§ÙŠØ±Ø§Øª Ø§Ù„ÙˆØ±Ø´Ø©:" : language === "fr" ? "Ajustements de Chantier & Validation :" : "Jobsite Calibration & Laboratory Validation:"}
-          </h3>
-          <p className="leading-relaxed">
-            {language === "ar"
-              ? "Ø§Ù„Ù†Ø³Ø¨ Ù…Ø¬Ù‡ÙˆØ¯Ø§Øª Ù†Ø¸Ø±ÙŠØ© Ù…ØªÙ…ÙŠØ²Ø© Ù…ØµÙ†ÙØ© Ù…Ø¬Ù‡Ø±ÙŠØ§Ù‹ Ø¯Ù‚ÙŠÙ‚Ø© ÙˆÙ…Ø¹Ø§ÙŠØ±Ø© ØªÙ„Ø§ÙÙŠØ§Ù‹ Ù„Ù‚Øµ ÙˆØ§Ù„Ø§Ù†Ø³Ø¯Ø§Ø¯. ÙŠÙˆØµÙ‰ Ø¯ÙˆÙ…Ø§Ù‹ Ø¨Ø¥Ù‚Ø±Ø§Ø± Ø§Ù„ØµØ¨ Ø§Ù„Ù…Ø¹Ù…Ù„ÙŠ Ù„Ù„Ø®Ø±Ø³Ø§Ù†Ø© Ø§Ù„ØªØ¬Ø±ÙŠØ¨ÙŠØ© (Trial Mix) Ù„ØªØ³Ø¬ÙŠÙ„ Ø§Ù„ØªØ´ØºÙŠÙ„ Ø§Ù„ÙØ¹Ù„ÙŠ Ù‡ÙŠØ¯Ø±ÙˆÙ„ÙŠÙƒÙŠØ§Ù‹ ÙˆØªØ¯Ù‚ÙŠÙ‚ Ø£ÙˆØ²Ø§Ù† ØµØ¨ Ø§Ù„ÙˆØ±Ø´ ÙˆÙ…Ø·Ø§Ø¨Ù‚Ø© Ù…ÙƒØ¹Ø¨Ø§Øª Ø§Ù„ÙƒØ³Ø± Ø¹Ù†Ø¯ Ø¹Ù…Ø± 7 Ø£ÙŠØ§Ù… Ùˆ 28 ÙŠÙˆÙ…Ø§Ù‹."
-              : language === "fr"
-              ? "Les ratios calculÃ©s sont thÃ©oriques et optimisÃ©s. Il est fortement recommandÃ© de rÃ©aliser des gÃ¢chÃ©es d'essai en laboratoire (Trial Mixes) afin de valider l'ouvrabilitÃ© rÃ©elle, l'affaissement au cÃ´ne d'Abrams, et de vÃ©rifier la rÃ©sistance de rupture par compression Ã  7 et 28 jours."
-              : "Calculated ratios reflect optimal theoretical distributions. It is always recommended to perform laboratory trial batches (Trial Mixes) to evaluate hydraulic workability, slump values, and calibrate actual compressive strengths at 7 and 28 days."}
-          </p>
-        </div>
-      </footer>
-
-
-      </Suspense>
-    </div>
-  );
-}
+    xœì}koG–è÷ı5šÙDZ˜”%Y£µĞíá¬,yEÙ™¹A7ÉÙãf7§»)K£X¿=™..öËÅÅv“`Ç–Çã8ÇÙo+ì ¾Î/¸?ásªª_ìênJ²g²0[dwWuÕ©ªó~0¦ÿì\ıÙÎEÃï–]g`·'[çŸs¹q­í\·ËF»mú¦c{q³Óõ§Ê¾³ì´‹7|×´;“S»ìZçêîßdôŸ³Ó~ûƒ¼gü6kY†ç­=¾8Ñ/Í1Ÿoù¥·}î²ÇöK=ÇvÄUÏ2|^š?yr"¯_˜à†ãö¿:p]n·¶“3ÜìTÔ$/Û¦É5[|jwúZçOªihNâzÓ±ÚGŸšZ.O}à	7ë	xEÆİé¿ckÎuvz-MÇe8*öwÓYãÚ‰OÈÂvÔìv’½ó›ÌoöpÅ##kÀ?ºÙŞ‡…iîµ…Èµ™bĞ2ìÎÀèp¶¸¸È&6Ü	ö!›¸h˜6k¿û_ÿ2Øtù[`ñ§¸MO…pÂG&†n|>|ÊğËğüşî±ƒûtáÑğ»áŸÜfğØíá×ÃgÃçpãîpoâMÑ"0¬cÚıï•›†ßê^q¬Aï²Ş>ÿ‘¡9‹>âZ-@0‹ÿØ#8laÌm›N{[×nM‹§ß>;İ67?HïñÑ…µÊÊ[_]¯,³µÕ´Øè,tY«°åyÖì„¨@ ‡àÊ™“'§Od Â6wK¾ú"nÎG¯Áå³øûõÀóÍíR“û×9·™éó§–{Ëß]#W]ïBsö³2Â×•\çzÉå›Üõ'v¯îj¡ Hjïô~Yê—~Z|ÃŸĞv{}Ãş`ÇB>Ãü-oÃ¡âÖ¤@}w†ãİ¾"xp±¡À…nŸj|ùÁC‡5J$,É4¸sâ›Xw|Ãb`ŞÛßcm¸˜uö¿lu÷÷8ƒŞ²Ê¬Å×SØª†Ï¸Ûì‚kØm&zÅü.gç­©Æt’¦&¦vÏNÓìô“CU@ìã™“ı­O¢|JsÏ°åFèñ¶9è±_:YÏ<ú©ôèê%gà²Í6	#ôZC­®‡¹ŒWı8Ùı\…5x‚«Ê‚KşàÎ>gp?BÔØğåğÁğ[h¶—A4$8ÌÍÄb$0îÇ?9yîı33ŸH”k­kr‘zs;¸•h'e"ŞŒqë1şbÂ¥mÛè™-vÉä¬Ú5\Ÿs¶Øä<p–7¥AŒ#hÑê,´«„»¼AóiØqVaÇ¢¸‘DŞ.mY¬_:Å¼®0h¤IX^>‚=5¨OœtXOK´;¨{jä4+Ìİ/Šÿ`ƒ~Ÿ»-ÃãĞzëÈX¥ëf0Sä¸÷š¥™‰t‰g}}
+gãz¼?ü°_qŞ€4l<Âh€Çú]ó7:şîş^vÉğÛc-gÿ?|Ÿ#|Éô@lè~°iÇuOiÒ»e¤$€>|8á%øşğûá1Û»€0ˆò‡ƒû ‰=F?•Üƒ¿ğóòÍw jOñÙ¯à©Ûôôù úÀú5ü{‰ßIgH”D÷·‰XA‡qà¶L·5°ÓåÌ´,Ø¬pæ}¤9-˜t RØ¸}ÀÉHôqçÂŠ´º6‡MkÓ6áö‹ oÑyõºÎu¸Iä·‘lëğ17 =#árM WØe`›şá¸«5N#óØ’cüj)ÈfM¸v„¹ÉY·4:ÎIn(Æõ;¥İ0	QÒG${Q‚!)?Ì(ÏfQÕ³kÜëƒ¤ƒ­À[€ñÀÙõ»‹Àşíë’EşÊá–à b°\YÌåöÛ†o,î|œû€Š-à@åÓpÌ¿#CõˆPÙ“û°ÊéÛÔ	¶i€,²ÀâànÑm„ó	¸c9. ÜŸÎ;3{şôÛ=qÔA=Cn‡Ñ@Y@|±ÛÚÑ fi'Ær~şıÚÉsÇ1–'Ã¿“G~Óä®úÊ-íx:t;1¢ÚùSğ9†Vû‚xVc€>Âm¯Ìu¼›ËÉÓçN/ÇX`û|oÀˆhUÚ¿lşóÄ¹å\îiSiEX93?ş=`îø>)o˜Ìp²Í?`í2½®˜ËXkkqboşƒÛ4m@k0ïŞâÎü|şœ6x¯@ƒ>‚ÌîTìÚ\~ÄÿÀa™¼)Ğ2¼E9oQÎ[”“ŠrÊ=£?9	ÛÔİ>¸ Í·¦ğ‘lµ¶øœ­rËb×à î\mÁ×
+ÎĞˆ/^g-îP·eï.›Î?¨S}Àhä2#ëcùfŸ	Iæ½¸3)!kØÛ4ÁR°€ˆá1{Ğkr–"uWIN[! (idbê“Ü‡«Â§GºLµ
+ğ»uDæŒœc×H2ºFÓs,Àì°<î—N&DÚ—›à€û‰K|~{%Û±y{‰âù¨ ö~Š
+¤Q¡5*›º¹zæQ9-&0Ed$ZSLùşpåƒ-¼¦XtO˜Ar¶h‚M?}­\~&E›ZÜÖ‘­îB<½LŞÖİ›bY²Ošb@¦UJFL9ÚÈøæÈ§Òr<FêÂ ±?%éü6Èë Ê¿‚«Ïb‚7#Uï³á÷Äô@$?—šà„F$Ô–LäP›‰+| È•ÿ–!v…ãgqõ]s‹t$½`ë’ğÎŒ³ÕÅ§Œ˜B¥œûšKÇS'åZ%­lÓ'ê vPúë¬©6“Ğ”³øµŒİ•¹o4íòÄ¥R\æn·µ±`aëMîÍk¶ş‡¨Ó+Í²Ñ/mÉ¿Û¥™ò<)
+XTı4¦™fúÌIÖ÷KsYÚ©,®÷s»'X¿å'„*"O6ÎfµŞ3œ;Tlz„3§œ;\Ñøğ>>F:w¨Ôö }½lvîğƒöyÀˆ#C…|(şaÇñ"pãí|^œP±àğônÌB\ŒoCôƒÈGcPl J2H¨ßzõS¬\š ÓŸ¨Ng¦ó:NqiIèŞw>¸æÊt™ÃŸd¼n>ëudV‹¸.LŠ7Ã’=8onñöäÌÔîßNáïRÀûW ‰ë¥YXû.ı¯Yà¼®kÚ×J''˜ço£Šf‡5íĞCUq
+èåt"Øn “Ã êe¼Œ†éŞ:ò¯»,A¥(¡ÅÛì’ël˜pÌ×xÎ,°6ï°J]x„­ö}³gşÖ ƒEcà"_‹¹dxİ¦c¸éŒÄYlZ¶=ÓM¶°./J+s4@«Ë‡‚¯iÏ6Xø”ü’öL_-ÆY´çãâÂbB|HkÑáÁíÆvÏâÎÈ¥´vê”„¾£OM,cÊ.Iî\çõÊ9V]]Y¯­¬/°ù2[¯U¾R¯¢—MíÒêÚzcdwŒZz R6wİhŠÓëò¾"ûD˜düàÈµ8px§™a“kFiÃhó’iO 2_T]•|£Y‚Ã	t·§nÚ*²ú°E«†…†;Ú—W€şµÅ×ğ&v	;ÔìÌ°YØ
+‰6)K³<¶¸³k²›ö¸c¯ /ÓÛëÚ¸“D»`ûV`œhÉñ8ÀF¤öWdg°´¾é¼$/¦µUœTXtwF.¥µË;»£ûV0Á²éÑ*œwÜ5Ú›ŸÆÚ‡ûaÙé˜-ô²;¦Í9ºB4~3€óÆR`Ş ×3Üm½©Sö²&oÈÇ5È9iá§BÂO±ÆÏa
+?GÙ éK‰\€Z¯ÉÛm¢"¦MŞLn@·½¾c£,£…ûo™}.×>!3—%XİS³Åû5oÁÓ±ŸÚF… ¯kìØÕ.¬,°Á ßFW5…ÄõÉ¾Ë7‰ÅİaårÀ/òa¶«gÔä,–¸o˜¾¨-¾Ñ‹v´\ˆ¹ÁÔ“ÄSÏŠ<Ñ(¥§˜/_{zêïuÜ²Ğ­Aßu•î'/Øwß2²º¾„·ãk;Şÿ«ÀA’¨1£½iz Ûñ¹WÜµÙ‘*MåŸõñOgj³ïÏûä(ÎYóç,E•çô¢Ïø®XcúV™OñŞŸÏò÷õ¯Bá‹ƒÏQ¼EÍã+ÒJwRå$İğ£&qøü€&¡=['íİEs‹U°tämxÈœoÒä	…¡õ.÷<ÃDwò@åÂwˆ5º…}Q)=3Ñ+W½f9õŒå¦×õÎ<-n ]¹„>: ŸÊe+C™ˆ –@ş Ò <³Á‚Ü=¸Á”ºîüÖæà.zıÿ úãÁMTû÷ÊØà{T­±ƒ{Ãoî‰>¿T[wH±üJü¸<>]<¥.nJ¯®áúƒ•Ñ×ìÂ³/ĞÛìéÁ}Ô×à Ãø‚…Û#±5‚Å›şdĞø9+Ü@EUÌ>"^ıhøÆr“‰Yà¨î(}öĞ¿ïtƒ®Ñ2.½e¿¥¿7£—¾ş ¿„n`<·Lá¡èë+Eà‡£şaøRí|a†CX«òD9Sg«µ'–QC¾¿‡( ¾ÁoîïùÀ@{°sĞMÍ3Ûû{îşúöÈ	9¦Qo“/›ç»ƒñİ˜¶Wö{mÏïõĞ†èà¨lraÜ€ÆÄ–µß…½º¿g›@A9ëÃ­–éqyèĞ»‘˜bè­NàÌw¿†{½’›–%<Ã¡ì_»ô‚ÀI¼-mtEÛhØ±,Ÿ“‡}g¶a¢yà]cc®{BË}i0 YÖGy™›ä#ˆ Ö½Ãs ]uì–Ë«+­3àí]nlnÇa° ¢ua\Ş¶‡š1n{Ôª8¹d´Z×hmÇø]—opYôxo…"‚ĞgĞ•a]7¶=xP"$@¾Oº@¤œÏŒ 2pÁ'¸ÁhÉ®¯ØØf0‚.ó¬A¯½ÙmbîàšGçĞ¤E¦ô¸w$“ŸİuÇ½æeXDíñ˜vcôªÎ¤–”[êºG²éù€Ó¥÷çñRœÓY^¥Å¢¸£Æ§cC	•\Œpf ïÊ­tDGû¥ @×"H#ŒÙxF?	m>‡w%A=ø'vié¼ô¹=¸¥B8Á›³,KØßMÿ$ıt	_F~1ÖŞ¢.D1»OÑ‚ø5‘š/˜Bğù?!²°§İFÀ°¬^ç­®Mb¡-Fî\œj|,Çh³®û´‰éM ‡×à\ß“ˆ­­mÖÜ&Ş,mC{Àé0¹¦/$Q×u\Øé©>úé[vT§w8ÕÎé2»Ro\®,ãÅêZm½Æõ‹——+ëõÕ•¢ZÏìÉ©‡¢8áa•ÂN3U>g¯Ğã
+e6‚V£zÖÊ×ÅÊzm­^Yn°õZc½¾r½Ã–+çV×*ë«k¿bÿ`¬¯ÿŠ_[].
+½ ‰
+õ8 tXò1*
+˜<+€Ë¯Y:Ÿ‚*|5r³@ãÃëáÅ´6¢QøÈ£.}9Á¤Lâd?K8îâè«AùcÕ—?ÑHu(*ŠGËjäuuqä­H‚wâ_²Kõòeê^ÙlÓãåø!ª	Äßn­Õ_dF¿om# Ö5°ÉŞ	Ùk†ˆŒšà7lÕ•R%¨Nô-õÖÙcO+?Oi”Öeª°íØ—i˜8á†oøèY;‰Û¯+móëâZÆ®±€a“3;fî"ö³ÑŞ³HÒ‡œ³ı‚­àgmÜ¾ÚbY«8ŒtAş	Ü®³iXbö! ‚ÃTñé*ƒ-Ë'19D½±ª2C°]ıZË½X»ºZõák–^·'6±÷ê!#ÎlùÔÅ\,6|‰
+ÄcÁ£˜ 0dbÃã,L2V^×ñØXBÍI	wımÀ ßú¡hÌaW9¶Âôö¬…•P£ƒİ‹jxi¤G<Î9T³TšeJ|+¦	zË˜ıC¡Cşì3†!€ßP¡BÄãáÂHÃ7ÀôÂ-†ãKá‰ß+\»RÃôKÈåU/¯]©¶yz&ßäÇÁÇQG¥+u™Lp½ ¬ÜM8ı‡°¿3AÖ¨TÌ._tsVqi­vù—¥«kõFDšj®ÖÏ×«ìbmıç«K«Ë«~Å.\®/Õ–ë+Å×¶Çı®Óv,§³}+Üvù`«é4{•k¡çlçºÅÛ^jüÕN{dd¹Ó:Š!° —Bb‡8µÕÊrUI­¿X½¼¶R),¡¢Ğ6¬ãXÏˆ"­$»Í^Ñˆ–àâù#­dÖB˜C	x©7*p¶àOñãŠºfÓ5Üc9D¡¸+;Í¹"Ş‘Ã¤°Öëõ7êvÛâèX{	V‰Ãb%¯è[	×x»èµtÂëùNOM·ŞC7ËÅ´«é~I6wÔ¨g1¨p'õrÆ¸Åã<ö¾`i7³ÆâØ5Ô”…£2©TAê”ä=5ÊÄåô¶U‹nÅ²FZÜ8>]ÉjŸÛªÛe£‰Ï{‚›Íæ^G]Šâ¨â¬]›o€mÖ·ûeY£:ÖcA:«—ÖëëÿC wLøT©³‹õ_ªëµµ¢èÇ‰¸&æ1·JÑ>s¹õÔºÀö©(çĞ¾¸+ªo¯‹|4Ö×j+ÖÎÎ¯®Õª¡C¥½€ß.®;Vt17cÒo³íÃÌ;~·é7‡ç–-B•óQ–´ÀJ£´zñÒr½²R­¾œéÎ°£Ï2ÑªùéÎ;WµàÇŒQŞšoåy’+x{Iùƒj×';®h†Y…ÈO_t:Õ|–r‰	ad˜_iĞ³”Ù( v4™ê‚§’CŒ¦_z¥øöœ<?óŞlå°¾=³Òœ({à—Z]Ú•³bVÕpR#|fª7{v®ª5\à p+ä"-Œ¿”&‡·®Y¦6µhÌæÿ*`ÖSèi<›ÒrıÉ±4ãCÑµß,Íjvî_Ü8¸	Ø%3éCás'Ì)u_oï_¢‡ò5y<ü6’‹Š<ZĞ3æËá£ôéOwçÆÌ¿•†¥ç
+8$dxËM¾¨Ïh††÷9€e,ÀÃê¤îš™yÍRd¸Ni‚¶eøb§Ä{ÀĞZmr"˜‘fıÈ5ÖÇÈş6¦ŒÇŸDb™Ã¥e—*Fn¶Âì@êDVÊ3)A6³8åê¹
+{M’;×À¥éàYùo©ˆİ˜ïWN ĞxyıŞ®ú_`ÕW*lşä{3lšÕVØìÉÓlRzº½!„#úÛ·Kşc_ò¥õµÒ¹rµ<[>…ÇÏøMZòWŠrÜ8êéÎğÏÊVË½˜Ë_ª­Lr‘øâÊJeùWz##fMÃ÷¹K_È2šíM²Ç‘÷—ÔûÿZd%.±%¾É-§O®’"Ÿ úX5ĞQ	gó·pÇgÿÎ¼Yú(S]÷şÒìbº+¼ÄI¦‘Ò„ÇÃ]éR<7Ø“·È*Hßµ+«Ë—I›Bw¦/y
+7ÛL&”ÉægGC©#±Ò´©fÍÆd„‰BÉˆŞÔ7ÿÜ§D £vÃWÃ‡Êgñ[r¼Üh]ûÔÏF>KŠ2ÓßflÈÅ™3»£ yÛ'ôQ½z†ø5zêK‡Ì;èxN¾æáT%Uı^~2fÊü°mÈÿ³áSr¢ÂİĞ,û•Jq¡$
+xôóó@‰U•×¼Ê-’T ®p·¬•ÆoW#<¨´M°§¤ÿp€d²•¦bÅ0L§ò³IÎ¶GLkØ†¬ÄŞ6)‚Å´MTJP)Š—•«†É»Éò³ÏØÇŸh£Ìğ'aöŒÒK•éWÆó{ü	­Åê	¼¿™‡÷ü¸ÛÀÌha‡LLøâ~´ºö•sur+}¸•Ÿ×€¶„ƒLn*ÁØòñ~É?£¯€Q"¦Kß”C~Üş2q7,Ìlæeàíp1»ÕXX?áph<ğ>ÆÍáa´C¤°ˆ+˜¸$8|tIï=%SÃÀrØ¡ú­½
+ä
+Ş«ïA `Q*ì!zUßÖ0ÃwËñ†—ôÍ0ÛÏªÆ£Uª„…†O‘&#µ•HÁ£ïEÜÏëG³®ciLßûG\r`-ÇEçà¼vyü—C/.:¶é;‡amOå³¶0
+91 ®·$(ƒ-$.`¾Ïçm-ú‡TPÒrÇªâd‚&Ñ‹ú`ëNÇå˜AÎ%Ün‰Úº†w	N § mxI·=Œ ÁQ6Wx<>,wÄ+–à0>üÔuÇ·ú†`Å»ª»‡CQizÛ	$c³Æ=ÇÚ$Lqn``ÁCº®ÄÉÈéL<T¤;|íyÓæ6Ç9iÇµ!¹è´Ö@;Ï ®r;Jµé¤4 ÉêZ¢™ ´HDùŒÆuÛ^xóÃ2ÖÅÙç‹òÈ:nÍÊÈL	ó1¬%n{´ÕË(Íİyq“·´aài—ÿÚ}&¼³
+‡	¦0˜[ÇPFV;uä¶4-ÛùA'›7rû8omW¼n¢½¸˜ÑÖão¡×­ÚÆõvHÉGïéÉÛQRt¨)¬qßÀ5OLB]Îk^iµ`Ä”è!r'·s¤±©mt\ÔøØÔµ•õ•Zmüzc½²²Î.9.…*¨ü‹Ä×~
+‡˜bı7©ı‹  °úïˆè&L<‘nÒy˜T-ª¢TşK©Nk–Ò96R3íHf\˜6‡i7?) E‘ä¤Ç´>ô€ÁìRl9=*¶À’pc¿ÿIq±…D¥@MQÖ´B]óé|+«¬RÏ°ôrP¦å#"ó&J#%&É"X‡Ã¹üéòê…zU?¢Œ‚YE”kaÊã„šM³NRÙõå*V€aÇ”˜aø­çgJAVĞ¯XÂìlª•tË’V÷°Bè+™QâsÊ†*»›Ø³Eü.ĞÌÿ@EEéçsjÿŠRAŸâ¸î•“†_P÷=¿
+èA‚å¡ä‹º¾÷PXÿ}š/U‡wlxİş®ÔÖP	2¦ßâOñ¼SZ•#ù‹±"Nwó»"Ş»‰†˜¥ÌœR)ÏOä†c7€Ù—£İƒKém€ÇúŸl¿šŞr	˜?Ù0vñ5ET–.ÖWØ¥ÊJqwB”G4N¡ÈÇIß>¸a`‚Û€Ÿƒ¯#>P¹Ã;]fÚ::?6Èû±ºº4Fx÷Ñ7±Ø&~sù¡tn•r´ã¥m™Æø.Qé"Í‘³´yulDC ƒªç‘TQÕ´ä[Ù„E§„ï…´&–Iåú_ôìŞh9kYôºêØh]6ıı=†}ª¦øy‡<øà‹H¡ñ›÷ˆ?ÄWO6”ˆÎB}"£¬ªÙ(DÚ{>VZL7<¤‚@ô5Ğv¬A0üAÜ#"ñ’‹x;ÅKwôÖŞ^0(ËSàu‹¨7Ş‘+ƒÕSü–µ@oìï¡4	¸Òæ¿Å¼Bô—I†l½HGÄ·ö÷ZX]*š	“‰Z®½b¢A²)e(¡º#pzÃ£!VÊìØLiS0Q	ßâØ³ì	3÷0ş›Ì¤ÉZò:¹€FåJm‰]Z[ıE­º.Phc}u­r¡6ŠD'5X¨^ûÓ¾ ¸°a?ûŒiü-gĞşi hbêMˆs!SªÜ:ä0K›n1^öÛ™2L²L¤`u»m¶::…P *à¼’ï”\¶á:=˜QÛì8˜æ¶‰ÂšóÒ«I L½4T‡t€/Û°àb×l·¹]H8*îøN¿ä	áXB[ùşé–fĞ×JJÃëuÅË(—{a2Ë¡-WT^Yi¢’œTÜåƒR…å~&>¨T×ëWj1½†</9ÎY)M«%ˆV#<ñÁN<Â{Ü
+²qÄ= n!ñ½ Q™éàgd„©†'ò…*bÃ>c$ôP^?rUh³Fìsp÷Pï Ä¡êãg!KÙ‘]<ONÑ=0§€ìô",Ï£áLÜ‹0Îõ…dzÎ9v¿Tyïæ
+İé›>Ã§l¸¥S¸Â§5E[ˆ}ê»d– :ô	KÔ	 Ãƒ^•7"é@s(9zÎ“";çä$ß˜0óGŒğÇe¸X¢ ¦3¿xÉÈVÃè÷Ğ1ƒ…œ<U¢ÊçÄ`>Œ8ş½Ø9kõş:@ÖÎ	9orº:4Âº[£¹Ñóîl Û\! VGçªCFs#«Äl™U]#QŒÅy`F‹2oJÕœîºs‡ò7¬jÖæBK( ,ä°sö’5ğª¦Û²¸’WçGåÕˆ»z¾æùÈ™ß¿Ë"É]¢ÊçÇ”T2óÈŒ­s~¿€Ê9êt!åÕµZe½ÆVj±F}ƒ$««kK‡Ò?£°Œ:·Adæ  œÎL>>Ëÿº×^ˆÖA‹¹cŸ’”H¥Î¤ Shê„bhaQíËQ8“àKc9H¢C¨Â±>‘lÎìïÎNÓ´¯'T¦·¹úg/×&/E=èo¦ËÓRŠÏ¦ğº²ùu\œ¦Ş´©òä/îLr•|%l8ÉË>·ñEª'¦>cŞØqwU6l,y½=&ÎÀã„ê_QÜ[hĞ§ÁU)L^fô\C÷7×ımZë‹*|1î°¼0Á5·ŞÙ(g¢?F#ÑCgà[¦ÍÖ:&cò›=!fšQzñÛ·GåMœ‹ø¶—ÂĞa6¾¬»pÔ­<Ñˆ˜ªp›†.‘¡.ŒÃŞ„åAˆ†dˆD#“’>O‚Ì3uLTB¢>
+è™öâÄÌIıvë[‹g2ˆ9åà¨C§O®Ğ¼’§oüã7—1îÿ¦çˆXÁ7|…À£~ôooÆak|¬°³×=b0Ç\OŒ&ë¢v!œÕáøà§k„gÖ	–m6º–­ë9nIV4G®=#1/ñ«Zw„Ì±-Šo‘¡NëdF<À¨Ts*³£]"%@âœ-&Ã'm$F'ÜË‹v‹8¶@ÒÃxù\™-câgƒ¡Q¿­óôzBo…ò‹P~Î5ù=¯—É‹"ŠX,s?ÜÑ„‹îéçÃÇÊl‰\×‹áÃ7.”«iD%ri·3Nî(ƒ˜ôÅßÍˆåÌÏóâŸò7	Ü:ƒr0"*AŒ¿2k¨‰DÍ¦'Ms‹[¨ŒÀ1o º69µLÑ«¯ÂDÔŞe¢ò±|qf”`Ô¶‰J‡ÑÈ4\?BõÔşYvë *™OQ¡ÀRrÇ iD!.º„¥WfN(/%Q]<#*®D'ƒeŸ–,¾8%Í¤7zyN=œrï½ù¾±İ«zFPOîôü‹Ş[5½İqÙNõoÈô½i7fjØ-xÌ‰Ä1‘õ£õæÍÈ«Gé¦„©>âš‚Û£yÏLJWiÅ¯çæƒ!·bVÏŒ ë`àÙ¨ÓW%~ŞÅ‚«XQ={~v‚3Ÿ^ÍuäıF!€Ó)<lÂ6šÌ±R`¤4ÚtG,2jıxp~äé!fšê632ÏõÒñ£+U5&Ü’œ]'Â;%œ«´õÖ_+ˆïÀ¬3Z ŸçnoO@ÙmuÌíã…s~gIï\0>“ˆ	ÍŒ€H‘ÓCÔğKnBXFİk‘¸·
+UèH*š••’$BÑÇf×\8Ê.Û85*³¥ÆÄe£W"c):‚(½;k¨Å(¬ì8·ÛŒÚ¦ÑÏN¡%˜ÔlwÁ¬Ü;Z5˜*4ëâ€×½r<Æğz¬YÁ1h»~”²ã%×ØÈÀ?Åi
+Vä‘lé`VæAHêªF‰ü|
+>%œ\f5>0ZÇæéÓ]V!ŞIë5ñu!uì‚©®E
+Y
+Íí‚p%U¹Vdû]×’äXŞKãXB&KçS˜1Ñ;J?	«ü’Ë—~ÎXU0gûÿ¦ÊœŠIŸ3üV—‘Ÿ×±Í¸÷+º{3ŸA}ĞeË“j õÈå†×]Ã é‹Fi`Ñ Å6m!¢p6w.}Ë·¯P¾Ü8„Èy”¬ZçûØ€ò”ÉEü|’”·ø$à¥»š“®kóÊâÄ*-ÓŸW+F›®Z¿R_f•ËKõu¶¾V©/`jŠ²4…ğÜ–ü»­\?ÜbXn~LÀdU©œB @ı)­Û^#­®<ò‚ãêÏfa*<ŸáÎ/·È{£}n{ŒãZtº/0Û–˜ÇÒ¹cš@ceµ´tmÎ•ç—yÄ¡z\ŒY8¶´_3ä+ã Êbóx„1±$vÓ<.:mB›Ç5‘ &WrFĞ«¯^Vñ±b×2–Wçø°*Ü5æd>6\¬u‹áx?7=ªç>ç•åv²9Pë I¹-œjÑNaÊµ™ˆt‘¤
+0X¡èÔ3¶JİÒÌé0Ò`»„E{…/»×rËj@“ºfzôAÊd<ßu€Fç#ˆEêÓ¶išBûSèú¸¥è.ë¼ßQnvÃ==;°%‚y`È*†KbÔ(Ï{t¡`Mtˆ UPîÏÛv¤^‡‹'˜[oo‘½ÈŞ£‘àş#76™PaHB©O°º‰&qo^QÆşüO_²˜Q1p>ãøÉò»ÃÜ¾
+ô“ÙG>[;¾…°çÉ¹±%-@>IeµLú’—óN;Òìüê³ó“@Z±J'eŠÌÖµÅIá]rİYF
+“ÒThÇè³[š×À¥ °èéı	¢> ‘ŒÜ™îù
+š"GäààÍ'	ó~*›eÒ?¹°Ü9ÔJç¨ğ“Xê"ºBQ–ô'›A­z,U_6=*^ŞqE)¼
+´á8×OÑÿFŒ(³5c=KÎÃG@Î¾ñ`_¡ûåğ!e4	rVÜ$c6ğ¾éhS¢£Ÿ’ğOTò+e	¿û =Ë#!ÔRa‚—„P—Ç˜rÊ†m;>k;×mË1ÚÌqÛ‚MNQ¹¢¬kò–1ğ¸Lü€È¼ĞŒakÊ\¶ÍàwY$ñO·ë•Óy¥}„%¹ØÓÅÈÔuÓ†é•iZ“…Æ‘Z`,ùÑ#6˜'¡{‰<4³¯j¬³Š…<¢ÒùÓKKçß "K8d€X0óš©W14äq–š(Ã¾aZ°“}º€?Yœ0ô5¨ãÄ—
+ƒÇ‹ª0yÏ01CŒôı àeªèa5Ëeï1­øY‚5zûøä'ãŒ¤ª(òÔ‘ƒëxí'8ôÁETKâ‚]:•Šfÿ2ËğÉğ›ƒoêdÂN’æ
+ |?Š9déiuşÄD¾ñ}-Ã¸4± ÅI©:B½JftdÎ¤FqxHx@TD‰aÄl>}u(+J{oNÅ™ŒìñEdJğÒ4&;©?xzpãàæBa½±†
+lYéŸfÄšïÂúWä€øÇCháª¬¯,î:Ïöv1”¦¥&¨•±öbˆµ‰İaår¹‚Å§¾ ´a¿Å9Bü[”SßÀ¬,ªÂÈ7[I'û¨'}óñ²?…”¸å&–›InšL÷åĞ£«ˆ%.4I³iF½Ÿ¯<Äèâö18;F{Ø,ñ0:Ñï†zŒ1´¨7Hw„>
+$9¡Ó0Q½¡ø í>yÆıœ2okên*!+ªşm:Ä·é_S:Ä·ùãŸÑ]ú6ß`¬“·ù×ßæüñæÁË••—1Y`£¶\«R¼"rù¢„•6£ÃW#Y1,È@ØUŒj°‚Š›<=!VN™Ï$¶Ñq÷2¯Pú>ö''Ôâ}Œ+İu3ã”I¦Íj’©0Lš¸¸¿,‡;‰§N«îˆE8aX+Šë,€£ò{Bİ›Ô…YÌŠGÀføv ’>7 •†ˆ@á-I^{í¬îDà“NHH(ÓZ™­d×ùEãt£Õ…Aé˜úÿ÷¯÷şÿşìïOõ{%'÷Ğ»sã¿ßîÜx»;Ó>‡Ø„/Ãİ©ß+¯kwr’ÇÏtwÂ”ŞîÎÑÏ!vçˆ?Ãİ©ß+Y»ó—êKË•_±Ë+õõ«¯,Õ«•õÕ56	 ü[v±¶¾V¯²Õ•å_MıµğwÇ”÷ ål%…áq"ósT£š…×FAF\Øïƒ¼ñ4tH¤I½+bcÛó÷‚|ÂÛÀF¹O¹!J7|‚÷0ÁÅe¸­õAÌL[A4Unè¯”&§¹‘ñd4ti.¢µèµ»CÅŸOÏ{gâé"¹›Ç¸Á¡õ+YØ§Q2X]RÔªmm³CœLY9Hq]§]è"P$ûUNÔ·>­«&]Õh†Õ2:ëÎf"yTõy<2µ*wAèU<OªÿÿH%¹IøÇŸ/n¨rİ•–%H¦…‰U”ÓzÊğÿİßÃ¥q,§cÂÉ{—÷ú¦E5a±~¤=°Óåò^äêÑm<ƒÄ}—]ñ1L–B\ÈR±ÈLw±—éoã/’=šê=8¸anzr$—û”`Ûx.ì.ï
+a…-²´5Z¬¸„éƒ³•`-.Ì7ÀíïuÜı=.ƒ]|KäÃL–H‡¢5¢f§qÉÈ¶–<›2}T 
+©Ö -¡³Œ'õ¦Ñ…CçŒLÛİ™”°ó {|Ãˆ ±b½´ˆõ%¢T¡æ|Š¡¥áxC@<¢w…Rs:¥hW<%4æ·[rù`«tÁqMÏãS¬Ä"ï@Z‰yp)÷øÁÍƒ™»BZÎÜ°#X¬o6yŞE]çtÅêìï¹&½lU¹kfZ–ÚGÊX—èB¢ìHOX”;Zd·ºÙÒå18daeaX¿¤ğÓ˜µd`ò~¾ºôiuuå|ıBããDNÑÛ'd¸ÈòbÂøj¶È
+uœnÌÉË“k2	7ÿL&§RL&sÚ’§&éÅ”ş%ç-Ç¯hQèĞ˜àköoV˜iNyYÖ#âN„ñrX‚£kå¯ZŒ0Íaš»¦‹ˆìPŸ;áş)ÓL‚X™H©aîs‰ÕÅ¹á›Ãq\_FÚp+Ã'&/TbD´Ñg‰–RÊ~híTÚLŒé/£YóÂ&‹$¦Ü©¸…Ü¶ÎÒÑQ«S¬«*Iq^×5ík¥¬LiÄYi~Æ]€Ô¨Ú¹€Ê³¼]8şh[5ÎTd/y¾#ÅH1’H„[j2£©Vmªn%V¥]éQüª«YñÌ4Ş}–"0#Û	h[Ç´l§|'’7¾ç”0WÖ¬ÄƒáÓ#€„ÍÂÂÏ ·¹Qä4s±)||‚|dêÄug7ÇS‚°ØÒ‘ä®Vä±\2²>%î+UV÷zè#‹KÖÌÔ¨‘9;ßR˜=x%+:ºøšı¾%I¡ÒÌ`¹?ğšß$w3~±³ù±ÚÌy±T(±•‰ªóX„"ôHw„µ.É¤²ˆå™˜#ôš »ı’ã ¹^ıüŠ\(H¸(xÚG’£€ˆ<N×Û&°<¾;6"@„A›s#|ÇíÔPÌ¾ŞÉ"cFóVÍãÆÓè âi°ë«ÁíQ¯É¤êjˆói)-S@9©ÂóU’ëß±FùŞ„5¡éÿ›ˆo
+î“,<“ÆEÌëğÌÉ<b¤—`UK–µ‚ÑbÇ°~aö±0âZîÚQzhÔÅ)®Oøğáõ0Pì}÷—_7eİâX›q3Õçvwj2ÅÊ¤Ã3:–à¸õÃ:Ütpcø‡ F0ÿ³á÷a½A¬#ÃNÉ
+	“µ­¾ã\Î–®Ñ4-ÓßfUåTZŞµ%^Vœ†ŒÌÊ._I¯I—=Ó*Ô©u1)â(EC¬Ç…däÅ®.=A–ÂqV«¿Wc”_xOèõ¦½\7Ì‘‡4û©F‰÷¾ÿ%à¥_d%¦‚›ïc	,6ü•Œ² }%#“¿‡}‚ÈBî‘I²¥Q­ FLçVzpğû©l_ûä ª°Sá?Æ-xËCÜuªWñögÈºª¢2"áŒ"ZÊC‰E$»/‘¾3üE÷ÆØ,l690ÌğŸº=’¹ƒ„¡Ï‰…BÈHvIpáw‚ïAúòa_¼Gàº7î¨æpTs)£’µKH›)Ô1ÃÜ$àş»h£Á‘~MUn„úŸ¸>8ûøõ6ŒéiÀíI·ÚgãëëT*´í,Ú%w(tş‘#„Õ+Õ5ˆæñ˜„—gs%s`K¸¿–Äş””Û°Y`#›Utwá¦ÍâiÌğløRFLEı;6ÜbK³Ú±¥ïúøşò	J¯Bmÿ-´ìP^Åˆàh†”~Ü“Ğ@6„rÓÊúQ°•a‘îÑb}(dø„jP’%é‰
+€|¢5’'„6’ w€ÇÆ¬v€ÁÔ#h
+·ÖçáóáXÇ|5ÇÆœşÕ0å—Âvó¶ËCü—öVQÊƒ¶Q$o cé. #Qæ—Ø4î¹;cÂª‚‹Y‘çásé•H}‘=€?]´oˆõy%
+˜
+~O\åáŞ˜oÇ•ªÌñíÑÃ:æûq¹*sGıw¢T$~}Œöà÷YÃĞ‡”e¹. fŞpM²aM+İn‘0rKMÒ2.–À	,6™•—Ã<M™ŸĞx	»PzLŒ~’ı¦Öæ°“jÓÄ<³ƒŞş¹ÿ´îS<\ÂçGLœ×:Ó½ÿ|>ÅR|¸M=Æ\4·Ø?ÛG^º1èõw;ÑË¡Ğ¯‡/X$rBäŠ…M—şşt'¤âŞïÁØ¢œt:Ï-±5¬q,qÂ±ˆX±¡lçºkôõ*~$ÆùÍw5hÄí°èşÈÖàúİ¸gŞlL–¾ÎE$èvDÄƒ…Ö;jä×ü‡áº°øİÃŒQ•,OdÕD×íøª\İ–96±°*f'z]ã©í`>2°¡Y¾x]ãhàöÖ¤aØí(Tqûuä‚klšbÚ©CÁûÜ
+óöÌï:–TN|ğÑtõ¨ÌTæ¤ÎşjÕÙÿŸMşlÄôêÀu¹İÚnl÷š59µKèîª0ĞÔËoyU²Éè<³—ıtvªÀ,ÈÀ]W¯fÊDrgı¦ÓŞB°µÙZÌä—„Y"v5­©PärÏÜRtH’¡E^K´ç¦´D,LY,ñé²Tãµ£Q;©Ş*´X±6ñ
+JäRFöãŸÈ)qpÖoëÑt¬^hET×ñ3(PÖKƒcM]¶‘[w×[o ³cë¬CéÈİÅQĞ|½‚r?HĞ´Öæ} 	ëÇ?9yîı33¨¬Ş`
+QLŠ|3•ûÖ,\• Ú!&ĞùL7vLÎÒar+Rf­.o]ó˜…õÇóšÎó•O<@;‚ŒÅå ˜İ'Ô=.ƒ™ÆEéJtJ.¶ï#B7Š‚™ÆÜ}^¯x>…|ƒüˆaDxû`fNVá0‹°™H"ÜÏ×"uoÇóëË (GÁ³X¬³rá˜EÄcxâC6)ñ™„)ağŒZŒº=ô”¨Q'Á'+‰šˆ8Elqx)‡Tå½âÏÿ÷_"{š^ğçÿóo¤[£ÜbY¬N6s’=ÿ<+YZÅ»ô²2”¾¼ØÊ#úŒx¹ !"Ë`±¤TÔAv²2„aD Û-`X¹Ş‰cßLÇÆ‡	Û¶Ùbè;ï†^–1·â*æ(¦ó<{10¡RgŠ­Òğ_©‡”
+¨¾r¥¾^¡üë«ìüòjS¼°JU–®Ô«k#óKÌMTóÌu9N”ìÎ€ˆ˜ı,İ¯~$«v„`á±S÷ÅuôüH©µ52ó)E„Gìåi¯LÙXÎ¦	O	rIF‚S"N*H¯?°0›¸rDMİ\@³×0³†Ìãr&kÿ¤4µ×7ßÒŒ~>5Şf¬$'÷D› ÆÓ™!C!ã%Dóèà‹›‚ğşğ_µÑç¸ç˜6k¿;°9s÷÷DÉ fözû{mÓ@ßzL&â»hÈE%gÒr¯p Æ=ÉÅƒ.%WÃè¦mLrÒRDº;}¨Qö¥û
+Y´`ÀŠ6/ÏsÊó€¢R~ƒLR±—È·‘ı€+l0{„¬ruÒ:˜‹^ˆü3¢ÏWh¹…ŸŠÔ2ø¯¡×,mˆÜòv="5)¿'£0¼ò[™+ˆâC÷ôÙhVhÑĞA…›–‡#Ã-Ëì`|Ú¦´Üh!!7:°ò,˜ï|84xpú¤@æ>æbì;+m9 C´D±ÀTdCÌ–ÈU³
+í½¦*5Ú°…“Òl{"Ç6lx—ëx%³éÃÚá 6?ƒE¬eùŒ–a1ØM$³åÑ#h¦è™¿•e6`³p°í©tÍÖµñ³Ú¹˜ëŞ¡KŞ’éq£aZä~	™„¼†Î
+µE",’å¾#rä(Ï(°ªx’¯`Ïİ Ôòç»ÿ[_sµº^?Ïj+ì\¥¡¤‹Wjì\myõ#º˜„|ÿ–F§ÏNèèMÌ™iï!ş‰ùùÕÕõÚ¥g[®]¨,³øMÒvvÃq¬E‹ª[¥ë¥÷€&÷„ñ Wæ4®ËiM½½¹yÉYV¤ú™´ÊÉAJYZÊû¾ LZ‘õM’¥Dv´±\®z£æ¥ìøK…’¢?ƒ4|“¶Ÿp×íÑ¿É„ùcr¦riy Ï#ÑÙmø3Ş£¬õ5b¤Ñœa?ôæ¸™)™¨,Ni²éH
+˜' „RìHÌ*‰wP0xøŞÀ{˜;Xä%{-gwkøGEcD—…À«áŸ ·ß±ÉJ§ãòÒßD(ñ”$<( éËTy<êí‡€nrx‰¼ú$È‡ÒˆgÉ q7¡Õ?­Cß’?u“h Qw¡ÁCÕc`Œa²ú™àh’ıŞD€	àöƒˆ³¹Ø[xäÜ~Ï`z÷
+t›(¤ò>øN%{»%â¿ïHºı$„ê—¨PW3º-IGKR¤lÛÑe¿dÔÀxĞĞ8¯…µÃÍÌ±Çú˜ÎÜäh#ˆÍXP5sÀ°¿qÉÈ~Kš,£%y*’Ü÷N0øØĞ£g¡´³eôÄc´9mA0éE@$…9)v‹h"Óô¹mºHÅe‘Îı=àœøk£ë¤_\UÁ”CÅáÁ{ˆKäáEÈ;^òtó+'áƒÄƒà Jm(ø´T»^$@Ş€s	muMà*¡k <C°İûr»Ømcò»6Ç|åTúùX²ú
+Ğ¸ÛÀò˜m ¢ä&°¥Pt3ºt<l¿mrÀ ¨-ñN™N°.ÈW¥ß€Øo	¸Zâl\§	ò[LÜ J»"ëUùWè^À†qªr+Eø•KòÂıtüÈ9ê¾JTÕO*l=²-˜|ĞıÕ7a¿¿Ã®…r$"ÿ…ÓôĞW´
+7š®¸ó[6š‹UõÂ¯™j™{å9¹@arIBAä‰ÙZ…Î=èòğ­øñğ¿Tôb:ÊgÒ}KÕ+Uò‚(!´Ûˆ™”Ÿú•½P˜ì½_ú´,|^_ Æ{*´ÁØïCÀ¨7¥³0Å£³•Œ”!¼&œ¤G°8 ÀÇÂæ1¹îšÀ´ƒ*­~.ñc$qfLÏ ù\0 Dhn©9ÜhEõõ·øbö€D¨'ıŠTá!|ÓB¯Ğ§ø$`ööˆï¹íÙì‹€F
+æ)€»—qJ4 ²qbúÏ¡ºBû{À_PY¿µÂí2«[Lpã®/	DĞƒs/9 NØµˆá	ïÙ‚¾Ğ/ç]@†‰Ù’;ó„„ĞçŞ36Lb{¨¦‰wÁ¦tg‡î1“……øÙz×ØØ0ÿ¡!ÖÚÿÎÆl$8H=@x0jìsl˜‚Ü¸‘²Ô8ĞAßGù¾áÆĞ;àö÷°9 ø×@3¼4¬^%pQ&	@—oPŞRÆNt¹SŠv€Íæ@¤#euŸ™ ãY×QTĞã¢Z%°ãÜ%!Ñ
+‘€O jbi c^˜ú]æ2t·Û®1 Ù
+È€Ì³½¾ğ«° znItÃ™ĞË¦"r	Ñ{ô< ¢C-Š¹ÏN¹„•àJcàõ`IXğøÔßÿÍîßü   ÿÿ ™ıc

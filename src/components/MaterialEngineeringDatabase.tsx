@@ -39,9 +39,12 @@ import {
   CheckCheck,
   FolderOpen,
   EyeOff,
-  Eye
+  Eye,
+  FlaskConical
 } from "lucide-react";
 import { MixDesignInput, EngineeringMaterial, AggregateType, AggregateQuality } from "../types";
+import { MaterialTestRecord } from "../types/laboratoryTypes";
+import { MaterialLabHistoryModal } from "./materials-lab/MaterialLabHistoryModal";
 import { mapMaterialToMixInput, getMaterialCategory } from "../utils/mapMaterialToMixInput";
 import { 
   parseSmartMaterialImport, 
@@ -76,6 +79,8 @@ interface MaterialEngineeringDatabaseProps {
   materials?: EngineeringMaterial[];
   onUpdateMaterials?: (updated: EngineeringMaterial[]) => void;
   onClearAllMaterials?: () => void;
+  testRecords?: MaterialTestRecord[];
+  onOpenMaterialLabTests?: (material: EngineeringMaterial) => void;
 }
 
 // Map base categories to logical groups for navigation filters
@@ -348,9 +353,12 @@ export function MaterialEngineeringDatabase({
   defaultRepo,
   materials = [],
   onUpdateMaterials,
-  onClearAllMaterials
+  onClearAllMaterials,
+  testRecords = [],
+  onOpenMaterialLabTests
 }: MaterialEngineeringDatabaseProps) {
   const { t, language } = useLanguage();
+  const [labHistoryMaterial, setLabHistoryMaterial] = useState<EngineeringMaterial | null>(null);
 
   const getCategoryKey = (cat: string): string => {
     switch (cat) {
@@ -6302,6 +6310,32 @@ export function MaterialEngineeringDatabase({
                       <Heart size={12} className={isFav ? "fill-current" : ""} />
                     </button>
 
+                    {/* Direct Test button & Lab History button */}
+                    {onOpenMaterialLabTests && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onOpenMaterialLabTests(mat);
+                        }}
+                        title={language === "ar" ? "إجراء فحص مخبري جديد لهذه المادة" : "Conduct New Laboratory Test on this Material"}
+                        className="p-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 hover:text-emerald-700 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/60 text-emerald-600 dark:text-emerald-400 transition-colors cursor-pointer flex items-center gap-1"
+                      >
+                        <FlaskConical size={12} />
+                        <span className="text-[10px] font-bold hidden sm:inline">فحص</span>
+                      </button>
+                    )}
+
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setLabHistoryMaterial(mat);
+                      }}
+                      title={language === "ar" ? "الفحوصات المخبرية وتاريخ التجارب" : "Laboratory Tests & History"}
+                      className="p-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 hover:text-blue-600 dark:bg-slate-800 dark:hover:bg-blue-900/40 text-blue-600 dark:text-blue-400 transition-colors cursor-pointer"
+                    >
+                      <History size={12} />
+                    </button>
+
                     {onUpdateMaterials && (
                       <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
                         <button
@@ -8819,6 +8853,26 @@ export function MaterialEngineeringDatabase({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Laboratory Tests Modal for Selected Material */}
+      {labHistoryMaterial && (
+        <MaterialLabHistoryModal
+          material={labHistoryMaterial}
+          tests={testRecords || []}
+          onClose={() => setLabHistoryMaterial(null)}
+          onRunNewTestForMaterial={(mat) => {
+            setLabHistoryMaterial(null);
+            if (onOpenMaterialLabTests) {
+              onOpenMaterialLabTests(mat);
+            }
+          }}
+          onSyncPropertyToMaterial={(matId, updated) => {
+            if (onUpdateMaterials) {
+              onUpdateMaterials(materials.map(m => m.id === matId ? { ...m, ...updated, updatedAt: new Date().toISOString() } : m));
+            }
+          }}
+        />
       )}
 
     </div>

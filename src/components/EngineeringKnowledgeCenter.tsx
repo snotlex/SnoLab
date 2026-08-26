@@ -28,7 +28,7 @@ import { DREUX_KNOWLEDGE_BASE } from "../engine/dreuxKnowledgeBase";
 import { MixDesignInput, MixDesignResult } from "../types";
 import { ENCYCLOPEDIA_TERMS, EncyclopediaTerm } from "../data/engineeringEncyclopedia";
 import { DreuxEncyclopediaPdfContainer } from "./DreuxEncyclopediaPdfContainer";
-import { sanitizeDocumentForPdf, patchWinGCS, replaceOklchWithRgb, replaceOklabWithRgb } from "../utils/pdfColorSanitizer";
+import { renderHtml2CanvasSafe } from "../utils/pdfColorSanitizer";
 
 interface EngineeringKnowledgeCenterProps {
   inputs: MixDesignInput;
@@ -83,13 +83,7 @@ export const EngineeringKnowledgeCenter: React.FC<EngineeringKnowledgeCenterProp
           : "Initializing document rendering engine & libraries..."
       );
 
-      const [html2canvasModule, jsPdfModule] = await Promise.all([
-        import("html2canvas"),
-        import("jspdf")
-      ]);
-
-      const html2canvas = html2canvasModule.default || html2canvasModule;
-      const jsPDF = jsPdfModule.jsPDF || jsPdfModule.default || jsPdfModule;
+      const { jsPDF } = await import("jspdf");
 
       setPdfProgress(25);
       setPdfStatusMsg(
@@ -97,9 +91,6 @@ export const EngineeringKnowledgeCenter: React.FC<EngineeringKnowledgeCenterProp
           ? "جاري معالجة صفحات موسوعة دروغوريس الشاملة (7 صفحات A4)..."
           : "Processing Dreux-Gorisse Encyclopedia pages (7 A4 pages)..."
       );
-
-      await sanitizeDocumentForPdf(document);
-      await new Promise(res => setTimeout(res, 350));
 
       const pdfRoot = document.getElementById("dreux-encyclopedia-pdf-export-root");
       const pageContainers = pdfRoot ? pdfRoot.querySelectorAll(".dreux-pdf-page") : [];
@@ -124,27 +115,12 @@ export const EngineeringKnowledgeCenter: React.FC<EngineeringKnowledgeCenterProp
             : `Rendering page ${pageNum} of ${pageContainers.length} to PDF...`
         );
 
-        const canvas = await html2canvas(pageEl, {
+        const canvas = await renderHtml2CanvasSafe(pageEl, {
           scale: 2,
           useCORS: true,
           allowTaint: true,
           backgroundColor: "#ffffff",
-          logging: false,
-          onclone: (clonedDoc) => {
-            if (clonedDoc.defaultView) {
-              patchWinGCS(clonedDoc.defaultView);
-            }
-            // Sanitize style attributes in cloned document
-            const clonedInlineStyles = clonedDoc.querySelectorAll("[style]");
-            clonedInlineStyles.forEach(elem => {
-              const styleAttr = elem.getAttribute("style");
-              if (styleAttr && /oklch|oklab/i.test(styleAttr)) {
-                let updatedStyle = replaceOklchWithRgb(styleAttr);
-                updatedStyle = replaceOklabWithRgb(updatedStyle);
-                elem.setAttribute("style", updatedStyle);
-              }
-            });
-          }
+          logging: false
         });
 
         const imgData = canvas.toDataURL("image/jpeg", 0.98);

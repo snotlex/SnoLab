@@ -399,7 +399,10 @@ export interface EngineeringMaterial {
   ownerId?: string; // Owner UID for Firestore partition
   materialType?: string; // e.g., 'مادة رابطة' | 'ركام' | 'إضافات معدنية' | 'ألياف' | 'إضافات كيميائية' | 'ماء' | 'أخرى'
 
-  // --- SOURCE OF TRUTH METADATA ---
+  // --- SOURCE OF TRUTH & PROVENANCE METADATA ---
+  isDemo?: boolean; // True if this material is a system/demo preset and not created by the active user
+  sourceType?: "system_demo" | "user_created" | "imported" | "lab_result";
+  sourceLabel?: string; // "Demo Data" | "User Material" | "Imported" | "Laboratory Verified"
   region?: string; // Region / Wilaya string
   sourceQuarry?: string; // Source Quarry/Owner
   status: "نشط" | "موقوف" | "قيد المراجعة"; // Dynamic Status
@@ -514,6 +517,15 @@ export interface EngineeringMaterial {
   // Compatibility & Audit trace
   compatibilityMatrix?: { targetMaterialId: string; status: "compatible" | "warning" | "incompatible"; note: string }[];
   lifecycleHistory?: { date: string; version: number; author: string; changes: string; approvalStatus: string }[];
+
+  // --- UNIFIED LABORATORY INTEGRATION & SINGLE SOURCE OF TRUTH ---
+  propertySources?: Record<string, any>; // maps propertyKey -> MaterialPropertySource
+  propertyHistory?: Record<string, any[]>; // maps propertyKey -> MaterialPropertyHistoryEntry[]
+  laboratoryTests?: string[]; // IDs of laboratory tests linked to this material
+  sieveAnalysisDetail?: any; // GranulometricCurveData
+  foisonnement?: number; // % foisonnement (bulking factor)
+  microDeval?: number; // % MDE coefficient
+  methyleneBlue?: number; // MB value (g/kg)
 }
 
 export interface MixVersion {

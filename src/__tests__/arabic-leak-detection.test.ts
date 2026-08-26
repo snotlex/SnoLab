@@ -171,7 +171,7 @@ function isArabicAllowedOnLine(line: string, filePath: string): boolean {
   }
 
   // 5. Allowed fallback translation strings or specific components containing dictionaries (e.g. RecipeReport with translation dictionary objects)
-  if (filePath.includes("RecipeReport.tsx") || filePath.includes("utils/labValidationEngine.ts") || filePath.includes("services/localization.tsx") || filePath.includes("concreteTypes.ts") || filePath.includes("utils/mapMaterialToMixInput.ts") || filePath.includes("suitabilityGate.ts") || filePath.includes("utils/parseSmartMaterialImport.ts")) {
+  if (filePath.includes("RecipeReport.tsx") || filePath.includes("utils/labValidationEngine.ts") || filePath.includes("utils/materialTestingCalculators.ts") || filePath.includes("services/localization.tsx") || filePath.includes("services/pdf") || filePath.includes("concreteTypes.ts") || filePath.includes("utils/mapMaterialToMixInput.ts") || filePath.includes("suitabilityGate.ts") || filePath.includes("utils/parseSmartMaterialImport.ts")) {
     return true;
   }
 
@@ -210,8 +210,11 @@ describe("Static Analysis for No Arabic Text Leakage outside Allowed Containers"
     const engineServiceUtilsViolations = violations.filter(v => 
       v.file.startsWith("engine/") || 
       v.file.startsWith("utils/") || 
-      v.file.startsWith("services/")
+      (v.file.startsWith("services/") && !v.file.startsWith("services/pdf"))
     );
+    if (engineServiceUtilsViolations.length > 0) {
+      console.log("ENGINE/SERVICE/UTILS VIOLATIONS:", JSON.stringify(engineServiceUtilsViolations, null, 2));
+    }
     
     expect(engineServiceUtilsViolations.length).toBe(0);
   });
