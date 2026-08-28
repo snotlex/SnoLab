@@ -1,19 +1,23 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Global Safety Net (Default deny)
+    // Default-deny is intentional. Every collection must opt in explicitly.
     match /{document=**} {
       allow read, write: if false;
     }
 
-    // Hardened Global Helpers
     function isSignedIn() {
       return request.auth != null;
     }
 
+    function isAdmin() {
+      return isSignedIn()
+        && request.auth.token.admin == true
+        && request.auth.token.email_verified == true;
+    }
+
     function isValidId(id) {
-      return id is string && id.size() <= 128;
+      return id is string && id.size() > 0 && id.size() <= 128;
     }
 
     function incoming() {
@@ -24,128 +28,120 @@ service cloud.firestore {
       return resource.data;
     }
 
-    function isAdmin() {
-      return isSignedIn() && (
-        ('email' in request.auth.token && request.auth.token.email == 'senoussi.s.t@gmail.com')
-        || request.auth.uid == 'bypassed-demo-engineer-99'
-        || ('email' in request.auth.token && request.auth.token.email == 'engineer.demo@sno-engineering.com')
-      );
-    }
-
-    function isValidUser(data) {
-      return data.keys().hasAll(['uid', 'email', 'displayName', 'activated', 'createdAt', 'updatedAt'])
-        && (
-          data.keys().size() == 6 
-          || (data.keys().size() == 7 && (data.keys().hasAll(['activatedEmailSent']) || data.keys().hasAll(['materialsSeeded'])))
-          || (data.keys().size() == 8 && data.keys().hasAll(['activatedEmailSent', 'materialsSeeded']))
-        )
-        && data.uid is string && data.uid.size() <= 128
-        && data.email is string && data.email.size() <= 256
-        && data.displayName is string && data.displayName.size() <= 256
-        && data.activated is bool
-        && (!data.keys().contains('activatedEmailSent') || data.activatedEmailSent is bool)
-        && (!data.keys().contains('materialsSeeded') || data.materialsSeeded is bool)
-        && data.createdAt is timestamp
-        && data.updatedAt is timestamp;
-    }
-
-    function isValidEmailLog(data) {
-      return data.get('userId', null) is string
-        && data.get('email', null) is string
-        && data.get('deliveryStatus', null) is string;
-    }
-
     function isValidMixDesign(data) {
       return data.keys().hasAll(['ownerId', 'name', 'inputs', 'createdAt', 'updatedAt'])
-        && (data.keys().size() == 5 || (data.keys().size() == 6 && data.keys().hasAll(['currency'])))
-        && data.ownerId is string && data.ownerId.size() <= 128
-        && data.name is string && data.name.size() <= 256
+        && data.ownerId is string && data.ownerId.size() > 0 && data.ownerId.size() <= 128
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 256
         && data.inputs is map
-        && (data.keys().size() == 5 || (data.currency is string && data.currency.size() <= 10))
         && data.createdAt is timestamp
-        && data.updatedAt is timestamp;
+        && data.updatedAt is timestamp
+        && data.keys().size() <= 7;
     }
 
     function isValidMaterial(data) {
       return data.keys().hasAll(['id', 'ownerId', 'name', 'category', 'status', 'ApprovalStatus'])
-        && data.id is string && data.id.size() <= 128
-        && data.ownerId is string && data.ownerId.size() <= 128
-        && data.name is string && data.name.size() <= 256
-        && data.category is string && data.category.size() <= 128
+        && data.id is string && data.id.size() > 0 && data.id.size() <= 128
+        && data.ownerId is string && data.ownerId.size() > 0 && data.ownerId.size() <= 128
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 256
+        && data.category is string && data.category.size() > 0 && data.category.size() <= 128
         && data.status is string && data.status.size() <= 128
-        && data.ApprovalStatus is string && data.ApprovalStatus.size() <= 128
-        && (!data.keys().contains('englishName') || data.englishName == null || (data.englishName is string && data.englishName.size() <= 256))
-        && (!data.keys().contains('type') || data.type == null || (data.type is string && data.type.size() <= 128))
-        && (!data.keys().contains('density') || data.density == null || data.density is int || data.density is float || data.density is string)
-        && (!data.keys().contains('absorption') || data.absorption == null || data.absorption is int || data.absorption is float || data.absorption is string);
+        && data.ApprovalStatus is string && data.ApprovalStatus.size() <= 128;
     }
 
-    // Secure user space saved mixes
+    function isValidEmailLog(data) {
+      return data.keys().hasAll(['userId', 'email', 'deliveryStatus', 'createdAt'])
+        && data.userId is string && data.userId.size() <= 128
+        && data.email is string && data.email.size() <= 256
+        && data.deliveryStatus is string && data.deliveryStatus.size() <= 32
+        && data.createdAt is timestamp;
+    }
+
     match /user_mixes/{mixId} {
       allow get: if isSignedIn() && (existing().ownerId == request.auth.uid || isAdmin());
       allow list: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
+
       allow create: if isSignedIn()
         && isValidId(mixId)
         && isValidMixDesign(incoming())
-        && (incoming().ownerId == request.auth.uid || isAdmin())
+        && incoming().ownerId == request.auth.uid
         && incoming().createdAt == request.time
         && incoming().updatedAt == request.time;
+
       allow update: if isSignedIn()
         && isValidId(mixId)
         && isValidMixDesign(incoming())
         && (existing().ownerId == request.auth.uid || isAdmin())
-        && (incoming().ownerId == request.auth.uid || isAdmin())
+        && incoming().ownerId == existing().ownerId
         && incoming().createdAt == existing().createdAt
         && incoming().updatedAt == request.time;
+
       allow delete: if isSignedIn()
         && isValidId(mixId)
-        && (resource == null || existing().ownerId == request.auth.uid || isAdmin());
+        && (existing().ownerId == request.auth.uid || isAdmin());
     }
 
-    // Secure user space custom or modified materials
     match /user_materials/{materialId} {
-      allow get: if isSignedIn() && (existing().get('ownerId', '') == request.auth.uid || existing().get('ownerId', '') == '' || existing().get('ownerId', '') == 'user_created' || existing().get('ownerId', '') == 'senoussi.s.t@gmail.com' || isAdmin());
-      allow list: if isSignedIn();
+      allow get: if isSignedIn() && (existing().ownerId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
+
       allow create: if isSignedIn()
         && isValidId(materialId)
         && isValidMaterial(incoming())
-        && (incoming().get('ownerId', '') == request.auth.uid || isAdmin());
+        && incoming().ownerId == request.auth.uid
+        && incoming().ApprovalStatus in ['Draft', 'Pending Review', 'Under Review', 'Incomplete']
+        && incoming().status in ['نشط', 'قيد المراجعة', 'موقوف'];
+
       allow update: if isSignedIn()
         && isValidId(materialId)
         && isValidMaterial(incoming())
+        && (existing().ownerId == request.auth.uid || isAdmin())
+        && incoming().ownerId == existing().ownerId
         && (
-          existing().get('ownerId', '') == request.auth.uid 
-          || existing().get('ownerId', '') == '' 
-          || existing().get('ownerId', '') == 'user_created' 
-          || existing().get('ownerId', '') == 'senoussi.s.t@gmail.com'
-          || isAdmin()
-        )
-        && (incoming().get('ownerId', '') == request.auth.uid || isAdmin());
-      allow delete: if isSignedIn()
-        && isValidId(materialId)
-        && (
-          resource == null 
-          || existing().get('ownerId', '') == request.auth.uid 
-          || existing().get('ownerId', '') == '' 
-          || existing().get('ownerId', '') == 'user_created'
-          || existing().get('ownerId', '') == 'senoussi.s.t@gmail.com'
-          || isAdmin()
+          isAdmin()
+          || (
+            incoming().ApprovalStatus == existing().ApprovalStatus
+            && incoming().status == existing().status
+            && incoming().get('approvedBy', null) == existing().get('approvedBy', null)
+            && incoming().get('approvedAt', null) == existing().get('approvedAt', null)
+            && incoming().get('approvalNotes', null) == existing().get('approvalNotes', null)
+          )
         );
+
+      allow delete: if isSignedIn() && (existing().ownerId == request.auth.uid || isAdmin());
     }
 
-    // Secure users profile with activation status
     match /users/{userId} {
       allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
-      allow list: if isSignedIn() && isAdmin();
-      allow create, update: if isSignedIn() && (request.auth.uid == userId || isAdmin());
-      allow delete: if isSignedIn() && isAdmin();
+      allow list: if isAdmin();
+
+      allow create: if isSignedIn()
+        && request.auth.uid == userId
+        && incoming().uid == request.auth.uid
+        && incoming().email == request.auth.token.email
+        && incoming().activated == false
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && !incoming().keys().hasAny(['role', 'isAdmin']);
+
+      allow update: if isAdmin()
+        || (
+          isSignedIn()
+          && request.auth.uid == userId
+          && incoming().uid == existing().uid
+          && incoming().email == existing().email
+          && incoming().activated == existing().activated
+          && incoming().createdAt == existing().createdAt
+          && incoming().keys().hasAny(['updatedAt'])
+          && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'updatedAt', 'activatedEmailSent', 'materialsSeeded'])
+        );
+
+      allow delete: if isAdmin();
     }
 
-    // Secure email logs for administrative auditing
     match /email_logs/{logId} {
-      allow read, list: if isSignedIn() && isAdmin() && isValidId(logId);
-      allow create: if isSignedIn() && isAdmin() && isValidId(logId) && isValidEmailLog(incoming());
-      allow update, delete: if false; // Audit logs are immutable
+      allow read, list: if isAdmin() && isValidId(logId);
+      allow create: if isAdmin() && isValidId(logId) && isValidEmailLog(incoming());
+      allow update, delete: if false;
     }
   }
 }
