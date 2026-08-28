@@ -1,7 +1,7 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Default-deny is intentional. Every collection must opt in explicitly.
+    // Default deny. Every collection must opt in explicitly.
     match /{document=**} {
       allow read, write: if false;
     }
@@ -50,9 +50,9 @@ service cloud.firestore {
 
     function isValidEmailLog(data) {
       return data.keys().hasAll(['userId', 'email', 'deliveryStatus', 'createdAt'])
-        && data.userId is string && data.userId.size() <= 128
-        && data.email is string && data.email.size() <= 256
-        && data.deliveryStatus is string && data.deliveryStatus.size() <= 32
+        && data.userId is string && data.userId.size() > 0 && data.userId.size() <= 128
+        && data.email is string && data.email.size() > 0 && data.email.size() <= 256
+        && data.deliveryStatus is string && data.deliveryStatus.size() > 0 && data.deliveryStatus.size() <= 32
         && data.createdAt is timestamp;
     }
 
@@ -121,9 +121,14 @@ service cloud.firestore {
         && incoming().activated == false
         && incoming().createdAt == request.time
         && incoming().updatedAt == request.time
-        && !incoming().keys().hasAny(['role', 'isAdmin']);
+        && !incoming().keys().hasAny(['role', 'isAdmin', 'admin']);
 
       allow update: if isAdmin()
+        && incoming().uid == existing().uid
+        && incoming().email == existing().email
+        && incoming().createdAt == existing().createdAt
+        && incoming().keys().hasAll(['uid', 'email', 'displayName', 'activated', 'createdAt', 'updatedAt'])
+        && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'activated', 'updatedAt'])
         || (
           isSignedIn()
           && request.auth.uid == userId
