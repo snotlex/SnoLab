@@ -8,111 +8,63 @@ Baseline: `main` at commit `dc30fad92aab3d261b74b82a83041bfe1d8f19f1`
 
 **Production status: Needs Major Fixes**
 
-The repository has a strong modular direction, including a Dreux-Gorisse method adapter, a central method registry, a material suitability layer, a granular/knowledge-base layer, PDF services, and an extensive test suite. The architecture document describes this separation explicitly, but several production-critical paths were less strict than the documented contract.
+The repository has a strong modular direction: method registry, Dreux-Gorisse strategy, material governance, knowledge base, validation, PDF/report services, and an extensive test suite. This audit now enforces the documented production boundary more consistently while keeping numerical changes conservative and traceable.
 
-## Health Score
+## Current Health Score
 
 | Area | Score | Assessment |
 |---|---:|---|
-| Engineering Logic | 62/100 | Core method exists, but several empirical/default corrections need authoritative calibration and traceability. |
-| Calculation Accuracy | 58/100 | W/C, moisture, absolute-volume and grading paths contain competing/fallback logic that can diverge. |
-| Database | 72/100 | Firestore ownership model exists, but prior rules exposed broader material listing and role risks. |
-| Security | 55/100 | Hard-coded admin identities and mutable user profile privileges were too permissive for production. |
-| UX/UI | 78/100 | Large engineering-focused component set and validation panels are present; full interactive button-by-button verification requires a runnable environment. |
-| Performance | 70/100 | React/Vite architecture is viable, but large components and database listeners merit runtime profiling. |
-| Reliability | 61/100 | Strong validation intent, but legacy compatibility and fallback branches reduce determinism. |
-| Code Quality | 66/100 | Modularization exists, but legacy adapters and duplicated engineering logic remain. |
-| Localization | 69/100 | Arabic/French/English infrastructure exists, but some validation strings are still generated from Arabic source text. |
-| Production Readiness | 52/100 | Security and engineering determinism must be hardened and verified before release. |
+| Engineering Logic | 68/100 | Production calculation now has a strict material gate and a deterministic core; empirical parameters still need authoritative calibration. |
+| Calculation Accuracy | 66/100 | Primary entry points use one core calculation and no longer fabricate legacy values; reference-case validation still needs an external controlled benchmark. |
+| Database | 82/100 | Ownership and listing boundaries are stricter and privileged status mutations are restricted. |
+| Security | 72/100 | Firestore now relies on verified admin claims and immutable owner fields; the server-side admin email endpoint still needs ID-token verification. |
+| UX/UI | 78/100 | Dynamic material display and validation panels are present; complete browser-level verification remains outstanding. |
+| Performance | 70/100 | Architecture remains viable; runtime profiling is still required. |
+| Reliability | 71/100 | Calculation configuration failures now become explicit invalid results instead of silent caps/defaults or crashes. |
+| Code Quality | 74/100 | The legacy adapter has been reduced to a pure data mapper and duplicate calculation paths were removed. |
+| Localization | 70/100 | Arabic/French/English support exists; some older UI/source strings still require cleanup. |
+| Production Readiness | 64/100 | Significant hardening is complete, but CI execution, Firebase Rules Emulator, browser E2E, and numerical benchmark evidence are still release gates. |
 
-## Architecture Map
+## Implemented Hardening
 
-`Material Library / Firestore`
-→ `Production Material Governance Gate`
-→ `Method Registry / Dreux-Gorisse Adapter`
-→ `Dreux-Gorisse Core`
-→ `Validation + Absolute Volume + Moisture + Cost`
-→ `Result Model`
-→ `UI / Journal / PDF`
+### C1 — Production material governance
+`src/engine/productionMaterialGate.ts` is now the production boundary. It requires the four primary selected materials, blocks system/demo/preset/seeded records, requires Approved/Validated/Certified plus Active/نشط status, checks category compatibility, and rejects missing calculation-critical properties. Optional selected materials are checked by the same policy.
 
-The repository already documents a closely related layered architecture with a Material Library, Suitability Gate, calculation engines, and report generation. The audit found that the implementation did not always enforce those boundaries as strictly as the documentation claimed.
+### C2 — Deterministic Dreux-Gorisse calculation core
+`src/engine/dreuxGorisseCore.ts` now uses knowledge-base values where configured and fails explicitly when a required production parameter is unavailable. Silent cement-demand caps and silent material-property fallbacks were removed from the production path. Test-only bypass remains isolated to Vitest legacy mathematical tests.
 
-## Critical Findings
+### C3 — One engineering source of truth
+`src/engine/legacyAdapter.ts` is now a field mapper only. It no longer invents fcm, W/C adjustments, gamma, absolute-volume values, or aggregate-density conversions.
 
-### C1 — System/demo material could pass the production suitability gate
-**Location:** `src/engine/suitabilityGate.ts`
+`src/engine/dreuxGorisse.ts` no longer runs a second independent absolute-volume calculation. The adapter consumes the core result.
 
-The previous logic accepted a non-user material merely because it existed in `materialsDatabase` during non-test execution. This contradicted the repository's own governance tests and documentation.
+`src/mix-design/methods/dreux-gorisse/dreuxGorisseCalculation.ts` now applies the production gate before calling the core and converts unexpected configuration failures into a structured invalid result instead of crashing the caller.
 
-**Fix implemented:** added `src/engine/productionMaterialGate.ts` and wired it into the primary Dreux calculation entry points. System/demo/preset/seeded sources are now blocked, approval and active status are required, and required engineering properties are checked before calculation.
+### C4 — Firestore ownership and privileged fields
+`firestore.rules` now follows default-deny, owner-bound reads/writes, immutable ownerId/createdAt, verified `admin` custom claim plus verified email for administrative actions, owner-only material listing, and protection against non-admin mutation of material approval/status metadata.
 
-### C2 — Missing material properties could degrade to defaults/fallbacks
-**Locations:** `src/engine/dreuxGorisseCore.ts`, legacy engine adapter paths.
+### C5 — CI release gate
+`.github/workflows/ci.yml` now runs on `main`, `audit/**`, and pull requests. It performs `npm ci`, lint/typecheck, unit tests, and production build, then stores the build artifact.
 
-The core and adapters contained defaults for cement density, aggregate absorption, admixture density, fiber density, moisture, and pricing. For a production engineering calculator, silently inventing a laboratory property is unsafe.
+### C6 — Governance and integration tests
+Added focused tests for production material governance and the calculation-boundary behavior, including system material rejection, incomplete material rejection, and approved complete material acceptance. Updated Dreux audit cases so impossible high-strength demand is rejected rather than silently capped.
 
-**Fix implemented:** production entry points now require complete approved material records before calculation; the compatibility engine no longer invents missing material densities/absorptions and no longer performs an independent volume recalculation.
+## Remaining Release Blockers
 
-**Remaining:** dormant fallback constants still exist inside the core for backward-compatible/internal paths. They should be removed entirely after the remaining direct-call test suite is migrated.
+1. The server-side `/api/admin/send-activation-email` route is still not verified against a Firebase ID token in the current branch because the repository does not include Firebase Admin SDK or another server-side token verification implementation. This must be closed before exposing that route publicly.
+2. `src/engine/validation/mixValidation.ts` still contains compatibility fallbacks for standalone legacy validation calls. The production core now supplies explicit values, but these compatibility defaults should be isolated or removed after the remaining legacy tests are migrated.
+3. Some UI components still contain presentation-only fallback values such as the displayed sand fineness value. These must be removed from engineering result displays so the interface never shows invented laboratory properties.
+4. The empirical Dreux-related coefficients, admixture reduction behavior, strength-age curve, and grading curve need a controlled engineering reference set and documented provenance before numerical production certification.
+5. GitHub Actions must complete successfully for lint, tests, and build. Firebase Rules Emulator/security tests and browser E2E scenarios must also pass.
 
-### C3 — Legacy adapter fabricated engineering values
-**Location:** `src/engine/legacyAdapter.ts`
+## Release Gate
 
-The adapter contained computed guesses such as `wcRatio * 0.95`, fixed gamma values, and synthetic water/aggregate mappings. That created a second engineering source of truth.
-
-**Status:** identified as a high-priority architecture issue. The primary calculation adapters were corrected to use the core result directly. The legacy transformer still needs a dedicated migration pass because its exact historical consumers were not all statically verified through a runnable application environment.
-
-### C4 — Firestore admin and ownership rules were too permissive
-**Location:** `firestore.rules`
-
-The previous rules used hard-coded administrator identities and permitted broad `user_materials` listing. User profile updates were also not sufficiently protected against privileged-field mutation.
-
-**Fix implemented:** production rules now use a verified `admin` custom claim, enforce owner immutability for mixes/materials, restrict user-owned reads, prevent non-admin approval/status mutation, and deny arbitrary privileged writes.
-
-**Migration requirement:** administrative accounts must be provisioned with a server-side Firebase Auth custom claim (`admin=true`). This must never be done from the client.
-
-### C5 — Absolute-volume calculation existed in more than one place
-**Locations:** `src/engine/absoluteVolume.ts`, `src/engine/dreuxGorisse.ts`, core result path.
-
-A separate adapter-side recomputation could diverge from the core. This is especially risky when density units or admixture density assumptions differ.
-
-**Fix implemented:** compatibility entry point now uses the core `absoluteVolumeCheck` result rather than re-running an independent approximate calculation.
-
-### C6 — Engineering model contains empirical assumptions that are not the same as classical Dreux-Gorisse equations
-
-The core mixes the Dreux/Bolomey strength relation with a statistical target-strength margin, empirical admixture water-reduction multipliers, default SCM densities, a synthetic strength-age curve, and a synthetic grading curve. These may be useful application heuristics, but they must not be presented as universally normative Dreux-Gorisse equations.
-
-**Status:** not automatically rewritten because changing these constants without a declared reference source would be an engineering design change, not merely a software refactor. A standards-controlled calibration pass is required before declaring numerical production readiness.
-
-## Tests Added
-
-`src/__tests__/productionMaterialGate.test.ts` covers:
-
-- complete approved active material set → accepted;
-- system/demo material → blocked;
-- missing engineering properties → blocked;
-- approved but inactive material → blocked.
-
-Existing governance tests in `src/__tests__/noFallbackDensitiesFinal.test.ts` also demonstrate the intended no-fallback policy for several special cases.
-
-## Verification Limitations
-
-The GitHub connector exposed the repository and allowed isolated branch edits, but no GitHub Actions workflow run was associated with the audit branch commits during this audit session. The application could therefore not be truthfully marked `Production Ready` based on executed build/test evidence.
-
-A final release gate still needs a real environment run of:
+Do not label SnoLab `Production Ready` until all five release gates are green:
 
 - `npm run lint`
 - `npm test`
 - `npm run build`
-- Firebase Rules Emulator/security tests
-- browser-level critical UI/E2E scenarios 1–15 from the audit specification
-- numerical validation against a controlled set of published/manual Dreux-Gorisse reference calculations
+- Firebase Rules Emulator/security suite
+- Browser E2E plus controlled Dreux-Gorisse numerical reference cases
 
-## Next Priority Order
-
-1. Remove remaining core fallback constants and make every direct calculation entry point enforce the production gate.
-2. Finish the legacy adapter migration so every returned engineering field is sourced from one calculation result.
-3. Calibrate/document the Dreux-Gorisse numerical constants and distinguish normative equations from empirical heuristics.
-4. Complete Firebase custom-claim provisioning and rules tests.
-5. Execute the full end-to-end suite in a real browser/Firebase environment.
-6. Only then reassess Production Readiness.
+The current repository state remains **Needs Major Fixes**, but the highest-risk calculation and governance boundaries are now materially stronger than the baseline.
