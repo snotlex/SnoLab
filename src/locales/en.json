@@ -111,7 +111,7 @@
   "workflow.step2.desc": "Aggregates, cement & admixtures",
   "workflow.step3.label": "Mix Proportioning",
   "workflow.step3.desc": "Formulate mix ratios & batch sizes",
-  "workflow.step4.label": "Mix Calibration",
+  "workflow.step4.label": "Mix Calibration / Laboratory",
   "workflow.step4.desc": "Laboratory tests & batch calibration",
   "workflow.step5.label": "Expense & Budget Analysis",
   "workflow.step5.desc": "Cost per m³ and budget estimation",

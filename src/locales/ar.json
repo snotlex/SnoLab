@@ -111,7 +111,7 @@
   "workflow.step2.desc": "اعتماد الإسمنت والركام والمضافات",
   "workflow.step3.label": "تحضير الخلطة",
   "workflow.step3.desc": "صياغة وحساب نسب المكونات",
-  "workflow.step4.label": "معايرة الخلطة",
+  "workflow.step4.label": "معايرة الخلطة والمختبر",
   "workflow.step4.desc": "المعايرة والفحوصات المخبرية للخلطة",
   "workflow.step5.label": "تحليل النفقات والميزانية",
   "workflow.step5.desc": "حساب تكلفة المتر المكعب والميزانية التقديرية",

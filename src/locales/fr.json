@@ -111,7 +111,7 @@
   "workflow.step2.desc": "Granulats, ciment & adjuvants",
   "workflow.step3.label": "Composition du béton",
   "workflow.step3.desc": "Calcul et dosage volumétrique",
-  "workflow.step4.label": "Calibrage du mélange",
+  "workflow.step4.label": "Étalonnage du mélange et laboratoire",
   "workflow.step4.desc": "Étalonnage & essais de laboratoire",
   "workflow.step5.label": "Analyse des dépenses et du budget",
   "workflow.step5.desc": "Calcul du coût au m³ et estimation budgétaire",

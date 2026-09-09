@@ -57,6 +57,7 @@ import { applyRecommendedMaterialToInputs, SupportedMaterialRole } from "./servi
 import { SnoLabLogo } from "./components/SnoLabLogo";
 import { STRUCTURAL_ELEMENTS, getStructuralElementById } from "./data/structuralElements";
 import { useProjectStorage } from "./services/storage/ProjectContext";
+import { useProjectWorkflow, ProjectStageNumber } from "./services/workflow/ProjectWorkflowController";
 import { ProjectTopBarControls } from "./components/ProjectTopBarControls";
 import { ProjectFileManagerModal } from "./components/ProjectFileManagerModal";
 import { LocalProjectVault } from "./components/LocalProjectVault";
@@ -163,7 +164,11 @@ import {
   ShieldAlert,
   ArrowLeftRight,
   BookOpen,
-  AlertCircle
+  AlertCircle,
+  FolderPlus,
+  FolderOpen,
+  FolderX,
+  ChevronRight
 } from "lucide-react";
 
 import { 
@@ -580,6 +585,9 @@ export default function App() {
     deleteNamedMix: deleteNamedMixFromProject,
     updateProjectMetadata
   } = useProjectStorage();
+
+  // Central Six-Stage Project Workflow Controller
+  const workflow = useProjectWorkflow();
 
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
   const [showProjectPropertiesModal, setShowProjectPropertiesModal] = useState(false);
@@ -1605,24 +1613,28 @@ export default function App() {
   ]);
 
   const activeProject = useMemo(() => {
-    const base = projects.find(p => p.id === activeProjectId) || projects[0];
+    if (!workflow.projectIsOpen && !storageProject?.metadata?.id) {
+      return null;
+    }
     const meta = storageProject?.metadata;
+    const base = projects.find(p => p.id === (meta?.id || activeProjectId)) || projects[0];
     return {
       ...base,
-      id: meta?.id || base?.id || activeProjectId,
-      name: meta?.name || currentProject || base?.name,
-      client: meta?.client || currentClient || base?.client,
-      plant: meta?.plant || currentPlant || base?.plant,
+      id: meta?.id || activeProjectId || base?.id || "SNO-PROJ",
+      name: meta?.name || currentProject || base?.name || "Untitled Project",
+      client: meta?.client || currentClient || base?.client || "General Client",
+      plant: meta?.plant || currentPlant || base?.plant || "Central Plant",
       createdDate: meta?.createdDate || base?.createdDate || new Date().toISOString().split("T")[0],
       notes: storageProject?.notes?.map((n: any) => n.content) || (base as any)?.notes || []
     };
-  }, [projects, activeProjectId, storageProject, currentProject, currentClient, currentPlant]);
+  }, [workflow.projectIsOpen, projects, activeProjectId, storageProject, currentProject, currentClient, currentPlant]);
 
   // Synchronize storageProject with local states when an external project is opened or created
   const lastLoadedProjectIdRef = useRef<string>("");
   useEffect(() => {
     if (storageProject?.metadata?.id && storageProject.metadata.id !== lastLoadedProjectIdRef.current) {
       lastLoadedProjectIdRef.current = storageProject.metadata.id;
+      setActiveProjectId(storageProject.metadata.id);
       if (storageProject.metadata.name) setCurrentProject(storageProject.metadata.name);
       if (storageProject.metadata.client) setCurrentClient(storageProject.metadata.client);
       if (storageProject.metadata.plant) setCurrentPlant(storageProject.metadata.plant);
@@ -1641,63 +1653,24 @@ export default function App() {
     }
   }, [storageProject?.metadata?.id]);
 
-  // Derived active step value for Workflow Stepper (Core Project Lifecycle: 1. Setup -> 2. Materials -> 3. Mix Proportioning -> 4. Calibration & Lab -> 5. Cost & Budget -> 6. Final Report)
-  const activeStep = useMemo(() => {
-    switch (activeSidebarTab) {
-      case "saved_projects":
-      case "cloud_storage":
-        return 1; // 1. Project Setup
-      case "materials_library":
-      case "cement_database":
-      case "aggregates_database":
-      case "admixtures_database":
-      case "materials":
-        return 2; // 2. Material Library
-      case "calculator":
-        return 3; // 3. Mix Proportioning
-      case "materials_lab":
-      case "academic_lab":
-      case "lab_validation":
-      case "optimization":
-      case "simulation":
-        return 4; // 4. Mix Calibration / Laboratory
-      case "cost":
-      case "forecasting":
-      case "performance_analysis":
-        return 5; // 5. Expense & Budget Analysis
-      case "reports":
-      case "compliance_reports":
-      case "journal":
-        return 6; // 6. Final Report
-      default:
-        return 3;
-    }
-  }, [activeSidebarTab]);
+  // Synchronize sidebar tabs with central 6-stage ProjectWorkflowController
+  useEffect(() => {
+    workflow.syncStageWithTab(activeSidebarTab);
+  }, [activeSidebarTab, workflow]);
+
+  // Single Source of Truth for current project stage (1..6)
+  const activeStep = workflow.currentStage;
 
   const handleStepClick = (stepNum: number) => {
     if (engineeringGate.isBlocked && stepNum > 3) {
       setActiveSidebarTab("calculator");
+      workflow.goToStage(3);
       return;
     }
-    switch (stepNum) {
-      case 1:
-        setActiveSidebarTab("saved_projects"); // 1. Project Setup
-        break;
-      case 2:
-        setActiveSidebarTab("materials_library"); // 2. Material Library
-        break;
-      case 3:
-        setActiveSidebarTab("calculator"); // 3. Mix Proportioning
-        break;
-      case 4:
-        setActiveSidebarTab("materials_lab"); // 4. Mix Calibration / Laboratory
-        break;
-      case 5:
-        setActiveSidebarTab("cost"); // 5. Expense & Budget Analysis
-        break;
-      case 6:
-        setActiveSidebarTab("reports"); // 6. Final Report
-        break;
+    const success = workflow.goToStage(stepNum as ProjectStageNumber);
+    if (success) {
+      const targetTab = workflow.getTabForStage(stepNum as ProjectStageNumber);
+      setActiveSidebarTab(targetTab);
     }
   };
 
@@ -4157,17 +4130,18 @@ export default function App() {
   if (viewMode === "landing") {
     return (
       <LandingPage 
-        onStartProject={() => {
+        onStartProject={async () => {
+          await workflow.startNewProject();
           setActiveSidebarTab("saved_projects");
           setViewMode("workspace");
         }}
         onOpenProject={async () => {
           try {
-            const success = await openProjectFile();
+            const success = await workflow.openExistingProject();
             if (success) {
               setActiveSidebarTab("saved_projects");
+              setViewMode("workspace");
             }
-            setViewMode("workspace");
           } catch (e) {
             console.error("Open project from landing failed", e);
             setActiveSidebarTab("saved_projects");
@@ -5014,29 +4988,44 @@ export default function App() {
 
             {/* WORKFLOW ENFORCEMENT & STEPPER HEADER */}
             <div className="bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-xl text-right flex flex-col gap-5 font-sans select-none" dir="rtl">
-              <div className="flex justify-between items-center border-b border-indigo-50 dark:border-indigo-950/40 pb-3">
-                <div className="flex items-center gap-3">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-indigo-50 dark:border-indigo-950/40 pb-3">
+                <div className="flex flex-wrap items-center gap-2 md:gap-3">
                   <span className="bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400 font-extrabold text-[10px] px-2.5 py-1 rounded-full font-mono uppercase tracking-wider">
                     SnoLab Project
                   </span>
-                  <span className="text-xs font-black text-slate-800 dark:text-slate-100 truncate max-w-xs">
-                    {storageProject?.metadata?.name || currentProject}
-                  </span>
-                  {storageProject?.metadata?.code && (
-                    <span className="text-[10px] font-mono text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md">
-                      {storageProject.metadata.code}
-                    </span>
-                  )}
-                  {storageProject?.metadata?.client && (
-                    <span className="text-[10px] text-slate-500 dark:text-slate-400 hidden sm:inline">
-                      • {storageProject.metadata.client}
-                    </span>
+                  <div className="flex items-center gap-1.5 text-xs font-black text-slate-800 dark:text-slate-100">
+                    <span className="text-slate-400 font-normal">{language === "ar" ? "المشروع:" : "Project:"}</span>
+                    <span className="truncate max-w-xs">{storageProject?.metadata?.name || currentProject || "Untitled Project"}</span>
+                  </div>
+                  <div className="flex items-center gap-1 text-[10px] font-mono text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md">
+                    <span className="text-slate-400">{language === "ar" ? "الرمز:" : "Code:"}</span>
+                    <span>{storageProject?.metadata?.code || storageProject?.metadata?.id || "N/A"}</span>
+                  </div>
+                  {(storageProject?.metadata?.client || currentClient) && (
+                    <div className="flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400 hidden md:flex">
+                      <span className="text-slate-400">{language === "ar" ? "العميل:" : "Client:"}</span>
+                      <span className="font-bold">{storageProject?.metadata?.client || currentClient}</span>
+                    </div>
                   )}
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-slate-400 font-mono font-bold bg-slate-50 dark:bg-slate-900/60 px-2.5 py-1 rounded-full border border-slate-100 dark:border-slate-800/40">
-                    STAGE {activeStep} / 6
+                  <span className="text-[10px] text-blue-600 dark:text-blue-400 font-mono font-bold bg-blue-50 dark:bg-blue-950/60 px-3 py-1 rounded-full border border-blue-200 dark:border-blue-900/40">
+                    STAGE {activeStep} / 6 • {t(workflow.activeStageInfo.nameKey)}
                   </span>
+                  {workflow.projectIsOpen && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await workflow.closeProject();
+                        setViewMode("landing");
+                      }}
+                      className="text-[10px] text-rose-500 hover:text-rose-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 px-2.5 py-1 rounded-lg border border-transparent hover:border-rose-200 dark:hover:border-rose-900/40 transition cursor-pointer flex items-center gap-1 font-bold"
+                      title={language === "ar" ? "إغلاق المشروع الحالي والعودة للبوابة" : "Close active project and return to landing"}
+                    >
+                      <FolderX size={12} />
+                      <span className="hidden sm:inline">{language === "ar" ? "إغلاق المشروع" : language === "fr" ? "Fermer" : "Close Project"}</span>
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -5091,6 +5080,47 @@ export default function App() {
                     </button>
                   );
                 })}
+              </div>
+
+              {/* Stage Navigation Belt: Backward / Forward */}
+              <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-800/60 text-xs">
+                <button
+                  type="button"
+                  disabled={activeStep <= 1}
+                  onClick={() => {
+                    const prev = (activeStep - 1) as ProjectStageNumber;
+                    handleStepClick(prev);
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs transition cursor-pointer ${
+                    activeStep <= 1
+                      ? "opacity-30 cursor-not-allowed text-slate-400"
+                      : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                  }`}
+                >
+                  {isRtl ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+                  <span>{language === "ar" ? "المرحلة السابقة" : language === "fr" ? "Étape précédente" : "Previous Stage"}</span>
+                </button>
+
+                <div className="text-[10px] font-mono text-slate-400 hidden sm:block">
+                  {t(workflow.activeStageInfo.descKey)}
+                </div>
+
+                <button
+                  type="button"
+                  disabled={activeStep >= 6}
+                  onClick={() => {
+                    const next = (activeStep + 1) as ProjectStageNumber;
+                    handleStepClick(next);
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs transition cursor-pointer ${
+                    activeStep >= 6
+                      ? "opacity-30 cursor-not-allowed text-slate-400"
+                      : "bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/60"
+                  }`}
+                >
+                  <span>{language === "ar" ? "المرحلة التالية" : language === "fr" ? "Étape suivante" : "Next Stage"}</span>
+                  {isRtl ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
+                </button>
               </div>
 
               {/* Engineering Data Flow Pipeline Visualizer */}
@@ -5303,7 +5333,59 @@ export default function App() {
             </div>
 
             {activeSidebarTab === "dashboard" && null}
-            {engineeringGate.isBlocked && [
+            {!workflow.projectIsOpen ? (
+              <div className="bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 rounded-3xl p-10 shadow-xl text-center flex flex-col items-center justify-center gap-6 max-w-2xl mx-auto my-8 animate-fade-in" dir="rtl">
+                <div className="w-16 h-16 bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 rounded-2xl flex items-center justify-center">
+                  <FolderPlus size={32} />
+                </div>
+                <div className="space-y-2">
+                  <h2 className="text-xl font-black text-slate-800 dark:text-slate-100">
+                    {language === "ar" ? "لا يوجد مشروع هندسي نشط حالياً" : language === "fr" ? "Aucun projet d'ingénierie actif" : "No Active Engineering Project"}
+                  </h2>
+                  <p className="text-xs md:text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto leading-relaxed">
+                    {language === "ar"
+                      ? "للبدء في مراحل سير العمل الهندسي المكون من ست مراحل، يرجى إنشاء مشروع جديد أو فتح ملف مشروع محفوظ (.snlab)."
+                      : language === "fr"
+                      ? "Pour commencer le flux de travail d'ingénierie en 6 étapes, veuillez créer un nouveau projet ou ouvrir un fichier (.snlab)."
+                      : "To begin the 6-stage engineering workflow, please start a new project or open a saved project file (.snlab)."}
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await workflow.startNewProject();
+                      setActiveSidebarTab("saved_projects");
+                    }}
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition shadow flex items-center gap-2 cursor-pointer"
+                  >
+                    <FolderPlus size={16} />
+                    <span>{language === "ar" ? "بدء مشروع جديد" : language === "fr" ? "Nouveau projet" : "Start New Project"}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const ok = await workflow.openExistingProject();
+                      if (ok) {
+                        setActiveSidebarTab("saved_projects");
+                      }
+                    }}
+                    className="bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition shadow flex items-center gap-2 cursor-pointer"
+                  >
+                    <FolderOpen size={16} />
+                    <span>{language === "ar" ? "فتح مشروع قائم (.snlab)" : language === "fr" ? "Ouvrir un projet (.snlab)" : "Open Project (.snlab)"}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("landing")}
+                    className="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs px-4 py-2.5 rounded-xl transition flex items-center gap-2 cursor-pointer"
+                  >
+                    <Home size={16} />
+                    <span>{language === "ar" ? "الرئيسية" : language === "fr" ? "Accueil" : "Home"}</span>
+                  </button>
+                </div>
+              </div>
+            ) : engineeringGate.isBlocked && [
               "cost", "reports", "simulation", "sieve",
               "optimization", "journal", "compliance_reports"
             ].includes(activeSidebarTab) ? (
