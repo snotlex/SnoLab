@@ -79,6 +79,75 @@ export interface NavigationCheckResult {
   reason?: string;
 }
 
+/**
+ * Pure function: Computes whether an active engineering project is effectively open.
+ * Strictly requires both open intent (projectIsOpen state or user action) AND a valid project with metadata.id.
+ * A stale session flag can never independently create an active project.
+ */
+export function computeEffectiveProjectIsOpen(
+  sessionOrStateIsOpen: boolean,
+  storageProjectId: string | null | undefined
+): boolean {
+  return Boolean(sessionOrStateIsOpen && storageProjectId);
+}
+
+/**
+ * Pure function: Validates navigation to a target stage.
+ * Rejects invalid stage numbers and blocks navigation when there is no valid active project.
+ */
+export function validateStageNavigation(
+  targetStage: number,
+  effectiveProjectIsOpen: boolean
+): NavigationCheckResult {
+  if (typeof targetStage !== "number" || targetStage < 1 || targetStage > 6 || !Number.isInteger(targetStage)) {
+    return { allowed: false, reason: "Invalid stage range (must be integer 1..6)" };
+  }
+  if (!effectiveProjectIsOpen) {
+    return { allowed: false, reason: "No active project is open. Please start or open a project." };
+  }
+  return { allowed: true };
+}
+
+/**
+ * Pure function: Computes next sequential stage (1 -> 6), or null if at final stage.
+ */
+export function getNextStage(current: ProjectStageNumber): ProjectStageNumber | null {
+  if (current < 6) {
+    return (current + 1) as ProjectStageNumber;
+  }
+  return null;
+}
+
+/**
+ * Pure function: Computes previous sequential stage (6 -> 1), or null if at first stage.
+ */
+export function getPrevStage(current: ProjectStageNumber): ProjectStageNumber | null {
+  if (current > 1) {
+    return (current - 1) as ProjectStageNumber;
+  }
+  return null;
+}
+
+/**
+ * Pure function: Maps workspace tab ID to its corresponding ProjectStageNumber (1..6), or null if unmapped.
+ */
+export function getStageForTab(tab: string): ProjectStageNumber | null {
+  for (const stage of WORKFLOW_STAGES) {
+    if (stage.submoduleTabs.includes(tab)) {
+      return stage.number;
+    }
+  }
+  return null;
+}
+
+/**
+ * Pure function: Returns primary workspace tab for a given stage number.
+ */
+export function getTabForStage(stage: ProjectStageNumber): string {
+  const def = WORKFLOW_STAGES.find(s => s.number === stage);
+  return def ? def.primaryTab : "saved_projects";
+}
+
 export interface ProjectWorkflowContextValue {
   // Core stage & state
   currentStage: ProjectStageNumber;
@@ -124,25 +193,47 @@ export const ProjectWorkflowProvider: React.FC<{ children: React.ReactNode }> = 
   // Workflow stage (1 to 6)
   const [currentStage, setCurrentStage] = useState<ProjectStageNumber>(1);
 
-  // Single active project tracking
+  // Single active project tracking from session storage (secondary persistence)
   const [projectIsOpen, setProjectIsOpen] = useState<boolean>(() => {
     try {
-      return sessionStorage.getItem(SESSION_STORAGE_KEY) === "true";
+      if (typeof window !== "undefined" && window.sessionStorage) {
+        return window.sessionStorage.getItem(SESSION_STORAGE_KEY) === "true";
+      }
+      return false;
     } catch {
       return false;
     }
   });
 
+  // Authoritative project verification:
+  // Effective open state strictly requires both open intent AND a real project with metadata.id
+  const hasValidProject = Boolean(storageProject?.metadata?.id);
+  const effectiveProjectIsOpen = computeEffectiveProjectIsOpen(projectIsOpen, storageProject?.metadata?.id);
+
+  // Resilient synchronization: Clean up stale session storage flags if no valid project exists
+  useEffect(() => {
+    if (!hasValidProject && projectIsOpen) {
+      setProjectIsOpen(false);
+      try {
+        if (typeof window !== "undefined" && window.sessionStorage) {
+          window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
+        }
+      } catch {
+        // ignore
+      }
+    }
+  }, [hasValidProject, projectIsOpen]);
+
   // Active Project ID and Metadata directly derived from underlying storage project
   const activeProjectId = useMemo<string | null>(() => {
-    if (!projectIsOpen || !storageProject?.metadata?.id) return null;
+    if (!effectiveProjectIsOpen || !storageProject?.metadata?.id) return null;
     return storageProject.metadata.id;
-  }, [projectIsOpen, storageProject?.metadata?.id]);
+  }, [effectiveProjectIsOpen, storageProject?.metadata?.id]);
 
   const activeProjectMeta = useMemo<ProjectMetadata | null>(() => {
-    if (!projectIsOpen || !storageProject?.metadata) return null;
+    if (!effectiveProjectIsOpen || !storageProject?.metadata) return null;
     return storageProject.metadata;
-  }, [projectIsOpen, storageProject?.metadata]);
+  }, [effectiveProjectIsOpen, storageProject?.metadata]);
 
   // Active stage info
   const activeStageInfo = useMemo(() => {
@@ -151,15 +242,8 @@ export const ProjectWorkflowProvider: React.FC<{ children: React.ReactNode }> = 
 
   // Stage Gating: Safe & non-destructive check
   const canNavigateToStage = useCallback((targetStage: ProjectStageNumber): NavigationCheckResult => {
-    if (targetStage < 1 || targetStage > 6) {
-      return { allowed: false, reason: "Invalid stage range (must be 1..6)" };
-    }
-    if (!projectIsOpen) {
-      return { allowed: false, reason: "No active project is open. Please start or open a project." };
-    }
-    // Safe, non-destructive stage transition
-    return { allowed: true };
-  }, [projectIsOpen]);
+    return validateStageNavigation(targetStage, effectiveProjectIsOpen);
+  }, [effectiveProjectIsOpen]);
 
   // Navigation handlers
   const goToStage = useCallback((targetStage: ProjectStageNumber): boolean => {
@@ -173,40 +257,27 @@ export const ProjectWorkflowProvider: React.FC<{ children: React.ReactNode }> = 
   }, [canNavigateToStage]);
 
   const nextStage = useCallback((): boolean => {
-    if (currentStage < 6) {
-      return goToStage((currentStage + 1) as ProjectStageNumber);
+    const next = getNextStage(currentStage);
+    if (next !== null) {
+      return goToStage(next);
     }
     return false;
   }, [currentStage, goToStage]);
 
   const prevStage = useCallback((): boolean => {
-    if (currentStage > 1) {
-      return goToStage((currentStage - 1) as ProjectStageNumber);
+    const prev = getPrevStage(currentStage);
+    if (prev !== null) {
+      return goToStage(prev);
     }
     return false;
   }, [currentStage, goToStage]);
-
-  // Tab mapping
-  const getStageForTab = useCallback((tab: string): ProjectStageNumber | null => {
-    for (const stage of WORKFLOW_STAGES) {
-      if (stage.submoduleTabs.includes(tab)) {
-        return stage.number;
-      }
-    }
-    return null;
-  }, []);
-
-  const getTabForStage = useCallback((stage: ProjectStageNumber): string => {
-    const def = WORKFLOW_STAGES.find(s => s.number === stage);
-    return def ? def.primaryTab : "saved_projects";
-  }, []);
 
   const syncStageWithTab = useCallback((tab: string) => {
     const stageNum = getStageForTab(tab);
     if (stageNum !== null) {
       setCurrentStage(stageNum);
     }
-  }, [getStageForTab]);
+  }, []);
 
   // Project lifecycle operations
   const startNewProject = useCallback(async (meta?: Partial<ProjectMetadata>) => {
@@ -214,7 +285,9 @@ export const ProjectWorkflowProvider: React.FC<{ children: React.ReactNode }> = 
     setProjectIsOpen(true);
     setCurrentStage(1);
     try {
-      sessionStorage.setItem(SESSION_STORAGE_KEY, "true");
+      if (typeof window !== "undefined" && window.sessionStorage) {
+        window.sessionStorage.setItem(SESSION_STORAGE_KEY, "true");
+      }
     } catch {
       // ignore
     }
@@ -226,7 +299,9 @@ export const ProjectWorkflowProvider: React.FC<{ children: React.ReactNode }> = 
       setProjectIsOpen(true);
       setCurrentStage(1);
       try {
-        sessionStorage.setItem(SESSION_STORAGE_KEY, "true");
+        if (typeof window !== "undefined" && window.sessionStorage) {
+          window.sessionStorage.setItem(SESSION_STORAGE_KEY, "true");
+        }
       } catch {
         // ignore
       }
@@ -241,7 +316,9 @@ export const ProjectWorkflowProvider: React.FC<{ children: React.ReactNode }> = 
       setProjectIsOpen(true);
       setCurrentStage(1);
       try {
-        sessionStorage.setItem(SESSION_STORAGE_KEY, "true");
+        if (typeof window !== "undefined" && window.sessionStorage) {
+          window.sessionStorage.setItem(SESSION_STORAGE_KEY, "true");
+        }
       } catch {
         // ignore
       }
@@ -265,7 +342,9 @@ export const ProjectWorkflowProvider: React.FC<{ children: React.ReactNode }> = 
     setProjectIsOpen(false);
     setCurrentStage(1);
     try {
-      sessionStorage.removeItem(SESSION_STORAGE_KEY);
+      if (typeof window !== "undefined" && window.sessionStorage) {
+        window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
+      }
     } catch {
       // ignore
     }
@@ -276,7 +355,7 @@ export const ProjectWorkflowProvider: React.FC<{ children: React.ReactNode }> = 
     activeStageInfo,
     allStages: WORKFLOW_STAGES,
     totalStages: 6,
-    projectIsOpen,
+    projectIsOpen: effectiveProjectIsOpen,
     activeProjectId,
     activeProjectMeta,
     canNavigateToStage,
@@ -293,7 +372,7 @@ export const ProjectWorkflowProvider: React.FC<{ children: React.ReactNode }> = 
   }), [
     currentStage,
     activeStageInfo,
-    projectIsOpen,
+    effectiveProjectIsOpen,
     activeProjectId,
     activeProjectMeta,
     canNavigateToStage,
@@ -304,8 +383,6 @@ export const ProjectWorkflowProvider: React.FC<{ children: React.ReactNode }> = 
     openExistingProject,
     openFromFileObject,
     closeProject,
-    getStageForTab,
-    getTabForStage,
     syncStageWithTab
   ]);
 

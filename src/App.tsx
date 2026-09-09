@@ -1276,7 +1276,9 @@ export default function App() {
     // Calculations remain blocked until user explicitly selects materials.
   }, [materialsDatabase]);
 
-  const [activeProjectId, setActiveProjectId] = useState<string>("PROJ-99");
+  const [activeProjectId, setActiveProjectId] = useState<string>(() => {
+    return (workflow.projectIsOpen && storageProject?.metadata?.id) || "";
+  });
   const [projects, setProjects] = useState<ActiveProject[]>([
     {
       id: "PROJ-99",
@@ -1613,21 +1615,23 @@ export default function App() {
   ]);
 
   const activeProject = useMemo(() => {
-    if (!workflow.projectIsOpen && !storageProject?.metadata?.id) {
+    // If no project is open or storageProject has no metadata id, there is no active engineering project
+    if (!workflow.projectIsOpen || !storageProject?.metadata?.id) {
       return null;
     }
-    const meta = storageProject?.metadata;
-    const base = projects.find(p => p.id === (meta?.id || activeProjectId)) || projects[0];
+    const meta = storageProject.metadata;
+    // Strictly locate matching project by authoritative storageProject.metadata.id without fallback to projects[0]
+    const base = projects.find(p => p.id === meta.id);
     return {
-      ...base,
-      id: meta?.id || activeProjectId || base?.id || "SNO-PROJ",
-      name: meta?.name || currentProject || base?.name || "Untitled Project",
-      client: meta?.client || currentClient || base?.client || "General Client",
-      plant: meta?.plant || currentPlant || base?.plant || "Central Plant",
-      createdDate: meta?.createdDate || base?.createdDate || new Date().toISOString().split("T")[0],
-      notes: storageProject?.notes?.map((n: any) => n.content) || (base as any)?.notes || []
+      ...(base || {}),
+      id: meta.id,
+      name: meta.name || currentProject || base?.name || "Untitled Project",
+      client: meta.client || currentClient || base?.client || "",
+      plant: meta.plant || currentPlant || base?.plant || "",
+      createdDate: meta.createdDate || base?.createdDate || new Date().toISOString().split("T")[0],
+      notes: storageProject.notes?.map((n: any) => n.content) || (base as any)?.notes || []
     };
-  }, [workflow.projectIsOpen, projects, activeProjectId, storageProject, currentProject, currentClient, currentPlant]);
+  }, [workflow.projectIsOpen, projects, storageProject, currentProject, currentClient, currentPlant]);
 
   // Synchronize storageProject with local states when an external project is opened or created
   const lastLoadedProjectIdRef = useRef<string>("");
@@ -1652,6 +1656,16 @@ export default function App() {
       }
     }
   }, [storageProject?.metadata?.id]);
+
+  // Synchronize activeProjectId strictly when project is closed or opened
+  useEffect(() => {
+    if (!workflow.projectIsOpen) {
+      lastLoadedProjectIdRef.current = "";
+      setActiveProjectId("");
+    } else if (storageProject?.metadata?.id) {
+      setActiveProjectId(storageProject.metadata.id);
+    }
+  }, [workflow.projectIsOpen, storageProject?.metadata?.id]);
 
   // Synchronize sidebar tabs with central 6-stage ProjectWorkflowController
   useEffect(() => {
@@ -2430,7 +2444,7 @@ export default function App() {
   const activeSession = useMemo(() => {
     // Construct a project snap combining active details and current edited inputs
     const projectWithCurrentInputs = {
-      ...activeProject,
+      ...(activeProject || {}),
       inputs: { ...inputs },
     };
     return EngineeringCore.createSession(projectWithCurrentInputs, materialsDatabase);
