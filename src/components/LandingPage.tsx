@@ -21,6 +21,7 @@ import {
   Moon, 
   Monitor,
   FolderPlus,
+  FolderOpen,
   ArrowDown,
   Percent,
   TrendingUp,
@@ -32,6 +33,7 @@ import { SnoLabLogo } from "./SnoLabLogo";
 
 interface LandingPageProps {
   onStartProject: () => void;
+  onOpenProject?: () => void;
   themeMode: "light" | "dark";
   themeSetting: "light" | "dark" | "system";
   setThemeSetting: (theme: "light" | "dark" | "system") => void;
@@ -39,6 +41,7 @@ interface LandingPageProps {
 
 export const LandingPage: React.FC<LandingPageProps> = ({ 
   onStartProject,
+  onOpenProject,
   themeMode,
   themeSetting,
   setThemeSetting
@@ -65,8 +68,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       },
       ctaStart: {
         ar: "انطلاق مشروع جديد",
-        fr: "Lancer un Projet",
+        fr: "Démarrer un nouveau projet",
         en: "Start New Project"
+      },
+      ctaOpen: {
+        ar: "فتح مشروع حالي (.snlab)",
+        fr: "Ouvrir un projet (.snlab)",
+        en: "Open Existing Project (.snlab)"
       },
       ctaLearn: {
         ar: "اكتشف المميزات",
@@ -374,6 +382,16 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </div>
 
             {/* Action Gateway */}
+            {onOpenProject && (
+              <button
+                onClick={onOpenProject}
+                className="hidden sm:flex bg-slate-800 hover:bg-slate-700 hover:scale-103 active:scale-97 text-white font-extrabold text-xs px-3 py-2 rounded-xl transition-all shadow-md items-center gap-1.5 cursor-pointer border border-slate-700"
+                title={language === "ar" ? "فتح ملف مشروع SnoLab محلي (.snlab)" : "Open local SnoLab project file (.snlab)"}
+              >
+                <FolderOpen size={14} className="text-emerald-400" />
+                <span>{language === "ar" ? "فتح مشروع" : language === "fr" ? "Ouvrir" : "Open Project"}</span>
+              </button>
+            )}
             <button
               onClick={onStartProject}
               className="bg-blue-600 hover:bg-blue-500 hover:scale-103 active:scale-97 text-white font-black text-xs px-3.5 py-2 rounded-xl transition-all shadow-md flex items-center gap-1 cursor-pointer"
@@ -435,9 +453,20 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 onClick={onStartProject}
                 className="bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-xs md:text-sm px-6 py-3 rounded-xl transition-all shadow-xl hover:shadow-blue-500/10 hover:scale-102 flex items-center gap-2 cursor-pointer"
               >
+                <FolderPlus size={16} />
                 <span>{tLanding(content.hero.ctaStart)}</span>
                 {isRtl ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
               </button>
+
+              {onOpenProject && (
+                <button
+                  onClick={onOpenProject}
+                  className="bg-slate-900 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 text-white font-extrabold text-xs md:text-sm px-5 py-3 rounded-xl border border-slate-700/80 transition-all shadow-lg hover:scale-102 flex items-center gap-2 cursor-pointer"
+                >
+                  <FolderOpen size={16} className="text-emerald-400" />
+                  <span>{tLanding(content.hero.ctaOpen)}</span>
+                </button>
+              )}
 
               <button
                 onClick={() => {

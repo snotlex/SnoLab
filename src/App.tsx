@@ -1605,34 +1605,70 @@ export default function App() {
   ]);
 
   const activeProject = useMemo(() => {
-    return projects.find(p => p.id === activeProjectId) || projects[0];
-  }, [projects, activeProjectId]);
+    const base = projects.find(p => p.id === activeProjectId) || projects[0];
+    const meta = storageProject?.metadata;
+    return {
+      ...base,
+      id: meta?.id || base?.id || activeProjectId,
+      name: meta?.name || currentProject || base?.name,
+      client: meta?.client || currentClient || base?.client,
+      plant: meta?.plant || currentPlant || base?.plant,
+      createdDate: meta?.createdDate || base?.createdDate || new Date().toISOString().split("T")[0],
+      notes: storageProject?.notes?.map((n: any) => n.content) || (base as any)?.notes || []
+    };
+  }, [projects, activeProjectId, storageProject, currentProject, currentClient, currentPlant]);
 
-  // Derived active step value for Workflow Stepper (Core Project Lifecycle: Setup -> Materials -> Formulation -> Calibration -> Results -> Report)
+  // Synchronize storageProject with local states when an external project is opened or created
+  const lastLoadedProjectIdRef = useRef<string>("");
+  useEffect(() => {
+    if (storageProject?.metadata?.id && storageProject.metadata.id !== lastLoadedProjectIdRef.current) {
+      lastLoadedProjectIdRef.current = storageProject.metadata.id;
+      if (storageProject.metadata.name) setCurrentProject(storageProject.metadata.name);
+      if (storageProject.metadata.client) setCurrentClient(storageProject.metadata.client);
+      if (storageProject.metadata.plant) setCurrentPlant(storageProject.metadata.plant);
+      if (storageProject.materials && storageProject.materials.length > 0) {
+        setMaterialsDatabase(storageProject.materials);
+      }
+      if (storageProject.laboratoryTests && storageProject.laboratoryTests.length > 0) {
+        setMaterialTestRecords(storageProject.laboratoryTests);
+      }
+      if (storageProject.mixDesigns?.currentInputs) {
+        setInputs(prev => ({
+          ...prev,
+          ...storageProject.mixDesigns.currentInputs
+        }));
+      }
+    }
+  }, [storageProject?.metadata?.id]);
+
+  // Derived active step value for Workflow Stepper (Core Project Lifecycle: 1. Setup -> 2. Materials -> 3. Mix Proportioning -> 4. Calibration & Lab -> 5. Cost & Budget -> 6. Final Report)
   const activeStep = useMemo(() => {
     switch (activeSidebarTab) {
       case "saved_projects":
       case "cloud_storage":
-        return 1; // 1. إنشاء المشروع
+        return 1; // 1. Project Setup
       case "materials_library":
       case "cement_database":
       case "aggregates_database":
       case "admixtures_database":
       case "materials":
-        return 2; // 2. اختيار المواد
+        return 2; // 2. Material Library
       case "calculator":
-        return 3; // 3. تحضير الخلطة
+        return 3; // 3. Mix Proportioning
+      case "materials_lab":
+      case "academic_lab":
+      case "lab_validation":
       case "optimization":
       case "simulation":
-        return 4; // 4. معايرة الخلطة
+        return 4; // 4. Mix Calibration / Laboratory
       case "cost":
       case "forecasting":
       case "performance_analysis":
-        return 5; // 5. تحليل النتائج
+        return 5; // 5. Expense & Budget Analysis
       case "reports":
       case "compliance_reports":
       case "journal":
-        return 6; // 6. التقرير النهائي
+        return 6; // 6. Final Report
       default:
         return 3;
     }
@@ -1645,22 +1681,22 @@ export default function App() {
     }
     switch (stepNum) {
       case 1:
-        setActiveSidebarTab("saved_projects");
+        setActiveSidebarTab("saved_projects"); // 1. Project Setup
         break;
       case 2:
-        setActiveSidebarTab("materials_library");
+        setActiveSidebarTab("materials_library"); // 2. Material Library
         break;
       case 3:
-        setActiveSidebarTab("calculator"); // 3. تحضير الخلطة
+        setActiveSidebarTab("calculator"); // 3. Mix Proportioning
         break;
       case 4:
-        setActiveSidebarTab("optimization"); // 4. معايرة الخلطة
+        setActiveSidebarTab("materials_lab"); // 4. Mix Calibration / Laboratory
         break;
       case 5:
-        setActiveSidebarTab("cost"); // 5. تحليل النتائج
+        setActiveSidebarTab("cost"); // 5. Expense & Budget Analysis
         break;
       case 6:
-        setActiveSidebarTab("reports"); // 6. التقرير النهائي
+        setActiveSidebarTab("reports"); // 6. Final Report
         break;
     }
   };
@@ -4121,7 +4157,23 @@ export default function App() {
   if (viewMode === "landing") {
     return (
       <LandingPage 
-        onStartProject={() => setViewMode("workspace")}
+        onStartProject={() => {
+          setActiveSidebarTab("saved_projects");
+          setViewMode("workspace");
+        }}
+        onOpenProject={async () => {
+          try {
+            const success = await openProjectFile();
+            if (success) {
+              setActiveSidebarTab("saved_projects");
+            }
+            setViewMode("workspace");
+          } catch (e) {
+            console.error("Open project from landing failed", e);
+            setActiveSidebarTab("saved_projects");
+            setViewMode("workspace");
+          }
+        }}
         themeMode={themeMode}
         themeSetting={themeSetting}
         setThemeSetting={setThemeSetting}
@@ -4963,16 +5015,28 @@ export default function App() {
             {/* WORKFLOW ENFORCEMENT & STEPPER HEADER */}
             <div className="bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-xl text-right flex flex-col gap-5 font-sans select-none" dir="rtl">
               <div className="flex justify-between items-center border-b border-indigo-50 dark:border-indigo-950/40 pb-3">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
                   <span className="bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400 font-extrabold text-[10px] px-2.5 py-1 rounded-full font-mono uppercase tracking-wider">
-                    Core Engineering Workflow
+                    SnoLab Project
                   </span>
-                  <span className="text-xs font-black text-slate-800 dark:text-slate-100">
-                    {t("calculator.workflowHeaderTitle")}
+                  <span className="text-xs font-black text-slate-800 dark:text-slate-100 truncate max-w-xs">
+                    {storageProject?.metadata?.name || currentProject}
                   </span>
+                  {storageProject?.metadata?.code && (
+                    <span className="text-[10px] font-mono text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md">
+                      {storageProject.metadata.code}
+                    </span>
+                  )}
+                  {storageProject?.metadata?.client && (
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400 hidden sm:inline">
+                      • {storageProject.metadata.client}
+                    </span>
+                  )}
                 </div>
-                <div className="text-[10px] text-slate-400 font-mono font-bold bg-slate-50 dark:bg-slate-900/60 px-2 py-0.5 rounded-full border border-slate-100 dark:border-slate-800/40">
-                  STEP {activeStep} / 6
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-slate-400 font-mono font-bold bg-slate-50 dark:bg-slate-900/60 px-2.5 py-1 rounded-full border border-slate-100 dark:border-slate-800/40">
+                    STAGE {activeStep} / 6
+                  </span>
                 </div>
               </div>
 
@@ -4982,7 +5046,7 @@ export default function App() {
                   { num: 1, label: t("workflow.step1.label"), desc: t("workflow.step1.desc"), icon: Folder, tab: "saved_projects" },
                   { num: 2, label: t("workflow.step2.label"), desc: t("workflow.step2.desc"), icon: Database, tab: "materials_library" },
                   { num: 3, label: t("workflow.step3.label"), desc: t("workflow.step3.desc"), icon: Calculator, tab: "calculator" },
-                  { num: 4, label: t("workflow.step4.label"), desc: t("workflow.step4.desc"), icon: Sliders, tab: "optimization" },
+                  { num: 4, label: t("workflow.step4.label"), desc: t("workflow.step4.desc"), icon: FlaskConical, tab: "materials_lab" },
                   { num: 5, label: t("workflow.step5.label"), desc: t("workflow.step5.desc"), icon: TrendingUp, tab: "cost" },
                   { num: 6, label: t("workflow.step6.label"), desc: t("workflow.step6.desc"), icon: FileText, tab: "reports" },
                 ].map((st) => {
