@@ -21,16 +21,16 @@ export interface ConcreteTypeConfig {
 export const CONCRETE_TYPE_CONFIGS: Record<string, ConcreteTypeConfig> = {
   NSC: {
     code: "NSC",
-    allowedCategories: ["إسمنت", "رمال", "حصى", "ماء", "إضافات كيميائية"],
+    allowedCategories: ["إسمنت", "رمال", "حصى", "ماء", "مياه", "إضافات كيميائية", "إضافات معدنية", "ألياف", "مواد مالئة", "محتوى الهواء"],
     requiredCategories: ["إسمنت", "رمال", "حصى", "ماء"],
-    forbiddenCategories: ["ألياف", "إضافات معدنية", "ركام خفيف", "ركام ثقيل", "مجلدات خاصة"],
+    forbiddenCategories: ["ركام خفيف", "ركام ثقيل", "مجلدات خاصة"],
     requiredProperties: ["density", "absorption", "moisture"],
     isMaterialCompatible: (m: EngineeringMaterial) => {
       const cat = m.category;
       if (cat === "إسمنت") {
         const nameLower = (m.name || "").toLowerCase();
         const engLower = (m.englishName || "").toLowerCase();
-        return !nameLower.includes("جيوبوليمر") && !engLower.includes("geopolymer") && !nameLower.includes("خبث") && !engLower.includes("slag") && !nameLower.includes("bacterial");
+        return !nameLower.includes("جيوبوليمر") && !engLower.includes("geopolymer") && !nameLower.includes("bacterial");
       }
       if (cat === "حصى") {
         return (m.density || 2600) >= 2000 && (m.density || 2600) <= 2900;
@@ -52,7 +52,7 @@ export const CONCRETE_TYPE_CONFIGS: Record<string, ConcreteTypeConfig> = {
     isMaterialCompatible: (m: EngineeringMaterial) => {
       const cat = m.category;
       if (cat === "إسمنت") {
-        const strClass = parseFloat(m.strengthClass || "0");
+        const strClass = parseFloat(String(m.strengthClass || "0"));
         return strClass >= 42.5;
       }
       if (cat === "حصى") {
@@ -377,7 +377,7 @@ export const CONCRETE_TYPE_CONFIGS: Record<string, ConcreteTypeConfig> = {
     isMaterialCompatible: (m: EngineeringMaterial) => {
       const cat = m.category;
       if (cat === "إسمنت") {
-        const strClass = parseFloat(m.strengthClass || "0");
+        const strClass = parseFloat(String(m.strengthClass || "0"));
         return strClass >= 52.5;
       }
       if (cat === "ألياف") {
@@ -425,7 +425,7 @@ export const CONCRETE_TYPE_CONFIGS: Record<string, ConcreteTypeConfig> = {
     isMaterialCompatible: (m: EngineeringMaterial) => {
       const cat = m.category;
       if (cat === "إسمنت") {
-        const strClass = parseFloat(m.strengthClass || "0");
+        const strClass = parseFloat(String(m.strengthClass || "0"));
         return strClass >= 52.5;
       }
       if (cat === "ألياف") {
@@ -599,6 +599,28 @@ export const CONCRETE_TYPE_CONFIGS: Record<string, ConcreteTypeConfig> = {
           id: "prestressed_low_strength",
           message: "المقاومة المميزة المطلوبة منخفضة للخرسانة مسبقة الإجهاد.",
           recommendation: "يرجى زيادة قيمة المقاومة الإنشائية لتكون 45 ميغاباسكال على الأقل لتتحمل قوى شد أوتار الفولاذ الإنشائية العالية."
+        });
+      }
+      return errors;
+    }
+  },
+  FRC: {
+    code: "FRC",
+    allowedCategories: ["إسمنت", "رمال", "حصى", "ماء", "إضافات كيميائية", "ألياف", "إضافات معدنية"],
+    requiredCategories: ["إسمنت", "رمال", "حصى", "ماء", "ألياف"],
+    forbiddenCategories: ["ركام خفيف", "ركام ثقيل", "مجلدات خاصة"],
+    requiredProperties: ["density", "absorption", "moisture"],
+    isMaterialCompatible: (m) => {
+      const cat = m.category;
+      return cat !== "ركام خفيف" && cat !== "ركام ثقيل" && cat !== "مجلدات خاصة";
+    },
+    getCustomValidationErrors: (inputs) => {
+      const errors = [];
+      if (!inputs.selectedFiberId) {
+        errors.push({
+          id: "frc_missing_fiber",
+          message: "الخرسانة المسلحة بالألياف (FRC) تتطلب تحديد واختيار ألياف تسليح إنشائية.",
+          recommendation: "يرجى اختيار مادة ألياف (فولاذية أو بولي بروبيلين) وضبط جرعتها."
         });
       }
       return errors;

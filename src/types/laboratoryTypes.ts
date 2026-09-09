@@ -6,8 +6,7 @@ export type LabCategory =
   | "water"
   | "admixtures"
   | "additives"
-  | "fibers"
-  | "fresh_hardened";
+  | "fibers";
 
 export type TestStatus = "PASS" | "WARNING" | "FAIL";
 
@@ -23,7 +22,7 @@ export interface ComplianceDetail {
 }
 
 export interface SieveStepResult {
-  sieve: number; // sieve aperture in mm (e.g. 5, 4, 2, 1, 0.5, 0.25, 0.125, 0.063)
+  sieve: number; // sieve aperture in mm (e.g. 20, 16, 14, 12.5, 10, 8, 6.3, 5, 4, 2, 1, 0.5, 0.25, 0.125, 0.063)
   retainedWeight: number; // Mass retained in grams
   percentRetained: number; // % retained on sieve
   cumulativePercentRetained: number; // Cumulative % retained
@@ -45,7 +44,7 @@ export interface GranulometricCurveData {
 export type MaterialSourceType = "system_demo" | "user_created" | "imported" | "lab_result";
 
 export interface MaterialPropertySource {
-  propertyName: string; // e.g. "absorption", "moisture", "density", "finenessModulus", "gradationData", "sandEquivalent", "losAngelesAbrasion", "microDeval", "foisonnement", etc.
+  propertyName: string;
   propertyLabelAr: string;
   propertyLabelFr?: string;
   propertyLabelEn?: string;
@@ -91,7 +90,7 @@ export interface MaterialPropertyHistoryEntry {
 
 export interface MaterialTestRecord {
   id: string; // e.g. "TEST-AGG-2026-001"
-  testType: string; // e.g. "AGG_SIEVE", "AGG_SAND_EQUIVALENT", "CEM_SETTING_TIME", etc.
+  testType: string; // e.g. "AGG_SIEVE", "AGG_BULK_DENSITY", "CEM_SETTING_TIME", etc.
   testTitleAr: string;
   testTitleFr: string;
   testTitleEn: string;
@@ -111,9 +110,9 @@ export interface MaterialTestRecord {
   results: Record<string, any>;
   status: TestStatus; // Compliance verdict ("PASS" | "WARNING" | "FAIL")
   approvalStatus?: TestApprovalStatus; // Workflow Status ("Draft" | "Pending Review" | "Validated" | "Rejected")
-  isDemo?: boolean; // True if this record is a demo/sample test created by the system
-  sourceType?: MaterialSourceType; // "system_demo" | "user_created" | "imported" | "lab_result"
-  sourceLabel?: string; // Human-readable label (e.g. "Demo Data", "User Test")
+  isDemo?: boolean;
+  sourceType?: MaterialSourceType;
+  sourceLabel?: string;
   score: number; // 0-100%
   interpretation: string;
   complianceDetails: ComplianceDetail[];
@@ -127,16 +126,18 @@ export interface MaterialTestRecord {
   updatedAt: string;
 }
 
-export interface MaterialTestHistoryEntry {
-  testId: string;
-  testType: string;
-  date: string;
-  sampleId: string;
-  propertyName: string;
-  oldValue?: number | string;
-  newValue: number | string;
-  unit: string;
-  operator: string;
-  status: TestStatus;
+export interface LabTestDefinition {
+  id: string;
+  category: LabCategory;
+  titleAr: string;
+  titleFr: string;
+  titleEn: string;
+  shortDescAr: string;
+  shortDescEn: string;
+  standard: string;
+  applicableMaterials: string[]; // e.g. ["رمال", "حصى"] or ["إسمنت"]
+  defaultInputs: Record<string, any>;
+  icon: string;
+  unit?: string;
+  syncedPropertyKeys: string[];
 }
-

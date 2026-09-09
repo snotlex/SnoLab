@@ -805,7 +805,8 @@ export const ConcreteRecommendationsCard: React.FC<ConcreteRecommendationsCardPr
   ];
 
   // Normalize the selected type to upper-case to match keys safely
-  const keyMatch = (currentType || "NSC").toUpperCase();
+  const rawType = typeof currentType === "string" ? currentType : (currentType as any)?.code || "NSC";
+  const keyMatch = String(rawType || "NSC").toUpperCase();
   const rec = CONCRETE_RECOMMENDATIONS[keyMatch] || CONCRETE_RECOMMENDATIONS.NSC;
 
   // Dynamic material resolution from expanded materials database

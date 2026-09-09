@@ -113,17 +113,18 @@ export function getMaterialCategory(material: any): string | undefined {
   const catLower = rawCat.toLowerCase();
   
   // Normalization aliases
-  if (catLower === "الركام الناعم") return "رمال";
-  if (catLower === "الركام الخشن") return "حصى";
-  if (catLower === "الأسمنت" || catLower === "الاسمنت") return "إسمنت";
-  if (catLower === "الماء") return "ماء";
+  if (catLower === "الركام الناعم" || catLower === "رمال") return "رمال";
+  if (catLower === "الركام الخشن" || catLower === "حصى" || catLower === "ركام معاد تدويره") return "حصى";
+  if (catLower === "الأسمنت" || catLower === "الاسمنت" || catLower === "إسمنت") return "إسمنت";
+  if (catLower === "الماء" || catLower === "ماء" || catLower === "مياه") return "ماء";
   
   if (
     catLower === "الملدنات" || 
     catLower === "الملدنات الفائقة" || 
     catLower === "المسرعات" || 
     catLower === "المبطيئات" || 
-    catLower === "إضافات العزل"
+    catLower === "إضافات العزل" ||
+    catLower === "إضافات كيميائية"
   ) {
     return "إضافات كيميائية";
   }
@@ -133,28 +134,33 @@ export function getMaterialCategory(material: any): string | undefined {
     catLower === "السيليكا فيوم" || 
     catLower === "خبث الأفران" ||
     catLower === "الميتاكاولين" ||
-    catLower === "بودرة الحجر الجيري"
+    catLower === "بودرة الحجر الجيري" ||
+    catLower === "إضافات معدنية" ||
+    catLower === "مواد مالئة"
   ) {
     return "إضافات معدنية";
   }
   
-  if (catLower === "الركام الخفيف") return "ركام خفيف";
-  if (catLower === "الركام الثقيل") return "ركام ثقيل";
+  if (catLower === "الركام الخفيف" || catLower === "ركام خفيف") return "ركام خفيف";
+  if (catLower === "الركام الثقيل" || catLower === "ركام ثقيل") return "ركام ثقيل";
   
   if (
     catLower === "ألياف الصلب" || 
     catLower === "الألياف البوليمرية" ||
-    catLower === "الألياف الزجاجية"
+    catLower === "الألياف الزجاجية" ||
+    catLower === "ألياف"
   ) {
     return "ألياف";
   }
   
-  if (catLower === "حوابس الهواء") return "محتوى الهواء";
+  if (catLower === "حوابس الهواء" || catLower === "محتوى الهواء") return "محتوى الهواء";
   
   if (
     catLower === "الجيوبوليمر" || 
     catLower === "الإيبوكسي" ||
-    catLower === "المواد المتقدمة"
+    catLower === "المواد المتقدمة" ||
+    catLower === "مجلدات خاصة" ||
+    catLower === "روابط خاصة"
   ) {
     return "مجلدات خاصة";
   }

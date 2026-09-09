@@ -13,8 +13,19 @@ import {
   AlertTriangle,
   Beaker,
   Info,
-  BookOpen
+  BookOpen,
+  Check,
+  ChevronDown,
+  ChevronUp,
+  FileCheck2
 } from "lucide-react";
+import { SEEDED_MATERIALS } from "../data/seededMaterials";
+import { isSystemMaterial } from "../utils/materialSourceHelper";
+import { SystemMaterialReadinessCheck, SystemMaterialReadinessResult } from "../services/materialEligibilityService";
+import { getMaterialPropValue } from "../services/materialPropertySchema";
+import { determineMaterialRequirements, SupportedMaterialRole } from "../services/materialRequirementEngine";
+import { DreuxPreCalculationReport } from "../services/dreuxPreCalculationValidator";
+import { DreuxInputTrace, DreuxInputTraceItem } from "../services/dreuxInputResolver";
 
 interface LogicalResultsSummaryProps {
   inputs: MixDesignInput;
@@ -22,6 +33,7 @@ interface LogicalResultsSummaryProps {
   language: "ar" | "fr" | "en";
   materialsDatabase?: any[];
   setActiveSidebarTab?: (tab: string) => void;
+  onOpenBatchModal?: () => void;
 }
 
 export const LogicalResultsSummary: React.FC<LogicalResultsSummaryProps> = ({
@@ -29,16 +41,30 @@ export const LogicalResultsSummary: React.FC<LogicalResultsSummaryProps> = ({
   results,
   language,
   materialsDatabase,
-  setActiveSidebarTab
+  setActiveSidebarTab,
+  onOpenBatchModal
 }) => {
   const isRtl = language === "ar";
   const isAr = language === "ar";
   const isFr = language === "fr";
   const isEn = language === "en";
+  const [showTraceMatrix, setShowTraceMatrix] = React.useState(false);
+  const [activeTrace, setActiveTrace] = React.useState<number | null>(null);
   const batchVol = inputs.batchVolume !== undefined ? inputs.batchVolume : 1;
 
-  const concreteCode = (inputs.concreteType || "NSC").toUpperCase();
+  const rawConcrete = typeof inputs.concreteType === "string"
+    ? inputs.concreteType
+    : (inputs.concreteType as any)?.code || "NSC";
+  const concreteCode = String(rawConcrete || "NSC").toUpperCase();
   const activeConfig = CONCRETE_TYPE_CONFIGS[concreteCode];
+
+  // Combine materialsDatabase and SEEDED_MATERIALS to guarantee all system materials are always accessible
+  const allMaterials: any[] = [...(materialsDatabase || [])];
+  for (const sys of SEEDED_MATERIALS) {
+    if (!allMaterials.some(m => m.id === sys.id)) {
+      allMaterials.push(sys);
+    }
+  }
 
   // Compile list of dynamic engineering errors due to missing data/properties
   const engineeringErrors: Array<{
@@ -49,378 +75,165 @@ export const LogicalResultsSummary: React.FC<LogicalResultsSummaryProps> = ({
     materialId?: string;
   }> = [];
 
-  const materialsList = materialsDatabase || [];
+  // Determine material requirements for the current concrete type & mix design method
+  const reqPlan = determineMaterialRequirements(inputs);
 
-  if (activeConfig) {
-    // Validate Sand Aggregate (الرمل)
-    if (!inputs.selectedSandId) {
+  const roleSelectedIdMap: Partial<Record<SupportedMaterialRole, string | undefined>> = {
+    cement: inputs.selectedCementId,
+    sand: inputs.selectedSandId,
+    gravel: inputs.selectedGravelId,
+    water: inputs.selectedWaterId,
+    admixture: inputs.selectedAdmixtureId,
+    scm: inputs.selectedScmId,
+    fiber: inputs.selectedFiberId,
+    specialBinder: inputs.selectedSpecialBinderId,
+    lightweightAggregate: inputs.selectedLightweightAggregateId,
+    heavyweightAggregate: inputs.selectedHeavyweightAggregateId
+  };
+
+  const validatedSystemMaterials: Array<{
+    material: any;
+    role: string;
+    labelAr: string;
+    labelEn: string;
+    check: SystemMaterialReadinessResult;
+  }> = [];
+
+  const validatedUserMaterials: Array<{
+    material: any;
+    role: string;
+    labelAr: string;
+    labelEn: string;
+    check: SystemMaterialReadinessResult;
+  }> = [];
+
+  const notSelectedRoles: Array<{
+    role: string;
+    labelAr: string;
+    labelEn: string;
+  }> = [];
+
+  for (const roleReq of reqPlan.roles) {
+    const selectedId = roleSelectedIdMap[roleReq.role];
+
+    if (!selectedId) {
+      if (roleReq.requirementType === "mandatory") {
+        notSelectedRoles.push({
+          role: roleReq.role,
+          labelAr: roleReq.roleLabelAr,
+          labelEn: roleReq.roleLabelEn
+        });
+      }
+      continue;
+    }
+
+    // Material is selected: find it in allMaterials
+    const mat = allMaterials.find(m => m.id === selectedId) || allMaterials.find(m => m.name === selectedId);
+
+    if (!mat) {
       engineeringErrors.push({
-        id: "missing_sand",
-        message: isAr ? "مادة الركام الناعم (الرمل) المطلوبة غير موجودة في مستودع المواد." : "Required sand aggregate material was not found in the Material Repository.",
-        recommendation: isAr ? "يرجى إضافة هذه المادة وإكمال كافة خواصها الهندسية المطلوبة قبل الاستمرار." : "Please add this material and complete all required engineering properties before continuing.",
+        id: `missing_${roleReq.role}_not_found`,
+        message: isAr 
+          ? `المادة المحددة لدور (${roleReq.roleLabelAr}) ذات المعرف [${selectedId}] غير موجودة في مستودع المواد.` 
+          : `Selected material for (${roleReq.roleLabelEn}) [${selectedId}] was not found in the Material Repository.`,
+        recommendation: isAr 
+          ? "يرجى اختيار مادة صالحة من مستودع المواد أو إضافة المادة مجدداً." 
+          : "Please select a valid material from the repository or re-add it.",
         actionType: "add"
       });
+      continue;
+    }
+
+    // Check system material status
+    const isSys = isSystemMaterial(mat) || mat.isSystem || mat.sourceType === "SYSTEM" || mat.id?.startsWith("SYS-") || mat.id?.startsWith("preset-");
+
+    // Perform readiness check
+    const check = SystemMaterialReadinessCheck(mat, inputs.selectedMethod, concreteCode);
+
+    if (isSys) {
+      // System Material: Pre-validated, complete, ready, usable in mix design
+      // System materials are immutable reference specifications that NEVER trigger Draft or Missing Data errors!
+      validatedSystemMaterials.push({
+        material: mat,
+        role: roleReq.role,
+        labelAr: roleReq.roleLabelAr,
+        labelEn: roleReq.roleLabelEn,
+        check
+      });
     } else {
-      const sand = materialsList.find(m => m.id === inputs.selectedSandId);
-      if (!sand) {
-        engineeringErrors.push({
-          id: "missing_sand_not_found",
-          message: isAr ? "مادة الركام الناعم (الرمل) المطلوبة غير موجودة في مستودع المواد." : "Required sand aggregate material was not found in the Material Repository.",
-          recommendation: isAr ? "يرجى إضافة هذه المادة وإكمال كافة خواصها الهندسية المطلوبة قبل الاستمرار." : "Please add this material and complete all required engineering properties before continuing.",
-          actionType: "add"
-        });
+      // User Material: subject to standard completeness and engineering range checks
+      if (!check.isReady) {
+        if (mat.ApprovalStatus === "Draft") {
+          engineeringErrors.push({
+            id: `unvalidated_user_${mat.id}`,
+            message: isAr 
+              ? `حالة اعتماد مادة المستخدم "${mat.name}" غير صالحة للخلطة (الحالة الحالية: Draft/مسودة).` 
+              : `User material "${mat.name}" cannot be used until its status is set to Validated.`,
+            recommendation: isAr 
+              ? "لا يمكن استخدام هذه المادة حتى يتم إكمال كافة البيانات الإلزامية وتعديل حالة الاعتماد إلى 'معتمد' (Validated)." 
+              : "This material cannot be used until all mandatory engineering properties have been completed and its status is set to Validated.",
+            actionType: "edit",
+            materialId: mat.id
+          });
+        }
+
+        for (const missingProp of check.missingRequiredProperties) {
+          engineeringErrors.push({
+            id: `missing_${mat.id}_${missingProp}`,
+            message: isAr 
+              ? `الخاصية الناقصة لمادة "${mat.name}": (${missingProp})` 
+              : `Missing required property for "${mat.name}": (${missingProp})`,
+            recommendation: isAr 
+              ? `يرجى فتح تفاصيل المادة في المستودع وتعبئة خاصية (${missingProp}) لمتابعة الحسابات بدقة.` 
+              : `Please open the material in the repository and fill the (${missingProp}) property.`,
+            actionType: "edit",
+            materialId: mat.id
+          });
+        }
+
+        for (const inv of check.invalidProperties) {
+          engineeringErrors.push({
+            id: `invalid_${mat.id}_${inv.propertyKey}`,
+            message: isAr 
+              ? `خطأ في خاصية (${inv.propertyKey}) لمادة "${mat.name}": ${inv.error}` 
+              : `Invalid property (${inv.propertyKey}) for "${mat.name}": ${inv.error}`,
+            recommendation: isAr 
+              ? "يرجى تعديل القيمة لتكون ضمن الحدود الهندسية المقبولة للمواصفات القياسية." 
+              : "Please adjust the value to meet standard engineering specifications.",
+            actionType: "edit",
+            materialId: mat.id
+          });
+        }
       } else {
-        const isApp = sand.ApprovalStatus === "Validated" || sand.ApprovalStatus === "Approved" || sand.ApprovalStatus === "Certified" || sand.ApprovalStatus?.toLowerCase() === "approved";
-        if (!isApp) {
-          engineeringErrors.push({
-            id: `unvalidated_sand_${sand.id}`,
-            message: isAr ? `حالة اعتماد الرمل "${sand.name}" غير صالحة للخلطة (الحالة الحالية: Draft/مسودة).` : `This material "${sand.name}" cannot be used until its status is set to Validated.`,
-            recommendation: isAr ? "لا يمكن استخدام هذه المادة في الحسابات حتى يتم إكمال كافة البيانات الإلزامية وتعديل حالة الاعتماد إلى 'معتمد' (Validated) في مستودع المواد." : "This material cannot be used until all mandatory engineering properties have been completed and its status is set to Validated.",
-            actionType: "edit",
-            materialId: sand.id
-          });
-        }
-
-        // Check individual properties for Sand
-        const density = sand.ssdDensity || sand.density || sand.relativeDensity || sand.specificGravity;
-        if (!density || density <= 0) {
-          engineeringErrors.push({
-            id: `missing_sand_density_${sand.id}`,
-            message: isAr ? `الخصائص الناقصة للرمل "${sand.name}": الوزن النوعي / الكثافة المطلقة (SSD Density)` : `This material "${sand.name}" cannot be used until SSD Density is completed.`,
-            recommendation: isAr ? "لا يمكن استخدام هذه المادة في الحسابات حتى يتم تعبئة الوزن النوعي / الكثافة المطلقة (SSD Density) في مستودع المواد." : "This material cannot be used until SSD Density is completed.",
-            actionType: "edit",
-            materialId: sand.id
-          });
-        }
-        if (!sand.bulkDensity || sand.bulkDensity <= 0) {
-          engineeringErrors.push({
-            id: `missing_sand_bulk_density_${sand.id}`,
-            message: isAr ? `الخصائص الناقصة للرمل "${sand.name}": الكثافة الظاهرية (Bulk Density)` : `This material "${sand.name}" cannot be used until Bulk Density is completed.`,
-            recommendation: isAr ? "لا يمكن استخدام هذه المادة في الحسابات حتى يتم تعبئة الكثافة الظاهرية (Bulk Density) في مستودع المواد." : "This material cannot be used until Bulk Density is completed.",
-            actionType: "edit",
-            materialId: sand.id
-          });
-        }
-        if (sand.absorption === undefined || sand.absorption < 0) {
-          engineeringErrors.push({
-            id: `missing_sand_absorption_${sand.id}`,
-            message: isAr ? `الخصائص الناقصة للرمل "${sand.name}": معامل امتصاص الماء (Water Absorption)` : `This material "${sand.name}" cannot be used until Water Absorption is completed.`,
-            recommendation: isAr ? "لا يمكن استخدام هذه المادة في الحسابات حتى يتم تعبئة معامل امتصاص الماء (Water Absorption) في مستودع المواد." : "This material cannot be used until Water Absorption is completed.",
-            actionType: "edit",
-            materialId: sand.id
-          });
-        }
-        if (!sand.finenessModulus || sand.finenessModulus <= 0) {
-          engineeringErrors.push({
-            id: `missing_sand_fineness_${sand.id}`,
-            message: isAr ? `الخصائص الناقصة للرمل "${sand.name}": معامل النعومة (Fineness Modulus)` : `This material "${sand.name}" cannot be used until Fineness Modulus is completed.`,
-            recommendation: isAr ? "لا يمكن استخدام هذه المادة في الحسابات حتى يتم تعبئة معامل النعومة (Fineness Modulus) في مستودع المواد." : "This material cannot be used until Fineness Modulus is completed.",
-            actionType: "edit",
-            materialId: sand.id
-          });
-        }
-        if (!sand.SandEquivalent || sand.SandEquivalent <= 0) {
-          engineeringErrors.push({
-            id: `missing_sand_equivalent_${sand.id}`,
-            message: isAr ? `الخصائص الناقصة للرمل "${sand.name}": المكافئ الرملي (Sand Equivalent)` : `This material "${sand.name}" cannot be used until Sand Equivalent is completed.`,
-            recommendation: isAr ? "لا يمكن استخدام هذه المادة في الحسابات حتى يتم تعبئة المكافئ الرملي (Sand Equivalent) في مستودع المواد." : "This material cannot be used until Sand Equivalent is completed.",
-            actionType: "edit",
-            materialId: sand.id
-          });
-        }
-        if (!sand.gradationData || !Array.isArray(sand.gradationData) || sand.gradationData.length === 0) {
-          engineeringErrors.push({
-            id: `missing_sand_gradation_${sand.id}`,
-            message: isAr ? `الخصائص الناقصة للرمل "${sand.name}": منحنى التوزيع الحبيبي (Particle Size Distribution)` : `This material "${sand.name}" cannot be used until Particle Size Distribution is completed.`,
-            recommendation: isAr ? "لا يمكن استخدام هذه المادة في الحسابات حتى يتم تعبئة التوزيع الحبيبي (منحنى الغربلة) في مستودع المواد." : "This material cannot be used until Particle Size Distribution is completed.",
-            actionType: "edit",
-            materialId: sand.id
-          });
-        }
-      }
-    }
-
-    // Validate Gravel Aggregate (الحصى)
-    if (!inputs.selectedGravelId) {
-      engineeringErrors.push({
-        id: "missing_gravel",
-        message: isAr ? "مادة الركام الخشن (الحصى) المطلوبة غير موجودة في مستودع المواد." : "Required gravel aggregate material was not found in the Material Repository.",
-        recommendation: isAr ? "يرجى إضافة هذه المادة وإكمال كافة خواصها الهندسية المطلوبة قبل الاستمرار." : "Please add this material and complete all required engineering properties before continuing.",
-        actionType: "add"
-      });
-    } else {
-      const gravel = materialsList.find(m => m.id === inputs.selectedGravelId);
-      if (!gravel) {
-        engineeringErrors.push({
-          id: "missing_gravel_not_found",
-          message: isAr ? "مادة الركام الخشن (الحصى) المطلوبة غير موجودة في مستودع المواد." : "Required gravel aggregate material was not found in the Material Repository.",
-          recommendation: isAr ? "يرجى إضافة هذه المادة وإكمال كافة خواصها الهندسية المطلوبة قبل الاستمرار." : "Please add this material and complete all required engineering properties before continuing.",
-          actionType: "add"
-        });
-      } else {
-        const isApp = gravel.ApprovalStatus === "Validated" || gravel.ApprovalStatus === "Approved" || gravel.ApprovalStatus === "Certified" || gravel.ApprovalStatus?.toLowerCase() === "approved";
-        if (!isApp) {
-          engineeringErrors.push({
-            id: `unvalidated_gravel_${gravel.id}`,
-            message: isAr ? `حالة اعتماد الحصى "${gravel.name}" غير صالحة للخلطة (الحالة الحالية: Draft/مسودة).` : `This material "${gravel.name}" cannot be used until its status is set to Validated.`,
-            recommendation: isAr ? "لا يمكن استخدام هذه المادة في الحسابات حتى يتم إكمال كافة البيانات الإلزامية وتعديل حالة الاعتماد إلى 'معتمد' (Validated) في مستودع المواد." : "This material cannot be used until all mandatory engineering properties have been completed and its status is set to Validated.",
-            actionType: "edit",
-            materialId: gravel.id
-          });
-        }
-
-        // Check individual properties for Gravel
-        const density = gravel.ssdDensity || gravel.density || gravel.relativeDensity || gravel.specificGravity;
-        if (!density || density <= 0) {
-          engineeringErrors.push({
-            id: `missing_gravel_density_${gravel.id}`,
-            message: isAr ? `الخصائص الناقصة للحصى "${gravel.name}": الوزن النوعي / الكثافة المطلقة (SSD Density)` : `This material "${gravel.name}" cannot be used until SSD Density is completed.`,
-            recommendation: isAr ? "لا يمكن استخدام هذه المادة في الحسابات حتى يتم تعبئة الوزن النوعي / الكثافة المطلقة (SSD Density) في مستودع المواد." : "This material cannot be used until SSD Density is completed.",
-            actionType: "edit",
-            materialId: gravel.id
-          });
-        }
-        if (!gravel.bulkDensity || gravel.bulkDensity <= 0) {
-          engineeringErrors.push({
-            id: `missing_gravel_bulk_density_${gravel.id}`,
-            message: isAr ? `الخصائص الناقصة للحصى "${gravel.name}": الكثافة الظاهرية (Bulk Density)` : `This material "${gravel.name}" cannot be used until Bulk Density is completed.`,
-            recommendation: isAr ? "لا يمكن استخدام هذه المادة في الحسابات حتى يتم تعبئة الكثافة الظاهرية (Bulk Density) في مستودع المواد." : "This material cannot be used until Bulk Density is completed.",
-            actionType: "edit",
-            materialId: gravel.id
-          });
-        }
-        if (gravel.absorption === undefined || gravel.absorption < 0) {
-          engineeringErrors.push({
-            id: `missing_gravel_absorption_${gravel.id}`,
-            message: isAr ? `الخصائص الناقصة للحصى "${gravel.name}": معامل امتصاص الماء (Water Absorption)` : `This material "${gravel.name}" cannot be used until Water Absorption is completed.`,
-            recommendation: isAr ? "لا يمكن استخدام هذه المادة في الحسابات حتى يتم تعبئة معامل امتصاص الماء (Water Absorption) في مستودع المواد." : "This material cannot be used until Water Absorption is completed.",
-            actionType: "edit",
-            materialId: gravel.id
-          });
-        }
-        if (!gravel.dMax || gravel.dMax <= 0) {
-          engineeringErrors.push({
-            id: `missing_gravel_dmax_${gravel.id}`,
-            message: isAr ? `الخصائص الناقصة للحصى "${gravel.name}": الحجم الأقصى للركام (Dmax)` : `This material "${gravel.name}" cannot be used until Dmax is completed.`,
-            recommendation: isAr ? "لا يمكن استخدام هذه المادة في الحسابات حتى يتم تعبئة حجم الحبيبات الأقصى (Dmax) في مستودع المواد." : "This material cannot be used until Dmax is completed.",
-            actionType: "edit",
-            materialId: gravel.id
-          });
-        }
-        if (!gravel.LosAngeles || gravel.LosAngeles <= 0) {
-          engineeringErrors.push({
-            id: `missing_gravel_la_${gravel.id}`,
-            message: isAr ? `الخصائص الناقصة للحصى "${gravel.name}": اختبار لوس أنجلوس (Los Angeles Abrasion)` : `This material "${gravel.name}" cannot be used until Los Angeles Abrasion is completed.`,
-            recommendation: isAr ? "لا يمكن استخدام هذه المادة في الحسابات حتى يتم تعبئة معامل تآكل لوس أنجلوس (Los Angeles Abrasion) في مستودع المواد." : "This material cannot be used until Los Angeles Abrasion is completed.",
-            actionType: "edit",
-            materialId: gravel.id
-          });
-        }
-        if (!gravel.gradationData || !Array.isArray(gravel.gradationData) || gravel.gradationData.length === 0) {
-          engineeringErrors.push({
-            id: `missing_gravel_gradation_${gravel.id}`,
-            message: isAr ? `الخصائص الناقصة للحصى "${gravel.name}": منحنى التوزيع الحبيبي (Particle Size Distribution)` : `This material "${gravel.name}" cannot be used until Particle Size Distribution is completed.`,
-            recommendation: isAr ? "لا يمكن استخدام هذه المادة في الحسابات حتى يتم تعبئة التوزيع الحبيبي (منحنى الغربلة) في مستودع المواد." : "This material cannot be used until Particle Size Distribution is completed.",
-            actionType: "edit",
-            materialId: gravel.id
-          });
-        }
-      }
-    }
-
-    // Validate Cement (الإسمنت)
-    if (!inputs.selectedCementId) {
-      engineeringErrors.push({
-        id: "missing_cement",
-        message: isAr ? "لم يتم اختيار مادة إسمنتية معتمدة من المشروع." : "No approved cement material is selected.",
-        recommendation: isAr ? "يرجى الذهاب إلى قسم المواد واختيار مادة إسمنتية معتمدة ومفعلة لمزيج الخرسانة." : "Please select an approved cement.",
-        actionType: "add"
-      });
-    } else {
-      const cement = materialsList.find(m => m.id === inputs.selectedCementId);
-      if (!cement) {
-        engineeringErrors.push({
-          id: "missing_cement_not_found",
-          message: isAr ? "مادة الإسمنت المحددة غير موجودة في مستودع المواد." : "Selected cement material was not found in the Material Repository.",
-          recommendation: isAr ? "يرجى إضافة هذه المادة وإكمال كافة خواصها الهندسية المطلوبة قبل الاستمرار." : "Please add this material and complete all required engineering properties before continuing.",
-          actionType: "add"
+        validatedUserMaterials.push({
+          material: mat,
+          role: roleReq.role,
+          labelAr: roleReq.roleLabelAr,
+          labelEn: roleReq.roleLabelEn,
+          check
         });
       }
-    }
-
-    // Validate Water (الماء)
-    if (!inputs.selectedWaterId) {
-      engineeringErrors.push({
-        id: "missing_water",
-        message: isAr ? "لم يتم اختيار مياه خلط معتمدة للمشروع." : "No mixing water is selected.",
-        recommendation: isAr ? "يرجى اختيار مياه خلط نشطة من مستودع المواد." : "Please select the active mixing water.",
-        actionType: "add"
-      });
-    } else {
-      const water = materialsList.find(m => m.id === inputs.selectedWaterId);
-      if (!water) {
-        engineeringErrors.push({
-          id: "missing_water_not_found",
-          message: isAr ? "مادة مياه الخلط المحددة غير موجودة في مستودع المواد." : "Selected mixing water was not found in the Material Repository.",
-          recommendation: isAr ? "يرجى إضافة مياه خلط معتمدة في مستودع المواد للمتابعة." : "Please add mixing water in the repository to continue.",
-          actionType: "add"
-        });
-      }
-    }
-
-    // 3. Check for missing required properties on selected materials
-    activeConfig.requiredProperties.forEach(prop => {
-      if (prop === "density") {
-        // Cement density
-        if (inputs.selectedCementId) {
-          const mat = materialsList.find(m => m.id === inputs.selectedCementId);
-          const dens = mat ? (mat.density || inputs.cementDensity) : inputs.cementDensity;
-          if (!dens || dens <= 0) {
-            engineeringErrors.push({
-              id: "missing_cement_density",
-              message: isAr ? "الكثافة المطلقة للإسمنت غير معرفة أو صفرية في خواص المادة." : "Absolute cement density is undefined or zero in material properties.",
-              recommendation: isAr ? "يرجى تعديل الكثافة المطلقة للإسمنت في مستودع المواد أو تعطيل الخيار التلقائي لتحديدها يدوياً." : "Please define the cement density in materials library or set it manually.",
-              actionType: "edit",
-              materialId: inputs.selectedCementId
-            });
-          }
-        }
-        // Sand density
-        if (inputs.selectedSandId) {
-          const mat = materialsList.find(m => m.id === inputs.selectedSandId);
-          const dens = mat ? (mat.density || mat.relativeDensity) : inputs.sandRelativeDensity;
-          if (!dens || dens <= 0) {
-            engineeringErrors.push({
-              id: "missing_sand_density",
-              message: isAr ? "الكثافة النوعية للرمال غير معرفة أو صفرية في خواص المادة." : "Sand density is undefined or zero in material properties.",
-              recommendation: isAr ? "يرجى تعديل الكثافة النوعية للرمل في مستودع المواد أو إدخالها يدوياً." : "Please define sand relative density in materials library or set it manually.",
-              actionType: "edit",
-              materialId: inputs.selectedSandId
-            });
-          }
-        }
-        // Gravel density
-        if (inputs.selectedGravelId) {
-          const mat = materialsList.find(m => m.id === inputs.selectedGravelId);
-          const dens = mat ? (mat.density || mat.relativeDensity) : inputs.gravelRelativeDensity;
-          if (!dens || dens <= 0) {
-            engineeringErrors.push({
-              id: "missing_gravel_density",
-              message: isAr ? "الكثافة النوعية للركام الخشن غير معرفة أو صفرية في خواص المادة." : "Gravel density is undefined or zero in material properties.",
-              recommendation: isAr ? "يرجى تعديل الكثافة النوعية للبحص في مستودع المواد أو إدخالها يدوياً." : "Please define gravel relative density in materials library or set it manually.",
-              actionType: "edit",
-              materialId: inputs.selectedGravelId
-            });
-          }
-        }
-      }
-
-      if (prop === "absorption") {
-        if (inputs.selectedSandId) {
-          const mat = materialsList.find(m => m.id === inputs.selectedSandId);
-          const abs = mat ? mat.absorption : inputs.sandAbsorption;
-          if (abs === undefined || abs < 0) {
-            engineeringErrors.push({
-              id: "missing_sand_absorption",
-              message: isAr ? "معامل الامتصاص للرمل غير معرف في خواص المادة." : "Sand absorption coefficient is undefined in material properties.",
-              recommendation: isAr ? "يرجى فتح تفاصيل مادة الرمل في المستودع وضبط قيمة امتصاص الماء (النسبة المئوية)." : "Please define water absorption percentage for sand in the materials repository.",
-              actionType: "edit",
-              materialId: inputs.selectedSandId
-            });
-          }
-        }
-        if (inputs.selectedGravelId) {
-          const mat = materialsList.find(m => m.id === inputs.selectedGravelId);
-          const abs = mat ? mat.absorption : inputs.gravelAbsorption;
-          if (abs === undefined || abs < 0) {
-            engineeringErrors.push({
-              id: "missing_gravel_absorption",
-              message: isAr ? "معامل الامتصاص للركام الخشن غير معرف في خواص المادة." : "Gravel absorption coefficient is undefined in material properties.",
-              recommendation: isAr ? "يرجى فتح تفاصيل مادة البحص في المستودع وضبط قيمة امتصاص الماء (النسبة المئوية)." : "Please define water absorption percentage for gravel in the materials repository.",
-              actionType: "edit",
-              materialId: inputs.selectedGravelId
-            });
-          }
-        }
-      }
-
-      if (prop === "moisture") {
-        if (inputs.selectedSandId) {
-          const mat = materialsList.find(m => m.id === inputs.selectedSandId);
-          const moist = mat ? mat.moisture : inputs.sandMoisture;
-          if (moist === undefined || moist < 0) {
-            engineeringErrors.push({
-              id: "missing_sand_moisture",
-              message: isAr ? "محتوى الرطوبة السطحية للرمل غير معرف." : "Sand moisture content is undefined.",
-              recommendation: isAr ? "يرجى تحديد نسبة الرطوبة للرمل لإتمام عمليات التصحيح المائي." : "Please specify sand moisture percentage for correct water dosage adjustments.",
-              actionType: "edit",
-              materialId: inputs.selectedSandId
-            });
-          }
-        }
-        if (inputs.selectedGravelId) {
-          const mat = materialsList.find(m => m.id === inputs.selectedGravelId);
-          const moist = mat ? mat.moisture : inputs.gravelMoisture;
-          if (moist === undefined || moist < 0) {
-            engineeringErrors.push({
-              id: "missing_gravel_moisture",
-              message: isAr ? "محتوى الرطوبة السطحية للحصى غير معرف." : "Gravel moisture content is undefined.",
-              recommendation: isAr ? "يرجى تحديد نسبة الرطوبة للبحص في مدخلات الموقع." : "Please specify gravel moisture percentage for site water dosage adjustments.",
-              actionType: "edit",
-              materialId: inputs.selectedGravelId
-            });
-          }
-        }
-      }
-
-      if (prop === "strengthClass") {
-        if (inputs.selectedCementId) {
-          const mat = materialsList.find(m => m.id === inputs.selectedCementId);
-          const strClass = mat ? parseFloat(mat.strengthClass || "0") : 0;
-          if (!strClass || strClass <= 0) {
-            engineeringErrors.push({
-              id: "missing_cement_strength",
-              message: isAr ? "رتبة مقاومة الإسمنت (Strength Class) غير محددة." : "Cement strength class is undefined.",
-              recommendation: isAr ? "خرسانة التصنيف المتقدم تتطلب تحديد رتبة مقاومة الإسمنت (مثال: 42.5 أو 52.5) لتخمين الفعالية." : "Advanced concrete types require specifying the cement strength class (e.g. 42.5 or 52.5) in its properties.",
-              actionType: "edit",
-              materialId: inputs.selectedCementId
-            });
-          }
-        }
-      }
-    });
-
-    // 4. Custom validation errors
-    if (activeConfig.getCustomValidationErrors) {
-      const customErrs = activeConfig.getCustomValidationErrors(inputs, materialsList);
-      customErrs.forEach(err => {
-        engineeringErrors.push({
-          id: err.id,
-          message: err.message,
-          recommendation: err.recommendation
-        });
-      });
     }
   }
 
-  // General checks (slump, strength range, aggregates, densities)
-  if (!inputs.selectedSandId && !inputs.selectedGravelId) {
-    engineeringErrors.push({
-      id: "no_aggregate_specified",
-      message: isAr ? "لا يوجد ركام محدد للخلطة (الرمل أو الحصى)." : "No aggregate (sand or gravel) is specified for the mix design.",
-      recommendation: isAr ? "يرجى تحديد الركام الناعم والركام الخشن من مستودع المواد لتشكيل الهيكل الصلب للخرسانة." : "Please select sand and gravel from the material library to form the structural matrix."
-    });
-  }
+  // Derive densities safely from selected materials if not explicitly specified in inputs
+  const selectedSand = inputs.selectedSandId ? allMaterials.find(m => m.id === inputs.selectedSandId) : undefined;
+  const selectedGravel = inputs.selectedGravelId ? allMaterials.find(m => m.id === inputs.selectedGravelId) : undefined;
+  const selectedCement = inputs.selectedCementId ? allMaterials.find(m => m.id === inputs.selectedCementId) : undefined;
 
-  if (!inputs.cementDensity || inputs.cementDensity <= 0) {
+  const effectiveCementDensity = inputs.cementDensity || (selectedCement ? (getMaterialPropValue(selectedCement, 'density') || 3100) : 3100);
+  const effectiveSandDensity = inputs.sandRelativeDensity || (selectedSand ? (getMaterialPropValue(selectedSand, 'relativeDensity') || (getMaterialPropValue(selectedSand, 'density') ? +(getMaterialPropValue(selectedSand, 'density') / 1000).toFixed(2) : 2.65)) : 2.65);
+  const effectiveGravelDensity = inputs.gravelRelativeDensity || (selectedGravel ? (getMaterialPropValue(selectedGravel, 'relativeDensity') || (getMaterialPropValue(selectedGravel, 'density') ? +(getMaterialPropValue(selectedGravel, 'density') / 1000).toFixed(2) : 2.68)) : 2.68);
+
+  if (!effectiveCementDensity || effectiveCementDensity <= 0) {
     engineeringErrors.push({
       id: "missing_general_cement_density",
       message: isAr ? "كثافة الإسمنت المطلقة غير معرفة أو صفرية." : "Cement absolute density is undefined or zero.",
-      recommendation: isAr ? "يرجى التحقق من كثافة الإسمنت في مستودع المواد أو إدخال قيمة صالحة (مثال: 3.10)." : "Please specify a valid cement density in properties (e.g. 3.10 g/cm³)."
+      recommendation: isAr ? "يرجى التحقق من كثافة الإسمنت في مستودع المواد أو إدخال قيمة صالحة (مثال: 3.10 g/cm³)." : "Please specify a valid cement density in properties (e.g. 3.10 g/cm³)."
     });
   }
 
-  if (!inputs.sandRelativeDensity || inputs.sandRelativeDensity <= 0) {
+  if (!effectiveSandDensity || effectiveSandDensity <= 0) {
     engineeringErrors.push({
       id: "missing_general_sand_density",
       message: isAr ? "كثافة الركام الناعم (الرمل) غير معرفة أو مساوية للصفر." : "Sand relative density is undefined or zero.",
@@ -428,7 +241,7 @@ export const LogicalResultsSummary: React.FC<LogicalResultsSummaryProps> = ({
     });
   }
 
-  if (!inputs.gravelRelativeDensity || inputs.gravelRelativeDensity <= 0) {
+  if (!effectiveGravelDensity || effectiveGravelDensity <= 0) {
     engineeringErrors.push({
       id: "missing_general_gravel_density",
       message: isAr ? "كثافة الركام الخشن (الحصى) غير معرفة أو مساوية للصفر." : "Gravel relative density is undefined or zero.",
@@ -436,7 +249,8 @@ export const LogicalResultsSummary: React.FC<LogicalResultsSummaryProps> = ({
     });
   }
 
-  if (!inputs.fck28 || inputs.fck28 <= 0) {
+  const effectiveFck = inputs.fck28 || (inputs as any).fck || (inputs as any).targetStrength;
+  if (!effectiveFck || effectiveFck <= 0) {
     engineeringErrors.push({
       id: "invalid_fck28",
       message: isAr
@@ -452,7 +266,8 @@ export const LogicalResultsSummary: React.FC<LogicalResultsSummaryProps> = ({
     });
   }
 
-  if (inputs.slump === undefined || inputs.slump < 0) {
+  const effectiveSlump = inputs.targetSlump !== undefined ? inputs.targetSlump : inputs.slump;
+  if (concreteCode !== "SCC" && (effectiveSlump === undefined || effectiveSlump < 0)) {
     engineeringErrors.push({
       id: "invalid_slump",
       message: isAr
@@ -468,14 +283,44 @@ export const LogicalResultsSummary: React.FC<LogicalResultsSummaryProps> = ({
     });
   }
 
-  // Check 9: Empty results weights (if inputs are provided but calculation output is blank/zero)
+  // Check custom validation errors from concrete type config if any
+  if (activeConfig?.getCustomValidationErrors) {
+    const customErrs = activeConfig.getCustomValidationErrors(inputs, allMaterials);
+    customErrs.forEach(err => {
+      engineeringErrors.push({
+        id: err.id,
+        message: err.message,
+        recommendation: err.recommendation
+      });
+    });
+  }
+
+  // Check Dreux Pre-Calculation Report
+  const dreuxReport: DreuxPreCalculationReport | undefined = (results as any)?.dreuxPreCalcReport;
+  const dreuxTrace: DreuxInputTrace | undefined = (results as any)?.dreuxInputTrace;
+
+  if (dreuxReport && !dreuxReport.canCalculate) {
+    dreuxReport.missingOrInvalidItems.forEach((item) => {
+      engineeringErrors.push({
+        id: item.propertyId || item.property,
+        message: isAr
+          ? `${item.propertyAr} (${item.materialName || item.materialRole}): ${item.statusAr === "مفقود" ? "خاصية غير متوفرة" : "قيمة غير صالحة"}`
+          : `${item.property} (${item.materialName || item.materialRole}): ${item.status === "Missing" ? "Missing Property" : "Invalid Value"}`,
+        recommendation: isAr
+          ? `${item.actionAr} [الغرض الهندسي: ${item.requiredForAr}]`
+          : `${item.action} [Engineering Purpose: ${item.requiredFor}]`
+      });
+    });
+  }
+
+  // Check for empty results weights (if inputs are provided but calculation output is blank/zero)
   const isResultZeroOrBlank = 
     !results.cementWeight || results.cementWeight <= 0 ||
     !results.sandWeightDry || results.sandWeightDry <= 0 ||
     !results.gravelWeightDry || results.gravelWeightDry <= 0 ||
     !results.waterContentActual || results.waterContentActual <= 0;
 
-  if (isResultZeroOrBlank && engineeringErrors.length === 0) {
+  if (isResultZeroOrBlank && engineeringErrors.length === 0 && notSelectedRoles.length === 0) {
     engineeringErrors.push({
       id: "zero_calculation_outputs",
       message: isAr
@@ -491,30 +336,206 @@ export const LogicalResultsSummary: React.FC<LogicalResultsSummaryProps> = ({
     });
   }
 
-  // If there are engineering errors, display the gorgeous diagnostic panel instead of zero results
+  const renderDreuxInputAuditMatrix = () => {
+    if (!dreuxTrace || !dreuxTrace.items || dreuxTrace.items.length === 0) return null;
+    return (
+      <div className="mt-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden shadow-sm">
+        <button
+          type="button"
+          onClick={() => setShowTraceMatrix(prev => !prev)}
+          className={`w-full p-3.5 flex items-center justify-between text-left transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60 ${isRtl ? "flex-row-reverse text-right" : "flex-row text-left"}`}
+        >
+          <div className={`flex items-center gap-2.5 ${isRtl ? "flex-row-reverse" : "flex-row"}`}>
+            <FileCheck2 className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+            <div>
+              <h4 className="text-xs font-bold text-slate-900 dark:text-white">
+                {isAr ? "مصفوفة تدقيق وتتبع مصادر مدخلات درو-غوريس (Dreux Input Provenance Matrix)" : "Dreux-Gorisse Input Engineering Provenance & Audit Matrix"}
+              </h4>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                {isAr 
+                  ? `${dreuxTrace.resolvedInputsCount} مدخل محدد • ${dreuxTrace.missingRequiredCount} مفقود إلزامي • سجل التتبع ومصدر الخصائص`
+                  : `${dreuxTrace.resolvedInputsCount} resolved • ${dreuxTrace.missingRequiredCount} missing required • Traceability & derivation audit`}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold font-mono ${
+              dreuxTrace.isFullyResolved 
+                ? "bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800"
+                : "bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-400 border border-amber-300 dark:border-amber-800"
+            }`}>
+              {dreuxTrace.isFullyResolved ? (isAr ? "مكتمل التدقيق 100%" : "VERIFIED") : (isAr ? "يحتاج استكمال" : "GAPS DETECTED")}
+            </span>
+            {showTraceMatrix ? <ChevronUp className="w-4 h-4 text-slate-500" /> : <ChevronDown className="w-4 h-4 text-slate-500" />}
+          </div>
+        </button>
+
+        {showTraceMatrix && (
+          <div className="border-t border-slate-200 dark:border-slate-800 overflow-x-auto">
+            <table className={`w-full text-[11px] ${isRtl ? "text-right" : "text-left"}`}>
+              <thead className="bg-slate-50 dark:bg-slate-800/80 text-slate-500 dark:text-slate-400 font-bold border-b border-slate-200 dark:border-slate-800">
+                <tr>
+                  <th className="p-2.5">{isAr ? "المتغير / الخاصية الهندسية" : "Property / Parameter"}</th>
+                  <th className="p-2.5">{isAr ? "المادة المرتبطة" : "Material"}</th>
+                  <th className="p-2.5">{isAr ? "القيمة المعتمدة" : "Value"}</th>
+                  <th className="p-2.5">{isAr ? "المصدر والاشتقاق الهندسي" : "Source & Derivation"}</th>
+                  <th className="p-2.5 text-center">{isAr ? "الحالة" : "Status"}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {dreuxTrace.items.map((item, idx) => {
+                  const isValid = item.validation === "VALID";
+                  const isMissing = item.validation === "MISSING";
+                  const isInvalid = item.validation === "INVALID";
+                  const badgeClass = isValid
+                    ? "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800"
+                    : isMissing
+                    ? "bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-800 font-bold"
+                    : isInvalid
+                    ? "bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800"
+                    : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700";
+
+                  return (
+                    <tr key={idx} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30">
+                      <td className="p-2.5 font-medium text-slate-800 dark:text-slate-200">
+                        <div>{item.inputName}</div>
+                        <div className="text-[9px] font-mono text-slate-400">{item.propertyId}</div>
+                      </td>
+                      <td className="p-2.5 text-slate-600 dark:text-slate-400">
+                        {item.materialName || (isAr ? "غير محدد" : "Unset")}
+                      </td>
+                      <td className="p-2.5 font-mono font-bold text-slate-900 dark:text-white whitespace-nowrap">
+                        {item.formattedValue} <span className="text-[10px] font-normal text-slate-500">{item.unit}</span>
+                      </td>
+                      <td className="p-2.5 text-slate-600 dark:text-slate-400">
+                        <div>{item.source}</div>
+                        {(item.derivationDetailsAr || item.derivationDetailsEn) && (
+                          <div className="text-[10px] text-slate-500 mt-0.5">
+                            {isAr ? item.derivationDetailsAr : item.derivationDetailsEn}
+                          </div>
+                        )}
+                        {(isMissing || isInvalid) && (item.actionRequiredAr || item.actionRequiredEn) && (
+                          <div className="text-[10px] text-rose-600 dark:text-rose-400 font-semibold mt-0.5">
+                            ⚠️ {isAr ? item.actionRequiredAr : item.actionRequiredEn}
+                          </div>
+                        )}
+                      </td>
+                      <td className="p-2.5 text-center whitespace-nowrap">
+                        <span className={`inline-block px-2 py-0.5 rounded border text-[10px] ${badgeClass}`}>
+                          {isValid ? (isAr ? "معتمد" : "VALID") : isMissing ? (isAr ? "مفقود إلزامي" : "MISSING") : isInvalid ? (isAr ? "غير صالح" : "INVALID") : (isAr ? "اختياري" : "OPTIONAL")}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // If there are engineering errors, display the diagnostic panel
   if (engineeringErrors.length > 0) {
     return (
       <div className="bg-rose-50/40 dark:bg-rose-950/10 rounded-2xl border border-rose-200/80 dark:border-rose-900/40 p-5 md:p-6 shadow-sm space-y-6">
         {/* Header */}
-        <div className={`flex items-start gap-4 ${isRtl ? "text-right flex-row-reverse" : "text-left flex-row"}`}>
-          <span className="p-3 bg-rose-500/10 text-rose-600 dark:text-rose-400 rounded-xl shrink-0">
-            <AlertTriangle className="w-6 h-6 animate-pulse" />
-          </span>
-          <div className="space-y-1">
-            <h3 className="text-base md:text-lg font-black text-rose-850 dark:text-rose-100">
-              {isRtl 
-                ? "⚙️ لوحة التشخيص والعيوب الهندسية (نقص بيانات الحساب)" 
-                : "⚙️ Engineering Diagnostics (Incomplete Calculation Data)"}
-            </h3>
-            <p className="text-xs text-slate-550 leading-relaxed font-sans">
-              {isRtl 
-                ? "للحفاظ على الدقة والمصداقية الهندسية للنتائج وتجنب عرض أوزان افتراضية أو صفرية غير مطابقة للواقع، قام المحرك برصد النواقص التالية:" 
-                : "To ensure engineering accuracy and prevent zero/blank formulation weights, the core engine has flagged the following data gaps:"}
-            </p>
+        <div className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 ${isRtl ? "text-right" : "text-left"}`}>
+          <div className={`flex items-start gap-4 ${isRtl ? "flex-row-reverse" : "flex-row"}`}>
+            <span className="p-3 bg-rose-500/10 text-rose-600 dark:text-rose-400 rounded-xl shrink-0">
+              <AlertTriangle className="w-6 h-6 animate-pulse" />
+            </span>
+            <div className="space-y-1">
+              <h3 className="text-base md:text-lg font-black text-rose-850 dark:text-rose-100">
+                {isRtl 
+                  ? "⚙️ لوحة التشخيص والعيوب الهندسية (نقص بيانات الحساب)" 
+                  : "⚙️ Engineering Diagnostics (Incomplete Calculation Data)"}
+              </h3>
+              <p className="text-xs text-slate-550 leading-relaxed font-sans">
+                {isRtl 
+                  ? "للحفاظ على الدقة والمصداقية الهندسية للنتائج وتجنب عرض أوزان افتراضية أو صفرية غير مطابقة للواقع، قام المحرك برصد النواقص التالية:" 
+                  : "To ensure engineering accuracy and prevent zero/blank formulation weights, the core engine has flagged the following data gaps:"}
+              </p>
+            </div>
           </div>
+
+          {onOpenBatchModal && (
+            <button
+              type="button"
+              onClick={onOpenBatchModal}
+              className="w-full sm:w-auto px-4 py-2 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-black rounded-xl text-xs shadow-md shadow-blue-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer shrink-0"
+            >
+              <span>⚡</span>
+              <span>{isRtl ? "إكمال خصائص المواد" : "Complete Material Properties"}</span>
+            </button>
+          )}
         </div>
 
-        {/* Dynamic Errors List */}
+        {/* Validated System Materials Section */}
+        {validatedSystemMaterials.length > 0 && (
+          <div className="space-y-2.5 bg-emerald-500/10 dark:bg-emerald-950/20 border border-emerald-500/30 rounded-xl p-4">
+            <div className={`flex items-center gap-2 text-emerald-800 dark:text-emerald-300 font-bold text-xs ${isRtl ? "flex-row-reverse text-right" : "flex-row text-left"}`}>
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <span>
+                {isRtl 
+                  ? "مواد النظام المعتمدة والجاهزة للتصميم (System Materials - Validated & Ready)" 
+                  : "System Materials - Validated & Ready for Mix Design"}
+              </span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+              {validatedSystemMaterials.map(({ material, labelAr, labelEn }) => (
+                <div key={material.id} className="bg-white dark:bg-slate-900/80 p-3 rounded-lg border border-emerald-500/30 text-xs space-y-2 shadow-xs">
+                  <div className={`flex items-center justify-between font-bold text-slate-800 dark:text-slate-200 ${isRtl ? "flex-row-reverse" : "flex-row"}`}>
+                    <span>{isRtl ? material.name : (material.englishName || material.name)}</span>
+                    <span className="text-[10px] text-emerald-700 dark:text-emerald-300 bg-emerald-500/15 px-2 py-0.5 rounded font-mono font-semibold">{material.id}</span>
+                  </div>
+                  <div className={`flex flex-wrap gap-1.5 text-[10px] ${isRtl ? "flex-row-reverse" : "flex-row"}`}>
+                    <span className="bg-blue-500/10 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-md font-semibold flex items-center gap-1">
+                      <Check className="w-3 h-3 text-blue-600" />
+                      <span>{isRtl ? "مادة نظامية (System Material)" : "System Material"}</span>
+                    </span>
+                    <span className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-md font-semibold flex items-center gap-1">
+                      <Check className="w-3 h-3 text-emerald-600" />
+                      <span>{isRtl ? "معتمدة (Validated)" : "Validated"}</span>
+                    </span>
+                    <span className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-md font-semibold flex items-center gap-1">
+                      <Check className="w-3 h-3 text-emerald-600" />
+                      <span>{isRtl ? "مكتملة الخصائص (Complete)" : "Complete"}</span>
+                    </span>
+                    <span className="bg-teal-500/10 text-teal-700 dark:text-teal-300 px-2 py-0.5 rounded-md font-semibold flex items-center gap-1">
+                      <Check className="w-3 h-3 text-teal-600" />
+                      <span>{isRtl ? "جاهزة للخلطة (Ready for Mix Design)" : "Ready for Mix Design"}</span>
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Materials Pending Selection Section (Status: NOT SELECTED) */}
+        {notSelectedRoles.length > 0 && (
+          <div className="space-y-2 bg-slate-100/80 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-xl p-3.5">
+            <div className={`flex items-center gap-2 text-slate-700 dark:text-slate-300 font-bold text-xs ${isRtl ? "flex-row-reverse text-right" : "flex-row text-left"}`}>
+              <Info className="w-4 h-4 text-slate-500 shrink-0" />
+              <span>
+                {isRtl 
+                  ? "مواد بانتظار التحديد في الخلطة (Not Selected)" 
+                  : "Materials Pending Selection (Not Selected)"}
+              </span>
+            </div>
+            <div className={`flex flex-wrap gap-2 ${isRtl ? "flex-row-reverse" : "flex-row"}`}>
+              {notSelectedRoles.map((r, i) => (
+                <span key={i} className="text-[11px] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 px-2.5 py-1 rounded-md font-sans">
+                  {isRtl ? r.labelAr : r.labelEn}: <strong className="text-amber-600 dark:text-amber-400">{isRtl ? "لم يتم التحديد بعد (Not Selected)" : "Not Selected"}</strong>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Dynamic Engineering Errors List (for User Materials or Invalid Inputs) */}
         <div className="space-y-3 pt-2">
           {engineeringErrors.map((err, idx) => (
             <div 
@@ -532,45 +553,9 @@ export const LogicalResultsSummary: React.FC<LogicalResultsSummaryProps> = ({
                 <h4 className="text-xs font-black text-slate-800 dark:text-slate-200">
                   {err.message}
                 </h4>
-                <p className="text-[11px] text-slate-500 leading-relaxed font-sans mb-1.5">
+                <p className="text-[11px] text-slate-500 leading-relaxed font-sans">
                   💡 <span className="font-medium text-slate-600 dark:text-slate-400">{isRtl ? "التوصية الفنية:" : "Technical Recommendation:"}</span> {err.recommendation}
                 </p>
-                {err.actionType === "add" && (
-                  <button
-                    id={`add-material-btn-${err.id}`}
-                    onClick={() => {
-                      const targetTab = "materials_library";
-
-                      const switchEvent = new CustomEvent("switch-sidebar-tab", { detail: { tab: targetTab } });
-                      window.dispatchEvent(switchEvent);
-                      setTimeout(() => {
-                        const triggerAdd = new CustomEvent("trigger-add-material");
-                        window.dispatchEvent(triggerAdd);
-                      }, 100);
-                    }}
-                    className="mt-1.5 inline-flex items-center gap-1 px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[11px] font-medium transition-colors"
-                  >
-                    ➕ {isRtl ? "إضافة مادة جديدة في المستودع" : "Add New Material in Repository"}
-                  </button>
-                )}
-                {err.actionType === "edit" && err.materialId && (
-                  <button
-                    id={`edit-material-btn-${err.materialId}`}
-                    onClick={() => {
-                      const targetTab = "materials_library";
-
-                      const switchEvent = new CustomEvent("switch-sidebar-tab", { detail: { tab: targetTab } });
-                      window.dispatchEvent(switchEvent);
-                      setTimeout(() => {
-                        const triggerEdit = new CustomEvent("trigger-edit-material", { detail: { materialId: err.materialId } });
-                        window.dispatchEvent(triggerEdit);
-                      }, 100);
-                    }}
-                    className="mt-1.5 inline-flex items-center gap-1.5 px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-[11px] font-bold transition-all shadow-sm cursor-pointer hover:shadow active:scale-95"
-                  >
-                    ⚙️ {isRtl ? "ضبط الآن" : "Adjust Now"}
-                  </button>
-                )}
               </div>
             </div>
           ))}
@@ -585,6 +570,9 @@ export const LogicalResultsSummary: React.FC<LogicalResultsSummaryProps> = ({
               : "Please complete the parameters above or activate project materials in the database to trigger live formulation weights."}
           </span>
         </div>
+
+        {/* Dreux-Gorisse Input Provenance & Audit Matrix in Blocked Mode */}
+        {renderDreuxInputAuditMatrix()}
       </div>
     );
   }
@@ -712,7 +700,6 @@ export const LogicalResultsSummary: React.FC<LogicalResultsSummaryProps> = ({
   };
 
   const currentLang = language;
-  const [activeTrace, setActiveTrace] = React.useState<number | null>(null);
   
   // Safe helper to extract values
   const cement = Math.round(results.cementWeight || 350);
@@ -963,6 +950,32 @@ export const LogicalResultsSummary: React.FC<LogicalResultsSummaryProps> = ({
         </div>
       </div>
 
+      {/* Validated System Materials Confirmation Banner */}
+      {validatedSystemMaterials.length > 0 && (
+        <div className={`p-3.5 rounded-xl bg-emerald-500/10 dark:bg-emerald-950/30 border border-emerald-500/25 flex flex-wrap items-center justify-between gap-3 text-xs ${isRtl ? "flex-row-reverse text-right" : "flex-row text-left"}`}>
+          <div className={`flex items-center gap-2 text-emerald-850 dark:text-emerald-300 font-bold ${isRtl ? "flex-row-reverse" : "flex-row"}`}>
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <span>
+              {isRtl 
+                ? "كافة مواد النظام المحددة معتمدة ومكتملة الخصائص وجاهزة للخلطة" 
+                : "All selected system materials are validated, complete, and ready for mix design"}
+            </span>
+          </div>
+          <div className={`flex flex-wrap gap-1.5 ${isRtl ? "flex-row-reverse" : "flex-row"}`}>
+            {validatedSystemMaterials.map(({ material, role, labelAr, labelEn }) => (
+              <span 
+                key={material.id} 
+                className="bg-emerald-600 text-white dark:bg-emerald-600/30 dark:text-emerald-200 px-2.5 py-0.5 rounded-md text-[11px] font-semibold flex items-center gap-1"
+                title={`${material.id} - ${material.name}`}
+              >
+                <Check className="w-3 h-3" />
+                <span>{isRtl ? (material.name || labelAr) : (material.englishName || material.name || labelEn)}</span>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Grid of Logical Outputs */}
       <div className={`grid grid-cols-1 gap-6 ${isRtl ? "direction-rtl text-right" : "direction-ltr text-left"}`}>
         
@@ -1189,8 +1202,8 @@ export const LogicalResultsSummary: React.FC<LogicalResultsSummaryProps> = ({
                     <td className="p-2.5 text-slate-700 dark:text-slate-300 font-bold">
                       💧 {isRtl ? `إضافة: ${admix.name}` : `Admixture: ${admix.name}`}
                     </td>
-                    <td className="p-2.5 text-center font-mono text-slate-800 dark:text-slate-200">{admix.weight.toFixed(2)} kg/m³</td>
-                    <td className="p-2.5 text-left font-mono font-black text-indigo-600 dark:text-indigo-400">{(admix.weight * batchVol).toFixed(2)} kg</td>
+                    <td className="p-2.5 text-center font-mono text-slate-800 dark:text-slate-200">{(admix?.weight || 0).toFixed(2)} kg/m³</td>
+                    <td className="p-2.5 text-left font-mono font-black text-indigo-600 dark:text-indigo-400">{((admix?.weight || 0) * batchVol).toFixed(2)} kg</td>
                   </tr>
                 ))}
               </tbody>
@@ -1309,6 +1322,9 @@ export const LogicalResultsSummary: React.FC<LogicalResultsSummaryProps> = ({
             </div>
           </div>
         </div>
+
+        {/* Dreux-Gorisse Input Provenance & Audit Matrix in Completed Calculation Mode */}
+        {renderDreuxInputAuditMatrix()}
 
       </div>
 

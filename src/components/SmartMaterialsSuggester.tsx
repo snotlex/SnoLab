@@ -1,543 +1,981 @@
-import React, { useMemo } from "react";
-import { motion } from "motion/react";
-import { Sparkles, CheckCircle2, AlertTriangle, ArrowRight, Layers, Flame, Droplet, Hammer } from "lucide-react";
-import { EngineeringMaterial, AggregateType } from "../types";
-import { CONCRETE_TYPE_CONFIGS } from "../concreteTypes";
+/**
+ * Smart Engineering Material Recommendation & Approval System (SnoLab Materials Suggester)
+ * 
+ * Core Philosophy: "SnoLab suggests, does not impose" (SnoLab يقترح ولا يفرض).
+ * Project Data -> Engineering Analysis -> Material Recommendations -> Explain Recommendation -> [قبول الاقتراح] / [رفض].
+ * 
+ * Embeds within Step 3 "تحضير الخلطة".
+ */
+
+import React, { useState, useMemo, useEffect } from "react";
+import { motion, AnimatePresence } from "motion/react";
+import { 
+  Sparkles, 
+  CheckCircle2, 
+  AlertTriangle, 
+  ChevronDown, 
+  ChevronUp, 
+  ShieldCheck, 
+  Award, 
+  Info, 
+  Layers, 
+  Check, 
+  XCircle, 
+  History,
+  FileEdit,
+  Wrench,
+  CheckCheck,
+  RotateCcw,
+  Sparkle,
+  Lock,
+  X
+} from "lucide-react";
+import { EngineeringMaterial, MixDesignInput } from "../types";
+import { 
+  generateMaterialRecommendations, 
+  RecommendationPlanResult,
+  SupportedMaterialRole,
+  MaterialCompatibilityResult,
+  RoleRecommendationGroup,
+  RecommendationDecisionRecord,
+  recordProjectRecommendationDecision,
+  getProjectRecommendationDecisions,
+  getRoleUserDecisions,
+  normalizeProjectId
+} from "../services/materialRecommendationEngine";
+import { recordEngineerApproval, getLatestApprovalForContext, EngineerSignOffRecord } from "../services/materialApprovalService";
+import { FullMixRecommendationModal } from "./FullMixRecommendationModal";
+import { RecommendationHistoryModal } from "./RecommendationHistoryModal";
+
+export interface SelectedMaterialIds {
+  selectedCementId?: string;
+  selectedSandId?: string;
+  selectedGravelId?: string;
+  selectedWaterId?: string;
+  selectedAdmixtureId?: string;
+  selectedScmId?: string;
+  selectedFiberId?: string;
+  selectedSpecialBinderId?: string;
+  selectedLightweightAggregateId?: string;
+  selectedHeavyweightAggregateId?: string;
+}
 
 interface SmartMaterialsSuggesterProps {
   concreteType: string;
+  mixDesignMethod?: string;
+  activeProject?: any;
   fck28: number;
+  dMax?: number;
+  exposureClass?: string;
+  hasPumping?: boolean;
   materialsDatabase: EngineeringMaterial[];
-  onApplySuggestions: (selectedIds: {
-    selectedCementId?: string;
-    selectedSandId?: string;
-    selectedGravelId?: string;
-    selectedWaterId?: string;
-    selectedAdmixtureId?: string;
-    selectedScmId?: string;
-    selectedFiberId?: string;
-    selectedSpecialBinderId?: string;
-  }) => void;
+  onApplySuggestions: (selectedIds: SelectedMaterialIds) => void;
   language: string;
+  inputs?: MixDesignInput;
+  onApplySingleMaterial?: (role: SupportedMaterialRole, material: EngineeringMaterial) => void;
+  onOpenBatchPropertiesModal?: () => void;
 }
 
 export const SmartMaterialsSuggester: React.FC<SmartMaterialsSuggesterProps> = ({
   concreteType,
+  mixDesignMethod = "dreux",
+  activeProject = "default",
   fck28,
+  dMax = 20,
+  exposureClass = "X0",
+  hasPumping = false,
   materialsDatabase,
   onApplySuggestions,
   language,
+  inputs,
+  onApplySingleMaterial,
+  onOpenBatchPropertiesModal
 }) => {
   const isAr = language === "ar";
   const isFr = language === "fr";
   const isRtl = isAr;
 
-  const activeConcreteCode = (concreteType || "NSC").toUpperCase();
-  const activeConfig = CONCRETE_TYPE_CONFIGS[activeConcreteCode];
+  const resolvedProjectId = useMemo(() => normalizeProjectId(activeProject), [activeProject]);
 
-  // Logic to determine if categories are allowed
-  const isCementAllowed = activeConfig ? activeConfig.allowedCategories.includes("إسمنت") || activeConfig.allowedCategories.includes("مجلدات خاصة") : true;
-  const isSandAllowed = activeConfig ? activeConfig.allowedCategories.includes("رمال") : true;
-  const isGravelAllowed = activeConfig ? activeConfig.allowedCategories.some(cat => ["حصى", "ركام خفيف", "ركام ثقيل"].includes(cat)) : true;
-  const isWaterAllowed = activeConfig ? activeConfig.allowedCategories.includes("ماء") : true;
-  const isAdmixtureAllowed = activeConfig ? activeConfig.allowedCategories.includes("إضافات كيميائية") : true;
-  const isScmAllowed = activeConfig ? activeConfig.allowedCategories.includes("إضافات معدنية") : true;
-  const isFiberAllowed = activeConfig ? activeConfig.allowedCategories.includes("ألياف") : true;
-  const isSpecialBinderAllowed = activeConfig ? activeConfig.allowedCategories.includes("مجلدات خاصة") : true;
+  const [decisionVersion, setDecisionVersion] = useState(0);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Filter approved & active materials
-  const activeMaterials = useMemo(() => {
-    return (materialsDatabase || []).filter(m => {
-      if (!m) return false;
-      const status = (m.status || m.Status || "").toLowerCase();
-      const appStatus = (m.approvalStatus || m.ApprovalStatus || "").toLowerCase();
-      
-      const isDraft = status === "draft" || appStatus === "draft";
-      const isArchived = status === "archived" || status === "موقوف" || appStatus === "archived";
-      const isRejected = status === "rejected" || appStatus === "rejected";
-      
-      if (isDraft || isArchived || isRejected) return false;
-      return true;
-    });
-  }, [materialsDatabase]);
+  // Modals state
+  const [isFullSuiteModalOpen, setIsFullSuiteModalOpen] = useState(false);
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [showApprovalModal, setShowApprovalModal] = useState(false);
 
-  // Dynamic Suggestion Engine based on Concrete Type and Required Strength
-  const suggestions = useMemo(() => {
-    if (activeMaterials.length === 0) return null;
+  // Engineer Sign-off state
+  const [engineerName, setEngineerName] = useState("");
+  const [engineerTitle, setEngineerTitle] = useState("Chief Materials Engineer");
+  const [approvalNotes, setApprovalNotes] = useState("");
+  const [approvalFeedback, setApprovalFeedback] = useState<string | null>(null);
 
-    // 1. CEMENT / BINDER
-    let cementList = activeMaterials.filter(m => m.category === "إسمنت" || m.category === "مجلدات خاصة");
-    let suggestedCement: EngineeringMaterial | undefined;
-    let cementReason = {
-      ar: "إسمنت متزن عياري CEM II أو CEM I رتبة 42.5 ملائم تماماً للقوة المستهدفة.",
-      fr: "Ciment standard CEM I/II 42.5 équilibré, idéal pour la résistance ciblée.",
-      en: "Standard balanced CEM I/II 42.5 cement, perfectly suited for the target strength."
-    };
+  // Accordion expansion states
+  const [expandedJustifications, setExpandedJustifications] = useState<Record<string, boolean>>({});
+  const [expandedAlternatives, setExpandedAlternatives] = useState<Record<string, boolean>>({});
+  const [expandedNeedsData, setExpandedNeedsData] = useState<Record<string, boolean>>({});
+  const [expandedIneligible, setExpandedIneligible] = useState<Record<string, boolean>>({});
 
-    if (activeConcreteCode === "GPC") {
-      suggestedCement = cementList.find(m => m.category === "مجلدات خاصة" || m.name.includes("جيوبوليمر") || m.name.toLowerCase().includes("geopolymer"));
-      if (!suggestedCement) suggestedCement = cementList.find(m => m.name.toLowerCase().includes("slag") || m.name.includes("خبث") || m.name.toLowerCase().includes("fly ash") || m.name.includes("رماد"));
-      cementReason = {
-        ar: "مادة رابطة جيوبوليمرية خالية من الكلنكر لخفض الانبعاثات الكربونية.",
-        fr: "Liant géopolymère sans clinker pour réduire l'empreinte carbone.",
-        en: "Clinker-free geopolymer binder to reduce carbon footprint."
-      };
-    } else if (activeConcreteCode === "UHPC" || activeConcreteCode === "BFUP" || fck28 >= 100) {
-      suggestedCement = cementList.find(m => m.name.includes("52.5") || m.name.includes("CEM I 52.5") || m.strengthClass === "52.5" || m.cementClassStrength === 52.5);
-      cementReason = {
-        ar: "إسمنت عالي الفعالية ومبكر التصلد CEM I 52.5 R لضمان أعلى مستويات الكثافة والتراص.",
-        fr: "Ciment haute performance CEM I 52.5 R pour une compacité maximale.",
-        en: "High-early strength CEM I 52.5 R cement to ensure maximum packing and strength."
-      };
-    } else if (activeConcreteCode === "HSC" || activeConcreteCode === "HPC" || fck28 >= 40) {
-      suggestedCement = cementList.find(m => m.name.includes("52.5") || m.strengthClass === "52.5") || cementList.find(m => m.name.includes("42.5") || m.strengthClass === "42.5");
-      cementReason = {
-        ar: "إسمنت عالي الجودة رتبة 42.5 أو 52.5 لضمان تماسك الهيكل الأسمنتي ومقاومة الضغط العالي.",
-        fr: "Ciment classe 42.5 ou 52.5 pour assurer la matrice à haute résistance.",
-        en: "Class 42.5 or 52.5 cement to support high-strength cementitious matrix."
-      };
-    } else {
-      suggestedCement = cementList.find(m => m.name.includes("42.5") || m.strengthClass === "42.5") || cementList.find(m => m.name.includes("32.5") || m.strengthClass === "32.5");
-    }
-    // Strict compatibility check if config is available
-    if (suggestedCement && activeConfig && !activeConfig.isMaterialCompatible(suggestedCement)) {
-      suggestedCement = cementList.find(m => activeConfig.isMaterialCompatible(m));
-    }
-    if (!suggestedCement && cementList.length > 0) {
-      suggestedCement = cementList[0];
-    }
-
-    // 2. SAND
-    let sandList = activeMaterials.filter(m => m.category === "رمال");
-    let suggestedSand: EngineeringMaterial | undefined;
-    let sandReason = {
-      ar: "رمل متوسط عياري ذو تدرج متوازن لتقليل الفراغات وتحقيق تشغيلية ممتازة.",
-      fr: "Sable moyen standard à granularité équilibrée pour minimiser les vides.",
-      en: "Standard medium sand with balanced grading to minimize voids and ensure workability."
-    };
-
-    if (activeConcreteCode === "UHPC" || activeConcreteCode === "BFUP") {
-      suggestedSand = sandList.find(m => m.name.includes("سيليسي") || m.name.toLowerCase().includes("siliceous") || m.name.toLowerCase().includes("silica") || m.name.includes("ناعم") || m.name.toLowerCase().includes("fine"));
-      sandReason = {
-        ar: "رمل سيليسي ناعم نقي جداً لتحقيق تراص مثالي نانو-هيكلي.",
-        fr: "Sable siliceux fin extra-pur pour un empilement granulaire micrométrique.",
-        en: "Extra-pure fine siliceous sand to achieve micrometric granular packing."
-      };
-    } else if (activeConcreteCode === "SCC") {
-      suggestedSand = sandList.find(m => m.name.includes("ناعم") || m.name.toLowerCase().includes("fine") || m.name.includes("متوسط") || m.name.toLowerCase().includes("medium"));
-      sandReason = {
-        ar: "رمل ناعم/متوسط لزيادة لزوجة معجون الخلطة ومنع انفصال مكونات الخرسانة ذاتية الدمك.",
-        fr: "Sable fin/moyen pour augmenter la viscosité et éviter la ségrégation du BAP.",
-        en: "Fine/medium sand to increase viscosity and prevent segregation in self-consolidating mix."
-      };
-    } else if (activeConcreteCode === "HSC" || activeConcreteCode === "HPC" || fck28 >= 40) {
-      suggestedSand = sandList.find(m => m.name.includes("خشن") || m.name.toLowerCase().includes("coarse") || m.name.includes("سيليسي") || m.name.toLowerCase().includes("siliceous"));
-      sandReason = {
-        ar: "رمل خشن ذو معامل نعومة مرتفع (> 2.7) لتقليل طلب الماء ورفع الكفاءة الصلبة.",
-        fr: "Sable grossier avec MF élevé (> 2.7) pour optimiser le squelette solide.",
-        en: "Coarse sand with high FM (> 2.7) to optimize the solid skeleton and reduce water demand."
-      };
-    }
-    if (suggestedSand && activeConfig && !activeConfig.isMaterialCompatible(suggestedSand)) {
-      suggestedSand = sandList.find(m => activeConfig.isMaterialCompatible(m));
-    }
-    if (!suggestedSand && sandList.length > 0) {
-      suggestedSand = sandList[0];
-    }
-
-    // 3. GRAVEL / AGGREGATE
-    let gravelList = activeMaterials.filter(m => ["حصى", "ركام خفيف", "ركام ثقيل"].includes(m.category));
-    let suggestedGravel: EngineeringMaterial | undefined;
-    let gravelReason = {
-      ar: "حصى قياسي متزن ومقاوم يضمن الهيكل الإنشائي المترابط لخرسانة الصب.",
-      fr: "Gravillons résistants de calibre standard pour l'ossature du béton.",
-      en: "Resistant standard aggregates of balanced size for structural integrity."
-    };
-
-    if (activeConcreteCode === "LWC") {
-      suggestedGravel = gravelList.find(m => m.category === "ركام خفيف" || m.name.includes("خفيف") || m.name.toLowerCase().includes("lightweight") || m.name.includes("بوميس") || m.name.toLowerCase().includes("pumice"));
-      gravelReason = {
-        ar: "ركام خفيف مسامي (حجر خفاف أو طين متمدد) لتقليل الوزن الذاتي للمنشأة.",
-        fr: "Granulats légers (ponce ou argile expansée) pour alléger la structure.",
-        en: "Lightweight porous aggregate (pumice or expanded clay) to reduce dead-load weight."
-      };
-    } else if (activeConcreteCode === "HWC") {
-      suggestedGravel = gravelList.find(m => m.category === "ركام ثقيل" || m.name.includes("ثقيل") || m.name.toLowerCase().includes("heavyweight") || m.name.includes("باريت") || m.name.toLowerCase().includes("barite") || m.name.includes("مغنيتيت"));
-      gravelReason = {
-        ar: "ركام ثقيل عالي الكثافة (باريت أو هيماتيت) لضمان متانة درع الإشعاع النووي.",
-        fr: "Granulats lourds (barytine) pour la radioprotection et densité élevée.",
-        en: "High-density heavy aggregate (barite or magnetite) for radiation shielding."
-      };
-    } else if (activeConcreteCode === "UHPC" || activeConcreteCode === "BFUP") {
-      suggestedGravel = gravelList.find(m => m.name.includes("3/8") || m.name.includes("صغير") || m.name.toLowerCase().includes("fine") || (m.dMax && m.dMax <= 8));
-      gravelReason = {
-        ar: "حصى دقيق للغاية بقطر أقصى (Dmax <= 8 مم) يضمن استقرار الرص الميكروي المتجانس.",
-        fr: "Gravillons ultra-fins (Dmax <= 8 mm) assurant l'homogénéité structurale.",
-        en: "Ultra-fine gravel (Dmax <= 8 mm) to ensure microstructure homogeneity."
-      };
-    } else if (activeConcreteCode === "SCC") {
-      suggestedGravel = gravelList.find(m => m.name.includes("8/15") || m.name.includes("مكسر") || (m.dMax && m.dMax <= 15));
-      gravelReason = {
-        ar: "حصى قياس 8/15 (Dmax <= 15 مم) يمنع حجز الخرسانة عند انسيابها بين التسليح الكثيف.",
-        fr: "Gravillons 8/15 évitant le blocage entre les armatures serrées.",
-        en: "Small size 8/15 aggregate to prevent blocking between dense reinforcement bars."
-      };
-    } else if (activeConcreteCode === "HSC" || activeConcreteCode === "HPC" || fck28 >= 45) {
-      suggestedGravel = gravelList.find(m => m.name.includes("بازلت") || m.name.toLowerCase().includes("basalt") || m.name.includes("مكسر") || m.name.toLowerCase().includes("crushed"));
-      gravelReason = {
-        ar: "ركام مكسر بازلتي صلب جداً ذو زوايا حادة لرفع قوة التماسك والتشابك الميكانيكي مع الأسمنت.",
-        fr: "Gravillon basaltique concassé très dur pour maximiser l'adhérence mécanique.",
-        en: "Highly hard crushed basaltic aggregate for maximum mechanical bond and strength."
-      };
-    }
-    if (suggestedGravel && activeConfig && !activeConfig.isMaterialCompatible(suggestedGravel)) {
-      suggestedGravel = gravelList.find(m => activeConfig.isMaterialCompatible(m));
-    }
-    if (!suggestedGravel && gravelList.length > 0) {
-      suggestedGravel = gravelList[0];
-    }
-
-    // 4. WATER
-    let waterList = activeMaterials.filter(m => m.category === "ماء" || m.type === "water");
-    let suggestedWater = waterList[0];
-    let waterReason = {
-      ar: "ماء خلط عذب ونقي مطابق للمواصفات الفنية خالٍ من الأملاح الضارة والزيوت.",
-      fr: "Eau potable propre et neutre conforme aux exigences de gâchage.",
-      en: "Potable clean mixing water meeting engineering standard requirements."
-    };
-
-    // 5. ADMIXTURE
-    let admixList = activeMaterials.filter(m => m.category === "إضافات كيميائية");
-    let suggestedAdmixture: EngineeringMaterial | undefined;
-    let admixtureReason = {
-      ar: "ملدن لتحسين التشغيلية وتسهيل الصب دون زيادة كمية الماء.",
-      fr: "Plastifiant pour améliorer l'ouvrabilité et faciliter la mise en œuvre.",
-      en: "Standard water reducer/plasticizer to improve workability without extra water."
-    };
-
-    if (activeConcreteCode === "UHPC" || activeConcreteCode === "BFUP" || activeConcreteCode === "SCC" || fck28 >= 40) {
-      suggestedAdmixture = admixList.find(m => m.name.includes("فائق") || m.name.toLowerCase().includes("super") || m.name.toLowerCase().includes("pce") || m.name.toLowerCase().includes("polycarboxylate"));
-      admixtureReason = {
-        ar: "ملدن فائق عالي الكفاءة (Superplasticizer PCE) لتخفيض الماء بنسبة > 25% مع الحفاظ على القوام السائل.",
-        fr: "Superplastifiant haut de gamme (PCE) pour réduire l'eau de gâchage de 25%.",
-        en: "High-range polycarboxylate superplasticizer to reduce water by >25% while maintaining fluid consistency."
-      };
-    } else if (fck28 >= 30) {
-      suggestedAdmixture = admixList.find(m => m.name.includes("ملدن") || m.name.toLowerCase().includes("plasticizer") || m.name.includes("محدث") || m.name.includes("مخفض"));
-    }
-    if (suggestedAdmixture && activeConfig && !activeConfig.isMaterialCompatible(suggestedAdmixture)) {
-      suggestedAdmixture = admixList.find(m => activeConfig.isMaterialCompatible(m));
-    }
-    if (!suggestedAdmixture && admixList.length > 0) {
-      suggestedAdmixture = admixList[0];
-    }
-
-    // 6. SCM (Mineral Admixtures)
-    let scmList = activeMaterials.filter(m => m.category === "إضافات معدنية");
-    let suggestedScm: EngineeringMaterial | undefined;
-    let scmReason = {
-      ar: "إضافات بوزولانية نشطة لملء المسامات وتحسين متانة الهيكل طويل الأمد.",
-      fr: "Addition minérale active pour combler les pores et améliorer la durabilité.",
-      en: "Active mineral addition to fill pores and enhance long-term durability."
-    };
-
-    if (activeConcreteCode === "UHPC" || activeConcreteCode === "BFUP" || activeConcreteCode === "HPC") {
-      suggestedScm = scmList.find(m => m.name.includes("سيليكا") || m.name.toLowerCase().includes("silica") || m.name.toLowerCase().includes("fume"));
-      scmReason = {
-        ar: "غبار سيليكا فائق النعومة لملء الفراغات البينية وتوليد سيليكات الكالسيوم المتماسكة (C-S-H).",
-        fr: "Fumée de silice ultra-fine pour remplir les micro-vides et former du C-S-H dense.",
-        en: "Ultra-fine silica fume to fill micro-voids and trigger reactive C-S-H gel formation."
-      };
-    } else if (activeConcreteCode === "GPC") {
-      suggestedScm = scmList.find(m => m.name.includes("خبث") || m.name.toLowerCase().includes("slag") || m.name.includes("رماد") || m.name.toLowerCase().includes("fly ash"));
-      scmReason = {
-        ar: "خبث فرن أو رماد متطاير لتأمين السيليكات والألومينات اللازمة للبلمرة الجيولوجية.",
-        fr: "Laitier ou cendres volantes apportant silice et alumine pour la géopolymérisation.",
-        en: "Slag or fly ash providing silicate and aluminate precursors for geopolymeric binders."
-      };
-    }
-    if (suggestedScm && activeConfig && !activeConfig.isMaterialCompatible(suggestedScm)) {
-      suggestedScm = scmList.find(m => activeConfig.isMaterialCompatible(m));
-    }
-    if (!suggestedScm && scmList.length > 0) {
-      suggestedScm = scmList[0];
-    }
-
-    // 7. FIBER
-    let fiberList = activeMaterials.filter(m => m.category === "ألياف");
-    let suggestedFiber: EngineeringMaterial | undefined;
-    let fiberReason = {
-      ar: "ألياف تسليح لتعزيز مقاومة الضغط والشد ومكافحة الانكماش اللدن الخرساني.",
-      fr: "Fibres de renforcement pour limiter le retrait plastique.",
-      en: "Reinforcing fibers to mitigate plastic shrinkage cracking."
-    };
-
-    if (activeConcreteCode === "FRC" || activeConcreteCode === "UHPC" || activeConcreteCode === "BFUP") {
-      suggestedFiber = fiberList.find(m => m.name.includes("فولاذ") || m.name.toLowerCase().includes("steel")) || fiberList.find(m => m.name.includes("ألياف") || m.name.toLowerCase().includes("fiber"));
-      fiberReason = {
-        ar: "ألياف فولاذية دقيقة لرفع مقاومة الشد المباشر ومقاومة الصدمات والدونة الإنشائية.",
-        fr: "Fibres métalliques pour accroître la résistance à la traction et la ductilité.",
-        en: "Micro-steel fibers to significantly boost tensile strength, impact resistance, and ductility."
-      };
-    }
-    if (suggestedFiber && activeConfig && !activeConfig.isMaterialCompatible(suggestedFiber)) {
-      suggestedFiber = fiberList.find(m => activeConfig.isMaterialCompatible(m));
-    }
-    if (!suggestedFiber && fiberList.length > 0) {
-      suggestedFiber = fiberList[0];
-    }
-
-    return {
-      cement: suggestedCement, cementReason,
-      sand: suggestedSand, sandReason,
-      gravel: suggestedGravel, gravelReason,
-      water: suggestedWater, waterReason,
-      admixture: suggestedAdmixture, admixtureReason,
-      scm: suggestedScm, scmReason,
-      fiber: suggestedFiber, fiberReason
-    };
-  }, [activeMaterials, activeConcreteCode, fck28, activeConfig]);
-
-  const handleApply = () => {
-    if (!suggestions) return;
-    onApplySuggestions({
-      selectedCementId: suggestions.cement?.id,
-      selectedSandId: suggestions.sand?.id,
-      selectedGravelId: suggestions.gravel?.id,
-      selectedWaterId: suggestions.water?.id,
-      selectedAdmixtureId: suggestions.admixture?.id,
-      selectedScmId: suggestions.scm?.id,
-      selectedFiberId: suggestions.fiber?.id,
-      selectedSpecialBinderId: activeConcreteCode === "GPC" ? suggestions.cement?.id : undefined,
-    });
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => {
+      setToastMessage(null);
+    }, 4500);
   };
 
-  if (!suggestions) {
-    return (
-      <div className="bg-red-500/10 border border-red-500/25 rounded-2xl p-4 text-center space-y-2">
-        <AlertTriangle className="text-red-500 mx-auto" size={24} />
-        <p className="text-xs font-bold text-red-700 dark:text-red-400">
-          {isAr
-            ? "لم يتم العثور على مواد نشطة في مكتبة المواد لتقديم الاقتراحات!"
-            : "No active materials found in the materials library to generate suggestions!"}
-        </p>
-      </div>
+  // Generate structured material recommendations via dedicated Engine
+  const recommendationPlan: RecommendationPlanResult = useMemo(() => {
+    return generateMaterialRecommendations(
+      materialsDatabase || [],
+      {
+        concreteType,
+        mixDesignMethod,
+        targetStrength: fck28,
+        maxAggregateSize: dMax,
+        exposureClass,
+        hasPumping,
+        selectedCementId: inputs?.selectedCementId,
+        selectedSandId: inputs?.selectedSandId,
+        selectedGravelId: inputs?.selectedGravelId,
+        selectedWaterId: inputs?.selectedWaterId,
+        selectedAdmixtureId: inputs?.selectedAdmixtureId,
+        selectedScmId: inputs?.selectedScmId,
+        selectedFiberId: inputs?.selectedFiberId,
+        selectedSpecialBinderId: inputs?.selectedSpecialBinderId,
+        selectedLightweightAggregateId: inputs?.selectedLightweightAggregateId,
+        selectedHeavyweightAggregateId: inputs?.selectedHeavyweightAggregateId
+      },
+      { id: resolvedProjectId }
     );
-  }
+  }, [
+    materialsDatabase, 
+    concreteType, 
+    mixDesignMethod, 
+    fck28, 
+    dMax, 
+    exposureClass, 
+    hasPumping, 
+    resolvedProjectId, 
+    inputs,
+    decisionVersion
+  ]);
+
+  const decisions = useMemo(() => {
+    return getProjectRecommendationDecisions(resolvedProjectId);
+  }, [resolvedProjectId, decisionVersion]);
+
+  // Check if there is an existing approval for this context
+  const existingApproval: EngineerSignOffRecord | null = useMemo(() => {
+    return getLatestApprovalForContext(concreteType, mixDesignMethod, resolvedProjectId);
+  }, [concreteType, mixDesignMethod, resolvedProjectId, approvalFeedback]);
+
+  // Toggle helpers
+  const toggleJustification = (role: string) => {
+    setExpandedJustifications(prev => ({ ...prev, [role]: !prev[role] }));
+  };
+  const toggleAlternatives = (role: string) => {
+    setExpandedAlternatives(prev => ({ ...prev, [role]: !prev[role] }));
+  };
+  const toggleNeedsData = (role: string) => {
+    setExpandedNeedsData(prev => ({ ...prev, [role]: !prev[role] }));
+  };
+  const toggleIneligible = (role: string) => {
+    setExpandedIneligible(prev => ({ ...prev, [role]: !prev[role] }));
+  };
+
+  // 1. ACCEPT RECOMMENDATION FLOW
+  const handleAcceptRecommendation = (role: SupportedMaterialRole, material: EngineeringMaterial, score: number) => {
+    // Record acceptance
+    const record: RecommendationDecisionRecord = {
+      id: `${role}_${material.id}_${Date.now()}`,
+      projectId: resolvedProjectId,
+      role,
+      materialId: material.id,
+      materialName: material.name,
+      materialCategory: material.category || role,
+      isSystem: !!(material.isSystem || material.sourceType === "system_demo"),
+      action: "accept",
+      compatibilityScore: score,
+      timestamp: new Date().toISOString(),
+      context: {
+        concreteType,
+        mixDesignMethod,
+        targetStrength: fck28
+      }
+    };
+    recordProjectRecommendationDecision(record);
+    setDecisionVersion(v => v + 1);
+
+    // Apply to mix
+    if (onApplySingleMaterial) {
+      onApplySingleMaterial(role, material);
+    } else {
+      const fieldMap: Partial<Record<SupportedMaterialRole, keyof SelectedMaterialIds>> = {
+        cement: "selectedCementId",
+        sand: "selectedSandId",
+        gravel: "selectedGravelId",
+        water: "selectedWaterId",
+        admixture: "selectedAdmixtureId",
+        scm: "selectedScmId",
+        fiber: "selectedFiberId",
+        specialBinder: "selectedSpecialBinderId",
+        lightweightAggregate: "selectedLightweightAggregateId",
+        heavyweightAggregate: "selectedHeavyweightAggregateId"
+      };
+      const key = fieldMap[role];
+      if (key) {
+        onApplySuggestions({ [key]: material.id });
+      }
+    }
+
+    showToast(
+      isAr 
+        ? `✓ تم قبول التوصية وتطبيق المادة (${material.name}) على الخلطة!` 
+        : `✓ Recommendation accepted & (${material.name}) applied to mix!`
+    );
+  };
+
+  // 2. REJECT RECOMMENDATION FLOW
+  const handleRejectRecommendation = (role: SupportedMaterialRole, material: EngineeringMaterial, score: number) => {
+    // Record rejection
+    const record: RecommendationDecisionRecord = {
+      id: `${role}_${material.id}_${Date.now()}`,
+      projectId: resolvedProjectId,
+      role,
+      materialId: material.id,
+      materialName: material.name,
+      materialCategory: material.category || role,
+      isSystem: !!(material.isSystem || material.sourceType === "system_demo"),
+      action: "reject",
+      compatibilityScore: score,
+      timestamp: new Date().toISOString(),
+      context: {
+        concreteType,
+        mixDesignMethod,
+        targetStrength: fck28
+      }
+    };
+    recordProjectRecommendationDecision(record);
+    setDecisionVersion(v => v + 1);
+
+    showToast(
+      isAr 
+        ? `تم رفض الاقتراح (${material.name}). المشروع لم يتغير ويتم الآن عرض البديل الأنسب التالي.` 
+        : `Suggestion rejected (${material.name}). Project remains unchanged; showing next best alternative.`
+    );
+  };
+
+  // 3. FULL MIX PROPOSAL BATCH APPLICATION
+  const handleApplySuite = (selectedRoles: SupportedMaterialRole[]) => {
+    const selectedIds: SelectedMaterialIds = {};
+
+    for (const r of selectedRoles) {
+      const topCand = recommendationPlan.roleGroups[r]?.topCandidate;
+      if (topCand) {
+        if (r === "cement") selectedIds.selectedCementId = topCand.material.id;
+        if (r === "sand") selectedIds.selectedSandId = topCand.material.id;
+        if (r === "gravel") selectedIds.selectedGravelId = topCand.material.id;
+        if (r === "water") selectedIds.selectedWaterId = topCand.material.id;
+        if (r === "admixture") selectedIds.selectedAdmixtureId = topCand.material.id;
+        if (r === "scm") selectedIds.selectedScmId = topCand.material.id;
+        if (r === "fiber") selectedIds.selectedFiberId = topCand.material.id;
+        if (r === "specialBinder") selectedIds.selectedSpecialBinderId = topCand.material.id;
+        if (r === "lightweightAggregate") selectedIds.selectedLightweightAggregateId = topCand.material.id;
+        if (r === "heavyweightAggregate") selectedIds.selectedHeavyweightAggregateId = topCand.material.id;
+
+        // Record accept for each
+        recordProjectRecommendationDecision({
+          id: `${r}_${topCand.material.id}_${Date.now()}`,
+          projectId: resolvedProjectId,
+          role: r,
+          materialId: topCand.material.id,
+          materialName: topCand.material.name,
+          materialCategory: topCand.material.category || r,
+          isSystem: !!(topCand.material.isSystem || topCand.material.sourceType === "system_demo"),
+          action: "accept",
+          compatibilityScore: topCand.compatibilityScore,
+          timestamp: new Date().toISOString(),
+          context: { concreteType, mixDesignMethod, targetStrength: fck28 }
+        });
+      }
+    }
+
+    setDecisionVersion(v => v + 1);
+    onApplySuggestions(selectedIds);
+
+    showToast(
+      isAr 
+        ? `✓ تم تطبيق باقة المواد المختارة (${selectedRoles.length} أصناف) بنجاح!` 
+        : `✓ Selected material suite (${selectedRoles.length} roles) applied successfully!`
+    );
+  };
+
+  // 4. ENGINEER SIGN-OFF
+  const handleConfirmApproval = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!engineerName.trim()) return;
+
+    const approvedMaterialsList = Object.entries(recommendationPlan.roleGroups).map(([role, group]) => {
+      const topMat = group.topCandidate?.material;
+      return {
+        role,
+        materialId: topMat?.id || "",
+        materialName: topMat?.name || "Unassigned",
+        compatibilityScore: group.topCandidate?.compatibilityScore || 0,
+        density: topMat?.density
+      };
+    }).filter(item => item.materialId !== "");
+
+    const record = recordEngineerApproval({
+      projectId: resolvedProjectId,
+      concreteType,
+      mixDesignMethod,
+      targetStrength: fck28,
+      engineerName: engineerName.trim(),
+      engineerTitle: engineerTitle.trim(),
+      notes: approvalNotes.trim(),
+      status: "approved",
+      approvedMaterials: approvedMaterialsList
+    });
+
+    setShowApprovalModal(false);
+    setApprovalFeedback(isAr ? `تم توثيق اعتماد المهندس بنجاح (#${record.approvalId})` : `Approval signed by ${record.engineerName}`);
+    setTimeout(() => setApprovalFeedback(null), 5000);
+  };
+
+  const activeRoles = Object.values(recommendationPlan.roleGroups).filter(
+    g => g.roleRequirement.requirementType !== "forbidden"
+  );
 
   return (
-    <div className="bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-transparent dark:from-amber-500/10 dark:via-transparent dark:to-transparent border border-amber-500/20 dark:border-amber-500/30 rounded-2xl p-5 shadow-sm space-y-4 text-right" id="smart-materials-suggester-panel">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-amber-500/10 dark:border-amber-500/20 pb-3 gap-3">
-        <button
-          type="button"
-          onClick={handleApply}
-          className="w-full sm:w-auto text-xs flex items-center justify-center gap-1.5 bg-gradient-to-r from-amber-550 to-amber-600 hover:from-amber-600 hover:to-amber-700 cursor-pointer text-slate-900 font-black px-4 py-2.5 rounded-xl transition-all hover:scale-[1.02] active:scale-[0.98] border border-amber-400 shadow-md"
-        >
-          <CheckCircle2 size={15} className="text-slate-900 shrink-0" />
-          <span>
-            {isAr ? "تطبيق واختيار المواد المقترحة تلقائياً" : isFr ? "Appliquer et Sélectionner les Matériaux" : "Apply & Auto-Select Recommended Materials"}
-          </span>
-        </button>
+    <div 
+      className={`bg-gradient-to-br from-slate-900 via-slate-900/95 to-slate-950 border-2 border-indigo-500/30 rounded-2xl p-5 shadow-xl space-y-5 text-slate-100 font-sans ${isRtl ? "text-right" : "text-left"}`} 
+      id="smart-material-recommendation-center"
+      dir={isRtl ? "rtl" : "ltr"}
+    >
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 px-4 py-3 bg-emerald-600 text-white rounded-xl shadow-2xl flex items-center gap-2.5 text-xs font-bold border border-emerald-400/40 animate-bounce">
+          <CheckCircle2 className="w-4 h-4 text-emerald-200" />
+          <span>{toastMessage}</span>
+          <button 
+            onClick={() => setToastMessage(null)}
+            className="ms-2 text-emerald-200 hover:text-white cursor-pointer"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
-        <div className="flex items-center gap-2.5 justify-end w-full sm:w-auto">
-          <div>
-            <h4 className="text-xs font-black text-amber-600 dark:text-amber-400 flex items-center gap-1 justify-end uppercase tracking-widest font-mono select-none">
-              <span>{isAr ? "مساعد اقتراح المواد الذكي (من مكتبة المواد العامة)" : "Smart Material Suggestion Assistant"}</span>
-              <Sparkles size={14} className="text-amber-500 animate-pulse" />
-            </h4>
-            <p className="text-[10px] text-slate-500 mt-0.5">
-              {isAr ? "اقتراحات صحيحة، منطقية ومستوردة مباشرة من مستودع المواد للمقاومة المستهدفة" : "Logical & certified materials matching the target design parameters"}
-            </p>
+      {/* HEADER BAR */}
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center border-b border-indigo-500/20 pb-4 gap-4">
+        <div>
+          <div className="flex items-center gap-3">
+            <span className="p-2.5 bg-gradient-to-br from-indigo-500/30 to-indigo-700/30 text-indigo-400 rounded-xl border border-indigo-500/40 shadow-inner">
+              <Sparkles size={20} className="animate-pulse" />
+            </span>
+            <div>
+              <h3 className="text-sm font-black text-indigo-300 uppercase tracking-wider flex items-center gap-2">
+                <span>{isAr ? "المساعد الهندسي الذكي لاقتراح المواد" : "Smart Engineering Material Recommendation System"}</span>
+                <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full border border-indigo-400/30 font-mono">
+                  SnoLab Pro
+                </span>
+              </h3>
+              <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1.5">
+                <ShieldCheck size={14} className="text-emerald-400 shrink-0" />
+                <span>
+                  {isAr 
+                    ? "SnoLab يقترح ولا يفرض: تحليل المعطيات ← اقتراحات هندسية مفسرة ← قبول أو رفض"
+                    : "SnoLab suggests, does not impose: Project Data → Analysis → Recommendations → Accept / Reject"}
+                </span>
+              </p>
+            </div>
           </div>
+        </div>
+
+        {/* Global Action Strip */}
+        <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto justify-start lg:justify-end">
+          {/* Compatibility Score */}
+          <div className="flex items-center gap-2 bg-slate-800/90 px-3.5 py-2 rounded-xl border border-slate-700 shadow-inner">
+            <div className="text-center">
+              <span className="text-[10px] text-slate-400 block font-medium">{isAr ? "توافق الباقة" : "Mix Fit"}</span>
+              <span className={`text-base font-black font-mono ${recommendationPlan.overallCompatibilityScore >= 80 ? "text-emerald-400" : "text-amber-400"}`}>
+                {recommendationPlan.overallCompatibilityScore}%
+              </span>
+            </div>
+            <div className="w-8 h-8 rounded-full flex items-center justify-center bg-slate-900 border border-slate-700">
+              <Award size={16} className={recommendationPlan.overallCompatibilityScore >= 80 ? "text-emerald-400" : "text-amber-400"} />
+            </div>
+          </div>
+
+          {/* Full Mix Proposal Button */}
+          <button
+            type="button"
+            onClick={() => setIsFullSuiteModalOpen(true)}
+            className="text-xs flex items-center gap-1.5 font-bold px-3.5 py-2.5 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white rounded-xl shadow-md transition-all cursor-pointer"
+          >
+            <Layers size={15} />
+            <span>{isAr ? "اقتراح الخلطة الكاملة" : "Full Mix Proposal"}</span>
+          </button>
+
+          {/* Decision Audit Log Button */}
+          <button
+            type="button"
+            onClick={() => setIsHistoryModalOpen(true)}
+            className="text-xs flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold px-3 py-2.5 rounded-xl border border-slate-700 transition-colors cursor-pointer"
+            title={isAr ? "سجل قرارات القبول والرفض" : "Decisions History"}
+          >
+            <History size={15} className="text-indigo-400" />
+            <span>{isAr ? "سجل القرارات" : "History"}</span>
+            {decisions.length > 0 && (
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-indigo-500/30 text-indigo-300 font-mono font-bold">
+                {decisions.length}
+              </span>
+            )}
+          </button>
+
+          {/* Engineer Sign-off Button */}
+          <button
+            type="button"
+            onClick={() => setShowApprovalModal(true)}
+            className="text-xs flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-sky-400 font-bold px-3 py-2.5 rounded-xl border border-sky-500/30 hover:border-sky-500/60 transition-all cursor-pointer"
+            title={isAr ? "ختم وتوثيق اعتماد المهندس المشرف" : "Engineer Sign-Off"}
+          >
+            <ShieldCheck size={15} className="text-sky-400" />
+            <span>{isAr ? "اعتماد المهندس" : "Sign-off"}</span>
+          </button>
         </div>
       </div>
 
-      {/* Concrete Type & Strength Parameters Summary */}
-      <div className="bg-amber-500/5 dark:bg-amber-500/2 p-3.5 rounded-xl border border-amber-300/10 text-[11px] leading-relaxed text-slate-700 dark:text-slate-350 pr-4 border-r-4 border-r-amber-500">
-        <strong className="text-slate-800 dark:text-white block mb-0.5 font-bold">
-          {isAr ? "التوجيه الهندسي والمطابقة للخلطة:" : "Engineering Guidance & Matching Summary:"}
-        </strong>
-        {isAr ? (
-          <span>
-            تم تحليل نوع الخرسانة المحددة <span className="font-extrabold text-amber-600">({concreteType})</span> والمقاومة المميزة المطلوبة <span className="font-extrabold text-amber-600">({fck28} MPa)</span>. تم تحديد أنسب التراكيب الكيميائية والفيزيائية للمواد المتوفرة في <strong>المكتبة العامة للمواد</strong> لمطابقة معايير جودة الخرسانة ومتانتها.
-          </span>
-        ) : (
-          <span>
-            Analyzed concrete type <span className="font-extrabold text-amber-600">({concreteType})</span> and target strength <span className="font-extrabold text-amber-600">({fck28} MPa)</span>. Recommended materials have been selected from the <strong>Public Materials Library</strong> to guarantee optimum durability and structural safety.
-          </span>
-        )}
+      {/* FEEDBACK BANNER */}
+      {approvalFeedback && (
+        <motion.div 
+          initial={{ opacity: 0, y: -10 }} 
+          animate={{ opacity: 1, y: 0 }} 
+          className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-3 text-xs text-emerald-300 font-semibold flex items-center gap-2"
+        >
+          <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
+          <span>{approvalFeedback}</span>
+        </motion.div>
+      )}
+
+      {/* CONTEXT SUMMARY STRIP */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 bg-slate-950/60 p-3 rounded-xl border border-slate-800 text-xs">
+        <div>
+          <span className="text-[10px] text-slate-500 block">{isAr ? "نوع الخرسانة:" : "Concrete Type:"}</span>
+          <span className="font-black text-indigo-400">{concreteType}</span>
+        </div>
+        <div>
+          <span className="text-[10px] text-slate-500 block">{isAr ? "طريقة التصميم:" : "Mix Method:"}</span>
+          <span className="font-bold text-sky-400 uppercase">{mixDesignMethod}</span>
+        </div>
+        <div>
+          <span className="text-[10px] text-slate-500 block">{isAr ? "المقاومة المميزة fck28:" : "Target Strength:"}</span>
+          <span className="font-bold text-emerald-400">{fck28} MPa</span>
+        </div>
+        <div>
+          <span className="text-[10px] text-slate-500 block">{isAr ? "فئة التعرض / Dmax:" : "Exposure / Dmax:"}</span>
+          <span className="font-bold text-slate-300">{exposureClass} / {dMax} mm</span>
+        </div>
       </div>
 
-      {/* Suggested Grid Items */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-1 text-right">
-        {/* Item 1: Cement */}
-        {isCementAllowed && (
-          <div className="bg-white dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800/80 p-3.5 rounded-xl flex flex-col justify-between space-y-2 relative">
-            <div className="flex justify-between items-start">
-              <span className="text-[8.5px] bg-red-500/10 text-red-500 dark:text-red-400 font-bold px-1.5 py-0.5 rounded font-mono">CEMENT SPEC</span>
-              <span className="text-[8.5px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-black px-1.5 py-0.5 rounded flex items-center gap-1">
-                ✓ {isAr ? "مكتبة المواد" : "Library"}
-              </span>
-            </div>
-            <div>
-              <span className="text-[9.5px] text-slate-400 block font-semibold leading-none">{isAr ? "الإسمنت المقترح:" : "Suggested Cement:"}</span>
-              <p className="text-xs font-black text-slate-850 dark:text-slate-200 mt-1 leading-snug">
-                {suggestions.cement ? suggestions.cement.name : (isAr ? "لا يوجد إسمنت معتمد في المكتبة" : "No cement found")}
-              </p>
-              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1.5 border-t border-slate-100 dark:border-slate-800/60 pt-1">
-                💡 {suggestions.cementReason[language as "ar" | "fr" | "en"] || suggestions.cementReason.ar}
-              </p>
-              {suggestions.cement && (
-                <div className="mt-1 flex flex-wrap gap-1">
-                  <span className="text-[8.5px] text-slate-400 bg-slate-100 dark:bg-slate-800 px-1 py-0.2 rounded font-mono">
-                    {isAr ? "الكثافة:" : "Density:"} {suggestions.cement.density || suggestions.cement.specificGravity}
+      {/* DATA SUFFICIENCY NOTICE (IF ANY) */}
+      {!recommendationPlan.dataSufficiency.isSufficient && (
+        <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3.5 flex items-start gap-3">
+          <AlertTriangle size={18} className="text-amber-400 shrink-0 mt-0.5" />
+          <div className="text-xs space-y-1">
+            <strong className="text-amber-300 font-bold block">
+              {isAr ? "تنبيه هندسي: بيانات المشروع تحتاج استكمال لتقديم ترشيحات دقيقة" : "Engineering Warning: Incomplete project inputs"}
+            </strong>
+            <ul className="list-disc list-inside text-[11px] text-amber-200/90 space-y-0.5">
+              {recommendationPlan.dataSufficiency.missingParameters.map((p, i) => (
+                <li key={i}>{p.recommendationAr}</li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
+
+      {/* WARNING IF MISSING MANDATORY ROLES */}
+      {!recommendationPlan.isReadyForMix && recommendationPlan.missingMandatoryRoles.length > 0 && (
+        <div className="bg-rose-500/10 border border-rose-500/30 rounded-xl p-3.5 flex items-start gap-3">
+          <AlertTriangle size={18} className="text-rose-400 shrink-0 mt-0.5" />
+          <div className="text-xs space-y-1">
+            <strong className="text-rose-300 font-bold block">
+              {isAr ? "تنبيه هندسي: يوجد نقص في مواد أساسية إلزامية!" : "Engineering Notice: Missing Mandatory Material Constituents!"}
+            </strong>
+            <p className="text-rose-200/80">
+              {isAr 
+                ? `الخرسانة من نوع (${concreteType}) تتطلب توفير مواد مكتملة الخصائص ومعتمدة للأصناف التالية: ${recommendationPlan.missingMandatoryRoles.join("، ")}.`
+                : `The selected concrete type (${concreteType}) requires complete, validated materials for: ${recommendationPlan.missingMandatoryRoles.join(", ")}.`}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ROLES RECOMMENDATIONS GRID */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {activeRoles.map(group => {
+          const role = group.role;
+          const req = group.roleRequirement;
+          const topCandidate = group.topCandidate;
+          const currentSelection = group.currentSelectionAssessment;
+          const isJustificationOpen = !!expandedJustifications[role];
+          const isAlternativesOpen = !!expandedAlternatives[role];
+          const isNeedsDataOpen = !!expandedNeedsData[role];
+          const isIneligibleOpen = !!expandedIneligible[role];
+
+          return (
+            <div 
+              key={role} 
+              className={`bg-slate-900/85 border rounded-xl p-4 flex flex-col justify-between space-y-3.5 transition-all ${
+                group.roleStatus === "warning_missing_mandatory"
+                  ? "border-rose-500/40 bg-rose-950/10"
+                  : topCandidate && topCandidate.compatibilityScore >= 80
+                  ? "border-indigo-500/30 hover:border-indigo-500/60 shadow-xs"
+                  : "border-slate-800"
+              }`}
+            >
+              {/* Role Header */}
+              <div className="space-y-1">
+                <div className="flex justify-between items-start pb-2 border-b border-slate-800">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-base">{req.icon}</span>
+                    <span className="text-xs font-black text-slate-100">{isAr ? req.roleLabelAr : req.roleLabelEn}</span>
+                  </div>
+                  <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
+                    req.requirementType === "mandatory"
+                      ? "bg-rose-500/15 text-rose-400 border border-rose-500/30"
+                      : req.requirementType === "conditional"
+                      ? "bg-amber-500/15 text-amber-400 border border-amber-500/30"
+                      : "bg-blue-500/15 text-blue-400 border border-blue-500/30"
+                  }`}>
+                    {req.requirementType === "mandatory" ? (isAr ? "إلزامي" : "Mandatory") : req.requirementType === "conditional" ? (isAr ? "مشروط" : "Conditional") : (isAr ? "اختياري" : "Optional")}
                   </span>
-                  {suggestions.cement.provenance && (
-                    <span className="text-[8.5px] text-blue-500 bg-blue-500/5 px-1 py-0.2 rounded font-mono">
-                      📍 {suggestions.cement.provenance}
+                </div>
+
+                <p className="text-[10px] text-slate-400 line-clamp-2">
+                  {isAr ? req.reasonAr : isFr ? req.reasonFr : req.reasonEn}
+                </p>
+              </div>
+
+              {/* CURRENT SELECTION STATUS IN PROJECT */}
+              <div className="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800 text-[11px] space-y-1.5">
+                <div className="flex items-center justify-between text-[10px] text-slate-400">
+                  <span>{isAr ? "المادة المختارة حالياً بالخلطة:" : "Current Mix Material:"}</span>
+                  {currentSelection && (
+                    <span className={`px-1.5 py-0.2 rounded font-semibold text-[9px] ${
+                      currentSelection.isCompliant ? "bg-emerald-500/20 text-emerald-300" : "bg-rose-500/20 text-rose-300"
+                    }`}>
+                      {currentSelection.isCompliant ? (isAr ? "مطابق" : "Compliant") : (isAr ? "غير معتمد" : "Incompliant")}
                     </span>
                   )}
                 </div>
-              )}
-            </div>
-          </div>
-        )}
 
-        {/* Item 2: Sand */}
-        {isSandAllowed && (
-          <div className="bg-white dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800/80 p-3.5 rounded-xl flex flex-col justify-between space-y-2 relative">
-            <div className="flex justify-between items-start">
-              <span className="text-[8.5px] bg-amber-500/10 text-amber-500 dark:text-amber-450 font-bold px-1.5 py-0.5 rounded font-mono">SAND SPEC</span>
-              <span className="text-[8.5px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-black px-1.5 py-0.5 rounded flex items-center gap-1">
-                ✓ {isAr ? "مكتبة المواد" : "Library"}
-              </span>
-            </div>
-            <div>
-              <span className="text-[9.5px] text-slate-400 block font-semibold leading-none">{isAr ? "الرمل المقترح:" : "Suggested Sand:"}</span>
-              <p className="text-xs font-black text-slate-850 dark:text-slate-200 mt-1 leading-snug">
-                {suggestions.sand ? suggestions.sand.name : (isAr ? "لا يوجد رمل معتمد في المكتبة" : "No sand found")}
-              </p>
-              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1.5 border-t border-slate-100 dark:border-slate-800/60 pt-1">
-                💡 {suggestions.sandReason[language as "ar" | "fr" | "en"] || suggestions.sandReason.ar}
-              </p>
-              {suggestions.sand && (
-                <div className="mt-1 flex flex-wrap gap-1">
-                  <span className="text-[8.5px] text-slate-400 bg-slate-100 dark:bg-slate-800 px-1 py-0.2 rounded font-mono">
-                    {isAr ? "معامل النعومة:" : "FM:"} {suggestions.sand.finenessModulus || 2.6}
-                  </span>
-                  {suggestions.sand.provenance && (
-                    <span className="text-[8.5px] text-blue-500 bg-blue-500/5 px-1 py-0.2 rounded font-mono">
-                      📍 {suggestions.sand.provenance}
-                    </span>
+                {currentSelection && currentSelection.material ? (
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="font-bold text-slate-200 truncate">
+                        {currentSelection.material.name}
+                      </span>
+                      <span className="text-[10px] font-mono font-bold text-slate-400">
+                        {currentSelection.compatibilityScore}%
+                      </span>
+                    </div>
+
+                    {/* Superior alternative notice */}
+                    {currentSelection.isSuperiorAlternativeAvailable && (
+                      <div className="text-[10px] text-indigo-300 bg-indigo-950/50 p-1.5 rounded border border-indigo-800/60 flex items-center gap-1.5">
+                        <Sparkle size={12} className="text-indigo-400 shrink-0" />
+                        <span>
+                          {isAr 
+                            ? `توصية SnoLab أعلى توافقاً بنسبة (+${currentSelection.superiorScoreDifference}%)` 
+                            : `SnoLab proposal has higher fit (+${currentSelection.superiorScoreDifference}%)`}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-slate-500 italic text-[10px]">
+                    {isAr ? "لم يتم تحديد مادة لهذا الصنف بعد." : "No material chosen yet."}
+                  </div>
+                )}
+              </div>
+
+              {/* TOP RECOMMENDATION CARD */}
+              {topCandidate ? (
+                <div className="bg-gradient-to-br from-indigo-950/40 via-slate-950 to-slate-950 border border-indigo-500/30 rounded-xl p-3 space-y-2.5 shadow-inner">
+                  <div className="flex justify-between items-start gap-1">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-indigo-300">
+                        <Award size={12} className="text-indigo-400" />
+                        <span>{isAr ? "اقتراح SnoLab الهندسي" : "SnoLab Recommendation"}</span>
+                      </div>
+                      <h4 className="text-xs font-black text-amber-300 leading-snug mt-0.5 truncate">
+                        {topCandidate.material.name}
+                      </h4>
+                      <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                        {topCandidate.material.englishName && (
+                          <span className="text-[9px] text-slate-400 font-mono">
+                            {topCandidate.material.englishName}
+                          </span>
+                        )}
+                        {topCandidate.material.isSystem || topCandidate.material.sourceType === "system_demo" ? (
+                          <span className="text-[8px] bg-sky-500/15 text-sky-300 px-1.5 py-0.2 rounded font-semibold border border-sky-500/20">
+                            {isAr ? "نظام" : "System"}
+                          </span>
+                        ) : (
+                          <span className="text-[8px] bg-emerald-500/15 text-emerald-300 px-1.5 py-0.2 rounded font-semibold border border-emerald-500/20">
+                            {isAr ? "مادتي" : "My Material"}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Score Badge */}
+                    <div className="text-center shrink-0">
+                      <span className={`text-[10px] font-black px-2 py-0.5 rounded font-mono border ${
+                        topCandidate.compatibilityScore >= 85
+                          ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
+                          : topCandidate.compatibilityScore >= 70
+                          ? "bg-indigo-500/20 text-indigo-300 border-indigo-500/40"
+                          : "bg-amber-500/20 text-amber-300 border-amber-500/40"
+                      }`}>
+                        {topCandidate.compatibilityScore}%
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Highlights Chips */}
+                  {topCandidate.keyHighlights.length > 0 && (
+                    <div className="flex flex-wrap gap-1 pt-0.5">
+                      {topCandidate.keyHighlights.slice(0, 2).map((hl, idx) => (
+                        <span key={idx} className="text-[9px] bg-slate-800/80 text-slate-300 px-1.5 py-0.5 rounded border border-slate-700/80 flex items-center gap-1">
+                          <Check size={10} className="text-emerald-400" />
+                          <span>{hl}</span>
+                        </span>
+                      ))}
+                    </div>
                   )}
+
+                  {/* Explanatory Dropdown ("لماذا هذه المادة؟") */}
+                  <div className="pt-1 border-t border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => toggleJustification(role)}
+                      className="text-[10px] text-indigo-300 hover:text-indigo-200 flex items-center justify-between w-full font-bold cursor-pointer"
+                    >
+                      <span className="flex items-center gap-1">
+                        <Info size={12} className="text-indigo-400" />
+                        <span>{isAr ? "لماذا تم اقتراح هذه المادة؟" : "Why this recommendation?"}</span>
+                      </span>
+                      {isJustificationOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                    </button>
+
+                    <AnimatePresence>
+                      {isJustificationOpen && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="mt-2 space-y-2 text-[10px] bg-slate-900/95 p-2.5 rounded-lg border border-indigo-500/20 text-slate-300 overflow-hidden"
+                        >
+                          <p className="font-medium text-slate-200 leading-relaxed">
+                            💡 {isAr ? topCandidate.justificationAr : topCandidate.justificationEn}
+                          </p>
+
+                          <div className="space-y-1 pt-1.5 border-t border-slate-800">
+                            {topCandidate.factors.map((f, fIdx) => (
+                              <div key={fIdx} className="flex justify-between items-center text-[9px] text-slate-400">
+                                <span>{isAr ? f.labelAr : f.labelEn}:</span>
+                                <span className="font-mono text-slate-200 font-bold">{f.scoreEarned}/{f.maxScore}</span>
+                              </div>
+                            ))}
+                          </div>
+
+                          {topCandidate.warnings.length > 0 && (
+                            <div className="p-1.5 bg-amber-500/10 rounded text-[9px] text-amber-300 space-y-0.5 border border-amber-500/20">
+                              {topCandidate.warnings.map((w, wi) => (
+                                <div key={wi} className="flex items-start gap-1">
+                                  <span>⚠️</span>
+                                  <span>{w}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+
+                  {/* ACTION BUTTONS: ACCEPT OR REJECT */}
+                  <div className="pt-2 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleAcceptRecommendation(role, topCandidate.material, topCandidate.compatibilityScore)}
+                      className="flex-1 py-1.5 px-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-lg text-xs font-bold shadow-md shadow-emerald-900/30 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                    >
+                      <CheckCircle2 size={14} />
+                      <span>{isAr ? "قبول الاقتراح" : "Accept"}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleRejectRecommendation(role, topCandidate.material, topCandidate.compatibilityScore)}
+                      className="py-1.5 px-3 bg-slate-800 hover:bg-rose-950/40 text-slate-300 hover:text-rose-400 border border-slate-700 hover:border-rose-500/40 rounded-lg text-xs font-semibold transition-all cursor-pointer"
+                      title={isAr ? "رفض الاقتراح وعرض البديل الأنسب التالي" : "Decline and show next best alternative"}
+                    >
+                      <XCircle size={14} />
+                      <span>{isAr ? "رفض" : "Reject"}</span>
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-rose-950/30 border border-rose-800/50 rounded-lg p-3 text-center space-y-1.5">
+                  <XCircle size={18} className="text-rose-400 mx-auto" />
+                  <p className="text-[10px] font-bold text-rose-300">
+                    {isAr ? "لا توجد مادة معتمدة ومكتملة الخصائص لهذا الصنف!" : "No eligible material found in repository!"}
+                  </p>
+                  <p className="text-[9px] text-rose-400/80">
+                    {isAr ? "يرجى الانتقال لمستودع المواد لإدخال الخواص الفيزيائية والاعتماد." : "Please complete required properties in Material Library."}
+                  </p>
                 </div>
               )}
-            </div>
-          </div>
-        )}
 
-        {/* Item 3: Gravel */}
-        {isGravelAllowed && (
-          <div className="bg-white dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800/80 p-3.5 rounded-xl flex flex-col justify-between space-y-2 relative">
-            <div className="flex justify-between items-start">
-              <span className="text-[8.5px] bg-sky-500/10 text-sky-500 dark:text-sky-455 font-bold px-1.5 py-0.5 rounded font-mono">GRAVEL SPEC</span>
-              <span className="text-[8.5px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-black px-1.5 py-0.5 rounded flex items-center gap-1">
-                ✓ {isAr ? "مكتبة المواد" : "Library"}
-              </span>
-            </div>
-            <div>
-              <span className="text-[9.5px] text-slate-400 block font-semibold leading-none">{isAr ? "الحصى/الركام المقترح:" : "Suggested Gravel:"}</span>
-              <p className="text-xs font-black text-slate-850 dark:text-slate-200 mt-1 leading-snug">
-                {suggestions.gravel ? suggestions.gravel.name : (isAr ? "لا يوجد ركام معتمد في المكتبة" : "No gravel found")}
-              </p>
-              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1.5 border-t border-slate-100 dark:border-slate-800/60 pt-1">
-                💡 {suggestions.gravelReason[language as "ar" | "fr" | "en"] || suggestions.gravelReason.ar}
-              </p>
-              {suggestions.gravel && (
-                <div className="mt-1 flex flex-wrap gap-1">
-                  <span className="text-[8.5px] text-slate-400 bg-slate-100 dark:bg-slate-800 px-1 py-0.2 rounded font-mono">
-                    {isAr ? "القطر الأقصى Dmax:" : "Dmax:"} {suggestions.gravel.dMax || 20} {isAr ? "مم" : "mm"}
-                  </span>
-                  {suggestions.gravel.provenance && (
-                    <span className="text-[8.5px] text-blue-500 bg-blue-500/5 px-1 py-0.2 rounded font-mono">
-                      📍 {suggestions.gravel.provenance}
-                    </span>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+              {/* ACCORDION SECTIONS: ALTERNATIVES & NEEDS DATA */}
+              <div className="space-y-1.5 pt-1 border-t border-slate-800">
+                {/* 1. CANDIDATES NEEDING DATA */}
+                {group.needsData.length > 0 && (
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => toggleNeedsData(role)}
+                      className="w-full text-[10px] font-semibold text-amber-400 hover:text-amber-300 flex items-center justify-between py-1 cursor-pointer"
+                    >
+                      <span className="flex items-center gap-1">
+                        <Wrench size={12} className="text-amber-400" />
+                        <span>{isAr ? `مواد تحتاج استكمال بيانات (${group.needsData.length})` : `Needs data (${group.needsData.length})`}</span>
+                      </span>
+                      {isNeedsDataOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                    </button>
 
-        {/* Item 4: Admixture */}
-        {isAdmixtureAllowed && suggestions.admixture && (
-          <div className="bg-white dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800/80 p-3.5 rounded-xl flex flex-col justify-between space-y-2 relative">
-            <div className="flex justify-between items-start">
-              <span className="text-[8.5px] bg-purple-500/10 text-purple-500 dark:text-purple-400 font-bold px-1.5 py-0.5 rounded font-mono">ADMIX SPEC</span>
-              <span className="text-[8.5px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-black px-1.5 py-0.5 rounded flex items-center gap-1">
-                ✓ {isAr ? "مكتبة المواد" : "Library"}
-              </span>
-            </div>
-            <div>
-              <span className="text-[9.5px] text-slate-400 block font-semibold leading-none">{isAr ? "المحسن/الملدن المقترح:" : "Suggested Admixture:"}</span>
-              <p className="text-xs font-black text-slate-850 dark:text-slate-200 mt-1 leading-snug">
-                {suggestions.admixture.name}
-              </p>
-              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1.5 border-t border-slate-100 dark:border-slate-800/60 pt-1">
-                💡 {suggestions.admixtureReason[language as "ar" | "fr" | "en"] || suggestions.admixtureReason.ar}
-              </p>
-              <div className="mt-1 flex flex-wrap gap-1">
-                <span className="text-[8.5px] text-slate-400 bg-slate-100 dark:bg-slate-800 px-1 py-0.2 rounded font-mono">
-                  {isAr ? "تقليل الماء:" : "Water Red:"} {suggestions.admixture.waterReduction || 20}%
-                </span>
+                    {isNeedsDataOpen && (
+                      <div className="mt-1 space-y-1.5 bg-amber-950/20 p-2 rounded-lg border border-amber-500/20 text-[10px]">
+                        {group.needsData.map((nd, ndi) => (
+                          <div key={ndi} className="flex items-center justify-between gap-1 pb-1.5 border-b border-amber-500/20 last:border-0 last:pb-0">
+                            <div className="min-w-0">
+                              <div className="font-bold text-slate-200 truncate">
+                                {nd.material.name}
+                              </div>
+                              <div className="text-[9px] text-amber-300/80">
+                                {isAr ? `تنقص: ${nd.missingProperties.join("، ")}` : `Missing: ${nd.missingProperties.join(", ")}`}
+                              </div>
+                            </div>
+
+                            {onOpenBatchPropertiesModal && (
+                              <button
+                                type="button"
+                                onClick={onOpenBatchPropertiesModal}
+                                className="px-2 py-1 bg-amber-600 hover:bg-amber-500 text-slate-950 rounded text-[10px] font-bold shrink-0 flex items-center gap-1 cursor-pointer"
+                              >
+                                <FileEdit size={11} />
+                                <span>{isAr ? "إكمال الخاصية" : "Complete"}</span>
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 2. ALTERNATIVES LIST */}
+                {group.alternatives.length > 0 && (
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => toggleAlternatives(role)}
+                      className="w-full text-[10px] font-semibold text-slate-400 hover:text-slate-300 flex items-center justify-between py-1 cursor-pointer"
+                    >
+                      <span className="flex items-center gap-1">
+                        <Layers size={12} className="text-slate-400" />
+                        <span>{isAr ? `البدائل المتاحة (${group.alternatives.length})` : `Alternatives (${group.alternatives.length})`}</span>
+                      </span>
+                      {isAlternativesOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                    </button>
+
+                    {isAlternativesOpen && (
+                      <div className="mt-1 space-y-1.5 bg-slate-950/80 p-2 rounded-lg border border-slate-800 text-[10px]">
+                        {group.alternatives.map((alt, ai) => (
+                          <div key={ai} className="flex items-center justify-between gap-1 py-1 border-b border-slate-800 last:border-0">
+                            <div className="min-w-0">
+                              <span className="font-bold text-slate-200 truncate block">
+                                {alt.material.name}
+                              </span>
+                              <span className="text-[9px] text-slate-400">
+                                {alt.compatibilityScore}% {isAr ? "توافق" : "fit"}
+                              </span>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => handleAcceptRecommendation(role, alt.material, alt.compatibilityScore)}
+                              className="px-2 py-0.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded text-[9px] font-bold shrink-0 transition-colors cursor-pointer"
+                            >
+                              {isAr ? "قبول هذا البديل" : "Accept"}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 3. INELIGIBLE LIST */}
+                {group.ineligible.length > 0 && (
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => toggleIneligible(role)}
+                      className="w-full text-[10px] font-semibold text-slate-500 hover:text-slate-400 flex items-center justify-between py-1 cursor-pointer"
+                    >
+                      <span className="flex items-center gap-1">
+                        <XCircle size={12} className="text-slate-500" />
+                        <span>{isAr ? `المواد غير المؤهلة (${group.ineligible.length})` : `Ineligible (${group.ineligible.length})`}</span>
+                      </span>
+                      {isIneligibleOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                    </button>
+
+                    {isIneligibleOpen && (
+                      <div className="mt-1 space-y-1 bg-rose-950/20 p-2 rounded-lg border border-rose-900/30 text-[10px]">
+                        {group.ineligible.map((inelig, ii) => (
+                          <div key={ii} className="py-1 border-b border-rose-900/20 last:border-0">
+                            <div className="font-bold text-rose-300 truncate">
+                              {inelig.material.name}
+                            </div>
+                            <div className="text-[9px] text-slate-400">
+                              {inelig.warnings.join(" | ") || (isAr ? "خصائص غير متطابقة" : "Incompatible properties")}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
-          </div>
-        )}
-
-        {/* Item 5: SCM */}
-        {isScmAllowed && suggestions.scm && (
-          <div className="bg-white dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800/80 p-3.5 rounded-xl flex flex-col justify-between space-y-2 relative">
-            <div className="flex justify-between items-start">
-              <span className="text-[8.5px] bg-blue-500/10 text-blue-500 dark:text-blue-400 font-bold px-1.5 py-0.5 rounded font-mono">SCM SPEC</span>
-              <span className="text-[8.5px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-black px-1.5 py-0.5 rounded flex items-center gap-1">
-                ✓ {isAr ? "مكتبة المواد" : "Library"}
-              </span>
-            </div>
-            <div>
-              <span className="text-[9.5px] text-slate-400 block font-semibold leading-none">{isAr ? "الإضافات المعدنية المقترحة:" : "Suggested SCM:"}</span>
-              <p className="text-xs font-black text-slate-850 dark:text-slate-200 mt-1 leading-snug">
-                {suggestions.scm.name}
-              </p>
-              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1.5 border-t border-slate-100 dark:border-slate-800/60 pt-1">
-                💡 {suggestions.scmReason[language as "ar" | "fr" | "en"] || suggestions.scmReason.ar}
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Item 6: Fiber */}
-        {isFiberAllowed && suggestions.fiber && (
-          <div className="bg-white dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800/80 p-3.5 rounded-xl flex flex-col justify-between space-y-2 relative">
-            <div className="flex justify-between items-start">
-              <span className="text-[8.5px] bg-teal-500/10 text-teal-500 dark:text-teal-400 font-bold px-1.5 py-0.5 rounded font-mono">FIBER SPEC</span>
-              <span className="text-[8.5px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-black px-1.5 py-0.5 rounded flex items-center gap-1">
-                ✓ {isAr ? "مكتبة المواد" : "Library"}
-              </span>
-            </div>
-            <div>
-              <span className="text-[9.5px] text-slate-400 block font-semibold leading-none">{isAr ? "الألياف المقترحة:" : "Suggested Fiber:"}</span>
-              <p className="text-xs font-black text-slate-850 dark:text-slate-200 mt-1 leading-snug">
-                {suggestions.fiber.name}
-              </p>
-              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1.5 border-t border-slate-100 dark:border-slate-800/60 pt-1">
-                💡 {suggestions.fiberReason[language as "ar" | "fr" | "en"] || suggestions.fiberReason.ar}
-              </p>
-            </div>
-          </div>
-        )}
+          );
+        })}
       </div>
+
+      {/* FULL MIX PROPOSAL MODAL */}
+      <FullMixRecommendationModal
+        isOpen={isFullSuiteModalOpen}
+        onClose={() => setIsFullSuiteModalOpen(false)}
+        recommendationPlan={recommendationPlan}
+        onApplySuite={handleApplySuite}
+        language={language as "ar" | "fr" | "en"}
+      />
+
+      {/* DECISION AUDIT HISTORY MODAL */}
+      <RecommendationHistoryModal
+        isOpen={isHistoryModalOpen}
+        onClose={() => setIsHistoryModalOpen(false)}
+        projectId={resolvedProjectId}
+        decisions={decisions}
+        onDecisionsChange={() => setDecisionVersion(v => v + 1)}
+        language={language as "ar" | "fr" | "en"}
+      />
+
+      {/* ENGINEER SIGN-OFF MODAL */}
+      <AnimatePresence>
+        {showApprovalModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-slate-900 border border-slate-700 rounded-2xl p-6 w-full max-w-lg shadow-2xl space-y-4"
+              dir={isRtl ? "rtl" : "ltr"}
+            >
+              <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck size={20} className="text-sky-400" />
+                  <h3 className="text-sm font-black text-slate-100">
+                    {isAr ? "اعتماد المهندس المشرف للمواد" : "Chief Engineer Material Sign-Off"}
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowApprovalModal(false)}
+                  className="text-slate-400 hover:text-white"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <form onSubmit={handleConfirmApproval} className="space-y-4 text-xs">
+                <div>
+                  <label className="text-[11px] text-slate-300 block mb-1 font-bold">
+                    {isAr ? "اسم المهندس المشرف:" : "Engineer Full Name:"}
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={engineerName}
+                    onChange={(e) => setEngineerName(e.target.value)}
+                    placeholder={isAr ? "د. م. أحمد محمد" : "Eng. John Doe, PE"}
+                    className="w-full p-2 rounded bg-slate-950 border border-slate-700 text-slate-100 focus:border-sky-500 outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[11px] text-slate-300 block mb-1 font-bold">
+                    {isAr ? "المسمى الوظيفي / الصلاحية:" : "Title / Credentials:"}
+                  </label>
+                  <input
+                    type="text"
+                    value={engineerTitle}
+                    onChange={(e) => setEngineerTitle(e.target.value)}
+                    className="w-full p-2 rounded bg-slate-950 border border-slate-700 text-slate-100 focus:border-sky-500 outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[11px] text-slate-300 block mb-1 font-bold">
+                    {isAr ? "ملاحظات الاعتماد المخبري أو الفني:" : "Engineering Notes / Lab Sign-Off:"}
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={approvalNotes}
+                    onChange={(e) => setApprovalNotes(e.target.value)}
+                    placeholder={isAr ? "تم التحقق من نتائج كسر العينات وتوافق التدرج الحبيبي..." : "Verified sieve analysis and compressive strength records..."}
+                    className="w-full p-2 rounded bg-slate-950 border border-slate-700 text-slate-100 focus:border-sky-500 outline-none resize-none"
+                  />
+                </div>
+
+                <div className="pt-2 flex justify-end gap-2 border-t border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setShowApprovalModal(false)}
+                    className="px-4 py-2 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold"
+                  >
+                    {isAr ? "إلغاء" : "Cancel"}
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 rounded bg-sky-600 hover:bg-sky-500 text-white font-bold flex items-center gap-1.5 shadow-lg shadow-sky-900/50 cursor-pointer"
+                  >
+                    <ShieldCheck size={14} />
+                    <span>{isAr ? "توقيع وختم الاعتماد" : "Sign & Seal Approval"}</span>
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

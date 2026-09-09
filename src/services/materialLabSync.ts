@@ -768,28 +768,40 @@ export function checkMixRequiredProperties(
     }
   };
 
+const REQUIRED_FOR_DICTIONARY: Record<string, { labelAr: string; labelFr: string; labelEn: string }> = {
+  sand_density: { labelAr: "حساب الحجم المطلق للرمل", labelFr: "Calcul du volume absolu du sable", labelEn: "Sand absolute volume calculation" },
+  sand_absorption: { labelAr: "تصحيح ماء الامتصاص للرمل", labelFr: "Correction d'absorption du sable", labelEn: "Sand water absorption correction" },
+  sand_moisture: { labelAr: "تصحيح ماء الرطوبة الحرة للرمل", labelFr: "Correction de teneur en eau du sable", labelEn: "Sand moisture correction" },
+  sand_finenessModulus: { labelAr: "معامل النعومة لتحديد نسبة الركام الخشن في طريقة ACI", labelFr: "Module de finesse pour dosage gros granulats ACI", labelEn: "Fineness modulus for ACI coarse aggregate fraction" },
+  gravel_density: { labelAr: "حساب الحجم المطلق للحصى", labelFr: "Calcul du volume absolu du gravier", labelEn: "Gravel absolute volume calculation" },
+  gravel_dMax: { labelAr: "القطر الأقصى لتحديد نقطة الانعطاف ومحتوى الماء", labelFr: "Dmax pour point de brisure et eau requise", labelEn: "Dmax for grading curve inflection and water demand" },
+  gravel_absorption: { labelAr: "تصحيح ماء الامتصاص للحصى", labelFr: "Correction d'absorption du gravier", labelEn: "Gravel water absorption correction" },
+  gravel_moisture: { labelAr: "تصحيح ماء الرطوبة الحرة للحصى", labelFr: "Correction de teneur en eau du gravier", labelEn: "Gravel moisture correction" },
+  cement_density: { labelAr: "حساب الحجم المطلق للإسمنت", labelFr: "Calcul du volume absolu du ciment", labelEn: "Cement absolute volume calculation" }
+};
+
   const { sand, gravel, cement, water } = resolvedMaterials;
 
   // Common Essential Properties for all methods
   if (sand) {
-    checkProp(sand, "sand", "density", "حساب الحجم المطلق للرمل", false);
-    checkProp(sand, "sand", "absorption", "تصحيح ماء الامتصاص للرمل", true);
-    checkProp(sand, "sand", "moisture", "تصحيح ماء الرطوبة الحرة للرمل", true);
+    checkProp(sand, "sand", "density", REQUIRED_FOR_DICTIONARY.sand_density.labelAr, false);
+    checkProp(sand, "sand", "absorption", REQUIRED_FOR_DICTIONARY.sand_absorption.labelAr, true);
+    checkProp(sand, "sand", "moisture", REQUIRED_FOR_DICTIONARY.sand_moisture.labelAr, true);
     
     if (method === "aci" || method === "aci211") {
-      checkProp(sand, "sand", "finenessModulus", "معامل النعومة لتحديد نسبة الركام الخشن في طريقة ACI", false);
+      checkProp(sand, "sand", "finenessModulus", REQUIRED_FOR_DICTIONARY.sand_finenessModulus.labelAr, false);
     }
   }
 
   if (gravel) {
-    checkProp(gravel, "gravel", "density", "حساب الحجم المطلق للحصى", false);
-    checkProp(gravel, "gravel", "dMax", "القطر الأقصى لتحديد نقطة الانعطاف ومحتوى الماء", false);
-    checkProp(gravel, "gravel", "absorption", "تصحيح ماء الامتصاص للحصى", true);
-    checkProp(gravel, "gravel", "moisture", "تصحيح ماء الرطوبة الحرة للحصى", true);
+    checkProp(gravel, "gravel", "density", REQUIRED_FOR_DICTIONARY.gravel_density.labelAr, false);
+    checkProp(gravel, "gravel", "dMax", REQUIRED_FOR_DICTIONARY.gravel_dMax.labelAr, false);
+    checkProp(gravel, "gravel", "absorption", REQUIRED_FOR_DICTIONARY.gravel_absorption.labelAr, true);
+    checkProp(gravel, "gravel", "moisture", REQUIRED_FOR_DICTIONARY.gravel_moisture.labelAr, true);
   }
 
   if (cement) {
-    checkProp(cement, "cement", "density", "حساب الحجم المطلق للإسمنت", false);
+    checkProp(cement, "cement", "density", REQUIRED_FOR_DICTIONARY.cement_density.labelAr, false);
   }
 
   const isValid = missing.length === 0;

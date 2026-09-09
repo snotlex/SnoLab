@@ -2,10 +2,19 @@ import { MixDesignInput, EngineeringMaterial, MaterialSuitability } from "../typ
 
 export function isUserMaterial(m: any): boolean {
   if (!m) return false;
+  if (m.materialSource === "system") return false;
+  if (m.isSystem === true || (m as any).sourceType === "system_demo" || m.readOnly === true) {
+    return false;
+  }
+  if (m.materialSource === "user" && m.isCustom === true) {
+    return true;
+  }
   const idStr = String(m.id || m.Id || "").toLowerCase();
   
   // Explicitly check for preset/seeded/demo/fallback/default/demo/system IDs
   if (
+    idStr.startsWith("sys-") ||
+    idStr.startsWith("sys_") ||
     idStr.startsWith("preset-") ||
     idStr.includes("preset") ||
     idStr.includes("seeded") ||
@@ -367,7 +376,8 @@ export function checkMaterialSuitability(
   }
 
   // 6. Concrete-Type compatibility validations based on CONCRETE_TYPES_CATALOG codes
-  const concreteCode = (input.concreteType || "").toUpperCase();
+  const rawConcrete = typeof input.concreteType === "string" ? input.concreteType : (input.concreteType as any)?.code || "";
+  const concreteCode = String(rawConcrete || "").toUpperCase();
 
   // --- 1. GPC: Geopolymer Concrete (Cement-free, alternative binders) ---
   if (concreteCode === "GPC") {

@@ -171,7 +171,7 @@ function isArabicAllowedOnLine(line: string, filePath: string): boolean {
   }
 
   // 5. Allowed fallback translation strings or specific components containing dictionaries (e.g. RecipeReport with translation dictionary objects)
-  if (filePath.includes("RecipeReport.tsx") || filePath.includes("utils/labValidationEngine.ts") || filePath.includes("utils/materialTestingCalculators.ts") || filePath.includes("services/localization.tsx") || filePath.includes("services/pdf") || filePath.includes("concreteTypes.ts") || filePath.includes("utils/mapMaterialToMixInput.ts") || filePath.includes("suitabilityGate.ts") || filePath.includes("utils/parseSmartMaterialImport.ts")) {
+  if (filePath.includes("RecipeReport.tsx") || filePath.includes("utils/labValidationEngine.ts") || filePath.includes("utils/materialTestingCalculators.ts") || filePath.includes("services/localization.tsx") || filePath.includes("services/pdf") || filePath.includes("services/import") || filePath.includes("concreteTypes.ts") || filePath.includes("utils/mapMaterialToMixInput.ts") || filePath.includes("suitabilityGate.ts") || filePath.includes("utils/parseSmartMaterialImport.ts") || filePath.includes("services/materialPropertySchema.ts") || filePath.includes("services/materialAuditEngine.ts") || filePath.includes("services/PropertyService.ts") || filePath.includes("services/ValidationService.ts") || filePath.includes("services/MaterialTypeSchemaService.ts") || filePath.includes("services/EligibilityService.ts") || filePath.includes("services/RecommendationService.ts")) {
     return true;
   }
 

@@ -280,6 +280,139 @@ app.get("/api/health", (req, res) => {
   });
 });
 
+// API: Intelligent PDF & Scanned Lab Report Material Extraction (OCR / Vision / Table Ingestion)
+app.post("/api/extract-pdf-materials", async (req, res) => {
+  try {
+    const { fileName, pdfBase64, extractedText } = req.body;
+    const apiKey = process.env.GEMINI_API_KEY;
+
+    if (!apiKey) {
+      return res.status(400).json({
+        success: false,
+        message: "GEMINI_API_KEY غير متوفر في البيئة لتفعيل خاصية الاستخراج بالرؤية الحاسوبية (OCR). يرجى التأكد من إضافة المفتاح في إعدادات البيئة.",
+        materials: []
+      });
+    }
+
+    const ai = new GoogleGenAI({
+      apiKey: apiKey,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build'
+        }
+      }
+    });
+
+    const systemPrompt = `أنت خبير هندسي متخصص في تحليل وثائق وتقارير مختبرات الخرسانة ومواد البناء (Civil Engineering & Materials Laboratory Specialist).
+مهمتك استخراج المواد الهندسية وجداول الاختبارات والخواص الفيزيائية والميكانيكية بدقة متناهية من المستند المرفق (PDF أو النص المستخرج).
+
+القواعد الإلزامية:
+1. استخرج كل مادة تم العثور عليها في المستند (مثل أنواع الإسمنت، الرمال، الحصى، الإضافات الكيميائية، الإضافات المعدنية، ماء الخلط، الألياف).
+2. صنف المادة بدقة لإحدى الفئات التالية:
+   - "إسمنت" (Cement)
+   - "رمال" (Sand / Fine Aggregate)
+   - "حصى" (Gravel / Coarse Aggregate)
+   - "إضافات كيميائية" (Admixtures)
+   - "إضافات معدنية" (Mineral Additions / SCM)
+   - "ألياف" (Fibers)
+   - "ماء" (Water)
+   - "أخرى" (Other)
+3. استخرج الخصائص الهندسية مع وحداتها وقيمتها الأصلية:
+   - density (كغ/م³ أو g/cm³)
+   - specificGravity (الوزن النوعي / الكثافة الحقيقية، مجرد من الوحدات عادة 2.5 - 3.2)
+   - absorption (امتصاص الماء %)
+   - moisture (محتوى الرطوبة الطبيعي %)
+   - finenessModulus (معامل النعومة للرمال FM)
+   - dMax (المقاس الأقصى للركام Dmax بالمليمتر)
+   - SandEquivalent (المكافئ الرملي SE %)
+   - LosAngeles (معامل لوس أنجلوس LA %)
+   - strength28d (مقاومة الإسمنت أو الخرسانة في 28 يوماً بـ MPa)
+   - cementClass (صنف الإسمنت مثل CEM I, CEM II/A 42.5N)
+   - recommendedDosage (الجرعة الموصى بها للإضافات %)
+   - waterReduction (نسبة تخفيض الماء %)
+   - pH (الرقم الهيدروجيني للماء)
+   - chlorides (محتوى الكلوريدات mg/L)
+   - sulfates (محتوى الكبريتات mg/L)
+   - price (السعر التقديري)
+   - notes (الملاحظات الفنية والمصدر)
+4. احفظ القيمة "0" إذا وردت كقياس صريح، ولا تحذفها!
+5. حدد درجة الثقة (confidenceScore من 0 إلى 100).
+6. أرجع النتيجة فقط كـ JSON صالح وبنية تطابق هذا المخطط:
+{
+  "materials": [
+    {
+      "name": "اسم المادة بالعربية",
+      "englishName": "Material Name in English",
+      "category": "رمال",
+      "provenance": "محجر الرمال / المصدر",
+      "page": 1,
+      "row": 1,
+      "confidenceScore": 90,
+      "properties": {
+        "density": { "value": 2650, "unit": "kg/m³" },
+        "specificGravity": { "value": 2.65, "unit": "-" },
+        "absorption": { "value": 1.2, "unit": "%" },
+        "finenessModulus": { "value": 2.6, "unit": "-" }
+      },
+      "extraProperties": {}
+    }
+  ]
+}`;
+
+    const contents: any[] = [];
+    if (pdfBase64) {
+      contents.push({
+        inlineData: {
+          mimeType: "application/pdf",
+          data: pdfBase64
+        }
+      });
+    }
+
+    let userPromptText = `يرجى فحص المستند التالي واستخراج كافة المواد الهندسية وخواصها:\nاسم الملف: ${fileName || "document.pdf"}`;
+    if (extractedText) {
+      userPromptText += `\n\nنص المستند المستخرج:\n${extractedText.substring(0, 30000)}`;
+    }
+    contents.push({ text: userPromptText });
+
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents,
+      config: {
+        systemInstruction: systemPrompt,
+        responseMimeType: "application/json",
+        temperature: 0.1
+      }
+    });
+
+    const responseText = response.text || "{}";
+    let parsed: any;
+    try {
+      parsed = JSON.parse(responseText);
+    } catch (e) {
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        parsed = JSON.parse(jsonMatch[0]);
+      } else {
+        parsed = { materials: [] };
+      }
+    }
+
+    return res.json({
+      success: true,
+      materials: parsed.materials || [],
+      count: parsed.materials?.length || 0
+    });
+  } catch (error: any) {
+    console.error("Error in /api/extract-pdf-materials:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "حدث خطأ أثناء فحص المستند بالذكاء الاصطناعي.",
+      materials: []
+    });
+  }
+});
+
 // API: AI Concrete Advisor (مستشار الخرسانة الذكي)
 // Lazy-initialized Gemini call to prevent startup crashes if GEMINI_API_KEY is missing.
 app.post("/api/concrete-advisor", async (req, res) => {

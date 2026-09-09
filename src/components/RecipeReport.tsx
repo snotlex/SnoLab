@@ -2060,8 +2060,8 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
                     </svg>
                   </div>
                   <div className="flex gap-2 justify-center text-[8px] font-mono leading-none">
-                    <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 bg-indigo-600 rounded"></span>Sand ({result.sandPercent.toFixed(1)}%)</span>
-                    <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 bg-yellow-500 rounded"></span>Gravel ({result.gravelPercent.toFixed(1)}%)</span>
+                    <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 bg-indigo-600 rounded"></span>Sand ({(result.sandPercent ?? 0).toFixed(1)}%)</span>
+                    <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 bg-yellow-500 rounded"></span>Gravel ({(result.gravelPercent ?? 0).toFixed(1)}%)</span>
                     <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 bg-cyan-500 rounded"></span>Moisture Water</span>
                   </div>
                 </div>
@@ -2074,9 +2074,9 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
                       <line x1="0" y1="10" x2="0" y2="90" stroke="#94a3b8" strokeWidth="1" />
                       <path d={`M 0,90 Q 70,50 140,25 T 270,10`} fill="none" stroke="#ef4444" strokeWidth="2.5" />
                       <circle cx="270" cy="10" r="4" fill="#ef4444" />
-                      <text x="270" y="25" className="text-[10px] font-mono font-bold fill-rose-600" textAnchor="end">fcm: {result.fcm28.toFixed(1)} MPa</text>
+                      <text x="270" y="25" className="text-[10px] font-mono font-bold fill-rose-600" textAnchor="end">fcm: {(result.fcm28 ?? 0).toFixed(1)} MPa</text>
                       <circle cx="70" cy="50" r="3.5" fill="#f59e0b" />
-                      <text x="75" y="60" className="text-[8px] font-mono fill-amber-700" textAnchor="start">7d: {(result.fcm28 * 0.75).toFixed(1)} MPa</text>
+                      <text x="75" y="60" className="text-[8px] font-mono fill-amber-700" textAnchor="start">7d: {((result.fcm28 ?? 0) * 0.75).toFixed(1)} MPa</text>
                       <line x1="70" y1="10" x2="70" y2="90" stroke="#e2e8f0" strokeDasharray="3,3" />
                       <line x1="140" y1="10" x2="140" y2="90" stroke="#e2e8f0" strokeDasharray="3,3" />
                       <text x="70" y="98" className="text-[8px] font-mono fill-slate-400" textAnchor="middle">7d</text>
@@ -2094,11 +2094,11 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
                   <svg width="420" height="110" viewBox="0 0 500 120" className="overflow-visible">
                     <line x1="0" y1="110" x2="480" y2="110" stroke="#64748b" strokeWidth="1.5" />
                     <line x1="0" y1="5" x2="0" y2="110" stroke="#64748b" strokeWidth="1.5" />
-                    <path d={`M 0,110 L 200,${110 - result.pivotPoint.y} L 480,10`} fill="none" stroke="#a855f7" strokeWidth="2" strokeDasharray="4,4" />
-                    <path d={`M 0,110 Q 120,${110 - (result.pivotPoint.y * 0.8)} 200,${110 - result.pivotPoint.y} T 480,10`} fill="none" stroke="#059669" strokeWidth="2.5" />
-                    <circle cx="200" cy={110 - result.pivotPoint.y} r="4" fill="#a855f7" />
-                    <text x="210" y={115 - result.pivotPoint.y} className="text-[8.5px] font-mono font-bold fill-purple-700" textAnchor="start">
-                      Pivot: {result.pivotPoint.y.toFixed(1)}% Passing
+                    <path d={`M 0,110 L 200,${110 - (result.pivotPoint?.y ?? 0)} L 480,10`} fill="none" stroke="#a855f7" strokeWidth="2" strokeDasharray="4,4" />
+                    <path d={`M 0,110 Q 120,${110 - ((result.pivotPoint?.y ?? 0) * 0.8)} 200,${110 - (result.pivotPoint?.y ?? 0)} T 480,10`} fill="none" stroke="#059669" strokeWidth="2.5" />
+                    <circle cx="200" cy={110 - (result.pivotPoint?.y ?? 0)} r="4" fill="#a855f7" />
+                    <text x="210" y={115 - (result.pivotPoint?.y ?? 0)} className="text-[8.5px] font-mono font-bold fill-purple-700" textAnchor="start">
+                      Pivot: {(result.pivotPoint?.y ?? 0).toFixed(1)}% Passing
                     </text>
                     <circle cx="480" cy="10" r="4" fill="#059669" />
                     <text x="470" y="22" className="text-[9px] font-mono font-bold fill-emerald-700" textAnchor="end">
@@ -2177,17 +2177,17 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
                 <div>
                   <span className="text-indigo-650 font-extrabold block text-right">1. TARGET COMPRESSIVE MEAN STRENGTH (fcm):</span>
                   <span>fcm = fck + margin (Standard deviation safety factor)</span><br/>
-                  <span className="font-bold text-slate-800">fcm = {input.fck28} + 1.64 × {result.stdDev.toFixed(1)} = {result.fcm28.toFixed(1)} MPa</span>
+                  <span className="font-bold text-slate-800">fcm = {input.fck28} + 1.64 × {(result.stdDev ?? 0).toFixed(1)} = {(result.fcm28 ?? 0).toFixed(1)} MPa</span>
                 </div>
                 <div className="border-t border-slate-200 pt-2 text-right">
                   <span className="text-indigo-650 font-extrabold block">2. WATER-CEMENT RATIO ESTIMATION (Dreux-Gorisse Efficacy):</span>
                   <span>W/C = 1 / ( (fcm / (A × fce)) + 0.5 )</span><br/>
-                  <span className="font-bold text-slate-800">W/C = {result.wcRatioAdjusted.toFixed(2)}</span>
+                  <span className="font-bold text-slate-800">W/C = {(result.wcRatioAdjusted ?? 0).toFixed(2)}</span>
                 </div>
                 <div className="border-t border-slate-200 pt-2 text-right">
                   <span className="text-indigo-650 font-extrabold block">3. VOLUMETRIC FRACTION DESIGN BALANCE THEORY:</span>
                   <span>sum V_solids = C / rho_c + S / rho_s + G / rho_g = 1000 × gamma</span><br/>
-                  <span className="font-bold text-slate-800">Compactor packing index (gamma) = {result.compactorGamma.toFixed(3)}</span>
+                  <span className="font-bold text-slate-800">Compactor packing index (gamma) = {(result.compactorGamma ?? 0.82).toFixed(3)}</span>
                 </div>
               </div>
 

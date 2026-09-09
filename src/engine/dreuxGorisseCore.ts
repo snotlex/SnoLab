@@ -290,6 +290,9 @@ export function calculateDreuxGorisseCore(input: MixDesignInput, language: "ar" 
   const effectiveWater = designWater; // Effective water matching designWater
 
   steps.push(`الخطوة 4: تحديد كمية ماء خلط التصميم وتأثير الملدنات (Water Content & Chemical Reduction)`);
+  if (input.selectedWaterName) {
+    steps.push(`• مصدر ماء الخلط المعتمد: ${input.selectedWaterName}${input.selectedWaterPH !== undefined ? ` (pH = ${input.selectedWaterPH})` : ""}.`);
+  }
   steps.push(`• كمية المياه المرجعية الصافية لـ Dmax هو ${baseWater} لتر.`);
   steps.push(`• كمية ماء التصميم النظري (designWater) = ${designWater.toFixed(1)} لتر/م³.`);
 
@@ -327,7 +330,8 @@ export function calculateDreuxGorisseCore(input: MixDesignInput, language: "ar" 
     weightSilicaFume = totalBinderWeight * (dosageSilicaFume / 100);
     steps.push(`• خرسانة جيوبوليمرية خالية تماماً من الإسمنت (GPC): تم تصفير الإسمنت واستخدام الروابط البديلة بوزن كلي ${totalBinderWeight.toFixed(1)} كجم/م³ (خبث: ${weightSlag.toFixed(1)} كجم/م³، رماد متطاير: ${weightFlyAsh.toFixed(1)} كجم/م³).`);
   } else {
-    const isHighStrengthType = ["HSC", "HPC", "UHPC", "BFUP"].includes((input.concreteType || "").toUpperCase());
+    const rawConcrete = typeof input.concreteType === "string" ? input.concreteType : (input.concreteType as any)?.code || "";
+    const isHighStrengthType = ["HSC", "HPC", "UHPC", "BFUP"].includes(String(rawConcrete || "").toUpperCase());
     const maxCementWeight = isHighStrengthType ? 1000 : 550;
     if (cementWeight > maxCementWeight) {
       cementWeight = maxCementWeight;
@@ -1123,7 +1127,8 @@ export function calculateDreuxGorisseCore(input: MixDesignInput, language: "ar" 
   let level: "applicable" | "limited" | "not_applicable" = "applicable";
 
   // Strength Check (Dynamic validation according to design method and concrete type)
-  const concreteCode = (input.concreteType || "NSC").toUpperCase();
+  const rawConcrete = typeof input.concreteType === "string" ? input.concreteType : (input.concreteType as any)?.code || "NSC";
+  const concreteCode = String(rawConcrete || "NSC").toUpperCase();
   let recommendedMin = 10;
   let recommendedMax = 35;
   let typeLabelAr = "عادية المقاومة (NSC)";

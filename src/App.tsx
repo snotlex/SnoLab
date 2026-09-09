@@ -35,6 +35,7 @@ import { MethodReadinessChecklist } from "./components/MethodReadinessChecklist"
 import { checkMixCompliance } from "./mix-design-methods/complianceChecker";
 import { MixDesignMethodId } from "./mix-design-methods/types";
 import { MaterialPropertiesCard } from "./components/MaterialPropertiesCard";
+import { BatchMaterialPropertiesModal } from "./components/BatchMaterialPropertiesModal";
 import { MaterialsIntegrationAudit } from "./components/MaterialsIntegrationAudit";
 import { validateCalculationLogic } from "./engine/validationGate";
 import { EngineeringCore, ProjectSession } from "./engine/EngineeringCore";
@@ -42,11 +43,29 @@ import { CalculationValidationGatePanel } from "./components/CalculationValidati
 import { CONCRETE_TYPES_CATALOG, getConcreteTypeDetails, CONCRETE_TYPE_CONFIGS } from "./concreteTypes";
 import { LogicalResultsSummary } from "./components/LogicalResultsSummary";
 import { isUserMaterial } from "./engine/suitabilityGate";
+import { 
+  getEligibleMaterials, 
+  getAvailableMaterialsForRole,
+  validateMaterialSelection, 
+  isMaterialEligible 
+} from "./services/materialEligibilityService";
+import { DreuxInputResolver, DreuxResolvedInputs } from "./services/dreuxInputResolver";
+import { DreuxPreCalculationValidator, DreuxPreCalculationReport } from "./services/dreuxPreCalculationValidator";
+import { inspectMixMaterialProperties } from "./services/materialPropertySchema";
+import { evaluateEngineeringGate } from "./services/engineeringVerificationEngine";
+import { applyRecommendedMaterialToInputs, SupportedMaterialRole } from "./services/materialRecommendationEngine";
 import { SnoLabLogo } from "./components/SnoLabLogo";
 import { STRUCTURAL_ELEMENTS, getStructuralElementById } from "./data/structuralElements";
+import { useProjectStorage } from "./services/storage/ProjectContext";
+import { ProjectTopBarControls } from "./components/ProjectTopBarControls";
+import { ProjectFileManagerModal } from "./components/ProjectFileManagerModal";
+import { LocalProjectVault } from "./components/LocalProjectVault";
+import { SettingsPanel } from "./components/SettingsPanel";
+import { MixPreparationRecommendationsPanel } from "./components/materials/MixPreparationRecommendationsPanel";
 
 // Lazy-loaded heavy panels for core bundle size optimization
 const LaboratoryDashboard = React.lazy(() => import("./components/materials-lab/LaboratoryDashboard").then(m => ({ default: m.LaboratoryDashboard })));
+const EngineeringAIAdvisor = React.lazy(() => import("./components/EngineeringAIAdvisor").then(m => ({ default: m.EngineeringAIAdvisor })));
 import { INITIAL_MATERIAL_TESTS } from "./data/seedMaterialTests";
 import { MaterialTestRecord, TestApprovalStatus } from "./types/laboratoryTypes";
 import { applyTestToMaterial } from "./services/materialLabSync";
@@ -143,7 +162,8 @@ import {
   ExternalLink,
   ShieldAlert,
   ArrowLeftRight,
-  BookOpen
+  BookOpen,
+  AlertCircle
 } from "lucide-react";
 
 import { 
@@ -170,8 +190,12 @@ const getInitialPrice = (key: string, defaultVal: number): number => {
 
 export function normalizeInputsToDreux(inputs: any): MixDesignInput {
   if (!inputs) return inputs;
+  const rawConcrete = typeof inputs.concreteType === "string" 
+    ? inputs.concreteType 
+    : (inputs.concreteType as any)?.code || (inputs.concreteType as any)?.type || "NSC";
   return {
     ...inputs,
+    concreteType: rawConcrete || "NSC",
     selectedMethod: "dreux"
   };
 }
@@ -330,6 +354,8 @@ export const enrichMaterials = (mats: EngineeringMaterial[]): EngineeringMateria
     let finalId = m.id;
     if (standardUIDMap[m.id]) {
       finalId = standardUIDMap[m.id];
+    } else if (m.id && (m.id.startsWith("SYS-") || m.id.startsWith("preset-") || m.id.startsWith("standard-"))) {
+      finalId = m.id;
     } else if (!m.id || !m.id.startsWith("MAT-")) {
       const prefix = 
         m.category === "Ø±Ù…Ø§Ù„" ? "MAT-SND" :
@@ -357,6 +383,12 @@ export const enrichMaterials = (mats: EngineeringMaterial[]): EngineeringMateria
     }
     seenIds.add(deDupId);
 
+    const isSystemMat = 
+      m.isSystem === true || 
+      (m as any).sourceType === "SYSTEM" ||
+      (m as any).sourceType === "system_demo" ||
+      (m.id && (m.id.startsWith("SYS-") || m.id.startsWith("preset-") || m.id.startsWith("standard-")));
+
     let supplierName = m.supplierName;
     let quarryName = m.quarryName;
     let supplierContact = m.supplierContact;
@@ -364,23 +396,27 @@ export const enrichMaterials = (mats: EngineeringMaterial[]): EngineeringMateria
     
     // Map status accurately to one of the allowed union types
     let approvalStatus: any = "Approved";
-    const rawStatus = m.ApprovalStatus as string | undefined;
-    if (rawStatus === "Draft") {
-      approvalStatus = "Draft";
-    } else if (rawStatus === "Pending Review" || rawStatus === "Review" || rawStatus === "Under Review") {
-      approvalStatus = "Pending Review";
-    } else if (rawStatus === "Archived" || rawStatus === "mats_archived") {
-      approvalStatus = "Archived";
-    } else if (rawStatus === "Rejected") {
-      approvalStatus = "Rejected";
-    } else if (rawStatus === "Validated") {
-      approvalStatus = "Validated";
-    } else if (rawStatus === "Incomplete") {
-      approvalStatus = "Incomplete";
-    } else if (rawStatus === "Not Verified") {
-      approvalStatus = "Not Verified";
-    } else if (rawStatus === "Approved" || rawStatus === "Certified" || !rawStatus) {
+    if (isSystemMat) {
       approvalStatus = "Approved";
+    } else {
+      const rawStatus = m.ApprovalStatus as string | undefined;
+      if (rawStatus === "Draft") {
+        approvalStatus = "Draft";
+      } else if (rawStatus === "Pending Review" || rawStatus === "Review" || rawStatus === "Under Review") {
+        approvalStatus = "Pending Review";
+      } else if (rawStatus === "Archived" || rawStatus === "mats_archived") {
+        approvalStatus = "Archived";
+      } else if (rawStatus === "Rejected") {
+        approvalStatus = "Rejected";
+      } else if (rawStatus === "Validated") {
+        approvalStatus = "Validated";
+      } else if (rawStatus === "Incomplete") {
+        approvalStatus = "Incomplete";
+      } else if (rawStatus === "Not Verified") {
+        approvalStatus = "Not Verified";
+      } else if (rawStatus === "Approved" || rawStatus === "Certified" || !rawStatus) {
+        approvalStatus = "Approved";
+      }
     }
 
     if (!supplierName) {
@@ -407,16 +443,45 @@ export const enrichMaterials = (mats: EngineeringMaterial[]): EngineeringMateria
       }
     }
 
-    const isPreset = m.id && (m.id.startsWith("preset-") || m.id.includes("seeded") || m.id.includes("fallback") || m.id.includes("default") || m.id.includes("demo"));
+    const isPreset = isSystemMat || (m.id && (m.id.startsWith("preset-") || m.id.includes("seeded") || m.id.includes("fallback") || m.id.includes("default") || m.id.includes("demo")));
     const extraProps: Partial<EngineeringMaterial> = {};
+
+    if (isSystemMat) {
+      (extraProps as any).isSystem = true;
+      (extraProps as any).sourceType = "SYSTEM";
+      (extraProps as any).dataProvenance = "REFERENCE";
+      (extraProps as any).validationStatus = "VALIDATED";
+      (extraProps as any).readinessStatus = "READY";
+      (extraProps as any).usableInMixDesign = true;
+      (extraProps as any).requiredPropertiesComplete = true;
+      (extraProps as any).approvalStatus = "Approved";
+      (extraProps as any).ApprovalStatus = "Approved";
+      (extraProps as any).certificationStatus = "Certified";
+
+      if (m.category === "Ø±Ù…Ø§Ù„") {
+        const seVal = m.sandEquivalent !== undefined ? m.sandEquivalent : ((m as any).SandEquivalent !== undefined ? (m as any).SandEquivalent : (m.name.includes("Ù†Ø§Ø¹Ù…") ? 72 : 84));
+        extraProps.sandEquivalent = seVal;
+        (extraProps as any).SandEquivalent = seVal;
+      } else if (m.category === "Ø­ØµÙ‰") {
+        const laVal = (m as any).losAngelesAbrasion !== undefined ? (m as any).losAngelesAbrasion : ((m as any).LosAngeles !== undefined ? (m as any).LosAngeles : ((m as any).losAngeles !== undefined ? (m as any).losAngeles : 20));
+        (extraProps as any).losAngelesAbrasion = laVal;
+        (extraProps as any).LosAngeles = laVal;
+        (extraProps as any).losAngeles = laVal;
+      }
+    }
+
     if (isPreset) {
       if (m.category === "Ø±Ù…Ø§Ù„") {
-        extraProps.SandEquivalent = m.SandEquivalent !== undefined ? m.SandEquivalent : (m.name.includes("Ù†Ø§Ø¹Ù…") ? 72 : 84);
+        const se = (extraProps as any).SandEquivalent !== undefined ? (extraProps as any).SandEquivalent : (m.SandEquivalent !== undefined ? m.SandEquivalent : (m.name.includes("Ù†Ø§Ø¹Ù…") ? 72 : 84));
+        extraProps.SandEquivalent = se;
+        extraProps.sandEquivalent = se;
         extraProps.MethyleneBlue = m.MethyleneBlue !== undefined ? m.MethyleneBlue : (m.name.includes("Ù†Ø§Ø¹Ù…") ? 1.4 : 0.8);
         extraProps.Chlorides = m.Chlorides !== undefined ? m.Chlorides : 0.012;
         extraProps.Sulfates = m.Sulfates !== undefined ? m.Sulfates : 0.015;
       } else if (m.category === "Ø­ØµÙ‰") {
-        extraProps.LosAngeles = m.LosAngeles !== undefined ? m.LosAngeles : (m.name.includes("Ø¨Ø³ÙƒØ±Ø©") ? 16 : 22);
+        const la = (extraProps as any).LosAngeles !== undefined ? (extraProps as any).LosAngeles : (m.LosAngeles !== undefined ? m.LosAngeles : (m.name.includes("Ø¨Ø³ÙƒØ±Ø©") ? 16 : 22));
+        extraProps.LosAngeles = la;
+        (extraProps as any).losAngelesAbrasion = la;
         extraProps.flakinessIndex = m.flakinessIndex !== undefined ? m.flakinessIndex : 11;
         extraProps.elongationIndex = m.elongationIndex !== undefined ? m.elongationIndex : 8;
         extraProps.crushingValue = m.crushingValue !== undefined ? m.crushingValue : 14;
@@ -496,6 +561,31 @@ export const enrichMaterials = (mats: EngineeringMaterial[]): EngineeringMateria
 
 export default function App() {
   const { language, setLanguage, t, isRtl, dir } = useLanguage();
+  const {
+    project: storageProject,
+    fileName: storageFileName,
+    saveStatus: storageSaveStatus,
+    hasUnsavedChanges: storageHasUnsavedChanges,
+    saveProject: saveCurrentProject,
+    saveProjectAs: saveCurrentProjectAs,
+    openProject: openProjectFile,
+    backupProject: backupCurrentProject,
+    exportProject: exportCurrentProject,
+    importProjectFile: importCurrentProjectFile,
+    updateMaterials: updateProjectMaterials,
+    updateLaboratoryTests: updateProjectLaboratoryTests,
+    updateMixInputs: updateProjectMixInputs,
+    updateMixResults: updateProjectMixResults,
+    saveNamedMix: saveNamedMixToProject,
+    deleteNamedMix: deleteNamedMixFromProject,
+    updateProjectMetadata
+  } = useProjectStorage();
+
+  const [showNewProjectModal, setShowNewProjectModal] = useState(false);
+  const [showProjectPropertiesModal, setShowProjectPropertiesModal] = useState(false);
+  const [isBatchPropertiesModalOpen, setIsBatchPropertiesModalOpen] = useState(false);
+
+
 
   // Firebase Auth and Firestore states
   const [user, setUser] = useState<any>(null);
@@ -506,68 +596,14 @@ export default function App() {
     if (language === "fr") return fr;
     return en;
   };
-  
-  const isApprovedAndActive = (m: any) => {
-    if (!m) return false;
-    const idStr = String(m.id || m.Id || "").toLowerCase();
-    
-    const appStatus = (m.ApprovalStatus || m.approvalStatus || "");
-    const status = (m.status || m.Status || "").toLowerCase();
-
-    const isDraft = appStatus.toLowerCase() === "draft" || status === "draft";
-    const isArchived = appStatus.toLowerCase() === "archived" || status === "archived" || status === "Ù…ÙˆÙ‚ÙˆÙ";
-    const isRejected = appStatus.toLowerCase() === "rejected" || status === "rejected";
-
-    if (isDraft || isArchived || isRejected) return false;
-
-    const isPresetOrSeeded = idStr.startsWith("preset-") || 
-      idStr.includes("seeded") || 
-      idStr.includes("fallback") || 
-      idStr.includes("default") || 
-      idStr.includes("demo");
-
-    const createdBy = String(m.createdBy || m.CreatedBy || m.Createdby || "").toLowerCase();
-    const isSystemCreated = createdBy.includes("system") || 
-      createdBy.includes("seeded") || 
-      createdBy.includes("setup");
-
-    if (isPresetOrSeeded || isSystemCreated) {
-      return status !== "archived" && status !== "Ù…ÙˆÙ‚ÙˆÙ" && status !== "draft";
-    }
-
-    const isValidatedOrApproved = appStatus === "Validated" || appStatus === "Approved" || appStatus === "Certified" || appStatus.toLowerCase() === "approved";
-    const isActiveOrActiveAr = status === "active" || status === "Ù†Ø´Ø·";
-    return isValidatedOrApproved && isActiveOrActiveAr;
-  };
 
   const getMaterialOptionLabel = (m: any) => {
     const isUser = isUserMaterial(m);
     const prefix = isUser 
-      ? (language === "ar" ? "ğŸ‘¤ [Ù…Ø³ØªÙˆØ¯Ø¹ Ù…Ø®ØµÙ‘Øµ] " : "ğŸ‘¤ [Custom User] ") 
-      : (language === "ar" ? "âš™ï¸ [Ù…Ø³ØªÙˆØ¯Ø¹ Ø§Ù„Ù†Ø¸Ø§Ù…] " : "âš™ï¸ [System Base] ");
+      ? (language === "ar" ? "ğŸ‘¤ [Ù…Ø³ØªÙˆØ¯Ø¹ Ù…Ø®ØµÙ‘Øµ - Ù…Ø¹ØªÙ…Ø¯ Ù…Ù† Ø§Ù„Ù…Ù‡Ù†Ø¯Ø³ âœ…] " : "ğŸ‘¤ [Custom - Eng. Approved âœ…] ") 
+      : (language === "ar" ? "âš™ï¸ [Ù…Ø³ØªÙˆØ¯Ø¹ Ø§Ù„Ù†Ø¸Ø§Ù… - Ù…Ø±Ø¬Ø¹ Ù‚ÙŠØ§Ø³ÙŠ âš™ï¸] " : "âš™ï¸ [System - Standard Ref âš™ï¸] ");
     const name = language === "ar" ? m.name : (m.englishName || m.name);
     return `${prefix}${name}`;
-  };
-
-  const renderMaterialSourceBadge = (materialId: string | null | undefined) => {
-    if (!materialId) return null;
-    const mat = materialsDatabase.find(m => m.id === materialId);
-    if (!mat) return null;
-    const isUser = isUserMaterial(mat);
-    return (
-      <div className={`mt-1.5 flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded border w-fit ${
-        isUser 
-          ? "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20" 
-          : "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20"
-      }`}>
-        <span className={`w-1.5 h-1.5 rounded-full ${isUser ? "bg-amber-500 animate-pulse" : "bg-blue-500"}`}></span>
-        <span>
-          {isUser 
-            ? (language === "ar" ? "Ù…Ø³ØªÙˆØ¯Ø¹ Ø§Ù„Ù…Ø³ØªØ®Ø¯Ù… (Ù…Ø®ØµÙ‘Øµ)" : "User Material (Custom)") 
-            : (language === "ar" ? "Ù…Ø³ØªÙˆØ¯Ø¹ Ø§Ù„Ù†Ø¸Ø§Ù… (Ø§ÙØªØ±Ø§Ø¶ÙŠ ÙˆÙ…Ø¹ØªÙ…Ø¯)" : "System Material (Standard/Approved)")}
-        </span>
-      </div>
-    );
   };
 
   const { themeSetting, setThemeSetting, themeMode } = useTheme();
@@ -717,37 +753,6 @@ export default function App() {
     return []; // Start completely empty
   });
 
-  const aggregateValidation = useMemo(() => {
-    const mats = materialsDatabase || [];
-    
-    // 1. Are there any sands?
-    const sands = mats.filter(m => m.category === "Ø±Ù…Ø§Ù„");
-    const activeSands = sands.filter(isApprovedAndActive);
-    
-    // 2. Are there any gravels?
-    const gravels = mats.filter(m => m.category === "Ø­ØµÙ‰" || m.category === "Ø±ÙƒØ§Ù… Ø®ÙÙŠÙ" || m.category === "Ø±ÙƒØ§Ù… Ø«Ù‚ÙŠÙ„");
-    const activeGravels = gravels.filter(isApprovedAndActive);
-    
-    const hasSand = sands.length > 0;
-    const hasActiveSand = activeSands.length > 0;
-    
-    const hasGravel = gravels.length > 0;
-    const hasActiveGravel = activeGravels.length > 0;
-    
-    // Block calculations/navigation if there is no sand, or no active sand, or no gravel, or no active gravel in the repository!
-    const isBlocked = !hasActiveSand || !hasActiveGravel;
-    
-    return {
-      hasSand,
-      hasActiveSand,
-      hasGravel,
-      hasActiveGravel,
-      isBlocked,
-      activeSands,
-      activeGravels
-    };
-  }, [materialsDatabase]);
-
   // Listen for external sidebar tab switches (from diagnostics or alerts)
   useEffect(() => {
     const handleSwitch = (e: Event) => {
@@ -760,6 +765,89 @@ export default function App() {
     window.addEventListener("switch-sidebar-tab", handleSwitch);
     return () => window.removeEventListener("switch-sidebar-tab", handleSwitch);
   }, []);
+
+  const handleSaveTestRecord = (testRecord: MaterialTestRecord, syncedProps: Record<string, any>) => {
+    setMaterialTestRecords(prev => {
+      const existingIndex = prev.findIndex(t => t.id === testRecord.id);
+      if (existingIndex >= 0) {
+        const updated = [...prev];
+        updated[existingIndex] = testRecord;
+        return updated;
+      }
+      return [testRecord, ...prev];
+    });
+
+    if (testRecord.materialId && syncedProps && Object.keys(syncedProps).length > 0) {
+      setMaterialsDatabase(prev => prev.map(mat => {
+        if (mat.id === testRecord.materialId) {
+          return {
+            ...mat,
+            ...syncedProps,
+            ApprovalStatus: "Ù…Ø¹ØªÙ…Ø¯" as const,
+            updatedAt: new Date().toISOString()
+          };
+        }
+        return mat;
+      }));
+    }
+  };
+
+  const handleDeleteTestRecord = (testId: string) => {
+    setMaterialTestRecords(prev => prev.filter(t => t.id !== testId));
+  };
+
+  const handleExportBackup = () => {
+    const data = {
+      version: "2.0",
+      exportDate: new Date().toISOString(),
+      materials: materialsDatabase,
+      tests: materialTestRecords,
+      activeProject,
+      inputs
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `SnoLab_Backup_${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const json = JSON.parse(event.target?.result as string);
+        if (json.materials && Array.isArray(json.materials)) {
+          setMaterialsDatabase(json.materials);
+        }
+        if (json.tests && Array.isArray(json.tests)) {
+          setMaterialTestRecords(json.tests);
+        }
+        if (json.inputs) {
+          setInputs(json.inputs);
+        }
+        alert(language === "ar" ? "ØªÙ… Ø§Ø³ØªÙŠØ±Ø§Ø¯ Ø§Ù„Ø¨ÙŠØ§Ù†Ø§Øª Ø¨Ù†Ø¬Ø§Ø­!" : "Data imported successfully!");
+      } catch (err) {
+        alert(language === "ar" ? "ÙØ´Ù„ Ù‚Ø±Ø§Ø¡Ø© Ø§Ù„Ù…Ù„Ù!" : "Failed to parse JSON file.");
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleResetDatabase = () => {
+    if (window.confirm(language === "ar" ? "Ù‡Ù„ Ø£Ù†Øª Ù…ØªØ£ÙƒØ¯ Ù…Ù† Ø¥Ø¹Ø§Ø¯Ø© ØªØ¹ÙŠÙŠÙ† Ù‚Ø§Ø¹Ø¯Ø© Ø§Ù„Ù…ÙˆØ§Ø¯ØŸ" : "Are you sure you want to reset the materials database?")) {
+      setMaterialsDatabase([]);
+      setMaterialTestRecords(INITIAL_MATERIAL_TESTS || []);
+      localStorage.removeItem("mixwizard_materials_db");
+      localStorage.removeItem("snolab_material_tests_v1");
+    }
+  };
 
   // Keep track of the current materialsDatabase to avoid stale closures in the Firestore listener
   const materialsDatabaseRef = useRef<EngineeringMaterial[]>([]);
@@ -1551,8 +1639,8 @@ export default function App() {
   }, [activeSidebarTab]);
 
   const handleStepClick = (stepNum: number) => {
-    if (aggregateValidation.isBlocked && stepNum > 2) {
-      setActiveSidebarTab("materials_library");
+    if (engineeringGate.isBlocked && stepNum > 3) {
+      setActiveSidebarTab("calculator");
       return;
     }
     switch (stepNum) {
@@ -1864,7 +1952,6 @@ export default function App() {
   // Action: Save custom mix design
   const handleSaveMix = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!user) return;
     if (!validationGate.isValidForReport) {
       setSaveError(localizedLabel("Ù„Ø§ ÙŠÙ…ÙƒÙ† Ø­ÙØ¸ Ø§Ù„Ø®Ù„Ø·Ø© Ù„ÙˆØ¬ÙˆØ¯ Ø£Ø®Ø·Ø§Ø¡ Ø­Ø±Ø¬Ø© ØºÙŠØ± Ù…Ø³Ù…ÙˆØ­ Ø¨Ø­ÙØ¸Ù‡Ø§.", "Impossible de sauvegarder la formule en raison d'erreurs critiques.", "Cannot save mix design due to critical validation errors."));
       return;
@@ -1877,19 +1964,20 @@ export default function App() {
     setSaveError("");
     setSaveSuccess("");
     try {
-      const docId = `mix_${user.uid}_${Date.now()}`;
-      await setDoc(doc(db, "user_mixes", docId), {
-        ownerId: user.uid,
+      saveNamedMixToProject(saveName.trim(), inputs, results, currency);
+      const newMix = {
+        id: "mix_" + Date.now(),
         name: saveName.trim(),
-        inputs: inputs,
-        currency: currency, // Save active currency context
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      });
+        inputs: { ...inputs },
+        results: results ? { ...results } : undefined,
+        currency: currency,
+        createdAt: new Date().toISOString()
+      };
+      setSavedMixes(prev => [newMix, ...prev.filter(m => m.id !== newMix.id)]);
       setSaveName("");
-      setSaveSuccess(localizedLabel("ØªÙ… Ø­ÙØ¸ Ø§Ù„Ø®Ù„Ø·Ø© Ø¨Ù†Ø¬Ø§Ø­ ÙÙŠ Ø®Ø²Ù†ØªÙƒ Ø§Ù„Ø³Ø­Ø§Ø¨ÙŠØ©!", "Formule sauvegardÃ©e avec succÃ¨s dans votre cloud !", "Mix design successfully saved to your cloud storage!"));
+      setSaveSuccess(localizedLabel("ØªÙ… Ø­ÙØ¸ Ø§Ù„Ø®Ù„Ø·Ø© Ø¨Ù†Ø¬Ø§Ø­ ÙÙŠ Ù…Ù„Ù Ø§Ù„Ù…Ø´Ø±ÙˆØ¹ Ø§Ù„Ù…Ø­Ù„ÙŠ (.snlab)!", "Formule sauvegardÃ©e avec succÃ¨s dans votre fichier projet local (.snlab) !", "Mix design successfully saved to your local project file (.snlab)!"));
       setTimeout(() => setSaveSuccess(""), 4000);
-    } catch (err: any) {
+    } catch (err) {
       console.error("Error saving mix: ", err);
       setSaveError(localizedLabel("ÙØ´Ù„Øª Ø¹Ù…Ù„ÙŠØ© Ø§Ù„Ø­ÙØ¸. Ø§Ù„Ø±Ø¬Ø§Ø¡ Ø§Ù„Ù…Ø­Ø§ÙˆÙ„Ø© Ø«Ø§Ù†ÙŠØ©.", "Ã‰chec de la sauvegarde. Veuillez rÃ©essayer.", "Save operation failed. Please try again."));
     } finally {
@@ -1899,13 +1987,12 @@ export default function App() {
 
   // Action: Delete a saved mix
   const handleDeleteMix = async (mixId: string) => {
-    if (!user) return;
-    if (!window.confirm("Ù‡Ù„ Ø£Ù†Øª Ù…ØªØ£ÙƒØ¯ Ù…Ù† Ø±ØºØ¨ØªÙƒ ÙÙŠ Ø­Ø°Ù Ù‡Ø°Ø§ Ø§Ù„ØªØµÙ…ÙŠÙ… ÙÙŠ Ø§Ù„Ø³Ø­Ø§Ø¨Ø©ØŸ")) return;
+    if (!window.confirm("Ù‡Ù„ Ø£Ù†Øª Ù…ØªØ£ÙƒØ¯ Ù…Ù† Ø±ØºØ¨ØªÙƒ ÙÙŠ Ø­Ø°Ù Ù‡Ø°Ø§ Ø§Ù„ØªØµÙ…ÙŠÙ… Ù…Ù† Ù…Ù„Ù Ø§Ù„Ù…Ø´Ø±ÙˆØ¹ØŸ")) return;
     try {
-      await deleteDoc(doc(db, "user_mixes", mixId));
-    } catch (err: any) {
+      deleteNamedMixFromProject(mixId);
+      setSavedMixes(prev => prev.filter(m => m.id !== mixId));
+    } catch (err) {
       console.error("Error deleting mix: ", err);
-      handleFirestoreError(err, OperationType.DELETE, `user_mixes/${mixId}`);
     }
   };
 
@@ -2128,67 +2215,6 @@ export default function App() {
     return { disabledCount, enabledCount };
   };
 
-  const handleMethodChange = (newMethod: string) => {
-    const fromMethod = inputs.selectedMethod || "dreux";
-    if (fromMethod === newMethod) return;
-
-    const { disabledCount, enabledCount } = countTransitionFields(fromMethod, newMethod);
-
-    setTransitionState({
-      show: true,
-      from: fromMethod,
-      to: newMethod,
-      disabledCount,
-      enabledCount
-    });
-
-    setInputs(prev => ({ ...prev, selectedMethod: newMethod as any }));
-  };
-
-  const isFieldDisabled = (fieldKey: string) => {
-    const currentMethod = inputs.selectedMethod || "dreux";
-    const config = METHOD_CONFIGS[currentMethod as keyof typeof METHOD_CONFIGS];
-    if (config && config.fields && config.fields[fieldKey] === "not_used") {
-      return true;
-    }
-    return false;
-  };
-
-  const renderFieldIndicator = (fieldKey: string) => {
-    const currentMethod = inputs.selectedMethod || "dreux";
-    const config = METHOD_CONFIGS[currentMethod as keyof typeof METHOD_CONFIGS];
-    let status: "required" | "optional" | "not_used" = "optional";
-
-    if (config && config.fields && config.fields[fieldKey] !== undefined) {
-      status = config.fields[fieldKey];
-    } else {
-      status = "required";
-    }
-
-    if (status === "required") {
-      return (
-        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-800/40">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-          {language === "ar" ? "Ù…Ø·Ù„ÙˆØ¨" : language === "fr" ? "Requis" : "Required"}
-        </span>
-      );
-    } else if (status === "optional") {
-      return (
-        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200/50 dark:border-amber-800/40">
-          <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-          {language === "ar" ? "Ø§Ø®ØªÙŠØ§Ø±ÙŠ" : language === "fr" ? "Optionnel" : "Optional"}
-        </span>
-      );
-    } else {
-      return (
-        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-normal bg-slate-100 dark:bg-slate-800/60 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-705">
-          <span className="w-1.5 h-1.5 rounded-full bg-slate-350 dark:bg-slate-650"></span>
-          {language === "ar" ? "ØºÙŠØ± Ù…Ø³ØªØ®Ø¯Ù…" : language === "fr" ? "InutilisÃ©" : "Not Used"}
-        </span>
-      );
-    }
-  };
-
   // TODO: Refactor and segment the massive recipe calculations inputs state below into a modular, clean custom hook
   // named 'useMixInputs' within src/hooks/useMixInputs.ts when doing major visual or database refactoring.
   
@@ -2271,7 +2297,127 @@ export default function App() {
     priceWater: getInitialPrice("Water", 2) // Default water cost (DA/L)
   });
 
+  const handleMethodChange = (newMethod: string) => {
+    const fromMethod = inputs.selectedMethod || "dreux";
+    if (fromMethod === newMethod) return;
+
+    const { disabledCount, enabledCount } = countTransitionFields(fromMethod, newMethod);
+
+    setTransitionState({
+      show: true,
+      from: fromMethod,
+      to: newMethod,
+      disabledCount,
+      enabledCount
+    });
+
+    setInputs(prev => ({ ...prev, selectedMethod: newMethod as any }));
+  };
+
+  const isFieldDisabled = (fieldKey: string) => {
+    const currentMethod = inputs.selectedMethod || "dreux";
+    const config = METHOD_CONFIGS[currentMethod as keyof typeof METHOD_CONFIGS];
+    if (config && config.fields && config.fields[fieldKey] === "not_used") {
+      return true;
+    }
+    return false;
+  };
+
+  const renderFieldIndicator = (fieldKey: string) => {
+    const currentMethod = inputs.selectedMethod || "dreux";
+    const config = METHOD_CONFIGS[currentMethod as keyof typeof METHOD_CONFIGS];
+    let status: "required" | "optional" | "not_used" = "optional";
+
+    if (config && config.fields && config.fields[fieldKey] !== undefined) {
+      status = config.fields[fieldKey];
+    } else {
+      status = "required";
+    }
+
+    if (status === "required") {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-800/40">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+          {language === "ar" ? "Ù…Ø·Ù„ÙˆØ¨" : language === "fr" ? "Requis" : "Required"}
+        </span>
+      );
+    } else if (status === "optional") {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200/50 dark:border-amber-800/40">
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+          {language === "ar" ? "Ø§Ø®ØªÙŠØ§Ø±ÙŠ" : language === "fr" ? "Optionnel" : "Optional"}
+        </span>
+      );
+    } else {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-normal bg-slate-100 dark:bg-slate-800/60 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-705">
+          <span className="w-1.5 h-1.5 rounded-full bg-slate-350 dark:bg-slate-650"></span>
+          {language === "ar" ? "ØºÙŠØ± Ù…Ø³ØªØ®Ø¯Ù…" : language === "fr" ? "InutilisÃ©" : "Not Used"}
+        </span>
+      );
+    }
+  };
+
   // Central Engineering Session - Single Source of Truth
+  const isApprovedAndActive = (m: any) => {
+    if (!m) return false;
+    // Centralized strict engineering governance check
+    const evalRes = isMaterialEligible(m, inputs?.selectedMethod || "dreux", inputs?.concreteType || "NSC", activeProject);
+    return evalRes.eligible;
+  };
+
+  const renderMaterialSourceBadge = (materialId: string | null | undefined, roleName?: string) => {
+    if (!materialId) return null;
+    const mat = materialsDatabase.find(m => m.id === materialId);
+    if (!mat) return null;
+    const isUser = isUserMaterial(mat);
+    const evalRes = isMaterialEligible(mat, inputs?.selectedMethod || "dreux", inputs?.concreteType || "NSC", activeProject);
+
+    if (!evalRes.eligible) {
+      return (
+        <div className="mt-1.5 p-2 bg-amber-500/10 border border-amber-500/30 rounded-lg text-[9.5px] text-amber-800 dark:text-amber-300 space-y-1">
+          <div className="flex items-center justify-between gap-1 font-black">
+            <div className="flex items-center gap-1">
+              <span>âš ï¸</span>
+              <span>{language === "ar" ? "ØªÙˆØ¬Ø¯ Ø®ØµØ§Ø¦Øµ Ù‡Ù†Ø¯Ø³ÙŠØ© Ù†Ø§Ù‚ØµØ© Ù„Ù‡Ø°Ù‡ Ø§Ù„Ù…Ø§Ø¯Ø©" : "Missing material properties"}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsBatchPropertiesModalOpen(true)}
+              className="text-[9px] px-2 py-0.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-bold transition-all cursor-pointer shrink-0"
+            >
+              {language === "ar" ? "Ø¥ÙƒÙ…Ø§Ù„ Ø§Ù„Ø®ØµØ§Ø¦Øµ" : "Complete"}
+            </button>
+          </div>
+          <p className="text-slate-600 dark:text-slate-400">
+            {evalRes.reasonsAr && evalRes.reasonsAr.length > 0 
+              ? (language === "ar" ? evalRes.reasonsAr[0] : (evalRes.reasonsEn[0] || evalRes.reasonsAr[0]))
+              : (language === "ar" ? "ØªÙˆØ¬Ø¯ Ø®ØµØ§Ø¦Øµ Ù†Ø§Ù‚ØµØ© ÙŠÙ…ÙƒÙ† Ø¥ÙƒÙ…Ø§Ù„Ù‡Ø§ Ù…Ø¨Ø§Ø´Ø±Ø© Ù…Ù† Ù‡Ù†Ø§." : "Missing required properties.")}
+          </p>
+        </div>
+      );
+    }
+
+    return (
+      <div className={`mt-1.5 flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded border w-fit ${
+        isUser 
+          ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20" 
+          : "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20"
+      }`}>
+        <span className={`w-1.5 h-1.5 rounded-full ${isUser ? "bg-emerald-500" : "bg-blue-500"}`}></span>
+        <span>
+          {isUser 
+            ? (language === "ar" ? "Ù…Ø³ØªÙˆØ¯Ø¹ Ø§Ù„Ù…Ø³ØªØ®Ø¯Ù… (Ù…Ø¹ØªÙ…Ø¯ Ø±Ø³Ù…ÙŠØ§Ù‹ Ù…Ù† Ø§Ù„Ù…Ù‡Ù†Ø¯Ø³ âœ…)" : "User Material (Engineer Approved âœ…)") 
+            : (language === "ar" ? "Ù…Ø³ØªÙˆØ¯Ø¹ Ø§Ù„Ù†Ø¸Ø§Ù… (Ù…Ø±Ø¬Ø¹ Ù‚ÙŠØ§Ø³ÙŠ Ù…Ø¹ØªÙ…Ø¯ âš™ï¸)" : "System Material (Standard & Verified âš™ï¸)")}
+        </span>
+      </div>
+    );
+  };
+
+  const engineeringGate = useMemo(() => {
+    return evaluateEngineeringGate(inputs, activeSidebarTab, materialsDatabase, activeProject);
+  }, [inputs, activeSidebarTab, materialsDatabase, activeProject]);
+
   const activeSession = useMemo(() => {
     // Construct a project snap combining active details and current edited inputs
     const projectWithCurrentInputs = {
@@ -2280,6 +2426,64 @@ export default function App() {
     };
     return EngineeringCore.createSession(projectWithCurrentInputs, materialsDatabase);
   }, [activeProject, inputs, materialsDatabase]);
+
+  const activeMixMaterialsList = useMemo(() => {
+    const list: { role: string; material: EngineeringMaterial }[] = [];
+    const db = materialsDatabase || storageProject.materials || [];
+    const addIf = (id: string | undefined, role: string) => {
+      if (id) {
+        const found = db.find((m: any) => m.id === id);
+        if (found) list.push({ role, material: found });
+      }
+    };
+    addIf(inputs.selectedCementId, "cement");
+    addIf(inputs.selectedSandId, "sand");
+    addIf(inputs.selectedGravelId, "gravel");
+    addIf(inputs.selectedAdmixtureId, "admixture");
+    addIf(inputs.selectedScmId, "scm");
+    addIf(inputs.selectedWaterId, "water");
+    addIf(inputs.selectedFiberId, "fiber");
+    addIf(inputs.selectedSpecialBinderId, "specialBinder");
+    return list;
+  }, [
+    inputs.selectedCementId,
+    inputs.selectedSandId,
+    inputs.selectedGravelId,
+    inputs.selectedAdmixtureId,
+    inputs.selectedScmId,
+    inputs.selectedWaterId,
+    inputs.selectedFiberId,
+    inputs.selectedSpecialBinderId,
+    materialsDatabase,
+    storageProject.materials
+  ]);
+
+  const mixMaterialsPropertiesSummary = useMemo(() => {
+    return inspectMixMaterialProperties(
+      activeMixMaterialsList,
+      inputs.selectedMethod || (inputs as any).method || "dreux",
+      inputs.concreteType || "NSC",
+      language as any
+    );
+  }, [activeMixMaterialsList, inputs.selectedMethod, (inputs as any).method, inputs.concreteType, language]);
+
+  const handleBatchPropertiesSave = (updatedMats: EngineeringMaterial[], updatedInp: MixDesignInput) => {
+    setMaterialsDatabase(updatedMats);
+    setInputs(updatedInp);
+    updateProjectMaterials(updatedMats);
+    updateProjectMixInputs(updatedInp);
+    setIsBatchPropertiesModalOpen(false);
+    setNotifications(prev => [
+      {
+        id: String(Date.now()),
+        textAr: "âœ“ ØªÙ… ØªØ­Ø¯ÙŠØ« ÙˆØ­ÙØ¸ Ø¬Ù…ÙŠØ¹ Ø®ØµØ§Ø¦Øµ Ø§Ù„Ù…ÙˆØ§Ø¯ Ø¨Ù†Ø¬Ø§Ø­ ÙÙŠ Ø§Ù„Ø®Ù„Ø·Ø© ÙˆØ§Ù„Ù…Ø³ØªÙˆØ¯Ø¹.",
+        textFr: "âœ“ Toutes les caractÃ©ristiques des matÃ©riaux ont Ã©tÃ© enregistrÃ©es avec succÃ¨s.",
+        textEn: "âœ“ All material properties have been successfully updated and saved.",
+        read: false
+      },
+      ...prev
+    ]);
+  };
 
   // Hook to log configuration and formula modifications in real time
   useEffect(() => {
@@ -2638,6 +2842,8 @@ export default function App() {
     selectedScmId?: string;
     selectedFiberId?: string;
     selectedSpecialBinderId?: string;
+    selectedLightweightAggregateId?: string;
+    selectedHeavyweightAggregateId?: string;
   }) => {
     setInputs(prev => {
       const copy = { ...prev };
@@ -2776,6 +2982,28 @@ export default function App() {
         }
       }
 
+      // 9. Lightweight Aggregate
+      if (selectedIds.selectedLightweightAggregateId) {
+        const mat = materialsDatabase.find(m => m.id === selectedIds.selectedLightweightAggregateId);
+        if (mat) {
+          copy.selectedLightweightAggregateId = mat.id;
+          copy.selectedLightweightAggregateName = mat.name;
+          copy.lightweightAggregateDensity = mat.density || 1200;
+          copy.lightweightAggregateAbsorption = mat.absorption || 12;
+        }
+      }
+
+      // 10. Heavyweight Aggregate
+      if (selectedIds.selectedHeavyweightAggregateId) {
+        const mat = materialsDatabase.find(m => m.id === selectedIds.selectedHeavyweightAggregateId);
+        if (mat) {
+          copy.selectedHeavyweightAggregateId = mat.id;
+          copy.selectedHeavyweightAggregateName = mat.name;
+          copy.heavyweightAggregateDensity = mat.density || 3500;
+          copy.heavyweightAggregateAbsorption = mat.absorption || 0.5;
+        }
+      }
+
       return copy;
     });
 
@@ -2803,219 +3031,109 @@ export default function App() {
     ]);
   };
 
-  // Generate an inputs copy where all prices are normalized to DZD
+  const handleApplySingleMaterial = (role: SupportedMaterialRole, material: EngineeringMaterial) => {
+    setInputs(prev => {
+      const updated = applyRecommendedMaterialToInputs(prev, role, material);
+      return updated;
+    });
+
+    setActivityLogs(prev => [
+      {
+        id: Math.random().toString(36).substring(2, 9),
+        timestamp: new Date(),
+        descriptionAr: `âœ“ Ù‚Ø¨ÙˆÙ„ ØªÙˆØµÙŠØ© Ù…Ø§Ø¯Ø©: ØªÙ… ØªØ·Ø¨ÙŠÙ‚ (${material.name}) Ø¹Ù„Ù‰ Ø®Ù„Ø·Ø© Ø§Ù„Ù…Ø´Ø±ÙˆØ¹ Ø¨Ù†Ø¬Ø§Ø­`,
+        descriptionFr: `âœ“ MatÃ©riau appliquÃ© : (${material.name}) ajoutÃ© au mÃ©lange`,
+        descriptionEn: `âœ“ Material applied: (${material.name}) added to mix`,
+        type: "success"
+      },
+      ...prev
+    ].slice(0, 30));
+
+    setNotifications(prev => [
+      {
+        id: String(Date.now()),
+        textAr: `ØªÙ… Ù‚Ø¨ÙˆÙ„ ÙˆØªØ·Ø¨ÙŠÙ‚ Ø§Ù„Ù…Ø§Ø¯Ø© (${material.name}) Ø¨Ù†Ø¬Ø§Ø­!`,
+        textFr: `MatÃ©riau (${material.name}) appliquÃ© avec succÃ¨s !`,
+        textEn: `Material (${material.name}) applied successfully!`,
+        read: false
+      },
+      ...prev
+    ]);
+  };
+
+  // Centralized Dreux-Gorisse Input Resolution
+  const resolvedDreuxInputs = useMemo<DreuxResolvedInputs>(() => {
+    return DreuxInputResolver.resolve(inputs, materialsDatabase, language);
+  }, [inputs, materialsDatabase, language]);
+
+  // Centralized Dreux-Gorisse Pre-Calculation Validation Gate
+  const dreuxPreCalcReport = useMemo<DreuxPreCalculationReport>(() => {
+    return DreuxPreCalculationValidator.validate(resolvedDreuxInputs);
+  }, [resolvedDreuxInputs]);
+
+  // Generate an inputs copy where all prices are normalized to DZD and physical properties are derived from DreuxInputResolver
   const normalizedInputsForCalc = useMemo(() => {
     const copy = { ...inputs };
 
-    // Dynamically link selected material physical/engineering properties directly from the materials library
-    if (materialsDatabase && materialsDatabase.length > 0) {
-      // 1. Cement
-      if (inputs.selectedCementId) {
-        const mat = materialsDatabase.find(m => m.id === inputs.selectedCementId);
-        if (mat) {
-          if (!inputs.labOverrides?.cementDensity) {
-            const rawDens = mat.density || mat.specificGravity || mat.specific_gravity;
-            if (rawDens) {
-              let densNum = parseFloat(String(rawDens));
-              if (!isNaN(densNum) && densNum > 0) {
-                if (densNum < 10) densNum = densNum * 1000;
-                copy.cementDensity = densNum;
-              }
-            }
-          }
-          const rawStrength = mat.strengthClass || mat.strength_class || mat.cementClassStrength || mat.cementClass || mat.cement_class;
-          if (rawStrength) {
-            const match = String(rawStrength).match(/[\d.]+/);
-            if (match) {
-              const val = parseFloat(match[0]);
-              if (!isNaN(val) && val > 0) copy.cementClassStrength = val;
-            }
-          }
-          if (mat.price !== undefined && mat.price !== null) {
-            copy.priceCement = mat.price;
-          }
-        }
-      }
+    // 1. Cement
+    copy.cementDensity = resolvedDreuxInputs.cement.density;
+    copy.cementClassStrength = resolvedDreuxInputs.cement.strengthClass;
+    if (resolvedDreuxInputs.cement.materialId) {
+      const mat = materialsDatabase.find(m => m.id === resolvedDreuxInputs.cement.materialId);
+      if (mat?.price !== undefined && mat?.price !== null) copy.priceCement = mat.price;
+    }
 
-      // 2. Sand
-      if (inputs.selectedSandId) {
-        const mat = materialsDatabase.find(m => m.id === inputs.selectedSandId);
-        if (mat) {
-          if (!inputs.labOverrides?.sandRelativeDensity) {
-            const rawDens = mat.density || mat.specificGravity || mat.specific_gravity;
-            if (rawDens) {
-              let densNum = parseFloat(String(rawDens));
-              if (!isNaN(densNum) && densNum > 0) {
-                copy.sandRelativeDensity = densNum;
-              }
-            }
-          }
-          if (!inputs.labOverrides?.sandAbsorption) {
-            const rawAbs = mat.absorption || mat.waterAbsorption || mat.water_absorption;
-            if (rawAbs !== undefined) {
-              const absNum = parseFloat(String(rawAbs));
-              if (!isNaN(absNum) && absNum >= 0) copy.sandAbsorption = absNum;
-            }
-          }
-          const rawMoist = mat.moisture || mat.moistureContent || mat.moisture_content;
-          if (rawMoist !== undefined) {
-            const moistNum = parseFloat(String(rawMoist));
-            if (!isNaN(moistNum) && moistNum >= 0) copy.moistureSand = moistNum;
-          }
-          const rawFm = mat.finenessModulus || mat.fineness_modulus;
-          if (rawFm !== undefined) {
-            const fmNum = parseFloat(String(rawFm));
-            if (!isNaN(fmNum) && fmNum >= 0) copy.finenessModulus = fmNum;
-          }
-          if (mat.price !== undefined && mat.price !== null) {
-            copy.priceSand = mat.price;
-          }
-        }
-      }
+    // 2. Sand
+    copy.sandRelativeDensity = resolvedDreuxInputs.fineAggregate.density;
+    copy.sandAbsorption = resolvedDreuxInputs.fineAggregate.absorption;
+    copy.moistureSand = resolvedDreuxInputs.fineAggregate.moisture;
+    copy.finenessModulus = resolvedDreuxInputs.finenessModulus;
+    if (resolvedDreuxInputs.fineAggregate.materialId) {
+      const mat = materialsDatabase.find(m => m.id === resolvedDreuxInputs.fineAggregate.materialId);
+      if (mat?.price !== undefined && mat?.price !== null) copy.priceSand = mat.price;
+    }
 
-      // 3. Gravel
-      if (inputs.selectedGravelId) {
-        const mat = materialsDatabase.find(m => m.id === inputs.selectedGravelId);
-        if (mat) {
-          if (!inputs.labOverrides?.gravelRelativeDensity) {
-            const rawDens = mat.density || mat.specificGravity || mat.specific_gravity;
-            if (rawDens) {
-              let densNum = parseFloat(String(rawDens));
-              if (!isNaN(densNum) && densNum > 0) {
-                copy.gravelRelativeDensity = densNum;
-              }
-            }
-          }
-          if (!inputs.labOverrides?.gravelAbsorption) {
-            const rawAbs = mat.absorption || mat.waterAbsorption || mat.water_absorption;
-            if (rawAbs !== undefined) {
-              const absNum = parseFloat(String(rawAbs));
-              if (!isNaN(absNum) && absNum >= 0) copy.gravelAbsorption = absNum;
-            }
-          }
-          const rawMoist = mat.moisture || mat.moistureContent || mat.moisture_content;
-          if (rawMoist !== undefined) {
-            const moistNum = parseFloat(String(rawMoist));
-            if (!isNaN(moistNum) && moistNum >= 0) copy.moistureGravel = moistNum;
-          }
-          if (!inputs.labOverrides?.dMax) {
-            const rawDmax = mat.dMax || mat.dmax || mat.DMax || mat.Dmax;
-            if (rawDmax !== undefined) {
-              const dmaxNum = parseFloat(String(rawDmax));
-              if (!isNaN(dmaxNum) && dmaxNum > 0) copy.dMax = dmaxNum;
-            }
-          }
-          const rawShape = mat.particleShape || mat.shapeIndex || mat.particle_shape;
-          if (rawShape) {
-            const sStr = String(rawShape).toLowerCase();
-            if (sStr.includes("concasse") || sStr.includes("crushed") || sStr.includes("angular") || sStr.includes("Ù…ÙƒØ³Ø±") || sStr.includes("Ø²Ø§ÙˆÙŠ")) {
-              copy.aggregateType = AggregateType.CONCASSE;
-            } else if (sStr.includes("roule") || sStr.includes("rounded") || sStr.includes("Ù…Ø³ØªØ¯ÙŠØ±") || sStr.includes("ÙˆØ¯ÙŠØ§Ù†")) {
-              copy.aggregateType = AggregateType.ROULE;
-            }
-          }
-          const rawQuality = mat.quality || mat.Quality || mat.quality_rating;
-          if (rawQuality) {
-            const qStr = String(rawQuality).toLowerCase();
-            if (qStr.includes("excellent") || qStr.includes("Ù…Ù…ØªØ§Ø²") || qStr.includes("Ø¹Ø§Ù„ÙŠ")) {
-              copy.aggregateQuality = AggregateQuality.EXCELLENT;
-            } else if (qStr.includes("poor") || qStr.includes("Ø¶Ø¹ÙŠÙ") || qStr.includes("Ù…ØªÙˆØ³Ø·")) {
-              copy.aggregateQuality = AggregateQuality.POOR;
-            } else if (qStr.includes("standard") || qStr.includes("Ø¹Ø§Ø¯ÙŠ") || qStr.includes("Ù‚ÙŠØ§Ø³ÙŠ")) {
-              copy.aggregateQuality = AggregateQuality.STANDARD;
-            }
-          }
-          if (mat.price !== undefined && mat.price !== null) {
-            copy.priceGravel = mat.price;
-          }
-        }
-      }
+    // 3. Gravel
+    copy.gravelRelativeDensity = resolvedDreuxInputs.coarseAggregate.density;
+    copy.gravelAbsorption = resolvedDreuxInputs.coarseAggregate.absorption;
+    copy.moistureGravel = resolvedDreuxInputs.coarseAggregate.moisture;
+    copy.dMax = resolvedDreuxInputs.dMax;
+    copy.aggregateType = resolvedDreuxInputs.aggregateType;
+    copy.aggregateQuality = resolvedDreuxInputs.aggregateQuality;
+    if (resolvedDreuxInputs.coarseAggregate.materialId) {
+      const mat = materialsDatabase.find(m => m.id === resolvedDreuxInputs.coarseAggregate.materialId);
+      if (mat?.price !== undefined && mat?.price !== null) copy.priceGravel = mat.price;
+    }
 
-      // 4. Water
-      if (inputs.selectedWaterId) {
-        const mat = materialsDatabase.find(m => m.id === inputs.selectedWaterId);
-        if (mat) {
-          if (mat.price !== undefined && mat.price !== null) {
-            copy.priceWater = mat.price;
-          }
-          const rawPh = mat.ph || mat.pH || mat.waterPH || mat.phValue;
-          if (rawPh !== undefined) {
-            const phVal = parseFloat(String(rawPh));
-            if (!isNaN(phVal)) copy.selectedWaterPH = phVal;
-          }
-          const rawCl = mat.chlorideContent || mat.chlorides || mat.chloride || mat.chlorideContentPpm;
-          if (rawCl !== undefined) {
-            const clVal = parseFloat(String(rawCl));
-            if (!isNaN(clVal)) copy.selectedWaterChlorideContent = clVal;
-          }
-          const rawSo4 = mat.sulphateContent || mat.sulfateContent || mat.sulphates || mat.sulphate || mat.sulphateContentPpm;
-          if (rawSo4 !== undefined) {
-            const so4Val = parseFloat(String(rawSo4));
-            if (!isNaN(so4Val)) copy.selectedWaterSulphateContent = so4Val;
-          }
-          const rawTemp = mat.temperature || mat.waterTemp || mat.temp || mat.waterTemperature;
-          if (rawTemp !== undefined) {
-            const tempVal = parseFloat(String(rawTemp));
-            if (!isNaN(tempVal)) copy.selectedWaterTemperature = tempVal;
-          }
-        }
-      }
+    // 4. Water
+    if (resolvedDreuxInputs.water.ph !== undefined) copy.selectedWaterPH = resolvedDreuxInputs.water.ph;
+    if (resolvedDreuxInputs.water.chlorides !== undefined) copy.selectedWaterChlorideContent = resolvedDreuxInputs.water.chlorides;
+    if (resolvedDreuxInputs.water.sulfates !== undefined) copy.selectedWaterSulphateContent = resolvedDreuxInputs.water.sulfates;
+    if (resolvedDreuxInputs.water.materialId) {
+      const mat = materialsDatabase.find(m => m.id === resolvedDreuxInputs.water.materialId);
+      if (mat?.price !== undefined && mat?.price !== null) copy.priceWater = mat.price;
+    }
 
-      // 5. Chemical Admixtures
-      if (inputs.selectedAdmixtureId) {
-        const mat = materialsDatabase.find(m => m.id === inputs.selectedAdmixtureId);
-        if (mat) {
-          const rawReduction = mat.waterReduction || mat.water_reduction || mat.waterReductionPercent;
-          if (rawReduction !== undefined) {
-            const redNum = parseFloat(String(rawReduction));
-            if (!isNaN(redNum)) copy.selectedAdmixtureWaterReduction = Math.min(35, Math.max(0, redNum));
-          }
-          const rawDens = mat.density || mat.specificGravity || mat.specific_gravity;
-          if (rawDens) {
-            let densNum = parseFloat(String(rawDens));
-            if (!isNaN(densNum) && densNum > 0) {
-              if (densNum < 10) densNum = densNum * 1000;
-              copy.selectedAdmixtureDensity = densNum;
-            }
-          }
-          if (mat.price !== undefined && mat.price !== null) {
-            copy.priceSuper = mat.price;
-          }
-        }
-      }
+    // 5. Admixture
+    if (resolvedDreuxInputs.admixture) {
+      copy.selectedAdmixtureWaterReduction = resolvedDreuxInputs.admixture.waterReduction;
+      copy.selectedAdmixtureDensity = resolvedDreuxInputs.admixture.density;
+      if (inputs.dosageSuper <= 0) copy.dosageSuper = resolvedDreuxInputs.admixture.dosagePercent;
+      const mat = materialsDatabase.find(m => m.id === resolvedDreuxInputs.admixture.materialId);
+      if (mat?.price !== undefined && mat?.price !== null) copy.priceSuper = mat.price;
+    }
 
-      // 6. Mineral Admixtures / SCM
-      if (inputs.selectedScmId) {
-        const mat = materialsDatabase.find(m => m.id === inputs.selectedScmId);
-        if (mat) {
-          const rawDens = mat.density || mat.specificGravity || mat.specific_gravity;
-          if (rawDens) {
-            let densNum = parseFloat(String(rawDens));
-            if (!isNaN(densNum) && densNum > 0) {
-              if (densNum < 10) densNum = densNum * 1000;
-              copy.selectedScmDensity = densNum;
-            }
-          }
-          const rawWdf = mat.selectedScmWaterDemandFactor || mat.waterDemandFactor || mat.waterDemand;
-          if (rawWdf !== undefined) {
-            const wdfNum = parseFloat(String(rawWdf));
-            if (!isNaN(wdfNum)) copy.selectedScmWaterDemandFactor = wdfNum;
-          }
-          const rawPozz = mat.selectedScmPozzolanicIndex || mat.pozzolanicIndex || mat.pozzolanic;
-          if (rawPozz !== undefined) {
-            const pozzNum = parseFloat(String(rawPozz));
-            if (!isNaN(pozzNum)) copy.selectedScmPozzolanicIndex = pozzNum;
-          }
-          const scmType = mat.category || mat.type || "";
-          const scmTypeStr = String(scmType).toLowerCase();
-          if (scmTypeStr.includes("silica") || scmTypeStr.includes("Ø³ÙŠÙ„ÙŠÙƒØ§")) {
-            if (mat.price !== undefined && mat.price !== null) copy.priceSilicaFume = mat.price;
-          } else if (scmTypeStr.includes("fly") || scmTypeStr.includes("Ø±Ù…Ø§Ø¯")) {
-            if (mat.price !== undefined && mat.price !== null) copy.priceFlyAsh = mat.price;
-          } else if (scmTypeStr.includes("slag") || scmTypeStr.includes("Ø®Ø¨Ø«")) {
-            if (mat.price !== undefined && mat.price !== null) copy.priceSlag = mat.price;
-          }
-        }
+    // 6. SCM
+    if (resolvedDreuxInputs.scm) {
+      copy.selectedScmDensity = resolvedDreuxInputs.scm.density;
+      copy.selectedScmWaterDemandFactor = resolvedDreuxInputs.scm.waterDemandFactor;
+      copy.selectedScmPozzolanicIndex = resolvedDreuxInputs.scm.pozzolanicIndex;
+      const mat = materialsDatabase.find(m => m.id === resolvedDreuxInputs.scm.materialId);
+      if (mat?.price !== undefined && mat?.price !== null) {
+        const scmTypeStr = String(mat.category || mat.type || "").toLowerCase();
+        if (scmTypeStr.includes("silica") || scmTypeStr.includes("Ø³ÙŠÙ„ÙŠÙƒØ§")) copy.priceSilicaFume = mat.price;
+        else if (scmTypeStr.includes("fly") || scmTypeStr.includes("Ø±Ù…Ø§Ø¯")) copy.priceFlyAsh = mat.price;
+        else if (scmTypeStr.includes("slag") || scmTypeStr.includes("Ø®Ø¨Ø«")) copy.priceSlag = mat.price;
       }
     }
 
@@ -3033,22 +3151,24 @@ export default function App() {
       ...copy,
       materialsDatabase: materialsDatabase
     };
-  }, [inputs, currency, materialsDatabase]);
+  }, [inputs, currency, materialsDatabase, resolvedDreuxInputs]);
 
   // Live calculated results from utils.ts Dreux-Gorisse solver
   const results = useMemo(() => {
-    const { selectedCementId, selectedSandId, selectedGravelId, selectedWaterId } = inputs;
-    
-    // Check if any required ID is missing
-    if (!selectedCementId || !selectedSandId || !selectedGravelId || !selectedWaterId) {
-      const errorMsg = language === "fr" ? "Veuillez entrer les matÃ©riaux du projet dans le dÃ©pÃ´t avant de lancer le calcul." :
-        language === "en" ? "Please enter the project materials in the repository before running the calculation." :
-        "ÙŠØ±Ø¬Ù‰ Ø¥Ø¯Ø®Ø§Ù„ Ù…ÙˆØ§Ø¯ Ø§Ù„Ù…Ø´Ø±ÙˆØ¹ ÙÙŠ Ø§Ù„Ù…Ø³ØªÙˆØ¯Ø¹ Ù‚Ø¨Ù„ ØªØ´ØºÙŠÙ„ Ø§Ù„Ø­Ø³Ø§Ø¨.";
-        
+    // If Dreux pre-calculation validation blocked the run, return structured diagnostic report
+    if (!dreuxPreCalcReport.canCalculate) {
+      const errorMsg = language === "ar"
+        ? dreuxPreCalcReport.summaryAr
+        : dreuxPreCalcReport.summaryEn;
+
       return {
         valid: false,
         isValid: false,
-        errors: [errorMsg],
+        errors: dreuxPreCalcReport.missingOrInvalidItems.map(i =>
+          language === "ar"
+            ? `${i.propertyAr}: ${i.statusAr} - ${i.actionAr}`
+            : `${i.property}: ${i.status} - ${i.action}`
+        ),
         warnings: [errorMsg],
         fcm28: 0,
         stdDev: 0,
@@ -3088,114 +3208,17 @@ export default function App() {
         totalCost: 0,
         cementitiousMaterials: { cement: 0, flyAsh: 0, slag: 0, silicaFume: 0 },
         totalBinder: 0,
+        dreuxPreCalcReport,
+        dreuxInputTrace: resolvedDreuxInputs.trace,
         materialSuitability: {
           status: "blocked",
-          missingMaterials: ["cement", "sand", "gravel", "water"],
+          missingMaterials: dreuxPreCalcReport.missingOrInvalidItems.map(i => i.materialRole),
           invalidMaterials: [],
           incompatibleMaterials: [],
           warnings: [errorMsg],
-          recommendations: [errorMsg]
-        }
-      };
-    }
-
-    const cement = materialsDatabase.find(m => m.id === selectedCementId);
-    const sand = materialsDatabase.find(m => m.id === selectedSandId);
-    const gravel = materialsDatabase.find(m => m.id === selectedGravelId);
-    const water = materialsDatabase.find(m => m.id === selectedWaterId);
-
-    const checkAggregateCompleteAndApproved = (m: any) => {
-      if (!m) return false;
-      const isFine = m.category === "Ø±Ù…Ø§Ù„";
-      const sg = m.SpecificGravity || m.specificGravity;
-      const abs = m.Absorption || m.absorption;
-      if (!sg || sg <= 0 || abs === undefined || abs < 0) return false;
-
-      if (isFine) {
-        const fm = m.FinenessModulus || m.finenessModulus;
-        if (!fm || fm <= 0) return false;
-      } else {
-        const dMax = m.dMax;
-        if (!dMax || dMax <= 0) return false;
-      }
-
-      if (!m.laboratory || !m.standard || !m.gradationData || m.gradationData.length === 0) return false;
-      if (m.ApprovalStatus !== "Approved") return false;
-
-      return true;
-    };
-
-    const hasValidMaterials = 
-      cement && isApprovedAndActive(cement) &&
-      sand && isApprovedAndActive(sand) &&
-      gravel && isApprovedAndActive(gravel) &&
-      water && isApprovedAndActive(water);
-
-    const hasFullyVerifiedAggregates = 
-      (!sand || checkAggregateCompleteAndApproved(sand)) &&
-      (!gravel || checkAggregateCompleteAndApproved(gravel));
-
-    if (!hasValidMaterials || !hasFullyVerifiedAggregates) {
-      let errorMsg = language === "fr" ? "Veuillez entrer les matÃ©riaux du projet dans le dÃ©pÃ´t avant de lancer le calcul." :
-        language === "en" ? "Please enter the project materials in the repository before running the calculation." :
-        "ÙŠØ±Ø¬Ù‰ Ø¥Ø¯Ø®Ø§Ù„ Ù…ÙˆØ§Ø¯ Ø§Ù„Ù…Ø´Ø±ÙˆØ¹ ÙÙŠ Ø§Ù„Ù…Ø³ØªÙˆØ¯Ø¹ Ù‚Ø¨Ù„ ØªØ´ØºÙŠÙ„ Ø§Ù„Ø­Ø³Ø§Ø¨.";
-
-      if (hasValidMaterials && !hasFullyVerifiedAggregates) {
-        errorMsg = language === "ar" 
-          ? "Ù„Ø§ ÙŠÙ…ÙƒÙ† Ø§Ø³ØªØ®Ø¯Ø§Ù… Ù‡Ø°Ø§ Ø§Ù„ØªØ¬Ù…ÙŠØ¹ (Ø§Ù„Ø±ÙƒØ§Ù…) Ø­ØªÙ‰ ÙŠØªÙ… Ø§Ø³ØªÙƒÙ…Ø§Ù„ Ø¬Ù…ÙŠØ¹ Ø§Ù„Ø®ØµØ§Ø¦Øµ Ø§Ù„Ù‡Ù†Ø¯Ø³ÙŠØ© Ø§Ù„Ø¥Ù„Ø²Ø§Ù…ÙŠØ© ÙˆØ§Ù„ØªØ­Ù‚Ù‚ Ù…Ù†Ù‡Ø§. (This assembler cannot be used until all mandatory engineering properties have been completed and verified.)"
-          : "This assembler cannot be used until all mandatory engineering properties have been completed and verified.";
-      }
-        
-      return {
-        valid: false,
-        isValid: false,
-        errors: [errorMsg],
-        warnings: [errorMsg],
-        fcm28: 0,
-        stdDev: 0,
-        wcRatio: 0,
-        wcRatioAdjusted: 0,
-        dreuxAggregateFactor: 0,
-        compactorGamma: 0,
-        cementWeight: 0,
-        waterContentNeeded: 0,
-        waterContentActual: 0,
-        sandPercent: 0,
-        gravelPercent: 0,
-        sandWeightDry: 0,
-        gravelWeightDry: 0,
-        admixtureWeights: [],
-        sandWeightWet: 0,
-        gravelWeightWet: 0,
-        waterWeightWet: 0,
-        totalFreshDensity: 0,
-        waterBeforeCorrection: 0,
-        waterAfterDmax: 0,
-        waterFromAdmixtures: 0,
-        totalAggregateVolume: 0,
-        pivotPoint: { x: 0, y: 0 },
-        gradingCurve: [],
-        detailedSteps: [errorMsg],
-        strengthEvolution: [],
-        standardsCompliance: [],
-        designWater: 0,
-        effectiveWater: 0,
-        aggregateFreeWater: 0,
-        batchWaterToAdd: 0,
-        waterCementRatio: 0,
-        waterBinderRatio: 0,
-        calculationMode: "strengthBased",
-        costBreakdown: [],
-        totalCost: 0,
-        cementitiousMaterials: { cement: 0, flyAsh: 0, slag: 0, silicaFume: 0 },
-        totalBinder: 0,
-        materialSuitability: {
-          status: "blocked",
-          missingMaterials: ["cement", "sand", "gravel", "water"],
-          invalidMaterials: [],
-          incompatibleMaterials: [],
-          warnings: [errorMsg],
-          recommendations: [errorMsg]
+          recommendations: dreuxPreCalcReport.missingOrInvalidItems.map(i =>
+            language === "ar" ? `${i.propertyAr}: ${i.actionAr}` : `${i.property}: ${i.action}`
+          )
         }
       };
     }
@@ -3204,8 +3227,10 @@ export default function App() {
     if (calcResult.materialSuitability && (calcResult.materialSuitability.status as string) === "diagnostic_only") {
       calcResult.materialSuitability.status = "blocked";
     }
+    (calcResult as any).dreuxPreCalcReport = dreuxPreCalcReport;
+    (calcResult as any).dreuxInputTrace = resolvedDreuxInputs.trace;
     return calcResult;
-  }, [normalizedInputsForCalc, materialsDatabase, language]);
+  }, [normalizedInputsForCalc, dreuxPreCalcReport, resolvedDreuxInputs, language]);
 
   // Central Calculation Validation Gate
   const validationGate = useMemo(() => {
@@ -3735,7 +3760,7 @@ export default function App() {
     const wVol = results.waterContentActual;
     const sVol = results.sandWeightDry / ((inputs.sandRelativeDensity > 10 ? inputs.sandRelativeDensity : inputs.sandRelativeDensity * 1000) / 1000);
     const gVol = results.gravelWeightDry / ((inputs.gravelRelativeDensity > 10 ? inputs.gravelRelativeDensity : inputs.gravelRelativeDensity * 1000) / 1000);
-    const aVol = results.admixtureWeights.reduce((s, a) => s + a.weight, 0) / 1.1; // estimate chemistry density as 1.1 kg/L
+    const aVol = (results.admixtureWeights || []).reduce((s, a) => s + (a?.weight || 0), 0) / 1.1; // estimate chemistry density as 1.1 kg/L
     const airVol = 10 * inputs.airContent;
 
     const totalVol = cVol + wVol + sVol + gVol + aVol + airVol;
@@ -3899,7 +3924,7 @@ export default function App() {
        waterToAdd + 
        results.sandWeightWet + 
        results.gravelWeightWet + 
-       results.admixtureWeights.reduce((s, a) => s + a.weight, 0)) * vol
+       (results.admixtureWeights || []).reduce((s, a) => s + (a?.weight || 0), 0)) * vol
     );
   }, [results, inputs]);
 
@@ -3993,6 +4018,11 @@ export default function App() {
       totalMaterialCost,
       grandTotalCost,
       avgAdditionsUnitPrice,
+      cementPercent,
+      sandPercent,
+      gravelPercent,
+      waterPercent,
+      additionsPercent,
       percentages: {
         cement: cementPercent,
         sand: sandPercent,
@@ -4219,7 +4249,12 @@ export default function App() {
             </div>
 
             {/* SPACER */}
-            <div className="flex-grow"></div>
+            <div className="flex-grow flex items-center justify-center">
+              <ProjectTopBarControls
+                onOpenProjectProperties={() => setShowProjectPropertiesModal(true)}
+                onOpenNewProjectModal={() => setShowNewProjectModal(true)}
+              />
+            </div>
 
             {/* CONTROLS AREA: Language toggle, Notifications Bell, Settings Cog & Profile */}
             <div className="flex items-center gap-3 shrink-0">
@@ -5204,169 +5239,149 @@ export default function App() {
             </div>
 
             {activeSidebarTab === "dashboard" && null}
-            {aggregateValidation.isBlocked && [
-              "calculator", "cost", "reports", "simulation", "sieve",
-              "optimization", "journal", "academic_lab", "compliance_reports",
-              "lab_validation", "plant"
+            {engineeringGate.isBlocked && [
+              "cost", "reports", "simulation", "sieve",
+              "optimization", "journal", "compliance_reports"
             ].includes(activeSidebarTab) ? (
-              <div className="bg-white dark:bg-[#0F172A] border-2 border-dashed border-rose-200 dark:border-rose-900/40 rounded-3xl p-8 shadow-xl text-center flex flex-col items-center justify-center gap-6 max-w-2xl mx-auto my-12 animate-fade-in" dir="rtl">
-                <div className="w-16 h-16 bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 rounded-full flex items-center justify-center animate-bounce">
+              <div className="bg-white dark:bg-[#0F172A] border-2 border-dashed border-amber-200 dark:border-amber-900/40 rounded-3xl p-8 shadow-xl text-center flex flex-col items-center justify-center gap-6 max-w-3xl mx-auto my-12 animate-fade-in" dir="rtl">
+                <div className="w-16 h-16 bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 rounded-full flex items-center justify-center animate-bounce">
                   <ShieldAlert size={36} />
                 </div>
                 <div className="space-y-3">
                   <h2 className="text-xl font-black text-slate-800 dark:text-slate-100">
-                    {language === "ar" ? "Ø¨ÙˆØ§Ø¨Ø© Ø§Ù„ØªØ­Ù‚Ù‚ Ø§Ù„Ù‡Ù†Ø¯Ø³ÙŠ: Ø§Ù„Ø±ÙƒØ§Ù… ØºÙŠØ± Ù…ÙƒØªÙ…Ù„ Ø£Ùˆ ØºÙŠØ± Ù†Ø´Ø·" : "Engineering Gate: Aggregates Incomplete or Inactive"}
+                    {language === "ar" ? "Ø¨ÙˆØ§Ø¨Ø© Ø§Ù„ØªØ­Ù‚Ù‚ Ø§Ù„Ù‡Ù†Ø¯Ø³ÙŠ: Ù…ØªØ·Ù„Ø¨Ø§Øª Ø§Ù„Ø®Ù„Ø·Ø© ØºÙŠØ± Ù…ÙƒØªÙ…Ù„Ø©" : "Engineering Verification Gate: Incomplete Mix Requirements"}
                   </h2>
-                  <p className="text-sm text-slate-505 leading-relaxed font-sans max-w-lg">
+                  <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed font-sans max-w-lg">
                     {language === "ar" 
-                      ? "Ù„Ø§ ÙŠÙ…ÙƒÙ† Ø§Ù„Ù…ØªØ§Ø¨Ø¹Ø© Ù„Ø®Ø·ÙˆØ§Øª Ø§Ù„Ø­Ø³Ø§Ø¨ Ø£Ùˆ Ø§Ù„Ù…Ø¹Ø§ÙŠØ±Ø© Ù„Ø£Ù† Ø§Ù„Ø±ÙƒØ§Ù… Ø§Ù„Ù…Ø·Ù„ÙˆØ¨ (Ø§Ù„Ø±Ù…Ù„ Ø£Ùˆ Ø§Ù„Ø­ØµÙ‰) ØºÙŠØ± Ù…ØªÙˆÙØ± ÙÙŠ Ù…Ø³ØªÙˆØ¯Ø¹ Ø§Ù„Ù…ÙˆØ§Ø¯ Ø£Ùˆ Ù„Ù… ÙŠØªÙ… ØªÙ†Ø´ÙŠØ·Ù‡ ÙˆØ§Ø¹ØªÙ…Ø§Ø¯Ù‡ Ø¨Ø´ÙƒÙ„ ÙƒØ§Ù…Ù„. ÙŠØ±Ø¬Ù‰ ØªÙ‡ÙŠØ¦Ø© Ø§Ù„Ø±ÙƒØ§Ù… Ø£ÙˆÙ„Ø§Ù‹ ÙÙŠ Ù…Ø³ØªÙˆØ¯Ø¹ Ø§Ù„Ù…ÙˆØ§Ø¯ ÙˆØªÙ†Ø´ÙŠØ·Ù‡."
-                      : "Cannot proceed to calculations or calibration because the required aggregate materials (Sand or Gravel) are not present in the repository, or have not been fully completed, activated, and validated. Please configure the aggregates first."}
+                      ? engineeringGate.summaryMessageAr
+                      : engineeringGate.summaryMessageEn}
                   </p>
                 </div>
 
                 <div className="w-full border-t border-b border-slate-150/60 dark:border-slate-800/60 py-4 my-2 text-right space-y-3" dir="rtl">
-                  <h3 className="text-xs font-black text-slate-400 uppercase tracking-wider font-mono">
-                    {language === "ar" ? "ØªÙØ§ØµÙŠÙ„ Ø­Ø§Ù„Ø© Ø§Ù„Ø±ÙƒØ§Ù… Ø§Ù„Ù‡Ù†Ø¯Ø³ÙŠØ©" : "Aggregate Engineering Status Details"}
-                  </h3>
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-black text-slate-400 uppercase tracking-wider font-mono">
+                      {language === "ar" ? "ØªÙØ§ØµÙŠÙ„ Ø­Ø§Ù„Ø© Ø§Ù„Ù…ÙˆØ§Ø¯ Ø§Ù„Ù…Ø·Ù„ÙˆØ¨Ø© Ù„Ù„Ø®Ù„Ø·Ø© Ø§Ù„Ø­Ø§Ù„ÙŠØ©" : "Required Material Status Details"}
+                    </h3>
+                    <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                      {inputs.selectedMethod?.toUpperCase()} | {inputs.concreteType || "NSC"}
+                    </span>
+                  </div>
                   
-                  {/* Sand Status Card */}
-                  <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-slate-100/60 dark:border-slate-850">
-                    <div className="flex items-center gap-2.5">
-                      <span className="text-lg">ğŸ–ï¸</span>
-                      <div>
-                        <span className="text-xs font-black text-slate-700 dark:text-slate-200 block">
-                          {language === "ar" ? "Ø§Ù„Ø±ÙƒØ§Ù… Ø§Ù„Ù†Ø§Ø¹Ù… (Ø§Ù„Ø±Ù…Ù„)" : "Fine Aggregate (Sand)"}
-                        </span>
-                        <span className="text-[10px] text-slate-400 block">
-                          {aggregateValidation.hasSand 
-                            ? (language === "ar" ? "Ù…ÙˆØ¬ÙˆØ¯ ÙÙŠ Ø§Ù„Ù…Ø³ØªÙˆØ¯Ø¹" : "Present in repository") 
-                            : (language === "ar" ? "ØºÙŠØ± Ù…ÙˆØ¬ÙˆØ¯ ÙÙŠ Ø§Ù„Ù…Ø³ØªÙˆØ¯Ø¹" : "Missing from repository")}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {aggregateValidation.hasActiveSand ? (
-                        <span className="px-2.5 py-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-450 rounded-lg text-[10px] font-black uppercase font-mono tracking-wider">
-                          {language === "ar" ? "ğŸŸ¢ Ù…Ø¹ØªÙ…Ø¯ ÙˆÙ†Ø´Ø·" : "Validated & Active"}
-                        </span>
-                      ) : aggregateValidation.hasSand ? (
-                        <>
-                          <span className="px-2.5 py-1 bg-amber-500/10 text-amber-600 dark:text-amber-450 rounded-lg text-[10px] font-black uppercase font-mono tracking-wider">
-                            {language === "ar" ? "âš ï¸ Ù…Ø³ÙˆØ¯Ø© / ØºÙŠØ± Ù…Ø¹ØªÙ…Ø¯" : "Draft / Unvalidated"}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setActiveSidebarTab("materials_library");
-                              setTimeout(() => {
-                                const sand = (materialsDatabase || []).find(m => m.id === inputs.selectedSandId) || (materialsDatabase || []).find(m => m.category === "Ø±Ù…Ø§Ù„");
-                                if (sand) {
-                                  const triggerEdit = new CustomEvent("trigger-edit-material", { detail: { materialId: sand.id } });
-                                  window.dispatchEvent(triggerEdit);
-                                }
-                              }, 100);
-                            }}
-                            className="px-2 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer"
-                          >
-                            {language === "ar" ? "âœï¸ ØªØ¹Ø¯ÙŠÙ„ ÙˆØªÙØ¹ÙŠÙ„" : "Edit & Activate"}
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <span className="px-2.5 py-1 bg-rose-500/10 text-rose-600 dark:text-rose-450 rounded-lg text-[10px] font-black uppercase font-mono tracking-wider">
-                            {language === "ar" ? "ğŸ”´ Ù…ÙÙ‚ÙˆØ¯" : "Missing"}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setActiveSidebarTab("materials_library");
-                              setTimeout(() => {
-                                const triggerAdd = new CustomEvent("trigger-add-material");
-                                window.dispatchEvent(triggerAdd);
-                              }, 100);
-                            }}
-                            className="px-2 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer"
-                          >
-                            {language === "ar" ? "â• Ø¥Ø¶Ø§ÙØ© Ø¬Ø¯ÙŠØ¯" : "Add New"}
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </div>
+                  {/* Dynamic Role Cards */}
+                  {engineeringGate.roles.map((r) => {
+                    const isReady = r.status === "ready";
+                    const isUnselected = r.status === "unselected";
+                    const isIncomplete = r.status === "incomplete";
+                    const isPendingApproval = r.status === "pending_approval";
+                    const isIncompatible = r.status === "incompatible";
 
-                  {/* Gravel Status Card */}
-                  <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-slate-100/60 dark:border-slate-850">
-                    <div className="flex items-center gap-2.5">
-                      <span className="text-lg">ğŸª¨</span>
-                      <div>
-                        <span className="text-xs font-black text-slate-700 dark:text-slate-200 block">
-                          {language === "ar" ? "Ø§Ù„Ø±ÙƒØ§Ù… Ø§Ù„Ø®Ø´Ù† (Ø§Ù„Ø­ØµÙ‰)" : "Coarse Aggregate (Gravel)"}
-                        </span>
-                        <span className="text-[10px] text-slate-400 block">
-                          {aggregateValidation.hasGravel 
-                            ? (language === "ar" ? "Ù…ÙˆØ¬ÙˆØ¯ ÙÙŠ Ø§Ù„Ù…Ø³ØªÙˆØ¯Ø¹" : "Present in repository") 
-                            : (language === "ar" ? "ØºÙŠØ± Ù…ÙˆØ¬ÙˆØ¯ ÙÙŠ Ø§Ù„Ù…Ø³ØªÙˆØ¯Ø¹" : "Missing from repository")}
-                        </span>
+                    return (
+                      <div 
+                        key={r.role} 
+                        className={`flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-xl border transition-all gap-3 ${
+                          isReady 
+                            ? "bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200/60 dark:border-emerald-900/40"
+                            : isUnselected
+                            ? "bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800"
+                            : isIncomplete || isPendingApproval
+                            ? "bg-amber-50/50 dark:bg-amber-950/20 border-amber-200/60 dark:border-amber-900/40"
+                            : "bg-rose-50/50 dark:bg-rose-950/20 border-rose-200/60 dark:border-rose-900/40"
+                        }`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <span className="text-2xl mt-0.5">{r.icon}</span>
+                          <div className="text-right">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-black text-slate-800 dark:text-slate-100">
+                                {language === "ar" ? r.roleLabelAr : r.roleLabelEn}
+                              </span>
+                              {r.isRequired && (
+                                <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-rose-500/10 text-rose-600 dark:text-rose-400">
+                                  {language === "ar" ? "Ø¥Ù„Ø²Ø§Ù…ÙŠ" : "Required"}
+                                </span>
+                              )}
+                            </div>
+                            
+                            {r.selectedMaterial ? (
+                              <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block mt-0.5">
+                                ğŸ·ï¸ {r.selectedMaterial.name}
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-slate-400 block mt-0.5">
+                                {language === "ar" ? "Ù„Ù… ÙŠØªÙ… ØªØ¹ÙŠÙŠÙ† Ù…Ø§Ø¯Ø© Ù„Ù‡Ø°Ø§ Ø§Ù„Ø¨Ù†Ø¯ Ø¨Ø¹Ø¯" : "No material assigned yet"}
+                              </span>
+                            )}
+                            
+                            <span className="text-[10px] text-slate-400 dark:text-slate-500 block mt-0.5 font-sans">
+                              â„¹ï¸ {language === "ar" ? r.sourceReasonAr : r.sourceReasonEn}
+                            </span>
+
+                            {isIncomplete && r.eligibility?.missingProperties && r.eligibility.missingProperties.length > 0 && (
+                              <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400 block mt-1">
+                                {language === "ar" ? `ØªÙ†Ù‚Øµ Ø§Ù„Ø®ØµØ§Ø¦Øµ: ${r.eligibility.missingProperties.join(", ")}` : `Missing: ${r.eligibility.missingProperties.join(", ")}`}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 self-end sm:self-center">
+                          {isReady ? (
+                            <span className="px-2.5 py-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-lg text-[10px] font-black uppercase font-mono tracking-wider">
+                              {language === "ar" ? "ğŸŸ¢ Ù…ÙƒØªÙ…Ù„ ÙˆÙ…Ø¹ØªÙ…Ø¯" : "Ready & Approved"}
+                            </span>
+                          ) : isUnselected ? (
+                            <button
+                              type="button"
+                              onClick={() => setActiveSidebarTab("calculator")}
+                              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer shadow-sm flex items-center gap-1"
+                            >
+                              <span>ğŸ‘‰</span>
+                              <span>{language === "ar" ? "ØªØ¹ÙŠÙŠÙ† ÙÙŠ Ø§Ù„Ø®Ù„Ø·Ø©" : "Assign in Mix"}</span>
+                            </button>
+                          ) : isIncomplete || isPendingApproval ? (
+                            <button
+                              type="button"
+                              onClick={() => setIsBatchPropertiesModalOpen(true)}
+                              className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer shadow-sm flex items-center gap-1"
+                            >
+                              <span>âš¡</span>
+                              <span>{language === "ar" ? "Ø¥ÙƒÙ…Ø§Ù„ Ø®ØµØ§Ø¦Øµ Ø§Ù„Ù…ÙˆØ§Ø¯" : "Complete Properties"}</span>
+                            </button>
+                          ) : isIncompatible ? (
+                            <span className="px-2.5 py-1 bg-rose-500/10 text-rose-600 dark:text-rose-400 rounded-lg text-[10px] font-black uppercase font-mono">
+                              {language === "ar" ? "âŒ ØºÙŠØ± Ù…ØªÙˆØ§ÙÙ‚" : "Incompatible"}
+                            </span>
+                          ) : (
+                            <span className="px-2.5 py-1 bg-slate-500/10 text-slate-600 dark:text-slate-400 rounded-lg text-[10px] font-black uppercase font-mono">
+                              {language === "ar" ? "âšª Ø§Ø®ØªÙŠØ§Ø±ÙŠ" : "Optional"}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {aggregateValidation.hasActiveGravel ? (
-                        <span className="px-2.5 py-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-455 rounded-lg text-[10px] font-black uppercase font-mono tracking-wider">
-                          {language === "ar" ? "ğŸŸ¢ Ù…Ø¹ØªÙ…Ø¯ ÙˆÙ†Ø´Ø·" : "Validated & Active"}
-                        </span>
-                      ) : aggregateValidation.hasGravel ? (
-                        <>
-                          <span className="px-2.5 py-1 bg-amber-500/10 text-amber-600 dark:text-amber-455 rounded-lg text-[10px] font-black uppercase font-mono tracking-wider">
-                            {language === "ar" ? "âš ï¸ Ù…Ø³ÙˆØ¯Ø© / ØºÙŠØ± Ù…Ø¹ØªÙ…Ø¯" : "Draft / Unvalidated"}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setActiveSidebarTab("materials_library");
-                              setTimeout(() => {
-                                const gravel = (materialsDatabase || []).find(m => m.id === inputs.selectedGravelId) || (materialsDatabase || []).find(m => m.category === "Ø­ØµÙ‰" || m.category === "Ø±ÙƒØ§Ù… Ø®ÙÙŠÙ" || m.category === "Ø±ÙƒØ§Ù… Ø«Ù‚ÙŠÙ„");
-                                if (gravel) {
-                                  const triggerEdit = new CustomEvent("trigger-edit-material", { detail: { materialId: gravel.id } });
-                                  window.dispatchEvent(triggerEdit);
-                                }
-                              }, 100);
-                            }}
-                            className="px-2 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer"
-                          >
-                            {language === "ar" ? "âœï¸ ØªØ¹Ø¯ÙŠÙ„ ÙˆØªÙØ¹ÙŠÙ„" : "Edit & Activate"}
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <span className="px-2.5 py-1 bg-rose-500/10 text-rose-600 dark:text-rose-455 rounded-lg text-[10px] font-black uppercase font-mono tracking-wider">
-                            {language === "ar" ? "ğŸ”´ Ù…ÙÙ‚ÙˆØ¯" : "Missing"}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setActiveSidebarTab("materials_library");
-                              setTimeout(() => {
-                                const triggerAdd = new CustomEvent("trigger-add-material");
-                                window.dispatchEvent(triggerAdd);
-                              }, 100);
-                            }}
-                            className="px-2 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer"
-                          >
-                            {language === "ar" ? "â• Ø¥Ø¶Ø§ÙØ© Ø¬Ø¯ÙŠØ¯" : "Add New"}
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </div>
+                    );
+                  })}
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => setActiveSidebarTab("materials_library")}
-                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl text-xs transition-all shadow-md shadow-blue-500/20 cursor-pointer"
-                >
-                  {language === "ar" ? "ğŸ“‚ Ø§Ù„Ø§Ù†ØªÙ‚Ø§Ù„ Ø¥Ù„Ù‰ Ù…Ø³ØªÙˆØ¯Ø¹ Ø§Ù„Ù…ÙˆØ§Ø¯ ÙˆØ§Ù„Ø±ÙƒØ§Ù…" : "Go to Material & Aggregate Repository"}
-                </button>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setActiveSidebarTab("calculator")}
+                    className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl text-xs transition-all shadow-md shadow-blue-500/20 cursor-pointer flex items-center gap-1.5"
+                  >
+                    <span>ğŸ§ª</span>
+                    <span>{language === "ar" ? "Ø§Ù„Ø¹ÙˆØ¯Ø© Ø¥Ù„Ù‰ ØªØ­Ø¶ÙŠØ± Ø§Ù„Ø®Ù„Ø·Ø©" : "Return to Mix Preparation"}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsBatchPropertiesModalOpen(true)}
+                    className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold rounded-2xl text-xs transition-all cursor-pointer flex items-center gap-1.5"
+                  >
+                    <span>âš¡</span>
+                    <span>{language === "ar" ? "Ø¥ÙƒÙ…Ø§Ù„ Ø®ØµØ§Ø¦Øµ Ø§Ù„Ù…ÙˆØ§Ø¯" : "Complete Material Properties"}</span>
+                  </button>
+                </div>
               </div>
             ) : (
               <>
@@ -5380,6 +5395,7 @@ export default function App() {
                   setActiveSidebarTab={setActiveSidebarTab}
                   materialsDatabase={materialsDatabase}
                   inputs={inputs}
+                  onOpenBatchModal={() => setIsBatchPropertiesModalOpen(true)}
                 />
 
                 {/* 1. SaaS Dashboard Welcome Banner with Project Details */}
@@ -6011,6 +6027,16 @@ export default function App() {
           </div>
         )}
 
+            {/* TAB CONTENT: SAVED PROJECTS & LOCAL STORAGE VAULT */}
+            {(activeSidebarTab === "saved_projects" || activeSidebarTab === "cloud_storage") && (
+              <LocalProjectVault
+                onLoadMixToCalculator={(loadedInputs) => {
+                  setInputs(loadedInputs);
+                  setActiveSidebarTab("calculator");
+                }}
+              />
+            )}
+
             {/* TAB CONTENT: 2. CALCULATOR WITH CARDS */}
             {activeSidebarTab === "calculator" && (
               <div className="space-y-6 animate-fade-in" id="mixwizard-calculator-screen">
@@ -6112,42 +6138,28 @@ export default function App() {
 
                   {/* Detailed list of issues if materials are missing or unselected */}
                   {(() => {
-                    const cList = materialsDatabase.filter(m => (m.category === "Ø¥Ø³Ù…Ù†Øª" || m.category === "Ù…Ø¬Ù„Ø¯Ø§Øª Ø®Ø§ØµØ©") && isApprovedAndActive(m));
-                    const sList = materialsDatabase.filter(m => m.category === "Ø±Ù…Ø§Ù„" && isApprovedAndActive(m));
-                    const gList = materialsDatabase.filter(m => (m.category === "Ø­ØµÙ‰" || m.category === "Ø±ÙƒØ§Ù… Ø®ÙÙŠÙ" || m.category === "Ø±ÙƒØ§Ù… Ø«Ù‚ÙŠÙ„") && isApprovedAndActive(m));
-                    const wList = materialsDatabase.filter(m => (m.category === "Ù…Ø§Ø¡" || m.type === "water") && isApprovedAndActive(m));
+                    const cList = materialsDatabase.filter(m => (m.category === "Ø¥Ø³Ù…Ù†Øª" || m.category === "Ù…Ø¬Ù„Ø¯Ø§Øª Ø®Ø§ØµØ©"));
+                    const sList = materialsDatabase.filter(m => m.category === "Ø±Ù…Ø§Ù„");
+                    const gList = materialsDatabase.filter(m => (m.category === "Ø­ØµÙ‰" || m.category === "Ø±ÙƒØ§Ù… Ø®ÙÙŠÙ" || m.category === "Ø±ÙƒØ§Ù… Ø«Ù‚ÙŠÙ„"));
+                    const wList = materialsDatabase.filter(m => (m.category === "Ù…Ø§Ø¡" || m.type === "water"));
 
-                    const hasMissingOrUnselected = !inputs.selectedCementId || !inputs.selectedSandId || !inputs.selectedGravelId || !inputs.selectedWaterId || cList.length === 0 || sList.length === 0 || gList.length === 0 || wList.length === 0;
+                    const hasMissingOrUnselected = !inputs.selectedCementId || !inputs.selectedSandId || !inputs.selectedGravelId || !inputs.selectedWaterId;
 
-                    if (!hasMissingOrUnselected) return null;
+                    if (!hasMissingOrUnselected && mixMaterialsPropertiesSummary.totalMissingRequired === 0) return null;
 
                     return (
-                      <div className="p-4 bg-rose-500/10 border border-rose-500/20 rounded-xl space-y-2 text-right">
-                        <h4 className="text-xs font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1.5 justify-start">
-                          <ShieldAlert size={14} className="text-rose-600 shrink-0" />
-                          <span>{language === "ar" ? "ØªÙ†Ø¨ÙŠÙ‡: ÙŠØ¬Ø¨ Ø§Ø³ØªÙŠØ±Ø§Ø¯ Ø§Ù„Ù…ÙˆØ§Ø¯ ÙˆØ§Ù„Ø±ÙƒØ§Ù… Ù…Ù† Ø§Ù„Ù…Ø³ØªÙˆØ¯Ø¹ Ù„ØªÙØ¹ÙŠÙ„ Ø§Ù„Ø­Ø³Ø§Ø¨Ø§Øª" : "Alert: Materials & aggregates must be imported from the repository"}</span>
+                      <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl space-y-2 text-right">
+                        <h4 className="text-xs font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1.5 justify-start">
+                          <ShieldAlert size={14} className="text-amber-600 shrink-0" />
+                          <span>{language === "ar" ? "ØªÙ†Ø¨ÙŠÙ‡: ÙŠÙ„Ø²Ù… ØªØ­Ø¯ÙŠØ¯ Ø¬Ù…ÙŠØ¹ Ø§Ù„Ù…ÙƒÙˆÙ†Ø§Øª ÙˆØªØ¯Ù‚ÙŠÙ‚ Ø§Ù„Ø®ØµØ§Ø¦Øµ Ù„ØªÙØ¹ÙŠÙ„ Ø§Ù„Ø­Ø³Ø§Ø¨Ø§Øª" : "Alert: Constituents & properties must be verified"}</span>
                         </h4>
                         <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed font-sans">
                           {language === "ar" 
-                            ? "Ø§Ù„Ù†Ø¸Ø§Ù… ÙŠÙ‚ÙˆÙ… Ø§Ù„Ø¢Ù† Ø¨Ø§Ù„Ø§Ø³ØªÙŠØ±Ø§Ø¯ Ø§Ù„Ø­Ù‚ÙŠÙ‚ÙŠ Ù„Ø®ØµØ§Ø¦Øµ Ø§Ù„Ø±ÙƒØ§Ù… ÙˆØ§Ù„Ù…ÙƒÙˆÙ†Ø§Øª Ù…Ù† Ø§Ù„Ù…Ø³ØªÙˆØ¯Ø¹ Ù„Ø¶Ù…Ø§Ù† Ø¬ÙˆØ¯Ø© Ø§Ù„Ø­Ø³Ø§Ø¨Ø§Øª Ø§Ù„Ù‡Ù†Ø¯Ø³ÙŠØ© ÙˆØ±Ø¨Ø·Ù‡Ø§ Ø¨Ø§Ù„Ù…ØµØ¯Ø±. ÙŠØ±Ø¬Ù‰ ØªÙØ¹ÙŠÙ„ ÙˆØ§Ø®ØªÙŠØ§Ø± Ø§Ù„Ù…ÙˆØ§Ø¯ Ø§Ù„Ù…Ø·Ù„ÙˆØ¨Ø©." 
-                            : "The system now performs real property imports of aggregates and constituents from the repository to ensure engineering precision. Please activate and select the required materials."}
+                            ? "ÙŠØ±Ø¬Ù‰ ØªØ­Ø¯ÙŠØ¯ Ù…ÙƒÙˆÙ†Ø§Øª Ø§Ù„Ø®Ù„Ø·Ø© Ø£Ø¯Ù†Ø§Ù‡ØŒ ÙˆØ§Ø³ØªÙƒÙ…Ø§Ù„ Ø£ÙŠ Ø®ØµØ§Ø¦Øµ Ù†Ø§Ù‚ØµØ© Ø¯ÙØ¹Ø© ÙˆØ§Ø­Ø¯Ø© Ù…Ù† Ø®Ù„Ø§Ù„ Ø§Ù„Ù†Ø§ÙØ°Ø© Ø§Ù„Ù…Ø®ØµØµØ© Ø¯ÙˆÙ† Ù…ØºØ§Ø¯Ø±Ø© Ù‡Ø°Ù‡ Ø§Ù„ØµÙØ­Ø©." 
+                            : "Please select mix constituents below and complete any missing properties directly without leaving this page."}
                         </p>
                         <div className="flex flex-wrap gap-2 pt-1 justify-start">
-                          {cList.length === 0 ? (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setActiveSidebarTab("materials_library");
-                                setTimeout(() => {
-                                  window.dispatchEvent(new CustomEvent("trigger-add-material", { detail: { category: "Ø¥Ø³Ù…Ù†Øª" } }));
-                                }, 100);
-                              }}
-                              className="text-[10px] bg-red-500/15 text-red-700 dark:text-red-300 px-2.5 py-1 rounded-lg font-black hover:bg-red-500/25 transition-all border border-red-500/20 flex items-center gap-1 cursor-pointer"
-                              title={language === "ar" ? "Ø§Ù†Ù‚Ø± Ù„Ø¥Ø¶Ø§ÙØ© Ø¥Ø³Ù…Ù†Øª" : "Click to add cement"}
-                            >
-                              âš ï¸ {language === "ar" ? "Ø§Ù„Ø¥Ø³Ù…Ù†Øª Ù†Ø§Ù‚Øµ (Ø§Ù†Ù‚Ø± Ù„Ø¥Ø¶Ø§ÙØªÙ‡ Ø¨Ù…Ø³ØªÙˆØ¯Ø¹ Ø§Ù„Ù…ÙˆØ§Ø¯)" : "Cement missing (Click to add in repository)"}
-                            </button>
-                          ) : !inputs.selectedCementId ? (
+                          {!inputs.selectedCementId && (
                             <button
                               type="button"
                               onClick={() => {
@@ -6162,23 +6174,9 @@ export default function App() {
                             >
                               âš™ï¸ {language === "ar" ? "ÙŠØ±Ø¬Ù‰ ØªØ­Ø¯ÙŠØ¯ Ø§Ù„Ø¥Ø³Ù…Ù†Øª Ø¨Ø§Ù„Ø®Ù„Ø·Ø©" : "Please select cement (Click to select)"}
                             </button>
-                          ) : null}
+                          )}
 
-                          {sList.length === 0 ? (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setActiveSidebarTab("materials_library");
-                                setTimeout(() => {
-                                  window.dispatchEvent(new CustomEvent("trigger-add-material", { detail: { category: "Ø±Ù…Ø§Ù„" } }));
-                                }, 100);
-                              }}
-                              className="text-[10px] bg-red-500/15 text-red-700 dark:text-red-300 px-2.5 py-1 rounded-lg font-black hover:bg-red-500/25 transition-all border border-red-500/20 flex items-center gap-1 cursor-pointer"
-                              title={language === "ar" ? "Ø§Ù†Ù‚Ø± Ù„Ø¥Ø¶Ø§ÙØ© Ø±Ù…Ù„" : "Click to add sand"}
-                            >
-                              âš ï¸ {language === "ar" ? "Ø§Ù„Ø±Ù…Ù„ Ù†Ø§Ù‚Øµ (Ø§Ù†Ù‚Ø± Ù„Ø¥Ø¶Ø§ÙØªÙ‡ Ø¨Ù…Ø³ØªÙˆØ¯Ø¹ Ø§Ù„Ù…ÙˆØ§Ø¯)" : "Sand missing (Click to add in repository)"}
-                            </button>
-                          ) : !inputs.selectedSandId ? (
+                          {!inputs.selectedSandId && (
                             <button
                               type="button"
                               onClick={() => {
@@ -6193,23 +6191,9 @@ export default function App() {
                             >
                               âš™ï¸ {language === "ar" ? "ÙŠØ±Ø¬Ù‰ ØªØ­Ø¯ÙŠØ¯ Ø§Ù„Ø±Ù…Ù„ Ø¨Ø§Ù„Ø®Ù„Ø·Ø©" : "Please select sand (Click to select)"}
                             </button>
-                          ) : null}
+                          )}
 
-                          {gList.length === 0 ? (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setActiveSidebarTab("materials_library");
-                                setTimeout(() => {
-                                  window.dispatchEvent(new CustomEvent("trigger-add-material", { detail: { category: "Ø­ØµÙ‰" } }));
-                                }, 100);
-                              }}
-                              className="text-[10px] bg-red-500/15 text-red-700 dark:text-red-300 px-2.5 py-1 rounded-lg font-black hover:bg-red-500/25 transition-all border border-red-500/20 flex items-center gap-1 cursor-pointer"
-                              title={language === "ar" ? "Ø§Ù†Ù‚Ø± Ù„Ø¥Ø¶Ø§ÙØ© Ø­ØµÙ‰" : "Click to add gravel"}
-                            >
-                              âš ï¸ {language === "ar" ? "Ø§Ù„Ø­ØµÙ‰ Ù†Ø§Ù‚Øµ (Ø§Ù†Ù‚Ø± Ù„Ø¥Ø¶Ø§ÙØªÙ‡ Ø¨Ù…Ø³ØªÙˆØ¯Ø¹ Ø§Ù„Ù…ÙˆØ§Ø¯)" : "Gravel missing (Click to add in repository)"}
-                            </button>
-                          ) : !inputs.selectedGravelId ? (
+                          {!inputs.selectedGravelId && (
                             <button
                               type="button"
                               onClick={() => {
@@ -6224,23 +6208,9 @@ export default function App() {
                             >
                               âš™ï¸ {language === "ar" ? "ÙŠØ±Ø¬Ù‰ ØªØ­Ø¯ÙŠØ¯ Ø§Ù„Ø­ØµÙ‰ Ø¨Ø§Ù„Ø®Ù„Ø·Ø©" : "Please select gravel (Click to select)"}
                             </button>
-                          ) : null}
+                          )}
 
-                          {wList.length === 0 ? (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setActiveSidebarTab("materials_library");
-                                setTimeout(() => {
-                                  window.dispatchEvent(new CustomEvent("trigger-add-material", { detail: { category: "Ù…Ø§Ø¡" } }));
-                                }, 100);
-                              }}
-                              className="text-[10px] bg-red-500/15 text-red-700 dark:text-red-300 px-2.5 py-1 rounded-lg font-black hover:bg-red-500/25 transition-all border border-red-500/20 flex items-center gap-1 cursor-pointer"
-                              title={language === "ar" ? "Ø§Ù†Ù‚Ø± Ù„Ø¥Ø¶Ø§ÙØ© Ù…Ø§Ø¡" : "Click to add water"}
-                            >
-                              âš ï¸ {language === "ar" ? "Ø§Ù„Ù…Ø§Ø¡ Ù†Ø§Ù‚Øµ (Ø§Ù†Ù‚Ø± Ù„Ø¥Ø¶Ø§ÙØªÙ‡ Ø¨Ù…Ø³ØªÙˆØ¯Ø¹ Ø§Ù„Ù…ÙˆØ§Ø¯)" : "Water missing (Click to add in repository)"}
-                            </button>
-                          ) : !inputs.selectedWaterId ? (
+                          {!inputs.selectedWaterId && (
                             <button
                               type="button"
                               onClick={() => {
@@ -6255,17 +6225,24 @@ export default function App() {
                             >
                               âš™ï¸ {language === "ar" ? "ÙŠØ±Ø¬Ù‰ ØªØ­Ø¯ÙŠØ¯ Ø§Ù„Ù…Ø§Ø¡ Ø¨Ø§Ù„Ø®Ù„Ø·Ø©" : "Please select water (Click to select)"}
                             </button>
-                          ) : null}
+                          )}
                         </div>
-                        <div className="pt-1 text-right">
-                          <button
-                            type="button"
-                            onClick={() => setActiveSidebarTab("materials_library")}
-                            className="text-xs font-black text-rose-600 dark:text-rose-400 hover:underline flex items-center gap-1 justify-start"
-                          >
-                            ğŸ“ {language === "ar" ? "Ø§Ù†Ù‚Ø± Ù‡Ù†Ø§ Ù„Ù„Ø°Ù‡Ø§Ø¨ Ù„Ù…Ø³ØªÙˆØ¯Ø¹ Ø§Ù„Ù…ÙˆØ§Ø¯ ÙˆØ¥Ø¶Ø§ÙØªÙ‡Ø§" : "Click here to manage materials in the repository"}
-                          </button>
-                        </div>
+
+                        {mixMaterialsPropertiesSummary.totalMissingRequired > 0 && (
+                          <div className="pt-2 border-t border-amber-500/20 flex items-center justify-between">
+                            <span className="text-xs font-black text-amber-800 dark:text-amber-300">
+                              âš  {language === "ar" ? `ØªÙˆØ¬Ø¯ ${mixMaterialsPropertiesSummary.totalMissingRequired} Ø®ØµØ§Ø¦Øµ Ù†Ø§Ù‚ØµØ© ÙÙŠ Ø§Ù„Ù…ÙˆØ§Ø¯ Ø§Ù„Ù…Ø®ØªØ§Ø±Ø©.` : `${mixMaterialsPropertiesSummary.totalMissingRequired} missing properties.`}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setIsBatchPropertiesModalOpen(true)}
+                              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-black shadow transition-all cursor-pointer flex items-center gap-1.5"
+                            >
+                              <Sliders size={13} />
+                              <span>{language === "ar" ? "Ø¥ÙƒÙ…Ø§Ù„ Ø®ØµØ§Ø¦Øµ Ø§Ù„Ù…ÙˆØ§Ø¯ Ø§Ù„Ù†Ø§Ù‚ØµØ©" : "Complete Missing Material Properties"}</span>
+                            </button>
+                          </div>
+                        )}
                       </div>
                     );
                   })()}
@@ -6483,7 +6460,8 @@ export default function App() {
                         {/* Real-time Engineering Validation Feedback */}
                         {(() => {
                           const fckVal = inputs.fck28 || 0;
-                          const concreteCode = (inputs.concreteType || "NSC").toUpperCase();
+                          const rawCode = typeof inputs.concreteType === "string" ? inputs.concreteType : (inputs.concreteType as any)?.code || "NSC";
+                          const concreteCode = String(rawCode || "NSC").toUpperCase();
                           let minRec = 10;
                           let maxRec = 35;
                           let typeLabel = "NSC";
@@ -6871,6 +6849,7 @@ export default function App() {
                             language={language}
                             materialsDatabase={materialsDatabase}
                             setActiveSidebarTab={setActiveSidebarTab}
+                            onOpenBatchModal={() => setIsBatchPropertiesModalOpen(true)}
                           />
                         </div>
                       </div>
@@ -6991,10 +6970,18 @@ export default function App() {
                   }>
                     <SmartMaterialsSuggester
                       concreteType={inputs.concreteType || "NSC"}
+                      mixDesignMethod={inputs.selectedMethod || "dreux"}
+                      activeProject={activeProject?.id || activeProjectId || "default"}
                       fck28={inputs.fck28 || 25}
+                      dMax={inputs.dMax || 20}
+                      exposureClass={inputs.exposureClass || "X0"}
+                      hasPumping={inputs.hasPumping || false}
                       materialsDatabase={materialsDatabase}
                       onApplySuggestions={handleApplySmartSuggestions}
                       language={language}
+                      inputs={inputs}
+                      onApplySingleMaterial={handleApplySingleMaterial}
+                      onOpenBatchPropertiesModal={() => setIsBatchPropertiesModalOpen(true)}
                     />
                   </Suspense>
 
@@ -7009,7 +6996,8 @@ export default function App() {
                     </div>
 
                     {(() => {
-                      const concreteCode = (inputs.concreteType || "NSC").toUpperCase();
+                      const rawCode = typeof inputs.concreteType === "string" ? inputs.concreteType : (inputs.concreteType as any)?.code || "NSC";
+                      const concreteCode = String(rawCode || "NSC").toUpperCase();
                       const activeConfig = CONCRETE_TYPE_CONFIGS[concreteCode];
                       const isCementAllowed = activeConfig ? activeConfig.allowedCategories.includes("Ø¥Ø³Ù…Ù†Øª") || activeConfig.allowedCategories.includes("Ù…Ø¬Ù„Ø¯Ø§Øª Ø®Ø§ØµØ©") : true;
                       const isSandAllowed = activeConfig ? activeConfig.allowedCategories.includes("Ø±Ù…Ø§Ù„") : true;
@@ -7020,17 +7008,119 @@ export default function App() {
                       const isFiberAllowed = activeConfig ? activeConfig.allowedCategories.includes("Ø£Ù„ÙŠØ§Ù") : true;
                       const isSpecialBinderAllowed = activeConfig ? activeConfig.allowedCategories.includes("Ù…Ø¬Ù„Ø¯Ø§Øª Ø®Ø§ØµØ©") : true;
 
-                      const cementList = materialsDatabase.filter(m => (m.category === "Ø¥Ø³Ù…Ù†Øª" || m.category === "Ù…Ø¬Ù„Ø¯Ø§Øª Ø®Ø§ØµØ©") && isApprovedAndActive(m));
-                      const sandList = materialsDatabase.filter(m => m.category === "Ø±Ù…Ø§Ù„" && isApprovedAndActive(m));
-                      const gravelList = materialsDatabase.filter(m => (m.category === "Ø­ØµÙ‰" || m.category === "Ø±ÙƒØ§Ù… Ø®ÙÙŠÙ" || m.category === "Ø±ÙƒØ§Ù… Ø«Ù‚ÙŠÙ„") && isApprovedAndActive(m));
-                      const waterList = materialsDatabase.filter(m => (m.category === "Ù…Ø§Ø¡" || m.type === "water") && isApprovedAndActive(m));
+                      const currentMethod = inputs.selectedMethod || "dreux";
+                      const currentConcrete = inputs.concreteType || "NSC";
+
+                      // Get all materials matching the role so user can select and complete missing properties directly
+                      const cementList = getAvailableMaterialsForRole(materialsDatabase, "cement");
+                      const sandList = getAvailableMaterialsForRole(materialsDatabase, "sand");
+                      const gravelList = getAvailableMaterialsForRole(materialsDatabase, "gravel");
+                      const waterList = getAvailableMaterialsForRole(materialsDatabase, "water");
+                      const admixtureList = getAvailableMaterialsForRole(materialsDatabase, "admixture");
+                      const scmList = getAvailableMaterialsForRole(materialsDatabase, "scm");
+                      const fiberList = getAvailableMaterialsForRole(materialsDatabase, "fiber");
+                      const specialBinderList = getAvailableMaterialsForRole(materialsDatabase, "specialBinder");
 
                       return (
                         <>
+                          {/* Ù‚Ø³Ù… Ø­Ø§Ù„Ø©/ØªØ­Ù‚Ù‚ Ø§Ù„Ù…ÙˆØ§Ø¯ ÙÙŠ Ù…Ø±Ø­Ù„Ø© ØªØ­Ø¶ÙŠØ± Ø§Ù„Ø®Ù„Ø·Ø© */}
+                          <div className={`p-4 rounded-2xl border transition-all ${
+                            mixMaterialsPropertiesSummary.totalMissingRequired > 0
+                              ? "bg-gradient-to-r from-amber-500/15 via-rose-500/10 to-amber-500/10 border-amber-500/30 dark:border-amber-500/25 shadow-sm"
+                              : activeMixMaterialsList.length > 0
+                              ? "bg-emerald-500/10 border-emerald-500/25 dark:border-emerald-500/20"
+                              : "bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800"
+                          }`} id="mix-materials-status-verification-panel">
+                            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+                              <div className="flex items-center gap-3">
+                                {mixMaterialsPropertiesSummary.totalMissingRequired > 0 ? (
+                                  <div className="p-2.5 bg-amber-500 text-white rounded-xl shadow-md shadow-amber-500/20 shrink-0">
+                                    <AlertCircle size={22} className="animate-pulse" />
+                                  </div>
+                                ) : activeMixMaterialsList.length > 0 ? (
+                                  <div className="p-2.5 bg-emerald-500 text-white rounded-xl shadow-md shadow-emerald-500/20 shrink-0">
+                                    <CheckCircle2 size={22} />
+                                  </div>
+                                ) : (
+                                  <div className="p-2.5 bg-blue-500 text-white rounded-xl shadow-md shadow-blue-500/20 shrink-0">
+                                    <Layers size={22} />
+                                  </div>
+                                )}
+
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    {mixMaterialsPropertiesSummary.totalMissingRequired > 0 ? (
+                                      <>
+                                        <strong className="text-xs md:text-sm font-black text-amber-900 dark:text-amber-300">
+                                          {language === "ar" 
+                                            ? `âš  ØªÙˆØ¬Ø¯ ${mixMaterialsPropertiesSummary.totalMissingRequired} Ø®ØµØ§Ø¦Øµ Ù†Ø§Ù‚ØµØ© ÙÙŠ Ø§Ù„Ù…ÙˆØ§Ø¯ Ø§Ù„Ù…Ø®ØªØ§Ø±Ø©.`
+                                            : `âš  ${mixMaterialsPropertiesSummary.totalMissingRequired} missing properties in selected materials.`}
+                                        </strong>
+                                        <span className="text-[10px] font-bold px-2 py-0.5 bg-rose-500/15 text-rose-600 dark:text-rose-400 rounded-full border border-rose-500/20">
+                                          {language === "ar" ? "Ù…Ø·Ù„ÙˆØ¨Ø© Ù„Ù„Ø­Ø³Ø§Ø¨Ø§Øª" : "Required"}
+                                        </span>
+                                      </>
+                                    ) : activeMixMaterialsList.length > 0 ? (
+                                      <>
+                                        <strong className="text-xs md:text-sm font-black text-emerald-900 dark:text-emerald-300">
+                                          {language === "ar" ? "âœ“ Ø¨ÙŠØ§Ù†Ø§Øª Ø§Ù„Ù…ÙˆØ§Ø¯ Ù…ÙƒØªÙ…Ù„Ø©" : language === "fr" ? "âœ“ DonnÃ©es des matÃ©riaux complÃ¨tes" : "âœ“ Material Data Complete"}
+                                        </strong>
+                                        <span className="text-[10px] font-bold px-2 py-0.5 bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 rounded-full border border-emerald-500/30 font-mono">
+                                          100% READY
+                                        </span>
+                                      </>
+                                    ) : (
+                                      <strong className="text-xs font-black text-slate-800 dark:text-slate-200">
+                                        {language === "ar" ? "ÙŠØ±Ø¬Ù‰ ØªØ­Ø¯ÙŠØ¯ Ù…ÙˆØ§Ø¯ Ø§Ù„Ø®Ù„Ø·Ø© Ù…Ù† Ø§Ù„Ù‚ÙˆØ§Ø¦Ù… Ø£Ø¯Ù†Ø§Ù‡" : "Please select mix constituents from dropdowns below"}
+                                      </strong>
+                                    )}
+                                  </div>
+
+                                  <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-1 leading-relaxed">
+                                    {mixMaterialsPropertiesSummary.totalMissingRequired > 0 
+                                      ? (language === "ar" 
+                                          ? "ØªÙˆØ¬Ø¯ Ø®ØµØ§Ø¦Øµ Ù‡Ù†Ø¯Ø³ÙŠØ© Ù„Ù… ØªÙØ³Ø¬Ù„ Ø¨Ø¹Ø¯ Ù„Ù„Ù…ÙˆØ§Ø¯ Ø§Ù„Ù…Ø³ØªØ®Ø¯Ù…Ø© ÙØ¹Ù„ÙŠÙ‹Ø§ ÙÙŠ Ø§Ù„Ø®Ù„Ø·Ø©. ÙŠÙ…ÙƒÙ†Ùƒ Ø¥ÙƒÙ…Ø§Ù„ Ø¬Ù…ÙŠØ¹ Ø§Ù„Ø®ØµØ§Ø¦Øµ Ø§Ù„Ù†Ø§Ù‚ØµØ© Ø¯ÙØ¹Ø© ÙˆØ§Ø­Ø¯Ø© Ù…Ù† Ù‡Ù†Ø§ Ø¯ÙˆÙ† Ø§Ù„Ø§Ù†ØªÙ‚Ø§Ù„ Ù„Ù„Ù…ÙƒØªØ¨Ø©."
+                                          : "Some selected materials have missing properties. You can complete all missing properties directly from here.")
+                                      : activeMixMaterialsList.length > 0
+                                      ? (language === "ar" 
+                                          ? "Ø¬Ù…ÙŠØ¹ Ø®ØµØ§Ø¦Øµ Ø§Ù„Ù…ÙˆØ§Ø¯ Ø§Ù„Ù…Ø®ØªØ§Ø±Ø© Ù…Ø­Ù‚Ù‚Ø© ÙˆØ¬Ø§Ù‡Ø²Ø© Ø¨Ù†Ø³Ø¨Ø© 100% Ù„Ù„Ø­Ø³Ø§Ø¨Ø§Øª ÙˆØ§Ù„Ù…Ø¹Ø§Ø¯Ù„Ø§Øª Ø§Ù„Ù‡Ù†Ø¯Ø³ÙŠØ©."
+                                          : "All material properties in current mix are verified and ready for calculation.")
+                                      : (language === "ar"
+                                          ? "Ø§Ø®ØªØ± Ø§Ù„Ø¥Ø³Ù…Ù†ØªØŒ Ø§Ù„Ø±Ù…Ù„ØŒ Ø§Ù„Ø­ØµÙ‰ØŒ ÙˆÙ…ÙŠØ§Ù‡ Ø§Ù„Ø®Ù„Ø· Ù„Ø¨Ø¯Ø¡ ØªØ¯Ù‚ÙŠÙ‚ Ø§Ù„Ø®ØµØ§Ø¦Øµ Ø§Ù„Ù‡Ù†Ø¯Ø³ÙŠØ© Ù„Ù„Ø®Ù„Ø·Ø©."
+                                          : "Select cement, sand, gravel, and water to begin material property audit.")}
+                                  </p>
+                                </div>
+                              </div>
+
+                              {/* Ø²Ø± Ø¥ÙƒÙ…Ø§Ù„ Ø®ØµØ§Ø¦Øµ Ø§Ù„Ù…ÙˆØ§Ø¯ Ø§Ù„Ù†Ø§Ù‚ØµØ©: ÙŠØ¸Ù‡Ø± ÙÙ‚Ø· Ø¹Ù†Ø¯ ÙˆØ¬ÙˆØ¯ Ø®ØµØ§Ø¦Øµ Ù†Ø§Ù‚ØµØ© ÙØ¹Ù„Ù‹Ø§ */}
+                              {mixMaterialsPropertiesSummary.totalMissingRequired > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => setIsBatchPropertiesModalOpen(true)}
+                                  className="w-full md:w-auto px-5 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-black rounded-xl text-xs shadow-md shadow-blue-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer shrink-0"
+                                  id="btn-complete-missing-properties-step2"
+                                >
+                                  <Sliders size={15} />
+                                  <span>{language === "ar" ? "Ø¥ÙƒÙ…Ø§Ù„ Ø®ØµØ§Ø¦Øµ Ø§Ù„Ù…ÙˆØ§Ø¯ Ø§Ù„Ù†Ø§Ù‚ØµØ©" : language === "fr" ? "ComplÃ©ter les caractÃ©ristiques manquantes" : "Complete Missing Material Properties"}</span>
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Smart Engineering Material Recommendation System */}
+                          <MixPreparationRecommendationsPanel
+                            inputs={inputs}
+                            setInputs={setInputs}
+                            materials={materialsDatabase}
+                            onUpdateMaterials={setMaterialsDatabase}
+                            language={language}
+                            onOpenLabTest={() => setActiveSidebarTab("materials_lab")}
+                          />
+
                           {/* Section A: Basic Constituents */}
                           <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
                             <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
-                            <span>{language === "ar" ? "Ø§Ù„Ù…ÙƒÙˆÙ†Ø§Øª Ø§Ù„Ø£Ø³Ø§Ø³ÙŠØ© Ù„Ù„Ø®Ù„Ø·Ø© Ø§Ù„Ø®Ø±Ø³Ø§Ù†ÙŠØ© (Base Constituents)" : language === "fr" ? "Constituants de Base du BÃ©ton" : "Basic Concrete Constituents"}</span>
+                            <span>{language === "ar" ? "Ø§Ù„Ù…ÙƒÙˆÙ†Ø§Øª Ø§Ù„Ø£Ø³Ø§Ø³ÙŠØ© Ù„Ù„Ø®Ù„Ø·Ø© Ø§Ù„Ø®Ø±Ø³Ø§Ù†ÙŠØ© (Base Constituents - Ù…Ø¹ØªÙ…Ø¯Ø© ÙˆÙ…ÙƒØªÙ…Ù„Ø© 100%)" : language === "fr" ? "Constituants de Base du BÃ©ton (100% ValidÃ©s)" : "Basic Concrete Constituents (100% Validated & Approved)"}</span>
                           </div>
 
                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -7058,10 +7148,15 @@ export default function App() {
                                         }));
                                         return;
                                       }
-                                      const matchedMat = materialsDatabase.find(m => m.id === selectedId);
+                                      const validation = validateMaterialSelection(selectedId, materialsDatabase, currentMethod, currentConcrete, activeProject);
+                                      if (!validation.isValid) {
+                                        alert(language === "ar" ? validation.errorAr : validation.errorEn);
+                                        return;
+                                      }
+                                      const matchedMat = validation.material;
                                       const dens = matchedMat ? matchedMat.density : 0;
                                       const price = matchedMat?.price || 17;
-                                      const strClass = matchedMat ? parseFloat(matchedMat.strengthClass || matchedMat.cementClassStrength) : undefined;
+                                      const strClass = matchedMat ? parseFloat(matchedMat.strengthClass || (matchedMat as any).cementClassStrength) : undefined;
                                       setInputs(prev => ({ 
                                         ...prev, 
                                         cementType: matchedMat ? matchedMat.name : prev.cementType,
@@ -7073,11 +7168,9 @@ export default function App() {
                                     }}
                                     className="w-full text-xs p-2 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-white font-semibold cursor-pointer"
                                   >
-                                    <option value="">{language === "ar" ? "Ø§Ø®ØªØ± Ù…Ø§Ø¯Ø© Ù…Ù† Ø§Ù„Ù…Ø³ØªÙˆØ¯Ø¹" : language === "fr" ? "Choisir un matÃ©riau du dÃ©pÃ´t" : "Select material from repository"}</option>
-                                    {materialsDatabase.filter(m => {
-                                      return (m.category === "Ø¥Ø³Ù…Ù†Øª" || m.category === "Ù…Ø¬Ù„Ø¯Ø§Øª Ø®Ø§ØµØ©") && isApprovedAndActive(m) && activeConfig && activeConfig.isMaterialCompatible(m);
-                                    }).map(m => (
-                                      <option key={m.id} value={m.id} className={isUserMaterial(m) ? "text-amber-600 font-semibold" : "text-slate-600"}>
+                                    <option value="">{language === "ar" ? "Ø§Ø®ØªØ± Ù…Ø§Ø¯Ø© Ù…Ù† Ø§Ù„Ù…Ø³ØªÙˆØ¯Ø¹ (Ø§Ù„Ù…Ø¹ØªÙ…Ø¯Ø© ÙÙ‚Ø·)" : language === "fr" ? "Choisir un matÃ©riau approuvÃ©" : "Select approved material"}</option>
+                                    {cementList.map(m => (
+                                      <option key={m.id} value={m.id} className={isUserMaterial(m) ? "text-emerald-600 font-semibold" : "text-blue-600"}>
                                         {getMaterialOptionLabel(m)}
                                       </option>
                                     ))}
@@ -7097,15 +7190,8 @@ export default function App() {
                                   </select>
                                 </div>
                                 {cementList.length === 0 && (
-                                  <div className="mt-2 p-2 bg-red-500/10 border border-red-500/20 rounded-lg text-[10px] text-red-600 dark:text-red-400 font-bold space-y-1">
-                                    <p>âš ï¸ {language === "ar" ? "Ù…Ø³ØªÙˆØ¯Ø¹ Ø§Ù„Ù…ÙˆØ§Ø¯ ÙØ§Ø±Øº Ù…Ù† Ø§Ù„Ø¥Ø³Ù…Ù†Øª Ø§Ù„Ù…Ø¹ØªÙ…Ø¯!" : "No approved cement in the repository!"}</p>
-                                    <button 
-                                      type="button" 
-                                      onClick={() => setActiveSidebarTab("materials_library")}
-                                      className="underline hover:text-red-700 dark:hover:text-red-300 font-black block"
-                                    >
-                                      {language === "ar" ? "Ø§Ø¶ØºØ· Ù‡Ù†Ø§ Ù„Ø¥Ø¶Ø§ÙØ© Ø§Ù„Ø¥Ø³Ù…Ù†Øª Ø§Ù„Ù…Ø·Ù„ÙˆØ¨ Ù„Ù„Ù…Ø³ØªÙˆØ¯Ø¹ ğŸ“" : "Click here to add the required cement to the repository ğŸ“"}
-                                    </button>
+                                  <div className="mt-2 p-2 bg-amber-500/10 border border-amber-500/20 rounded-lg text-[10px] text-amber-700 dark:text-amber-300 font-bold">
+                                    âš ï¸ {language === "ar" ? "Ù„Ø§ ØªÙˆØ¬Ø¯ Ù…ÙˆØ§Ø¯ Ø¥Ø³Ù…Ù†Øª Ù…Ø³Ø¬Ù„Ø© ÙÙŠ Ø§Ù„Ù…Ø³ØªÙˆØ¯Ø¹." : "No cement materials in repository."}
                                   </div>
                                 )}
                                 {cementList.length > 0 && !inputs.selectedCementId && (
@@ -7142,7 +7228,12 @@ export default function App() {
                                         }));
                                         return;
                                       }
-                                      const matchedMat = materialsDatabase.find(m => m.id === selectedId);
+                                      const validation = validateMaterialSelection(selectedId, materialsDatabase, currentMethod, currentConcrete, activeProject);
+                                      if (!validation.isValid) {
+                                        alert(language === "ar" ? validation.errorAr : validation.errorEn);
+                                        return;
+                                      }
+                                      const matchedMat = validation.material;
                                       const dens = matchedMat ? (matchedMat.density || matchedMat.specificGravity || 0) : 0;
                                       const price = matchedMat?.price || 2.5;
                                       const abs = matchedMat ? (matchedMat.absorption !== undefined ? matchedMat.absorption : 0) : 0;
@@ -7163,9 +7254,9 @@ export default function App() {
                                     }}
                                     className="w-full text-xs p-2 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-white font-semibold cursor-pointer"
                                   >
-                                    <option value="">{language === "ar" ? "Ø§Ø®ØªØ± Ù…Ø§Ø¯Ø© Ù…Ù† Ø§Ù„Ù…Ø³ØªÙˆØ¯Ø¹" : language === "fr" ? "Choisir un matÃ©riau du dÃ©pÃ´t" : "Select material from repository"}</option>
-                                    {materialsDatabase.filter(m => m.category === "Ø±Ù…Ø§Ù„" && isApprovedAndActive(m) && activeConfig && activeConfig.isMaterialCompatible(m)).map(m => (
-                                      <option key={m.id} value={m.id} className={isUserMaterial(m) ? "text-amber-600 font-semibold" : "text-slate-600"}>
+                                    <option value="">{language === "ar" ? "Ø§Ø®ØªØ± Ù…Ø§Ø¯Ø© Ù…Ù† Ø§Ù„Ù…Ø³ØªÙˆØ¯Ø¹ (Ø§Ù„Ù…Ø¹ØªÙ…Ø¯Ø© ÙÙ‚Ø·)" : language === "fr" ? "Choisir un sable approuvÃ©" : "Select approved sand"}</option>
+                                    {sandList.map(m => (
+                                      <option key={m.id} value={m.id} className={isUserMaterial(m) ? "text-emerald-600 font-semibold" : "text-blue-600"}>
                                         {getMaterialOptionLabel(m)}
                                       </option>
                                     ))}
@@ -7176,15 +7267,8 @@ export default function App() {
                                   {t("sand_influence_tip")}
                                 </p>
                                 {sandList.length === 0 && (
-                                  <div className="mt-2 p-2 bg-red-500/10 border border-red-500/20 rounded-lg text-[10px] text-red-600 dark:text-red-400 font-bold space-y-1">
-                                    <p>âš ï¸ {language === "ar" ? "Ù…Ø³ØªÙˆØ¯Ø¹ Ø§Ù„Ø±ÙƒØ§Ù… ÙØ§Ø±Øº Ù…Ù† Ø§Ù„Ø±Ù…Ù„ Ø§Ù„Ù…Ø¹ØªÙ…Ø¯!" : "No approved sand in the repository!"}</p>
-                                    <button 
-                                      type="button" 
-                                      onClick={() => setActiveSidebarTab("materials_library")}
-                                      className="underline hover:text-red-700 dark:hover:text-red-300 font-black block text-right"
-                                    >
-                                      {language === "ar" ? "Ø§Ø¶ØºØ· Ù‡Ù†Ø§ Ù„Ø¥Ø¶Ø§ÙØ© Ø§Ù„Ø±Ù…Ù„ Ø§Ù„Ù…Ø·Ù„ÙˆØ¨ Ù„Ù„Ù…Ø³ØªÙˆØ¯Ø¹ ğŸ“" : "Click here to add the required sand to the repository ğŸ“"}
-                                    </button>
+                                  <div className="mt-2 p-2 bg-amber-500/10 border border-amber-500/20 rounded-lg text-[10px] text-amber-700 dark:text-amber-300 font-bold">
+                                    âš ï¸ {language === "ar" ? "Ù„Ø§ ØªÙˆØ¬Ø¯ Ù…ÙˆØ§Ø¯ Ø±Ù…Ø§Ù„ Ù…Ø³Ø¬Ù„Ø© ÙÙŠ Ø§Ù„Ù…Ø³ØªÙˆØ¯Ø¹." : "No sand materials in repository."}
                                   </div>
                                 )}
                                 {sandList.length > 0 && !inputs.selectedSandId && (
@@ -7221,7 +7305,12 @@ export default function App() {
                                         }));
                                         return;
                                       }
-                                      const matchedMat = materialsDatabase.find(m => m.id === selectedId);
+                                      const validation = validateMaterialSelection(selectedId, materialsDatabase, currentMethod, currentConcrete, activeProject);
+                                      if (!validation.isValid) {
+                                        alert(language === "ar" ? validation.errorAr : validation.errorEn);
+                                        return;
+                                      }
+                                      const matchedMat = validation.material;
                                       const dens = matchedMat ? (matchedMat.density || matchedMat.specificGravity || 0) : 0;
                                       const price = matchedMat?.price || 2.8;
                                       const abs = matchedMat ? (matchedMat.absorption !== undefined ? matchedMat.absorption : 0) : 0;
@@ -7273,9 +7362,9 @@ export default function App() {
                                     }}
                                     className="w-full text-xs p-2 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-white font-semibold cursor-pointer"
                                   >
-                                    <option value="">{language === "ar" ? "Ø§Ø®ØªØ± Ù…Ø§Ø¯Ø© Ù…Ù† Ø§Ù„Ù…Ø³ØªÙˆØ¯Ø¹" : language === "fr" ? "Choisir un matÃ©riau du dÃ©pÃ´t" : "Select material from repository"}</option>
-                                    {materialsDatabase.filter(m => (m.category === "Ø­ØµÙ‰" || m.category === "Ø±ÙƒØ§Ù… Ø®ÙÙŠÙ" || m.category === "Ø±ÙƒØ§Ù… Ø«Ù‚ÙŠÙ„") && isApprovedAndActive(m) && activeConfig && activeConfig.isMaterialCompatible(m)).map(m => (
-                                      <option key={m.id} value={m.id} className={isUserMaterial(m) ? "text-amber-600 font-semibold" : "text-slate-600"}>
+                                    <option value="">{language === "ar" ? "Ø§Ø®ØªØ± Ù…Ø§Ø¯Ø© Ù…Ù† Ø§Ù„Ù…Ø³ØªÙˆØ¯Ø¹ (Ø§Ù„Ù…Ø¹ØªÙ…Ø¯Ø© ÙÙ‚Ø·)" : language === "fr" ? "Choisir un gravier approuvÃ©" : "Select approved gravel"}</option>
+                                    {gravelList.map(m => (
+                                      <option key={m.id} value={m.id} className={isUserMaterial(m) ? "text-emerald-600 font-semibold" : "text-blue-600"}>
                                         {getMaterialOptionLabel(m)}
                                       </option>
                                     ))}
@@ -7309,15 +7398,8 @@ export default function App() {
                                   </div>
                                 </div>
                                 {gravelList.length === 0 && (
-                                  <div className="mt-2 p-2 bg-red-500/10 border border-red-500/20 rounded-lg text-[10px] text-red-600 dark:text-red-400 font-bold space-y-1">
-                                    <p>âš ï¸ {language === "ar" ? "Ù…Ø³ØªÙˆØ¯Ø¹ Ø§Ù„Ø±ÙƒØ§Ù… ÙØ§Ø±Øº Ù…Ù† Ø§Ù„Ø­ØµÙ‰ Ø§Ù„Ù…Ø¹ØªÙ…Ø¯!" : "No approved gravel in the repository!"}</p>
-                                    <button 
-                                      type="button" 
-                                      onClick={() => setActiveSidebarTab("materials_library")}
-                                      className="underline hover:text-red-700 dark:hover:text-red-300 font-black block text-right"
-                                    >
-                                      {language === "ar" ? "Ø§Ø¶ØºØ· Ù‡Ù†Ø§ Ù„Ø¥Ø¶Ø§ÙØ© Ø§Ù„Ø­ØµÙ‰ Ø§Ù„Ù…Ø·Ù„ÙˆØ¨ Ù„Ù„Ù…Ø³ØªÙˆØ¯Ø¹ ğŸ“" : "Click here to add the required gravel to the repository ğŸ“"}
-                                    </button>
+                                  <div className="mt-2 p-2 bg-amber-500/10 border border-amber-500/20 rounded-lg text-[10px] text-amber-700 dark:text-amber-300 font-bold">
+                                    âš ï¸ {language === "ar" ? "Ù„Ø§ ØªÙˆØ¬Ø¯ Ù…ÙˆØ§Ø¯ Ø­ØµÙ‰ Ù…Ø³Ø¬Ù„Ø© ÙÙŠ Ø§Ù„Ù…Ø³ØªÙˆØ¯Ø¹." : "No gravel materials in repository."}
                                   </div>
                                 )}
                                 {gravelList.length > 0 && !inputs.selectedGravelId && (
@@ -7337,7 +7419,7 @@ export default function App() {
                                 </div>
                                 <div>
                                   <label className="text-[10px] text-slate-500 block mb-1">
-                                    {language === "ar" ? "Ù…ÙŠØ§Ù‡ Ø§Ù„Ø®Ù„Ø· Ø§Ù„Ù…ØªÙˆÙØ±Ø© ÙÙŠ Ø§Ù„Ù…Ø³ØªÙˆØ¯Ø¹" : language === "fr" ? "Eaux de gÃ¢chage disponibles" : "Available mixing waters"}
+                                    {language === "ar" ? "Ù…ÙŠØ§Ù‡ Ø§Ù„Ø®Ù„Ø· Ø§Ù„Ù…Ø¹ØªÙ…Ø¯Ø© ÙÙŠ Ø§Ù„Ù…Ø³ØªÙˆØ¯Ø¹" : language === "fr" ? "Eaux approuvÃ©es du dÃ©pÃ´t" : "Approved mixing water"}
                                   </label>
                                   <select
                                     value={inputs.selectedWaterId || ""}
@@ -7356,7 +7438,12 @@ export default function App() {
                                         }));
                                         return;
                                       }
-                                      const matchedMat = materialsDatabase.find(m => m.id === selectedId);
+                                      const validation = validateMaterialSelection(selectedId, materialsDatabase, currentMethod, currentConcrete, activeProject);
+                                      if (!validation.isValid) {
+                                        alert(language === "ar" ? validation.errorAr : validation.errorEn);
+                                        return;
+                                      }
+                                      const matchedMat = validation.material;
                                       const pH = matchedMat?.engineeringData?.pH || (matchedMat as any)?.pH || 7;
                                       const chloride = matchedMat?.engineeringData?.chloride || (matchedMat as any)?.chlorideContent || 0;
                                       const sulphate = matchedMat?.engineeringData?.sulphate || (matchedMat as any)?.sulphateContent || 0;
@@ -7374,9 +7461,9 @@ export default function App() {
                                     }}
                                     className="w-full text-xs p-2 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-white font-semibold cursor-pointer"
                                   >
-                                    <option value="">{language === "ar" ? "Ø§Ø®ØªØ± Ù…Ø§Ø¯Ø© Ù…Ù† Ø§Ù„Ù…Ø³ØªÙˆØ¯Ø¹" : language === "fr" ? "Choisir un matÃ©riau du dÃ©pÃ´t" : "Select material from repository"}</option>
-                                    {materialsDatabase.filter(m => (m.category === "Ù…Ø§Ø¡" || m.type === "water") && isApprovedAndActive(m) && activeConfig && activeConfig.isMaterialCompatible(m)).map(m => (
-                                      <option key={m.id} value={m.id} className={isUserMaterial(m) ? "text-amber-600 font-semibold" : "text-slate-600"}>
+                                    <option value="">{language === "ar" ? "Ø§Ø®ØªØ± Ù…Ø§Ø¯Ø© Ù…Ù† Ø§Ù„Ù…Ø³ØªÙˆØ¯Ø¹ (Ø§Ù„Ù…Ø¹ØªÙ…Ø¯Ø© ÙÙ‚Ø·)" : language === "fr" ? "Choisir une eau approuvÃ©e" : "Select approved water"}</option>
+                                    {waterList.map(m => (
+                                      <option key={m.id} value={m.id} className={isUserMaterial(m) ? "text-emerald-600 font-semibold" : "text-blue-600"}>
                                         {getMaterialOptionLabel(m)}
                                       </option>
                                     ))}
@@ -7387,15 +7474,8 @@ export default function App() {
                                   {language === "ar" ? "Ù…ÙŠØ§Ù‡ Ø®Ù„Ø· Ø®Ø±Ø³Ø§Ù†ÙŠØ© Ù…Ø¹Ø§Ù„Ø¬Ø© ÙˆÙ…Ø·Ø§Ø¨Ù‚Ø© Ù„Ù…Ø¹Ø§ÙŠÙŠØ± Ø§Ù„Ù…ØªØ§Ù†Ø© Ø§Ù„ÙƒÙŠÙ…ÙŠØ§Ø¦ÙŠØ©." : language === "fr" ? "Eau traitÃ©e conforme aux normes de durabilitÃ© chimique." : "Treated mixing water complying with chemical durability standards."}
                                 </p>
                                 {waterList.length === 0 && (
-                                  <div className="mt-2 p-2 bg-red-500/10 border border-red-500/20 rounded-lg text-[10px] text-red-600 dark:text-red-400 font-bold space-y-1">
-                                    <p>âš ï¸ {language === "ar" ? "Ù…Ø³ØªÙˆØ¯Ø¹ Ø§Ù„Ù…ÙˆØ§Ø¯ ÙØ§Ø±Øº Ù…Ù† Ù…ÙŠØ§Ù‡ Ø§Ù„Ø®Ù„Ø· Ø§Ù„Ù…Ø¹ØªÙ…Ø¯Ø©!" : "No approved water in the repository!"}</p>
-                                    <button 
-                                      type="button" 
-                                      onClick={() => setActiveSidebarTab("materials_library")}
-                                      className="underline hover:text-red-700 dark:hover:text-red-300 font-black block text-right"
-                                    >
-                                      {language === "ar" ? "Ø§Ø¶ØºØ· Ù‡Ù†Ø§ Ù„Ø¥Ø¶Ø§ÙØ© Ù…ÙŠØ§Ù‡ Ø§Ù„Ø®Ù„Ø· Ø§Ù„Ù…Ø·Ù„ÙˆØ¨Ø© Ù„Ù„Ù…Ø³ØªÙˆØ¯Ø¹ ğŸ“" : "Click here to add the required water to the repository ğŸ“"}
-                                    </button>
+                                  <div className="mt-2 p-2 bg-amber-500/10 border border-amber-500/20 rounded-lg text-[10px] text-amber-700 dark:text-amber-300 font-bold">
+                                    âš ï¸ {language === "ar" ? "Ù„Ø§ ØªÙˆØ¬Ø¯ Ù…ÙŠØ§Ù‡ Ù…Ø³Ø¬Ù„Ø© ÙÙŠ Ø§Ù„Ù…Ø³ØªÙˆØ¯Ø¹." : "No water in repository."}
                                   </div>
                                 )}
                                 {waterList.length > 0 && !inputs.selectedWaterId && (
@@ -7413,7 +7493,7 @@ export default function App() {
                             <>
                               <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider pt-2 border-t border-slate-100 dark:border-slate-800/60 flex items-center gap-1.5">
                                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                                <span>{language === "ar" ? "Ø§Ù„Ø¥Ø¶Ø§ÙØ§Øª Ø§Ù„Ù…ØªØ®ØµØµØ© ÙˆØ§Ù„Ù…Ø­Ø³Ù†Ø§Øª ÙˆØ§Ù„Ø£Ù„ÙŠØ§Ù (Advanced Materials)" : language === "fr" ? "Adjuvants SpÃ©ciaux & MatÃ©riaux AvancÃ©s" : "Specialized Admixtures & Advanced Materials"}</span>
+                                <span>{language === "ar" ? "Ø§Ù„Ø¥Ø¶Ø§ÙØ§Øª Ø§Ù„Ù…ØªØ®ØµØµØ© ÙˆØ§Ù„Ù…Ø­Ø³Ù†Ø§Øª ÙˆØ§Ù„Ø£Ù„ÙŠØ§Ù (Advanced Materials - Ù…Ø¹ØªÙ…Ø¯Ø© ÙˆÙ…ÙƒØªÙ…Ù„Ø© 100%)" : language === "fr" ? "Adjuvants SpÃ©ciaux & MatÃ©riaux AvancÃ©s" : "Specialized Admixtures & Advanced Materials (100% Validated)"}</span>
                               </div>
 
                               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -7427,7 +7507,7 @@ export default function App() {
                                     </div>
                                     <div>
                                       <label className="text-[10px] text-slate-500 block mb-1">
-                                        {language === "ar" ? "Ø§Ù„Ù…Ø¶Ø§ÙØ§Øª Ø§Ù„Ù…ØªØ§Ø­Ø© ÙÙŠ Ø§Ù„Ù…Ø³ØªÙˆØ¯Ø¹" : language === "fr" ? "Adjuvants du dÃ©pÃ´t" : "Admixtures from warehouse"}
+                                        {language === "ar" ? "Ø§Ù„Ù…Ø¶Ø§ÙØ§Øª Ø§Ù„Ù…Ø¹ØªÙ…Ø¯Ø© ÙÙŠ Ø§Ù„Ù…Ø³ØªÙˆØ¯Ø¹" : language === "fr" ? "Adjuvants approuvÃ©s" : "Approved Admixtures"}
                                       </label>
                                       <select
                                         value={inputs.selectedAdmixtureId || ""}
@@ -7444,7 +7524,12 @@ export default function App() {
                                             }));
                                             return;
                                           }
-                                          const matchedMat = materialsDatabase.find(m => m.id === selectedId);
+                                          const validation = validateMaterialSelection(selectedId, materialsDatabase, currentMethod, currentConcrete, activeProject);
+                                          if (!validation.isValid) {
+                                            alert(language === "ar" ? validation.errorAr : validation.errorEn);
+                                            return;
+                                          }
+                                          const matchedMat = validation.material;
                                           if (matchedMat) {
                                             const recDos = matchedMat.recommendedDosage || 1.0;
                                             let dosSuper = 0;
@@ -7473,9 +7558,9 @@ export default function App() {
                                         }}
                                         className="w-full text-xs p-2 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-white font-semibold cursor-pointer"
                                       >
-                                        <option value="">{language === "ar" ? "Ø§Ø®ØªØ± Ù…Ø§Ø¯Ø© Ù…Ù† Ø§Ù„Ù…Ø³ØªÙˆØ¯Ø¹" : language === "fr" ? "Choisir un adjuvant" : "Select from repository"}</option>
-                                        {materialsDatabase.filter(m => m.category === "Ø¥Ø¶Ø§ÙØ§Øª ÙƒÙŠÙ…ÙŠØ§Ø¦ÙŠØ©" && isApprovedAndActive(m) && activeConfig && activeConfig.isMaterialCompatible(m)).map(m => (
-                                          <option key={m.id} value={m.id} className={isUserMaterial(m) ? "text-amber-600 font-semibold" : "text-slate-600"}>
+                                        <option value="">{language === "ar" ? "Ø§Ø®ØªØ± Ù…Ø§Ø¯Ø© Ù…Ù† Ø§Ù„Ù…Ø³ØªÙˆØ¯Ø¹ (Ø§Ù„Ù…Ø¹ØªÙ…Ø¯Ø© ÙÙ‚Ø·)" : language === "fr" ? "Choisir un adjuvant approuvÃ©" : "Select approved admixture"}</option>
+                                        {admixtureList.map(m => (
+                                          <option key={m.id} value={m.id} className={isUserMaterial(m) ? "text-emerald-600 font-semibold" : "text-blue-600"}>
                                             {getMaterialOptionLabel(m)}
                                           </option>
                                         ))}
@@ -7497,7 +7582,7 @@ export default function App() {
                                     </div>
                                     <div>
                                       <label className="text-[10px] text-slate-500 block mb-1">
-                                        {language === "ar" ? "Ø§Ù„Ù…Ø­Ø³Ù†Ø§Øª Ø§Ù„Ù…ÙŠØªØ§Ù„ÙˆØ¬ÙŠØ© ÙˆØ§Ù„Ù…Ø§Ù„Ø¦Ø©" : language === "fr" ? "Additions et fillers du dÃ©pÃ´t" : "SCMs & fillers from repository"}
+                                        {language === "ar" ? "Ø§Ù„Ù…Ø­Ø³Ù†Ø§Øª Ø§Ù„Ù…ÙŠØªØ§Ù„ÙˆØ¬ÙŠØ© ÙˆØ§Ù„Ù…Ø§Ù„Ø¦Ø© Ø§Ù„Ù…Ø¹ØªÙ…Ø¯Ø©" : language === "fr" ? "Additions approuvÃ©es" : "Approved SCMs & fillers"}
                                       </label>
                                       <select
                                         value={inputs.selectedScmId || ""}
@@ -7515,7 +7600,12 @@ export default function App() {
                                             }));
                                             return;
                                           }
-                                          const matchedMat = materialsDatabase.find(m => m.id === selectedId);
+                                          const validation = validateMaterialSelection(selectedId, materialsDatabase, currentMethod, currentConcrete, activeProject);
+                                          if (!validation.isValid) {
+                                            alert(language === "ar" ? validation.errorAr : validation.errorEn);
+                                            return;
+                                          }
+                                          const matchedMat = validation.material;
                                           if (matchedMat) {
                                             const dens = matchedMat.density || 2200;
                                             const recDos = matchedMat.recommendedDosage || 15;
@@ -7544,9 +7634,9 @@ export default function App() {
                                         }}
                                         className="w-full text-xs p-2 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-white font-semibold cursor-pointer"
                                       >
-                                        <option value="">{language === "ar" ? "Ø§Ø®ØªØ± Ù…Ø§Ø¯Ø© Ù…Ù† Ø§Ù„Ù…Ø³ØªÙˆØ¯Ø¹" : language === "fr" ? "Choisir une addition" : "Select from repository"}</option>
-                                        {materialsDatabase.filter(m => (m.category === "Ø¥Ø¶Ø§ÙØ§Øª Ù…Ø¹Ø¯Ù†ÙŠØ©" || m.category === "Ù…ÙˆØ§Ø¯ Ù…Ø§Ù„Ø¦Ø©") && isApprovedAndActive(m) && activeConfig && activeConfig.isMaterialCompatible(m)).map(m => (
-                                          <option key={m.id} value={m.id} className={isUserMaterial(m) ? "text-amber-600 font-semibold" : "text-slate-600"}>
+                                        <option value="">{language === "ar" ? "Ø§Ø®ØªØ± Ù…Ø§Ø¯Ø© Ù…Ù† Ø§Ù„Ù…Ø³ØªÙˆØ¯Ø¹ (Ø§Ù„Ù…Ø¹ØªÙ…Ø¯Ø© ÙÙ‚Ø·)" : language === "fr" ? "Choisir une addition approuvÃ©e" : "Select approved SCM"}</option>
+                                        {scmList.map(m => (
+                                          <option key={m.id} value={m.id} className={isUserMaterial(m) ? "text-emerald-600 font-semibold" : "text-blue-600"}>
                                             {getMaterialOptionLabel(m)}
                                           </option>
                                         ))}
@@ -7568,7 +7658,7 @@ export default function App() {
                                     </div>
                                     <div>
                                       <label className="text-[10px] text-slate-500 block mb-1">
-                                        {language === "ar" ? "Ø£Ù„ÙŠØ§Ù Ø§Ù„ØµÙ„Ø¨ ÙˆØ§Ù„Ø¨ÙˆÙ„ÙŠÙ…Ø±" : language === "fr" ? "Fibres du dÃ©pÃ´t" : "Fibers from repository"}
+                                        {language === "ar" ? "Ø£Ù„ÙŠØ§Ù Ø§Ù„ØµÙ„Ø¨ ÙˆØ§Ù„Ø¨ÙˆÙ„ÙŠÙ…Ø± Ø§Ù„Ù…Ø¹ØªÙ…Ø¯Ø©" : language === "fr" ? "Fibres approuvÃ©es" : "Approved fibers"}
                                       </label>
                                       <select
                                         value={inputs.selectedFiberId || ""}
@@ -7585,7 +7675,12 @@ export default function App() {
                                             }));
                                             return;
                                           }
-                                          const matchedMat = materialsDatabase.find(m => m.id === selectedId);
+                                          const validation = validateMaterialSelection(selectedId, materialsDatabase, currentMethod, currentConcrete, activeProject);
+                                          if (!validation.isValid) {
+                                            alert(language === "ar" ? validation.errorAr : validation.errorEn);
+                                            return;
+                                          }
+                                          const matchedMat = validation.material;
                                           if (matchedMat) {
                                             const dens = matchedMat.density || 7850;
                                             const recDos = matchedMat.recommendedDosage || (matchedMat as any).fiberDosageKgM3 || 25;
@@ -7606,9 +7701,9 @@ export default function App() {
                                         }}
                                         className="w-full text-xs p-2 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-white font-semibold cursor-pointer"
                                       >
-                                        <option value="">{language === "ar" ? "Ø§Ø®ØªØ± Ù…Ø§Ø¯Ø© Ù…Ù† Ø§Ù„Ù…Ø³ØªÙˆØ¯Ø¹" : language === "fr" ? "Choisir des fibres" : "Select from repository"}</option>
-                                        {materialsDatabase.filter(m => m.category === "Ø£Ù„ÙŠØ§Ù" && isApprovedAndActive(m) && activeConfig && activeConfig.isMaterialCompatible(m)).map(m => (
-                                          <option key={m.id} value={m.id} className={isUserMaterial(m) ? "text-amber-600 font-semibold" : "text-slate-600"}>
+                                        <option value="">{language === "ar" ? "Ø§Ø®ØªØ± Ù…Ø§Ø¯Ø© Ù…Ù† Ø§Ù„Ù…Ø³ØªÙˆØ¯Ø¹ (Ø§Ù„Ù…Ø¹ØªÙ…Ø¯Ø© ÙÙ‚Ø·)" : language === "fr" ? "Choisir des fibres approuvÃ©es" : "Select approved fibers"}</option>
+                                        {fiberList.map(m => (
+                                          <option key={m.id} value={m.id} className={isUserMaterial(m) ? "text-emerald-600 font-semibold" : "text-blue-600"}>
                                             {getMaterialOptionLabel(m)}
                                           </option>
                                         ))}
@@ -7630,7 +7725,7 @@ export default function App() {
                                     </div>
                                     <div>
                                       <label className="text-[10px] text-slate-500 block mb-1">
-                                        {language === "ar" ? "Ø±ÙˆØ§Ø¨Ø· ØªØ®ØµØµÙŠØ© ÙˆØ¬ÙŠÙˆØ¨ÙˆÙ„ÙŠÙ…Ø±" : language === "fr" ? "Liants spÃ©ciaux du dÃ©pÃ´t" : "Special binders from repository"}
+                                        {language === "ar" ? "Ø±ÙˆØ§Ø¨Ø· ØªØ®ØµØµÙŠØ© ÙˆØ¬ÙŠÙˆØ¨ÙˆÙ„ÙŠÙ…Ø± Ù…Ø¹ØªÙ…Ø¯Ø©" : language === "fr" ? "Liants spÃ©ciaux approuvÃ©s" : "Approved special binders"}
                                       </label>
                                       <select
                                         value={inputs.selectedSpecialBinderId || ""}
@@ -7646,7 +7741,12 @@ export default function App() {
                                             }));
                                             return;
                                           }
-                                          const matchedMat = materialsDatabase.find(m => m.id === selectedId);
+                                          const validation = validateMaterialSelection(selectedId, materialsDatabase, currentMethod, currentConcrete, activeProject);
+                                          if (!validation.isValid) {
+                                            alert(language === "ar" ? validation.errorAr : validation.errorEn);
+                                            return;
+                                          }
+                                          const matchedMat = validation.material;
                                           if (matchedMat) {
                                             const dens = matchedMat.density || 2900;
                                             const price = matchedMat.price || 35;
@@ -7662,9 +7762,9 @@ export default function App() {
                                         }}
                                         className="w-full text-xs p-2 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-white font-semibold cursor-pointer"
                                       >
-                                        <option value="">{language === "ar" ? "Ø§Ø®ØªØ± Ù…Ø§Ø¯Ø© Ù…Ù† Ø§Ù„Ù…Ø³ØªÙˆØ¯Ø¹" : language === "fr" ? "Choisir un liant" : "Select from repository"}</option>
-                                        {materialsDatabase.filter(m => m.category === "Ù…Ø¬Ù„Ø¯Ø§Øª Ø®Ø§ØµØ©" && isApprovedAndActive(m) && activeConfig && activeConfig.isMaterialCompatible(m)).map(m => (
-                                          <option key={m.id} value={m.id} className={isUserMaterial(m) ? "text-amber-600 font-semibold" : "text-slate-600"}>
+                                        <option value="">{language === "ar" ? "Ø§Ø®ØªØ± Ù…Ø§Ø¯Ø© Ù…Ù† Ø§Ù„Ù…Ø³ØªÙˆØ¯Ø¹ (Ø§Ù„Ù…Ø¹ØªÙ…Ø¯Ø© ÙÙ‚Ø·)" : language === "fr" ? "Choisir un liant approuvÃ©" : "Select approved special binder"}</option>
+                                        {specialBinderList.map(m => (
+                                          <option key={m.id} value={m.id} className={isUserMaterial(m) ? "text-emerald-600 font-semibold" : "text-blue-600"}>
                                             {getMaterialOptionLabel(m)}
                                           </option>
                                         ))}
@@ -7719,16 +7819,7 @@ export default function App() {
                         setInputs={setInputs}
                         materials={materialsDatabase}
                         language={language}
-                        onOpenLibrary={(category, materialId) => {
-                          setViewMode("workspace");
-                          setActiveSidebarTab("materials_library");
-                          if (materialId) {
-                            setTimeout(() => {
-                              const triggerEdit = new CustomEvent("trigger-edit-material", { detail: { materialId } });
-                              window.dispatchEvent(triggerEdit);
-                            }, 100);
-                          }
-                        }}
+                        onOpenBatchModal={() => setIsBatchPropertiesModalOpen(true)}
                       />
                     </div>
 
@@ -8332,6 +8423,7 @@ max="0.95"
                     language={language}
                     materialsDatabase={materialsDatabase}
                     setActiveSidebarTab={setActiveSidebarTab}
+                    onOpenBatchModal={() => setIsBatchPropertiesModalOpen(true)}
                   />
                 </div>
 
@@ -8704,9 +8796,9 @@ max="0.95"
                       {localizedLabel("Ø£ØºÙ„Ù‰ Ù…Ø§Ø¯Ø© ÙÙŠ Ø§Ù„Ø®Ù„Ø·Ø© Ø§Ù„Ø­Ø§Ù„ÙŠØ©", "Composant le plus cher", "Most Expensive Component")}
                     </span>
                     <h5 className={`text-sm font-black text-red-500 dark:text-red-400 flex items-center gap-1.5 ${language === "ar" ? "justify-end" : "justify-start"}`}>
-                      {language !== "ar" && <span>{localizedLabel(costBreakdown.mostExpensive.arName, costBreakdown.mostExpensive.frName, costBreakdown.mostExpensive.enName)}</span>}
-                      <span className="font-mono text-xs text-slate-400">({formatCurrency(costBreakdown.mostExpensive.cost)})</span>
-                      {language === "ar" && <span>{localizedLabel(costBreakdown.mostExpensive.arName, costBreakdown.mostExpensive.frName, costBreakdown.mostExpensive.enName)}</span>}
+                      {language !== "ar" && <span>{localizedLabel(costBreakdown.mostExpensive?.arName || "", costBreakdown.mostExpensive?.frName || "", costBreakdown.mostExpensive?.enName || "")}</span>}
+                      <span className="font-mono text-xs text-slate-400">({formatCurrency(costBreakdown.mostExpensive?.cost || 0)})</span>
+                      {language === "ar" && <span>{localizedLabel(costBreakdown.mostExpensive?.arName || "", costBreakdown.mostExpensive?.frName || "", costBreakdown.mostExpensive?.enName || "")}</span>}
                     </h5>
                     <p className="text-[10px] text-slate-500 dark:text-slate-400 font-sans">
                       {localizedLabel("Ø£ÙƒØ«Ø± Ø¹Ù†ØµØ± Ù…Ø³ØªØ­ÙˆØ° Ø¹Ù„Ù‰ Ø§Ù„ÙƒÙ„ÙØ© Ø§Ù„Ù…Ø§Ù„ÙŠØ© Ù„Ù„ÙˆØ¬Ø¨Ø©", "Ã‰lÃ©ment reprÃ©sentant la part de coÃ»t la plus Ã©levÃ©e", "Highest contributor to the batch raw material costs")}
@@ -8719,9 +8811,9 @@ max="0.95"
                       {localizedLabel("Ø£Ø±Ø®Øµ Ù…Ø§Ø¯Ø© Ù…Ø¶Ø§ÙØ© Ø¨Ø§Ù„ÙˆØ¬Ø¨Ø©", "Composant le moins cher", "Cheapest Active Component")}
                     </span>
                     <h5 className={`text-sm font-black text-blue-500 dark:text-blue-400 flex items-center gap-1.5 ${language === "ar" ? "justify-end" : "justify-start"}`}>
-                      {language !== "ar" && <span>{localizedLabel(costBreakdown.cheapest.arName, costBreakdown.cheapest.frName, costBreakdown.cheapest.enName)}</span>}
-                      <span className="font-mono text-xs text-slate-400">({formatCurrency(costBreakdown.cheapest.cost)})</span>
-                      {language === "ar" && <span>{localizedLabel(costBreakdown.cheapest.arName, costBreakdown.cheapest.frName, costBreakdown.cheapest.enName)}</span>}
+                      {language !== "ar" && <span>{localizedLabel(costBreakdown.cheapest?.arName || "", costBreakdown.cheapest?.frName || "", costBreakdown.cheapest?.enName || "")}</span>}
+                      <span className="font-mono text-xs text-slate-400">({formatCurrency(costBreakdown.cheapest?.cost || 0)})</span>
+                      {language === "ar" && <span>{localizedLabel(costBreakdown.cheapest?.arName || "", costBreakdown.cheapest?.frName || "", costBreakdown.cheapest?.enName || "")}</span>}
                     </h5>
                     <p className="text-[10px] text-slate-500 dark:text-slate-400 font-sans">
                       {localizedLabel("Ø£Ù‚Ù„ Ø¹Ù†ØµØ± ØªÙƒÙ„ÙØ© ÙØ¹Ø§Ù„Ø© Ù…Ù† Ø§Ù„Ø¹Ù†Ø§ØµØ± Ø§Ù„Ø¯Ø§Ø®Ù„Ø©", "Composant ayant le coÃ»t d'acquisition le plus bas", "Lowest contributor to the batch raw material costs")}
@@ -8795,7 +8887,7 @@ max="0.95"
                             </td>
                           </tr>
 
-                          {/* Row 3: Gravel */}
+                                                    {/* Row 3: Gravel */}
                           <tr>
                             <td className="p-3 font-bold text-slate-900 dark:text-slate-100">
                               {language === "fr" ? "Gravier de Base" : language === "en" ? "Base Gravel" : "Ø§Ù„Ø­ØµÙ‰ Ø§Ù„Ø¬Ø§Ù Ø§Ù„Ø£Ø³Ø§Ø³ÙŠ"}
@@ -8814,7 +8906,7 @@ max="0.95"
                           {/* Row 4: Water */}
                           <tr>
                             <td className="p-3 font-bold text-slate-900 dark:text-slate-100">
-                              {language === "fr" ? "Eau Net Additionnelle" : language === "en" ? "Net Added Water" : "Ù…ÙŠØ§Ù‡ Ø§Ù„Ø¥Ø¶Ø§ÙØ© Ø§Ù„ØµØ§ÙÙŠØ©"}
+                              {language === "fr" ? "Eau de GÃ¢chage" : language === "en" ? "Mixing Water" : "Ù…Ø§Ø¡ Ø§Ù„Ø®Ù„Ø· Ø§Ù„ÙØ¹Ø§Ù„"}
                             </td>
                             <td className="p-3 text-center font-mono">
                               {`${Math.round((results.waterWeightWet !== undefined ? results.waterWeightWet : results.waterContentActual) * inputs.batchVolume).toLocaleString()} L`}
@@ -8827,74 +8919,331 @@ max="0.95"
                             </td>
                           </tr>
 
-                          {/* Row 5: Mineral & Chemical Additions */}
-                          {costBreakdown.additionsCost > 0 && (
-                            <tr>
-                              <td className="p-3 font-bold text-slate-900 dark:text-slate-100">
-                                {language === "fr" ? "Adjuvants & Additions" : language === "en" ? "Admixtures & Additions" : "Ø§Ù„Ø¥Ø¶Ø§ÙØ§Øª Ø§Ù„Ù…Ø¹Ø¯Ù†ÙŠØ© ÙˆØ§Ù„ÙƒÙŠÙ…ÙŠØ§Ø¦ÙŠØ©"}
-                              </td>
-                              <td className="p-3 text-center font-mono">
-    xœì}koG–è÷ı5šÙDZ˜”%Y£µĞíá¬,yEÙ™¹A7ÉÙãf7§»)K£X¿=™..öËÅÅv“`Ç–Çã8ÇÙo+ì ¾Î/¸?ásªª_ìênJ²g²0[dwWuÕ©ªó~0¦ÿì\ıÙÎEÃï–]g`·'[çŸs¹q­í\·ËF»mú¦c{q³Óõ§Ê¾³ì´‹7|×´;“S»ìZçêîßdôŸ³Ó~ûƒ¼gü6kY†ç­=¾8Ñ/Í1Ÿoù¥·}î²ÇöK=ÇvÄUÏ2|^š?yr"¯_˜à†ãö¿:p]n·¶“3ÜìTÔ$/Û¦É5[|jwúZçOªihNâzÓ±ÚGŸšZ.O}à	7ë	xEÆİé¿ckÎuvz-MÇe8*öwÓYãÚ‰OÈÂvÔìv’½ó›ÌoöpÅ##kÀ?ºÙŞ‡…iîµ…Èµ™bĞ2ìÎÀèp¶¸¸È&6Ü	ö!›¸h˜6k¿û_ÿ2Øtù[`ñ§¸MO…pÂG&†n|>|ÊğËğüşî±ƒûtáÑğ»áŸÜfğØíá×ÃgÃçpãîpoâMÑ"0¬cÚıï•›†ßê^q¬Aï²Ş>ÿ‘¡9‹>âZ-@0‹ÿØ#8laÌm›N{[×nM‹§ß>;İ67?HïñÑ…µÊÊ[_]¯,³µÕ´Øè,tY«°åyÖì„¨@ ‡àÊ™“'§Od Â6wK¾ú"nÎG¯Áå³øûõÀóÍíR“û×9·™éó§–{Ëß]#W]ïBsö³2Â×•\çzÉå›Üõ'v¯îj¡ Hjïô~Yê—~Z|ÃŸĞv{}Ãş`ÇB>Ãü-oÃ¡âÖ¤@}w†ãİ¾"xp±¡À…nŸj|ùÁC‡5J$,É4¸sâ›Xw|Ãb`ŞÛßcm¸˜uö¿lu÷÷8ƒŞ²Ê¬Å×SØª†Ï¸Ûì‚kØm&zÅü.gç­©Æt’¦&¦vÏNÓìô“CU@ìã™“ı­O¢|JsÏ°åFèñ¶9è±_:YÏ<ú©ôèê%gà²Í6	#ôZC­®‡¹ŒWı8Ùı\…5x‚«Ê‚KşàÎ>gp?BÔØğåğÁğ[h¶—A4$8ÌÍÄb$0îÇ?9yîı33ŸH”k­kr‘zs;¸•h'e"ŞŒqë1şbÂ¥mÛè™-vÉä¬Ú5\Ÿs¶Øä<p–7¥AŒ#hÑê,´«„»¼AóiØqVaÇ¢¸‘DŞ.mY¬_:Å¼®0h¤IX^>‚=5¨OœtXOK´;¨{jä4+Ìİ/Šÿ`ƒ~Ÿ»-ÃãĞzëÈX¥ëf0Sä¸÷š¥™‰t‰g}}
-gãz¼?ü°_qŞ€4l<Âh€Çú]ó7:şîş^vÉğÛc-gÿ?|Ÿ#|Éô@lè~°iÇuOiÒ»e¤$€>|8á%øşğûá1Û»€0ˆò‡ƒû ‰=F?•Üƒ¿ğóòÍw jOñÙ¯à©Ûôôù úÀú5ü{‰ßIgH”D÷·‰XA‡qà¶L·5°ÓåÌ´,Ø¬pæ}¤9-˜t RØ¸}ÀÉHôqçÂŠ´º6‡MkÓ6áö‹ oÑyõºÎu¸Iä·‘lëğ17 =#árM WØe`›şá¸«5N#óØ’cüj)ÈfM¸v„¹ÉY·4:ÎIn(Æõ;¥İ0	QÒG${Q‚!)?Ì(ÏfQÕ³kÜëƒ¤ƒ­À[€ñÀÙõ»‹Àşíë’EşÊá–à b°\YÌåöÛ†o,î|œû€Š-à@åÓpÌ¿#CõˆPÙ“û°ÊéÛÔ	¶i€,²ÀâànÑm„ó	¸c9. ÜŸÎ;3{şôÛ=qÔA=Cn‡Ñ@Y@|±ÛÚÑ fi'Ær~şıÚÉsÇ1–'Ã¿“G~Óä®úÊ-íx:t;1¢ÚùSğ9†Vû‚xVc€>Âm¯Ìu¼›ËÉÓçN/ÇX`û|oÀˆhUÚ¿lşóÄ¹å\îiSiEX93?ş=`îø>)o˜Ìp²Í?`í2½®˜ËXkkqboşƒÛ4m@k0ïŞâÎü|şœ6x¯@ƒ>‚ÌîTìÚ\~ÄÿÀa™¼)Ğ2¼E9oQÎ[”“ŠrÊ=£?9	ÛÔİ>¸ Í·¦ğ‘lµ¶øœ­rËb×à î\mÁ×
-ÎĞˆ/^g-îP·eï.›Î?¨S}Àhä2#ëcùfŸ	Iæ½¸3)!kØÛ4ÁR°€ˆá1{Ğkr–"uWIN[! (idbê“Ü‡«Â§GºLµ
-ğ»uDæŒœc×H2ºFÓs,Àì°<î—N&DÚ—›à€û‰K|~{%Û±y{‰âù¨ ö~Š
-¤Q¡5*›º¹zæQ9-&0Ed$ZSLùşpåƒ-¼¦XtO˜Ar¶h‚M?}­\~&E›ZÜÖ‘­îB<½LŞÖİ›bY²Ošb@¦UJFL9ÚÈøæÈ§Òr<FêÂ ±?%éü6Èë Ê¿‚«Ïb‚7#Uï³á÷Äô@$?—šà„F$Ô–LäP›‰+| È•ÿ–!v…ãgqõ]s‹t$½`ë’ğÎŒ³ÕÅ§Œ˜B¥œûšKÇS'åZ%­lÓ'ê vPúë¬©6“Ğ”³øµŒİ•¹o4íòÄ¥R\æn·µ±`aëMîÍk¶ş‡¨Ó+Í²Ñ/mÉ¿Û¥™ò<)
-XTı4¦™fúÌIÖ÷KsYÚ©,®÷s»'X¿å'„*"O6ÎfµŞ3œ;Tlz„3§œ;\Ñøğ>>F:w¨Ôö }½lvîğƒöyÀˆ#C…|(şaÇñ"pãí|^œP±àğônÌB\ŒoCôƒÈGcPl J2H¨ßzõS¬\š ÓŸ¨Ng¦ó:NqiIèŞw>¸æÊt™ÃŸd¼n>ëudV‹¸.LŠ7Ã’=8onñöäÌÔîßNáïRÀûW ‰ë¥YXû.ı¯Yà¼®kÚ×J''˜ço£Šf‡5íĞCUq
-èåt"Øn “Ã êe¼Œ†éŞ:ò¯»,A¥(¡ÅÛì’ël˜pÌ×xÎ,°6ï°J]x„­ö}³gşÖ ƒEcà"_‹¹dxİ¦c¸éŒÄYlZ¶=ÓM¶°./J+s4@«Ë‡‚¯iÏ6Xø”ü’öL_-ÆY´çãâÂbB|HkÑáÁíÆvÏâÎÈ¥´vê”„¾£OM,cÊ.Iî\çõÊ9V]]Y¯­¬/°ù2[¯U¾R¯¢—MíÒêÚzcdwŒZz R6wİhŠÓëò¾"ûD˜düàÈµ8px§™a“kFiÃhó’iO 2_T]•|£Y‚Ã	t·§nÚ*²ú°E«†…†;Ú—W€şµÅ×ğ&v	;ÔìÌ°YØ
-‰6)K³<¶¸³k²›ö¸c¯ /ÓÛëÚ¸“D»`ûV`œhÉñ8ÀF¤öWdg°´¾é¼$/¦µUœTXtwF.¥µË;»£ûV0Á²éÑ*œwÜ5Ú›ŸÆÚ‡ûaÙé˜-ô²;¦Í9ºB4~3€óÆR`Ş ×3Üm½©Sö²&oÈÇ5È9iá§BÂO±ÆÏa
-?GÙ éK‰\€Z¯ÉÛm¢"¦MŞLn@·½¾c£,£…ûo™}.×>!3—%XİS³Åû5oÁÓ±ŸÚF… ¯kìØÕ.¬,°Á ßFW5…ÄõÉ¾Ë7‰ÅİaårÀ/òa¶«gÔä,–¸o˜¾¨-¾Ñ‹v´\ˆ¹ÁÔ“ÄSÏŠ<Ñ(¥§˜/_{zêïuÜ²Ğ­Aßu•î'/Øwß2²º¾„·ãk;Şÿ«ÀA’¨1£½iz Ûñ¹WÜµÙ‘*MåŸõñOgj³ïÏûä(ÎYóç,E•çô¢Ïø®XcúV™OñŞŸÏò÷õ¯Bá‹ƒÏQ¼EÍã+ÒJwRå$İğ£&qøü€&¡=['íİEs‹U°tämxÈœoÒä	…¡õ.÷<ÃDwò@åÂwˆ5º…}Q)=3Ñ+W½f9õŒå¦×õÎ<-n ]¹„>: ŸÊe+C™ˆ –@ş Ò <³Á‚Ü=¸Á”ºîüÖæà.zıÿ úãÁMTû÷ÊØà{T­±ƒ{Ãoî‰>¿T[wH±üJü¸<>]<¥.nJ¯®áúƒ•Ñ×ìÂ³/ĞÛìéÁ}Ô×à Ãø‚…Û#±5‚Å›şdĞø9+Ü@EUÌ>"^ıhøÆr“‰Yà¨î(}öĞ¿ïtƒ®Ñ2.½e¿¥¿7£—¾ş ¿„n`<·Lá¡èë+Eà‡£şaøRí|a†CX«òD9Sg«µ'–QC¾¿‡( ¾ÁoîïùÀ@{°sĞMÍ3Ûû{îşúöÈ	9¦Qo“/›ç»ƒñİ˜¶Wö{mÏïõĞ†èà¨lraÜ€ÆÄ–µß…½º¿g›@A9ëÃ­–éqyèĞ»‘˜bè­NàÌw¿†{½’›–%<Ã¡ì_»ô‚ÀI¼-mtEÛhØ±,Ÿ“‡}g¶a¢yà]cc®{BË}i0 YÖGy™›ä#ˆ Ö½Ãs ]uì–Ë«+­3àí]nlnÇa° ¢ua\Ş¶‡š1n{Ôª8¹d´Z×hmÇø]—opYôxo…"‚ĞgĞ•a]7¶=xP"$@¾Oº@¤œÏŒ 2pÁ'¸ÁhÉ®¯ØØf0‚.ó¬A¯½ÙmbîàšGçĞ¤E¦ô¸w$“ŸİuÇ½æeXDíñ˜vcôªÎ¤–”[êºG²éù€Ó¥÷çñRœÓY^¥Å¢¸£Æ§cC	•\Œpf ïÊ­tDGû¥ @×"H#ŒÙxF?	m>‡w%A=ø'vié¼ô¹=¸¥B8Á›³,KØßMÿ$ıt	_F~1ÖŞ¢.D1»OÑ‚ø5‘š/˜Bğù?!²°§İFÀ°¬^ç­®Mb¡-Fî\œj|,Çh³®û´‰éM ‡×à\ß“ˆ­­mÖÜ&Ş,mC{Àé0¹¦/$Q×u\Øé©>úé[vT§w8ÕÎé2»Ro\®,ãÅêZm½Æõ‹——+ëõÕ•¢ZÏìÉ©‡¢8áa•ÂN3U>g¯Ğã
-e6‚V£zÖÊ×ÅÊzm­^Yn°õZc½¾r½Ã–+çV×*ë«k¿bÿ`¬¯ÿŠ_[].
-½ ‰
-õ8 tXò1*
-˜<+€Ë¯Y:Ÿ‚*|5r³@ãÃëáÅ´6¢QøÈ£.}9Á¤Lâd?K8îâè«AùcÕ—?ÑHu(*ŠGËjäuuqä­H‚wâ_²Kõòeê^ÙlÓãåø!ª	Äßn­Õ_dF¿om# Ö5°ÉŞ	Ùk†ˆŒšà7lÕ•R%¨Nô-õÖÙcO+?Oi”Öeª°íØ—i˜8á†oøèY;‰Û¯+móëâZÆ®±€a“3;fî"ö³ÑŞ³HÒ‡œ³ı‚­àgmÜ¾ÚbY«8ŒtAş	Ü®³iXbö! ‚ÃTñé*ƒ-Ë'19D½±ª2C°]ıZË½X»ºZõák–^·'6±÷ê!#ÎlùÔÅ\,6|‰
-ÄcÁ£˜ 0dbÃã,L2V^×ñØXBÍI	wımÀ ßú¡hÌaW9¶Âôö¬…•P£ƒİ‹jxi¤G<Î9T³TšeJ|+¦	zË˜ıC¡Cşì3†!€ßP¡BÄãáÂHÃ7ÀôÂ-†ãKá‰ß+\»RÃôKÈåU/¯]©¶yz&ßäÇÁÇQG¥+u™Lp½ ¬ÜM8ı‡°¿3AÖ¨TÌ._tsVqi­vù—¥«kõFDšj®ÖÏ×«ìbmıç«K«Ë«~Å.\®/Õ–ë+Å×¶Çı®Óv,§³}+Üvù`«é4{•k¡çlçºÅÛ^jüÕN{dd¹Ó:Š!° —Bb‡8µÕÊrUI­¿X½¼¶R),¡¢Ğ6¬ãXÏˆ"­$»Í^Ñˆ–àâù#­dÖB˜C	x©7*p¶àOñãŠºfÓ5Üc9D¡¸+;Í¹"Ş‘Ã¤°Öëõ7êvÛâèX{	V‰Ãb%¯è[	×x»èµtÂëùNOM·ŞC7ËÅ´«é~I6wÔ¨g1¨p'õrÆ¸Åã<ö¾`i7³ÆâØ5Ô”…£2©TAê”ä=5ÊÄåô¶U‹nÅ²FZÜ8>]ÉjŸÛªÛe£‰Ï{‚›Íæ^G]Šâ¨â¬]›o€mÖ·ûeY£:ÖcA:«—ÖëëÿC wLøT©³‹õ_ªëµµ¢èÇ‰¸&æ1·JÑ>s¹õÔºÀö©(çĞ¾¸+ªo¯‹|4Ö×j+ÖÎÎ¯®Õª¡C¥½€ß.®;Vt17cÒo³íÃÌ;~·é7‡ç–-B•óQ–´ÀJ£´zñÒr½²R­¾œéÎ°£Ï2ÑªùéÎ;WµàÇŒQŞšoåy’+x{Iùƒj×';®h†Y…ÈO_t:Õ|–r‰	ad˜_iĞ³”Ù( v4™ê‚§’CŒ¦_z¥øöœ<?óŞlå°¾=³Òœ({à—Z]Ú•³bVÕpR#|fª7{v®ª5\à p+ä"-Œ¿”&‡·®Y¦6µhÌæÿ*`ÖSèi<›ÒrıÉ±4ãCÑµß,Íjvî_Ü8¸	Ø%3éCás'Ì)u_oï_¢‡ò5y<ü6’‹Š<ZĞ3æËá£ôéOwçÆÌ¿•†¥ç
-8$dxËM¾¨Ïh††÷9€e,ÀÃê¤îš™yÍRd¸Ni‚¶eøb§Ä{ÀĞZmr"˜‘fıÈ5ÖÇÈş6¦ŒÇŸDb™Ã¥e—*Fn¶Âì@êDVÊ3)A6³8åê¹
-{M’;×À¥éàYùo©ˆİ˜ïWN ĞxyıŞ®ú_`ÕW*lşä{3lšÕVØìÉÓlRzº½!„#úÛ·Kşc_ò¥õµÒ¹rµ<[>…ÇÏøMZòWŠrÜ8êéÎğÏÊVË½˜Ë_ª­Lr‘øâÊJeùWz##fMÃ÷¹K_È2šíM²Ç‘÷—ÔûÿZd%.±%¾É-§O®’"Ÿ úX5ĞQ	gó·pÇgÿÎ¼Yú(S]÷şÒìbº+¼ÄI¦‘Ò„ÇÃ]éR<7Ø“·È*Hßµ+«Ë—I›Bw¦/y
-7ÛL&”ÉægGC©#±Ò´©fÍÆd„‰BÉˆŞÔ7ÿÜ§D £vÃWÃ‡Êgñ[r¼Üh]ûÔÏF>KŠ2ÓßflÈÅ™3»£ yÛ'ôQ½z†ø5zêK‡Ì;èxN¾æáT%Uı^~2fÊü°mÈÿ³áSr¢ÂİĞ,û•Jq¡$
-xôóó@‰U•×¼Ê-’T ®p·¬•ÆoW#<¨´M°§¤ÿp€d²•¦bÅ0L§ò³IÎ¶GLkØ†¬ÄŞ6)‚Å´MTJP)Š—•«†É»Éò³ÏØÇŸh£Ìğ'aöŒÒK•éWÆó{ü	­Åê	¼¿™‡÷ü¸ÛÀÌha‡LLøâ~´ºö•sur+}¸•Ÿ×€¶„ƒLn*ÁØòñ~É?£¯€Q"¦Kß”C~Üş2q7,Ìlæeàíp1»ÕXX?áph<ğ>ÆÍáa´C¤°ˆ+˜¸$8|tIï=%SÃÀrØ¡ú­½
-ä
-Ş«ïA `Q*ì!zUßÖ0ÃwËñ†—ôÍ0ÛÏªÆ£Uª„…†O‘&#µ•HÁ£ïEÜÏëG³®ciLßûG\r`-ÇEçà¼vyü—C/.:¶é;‡amOå³¶0
-91 ®·$(ƒ-$.`¾Ïçm-ú‡TPÒrÇªâd‚&Ñ‹ú`ëNÇå˜AÎ%Ün‰Úº†w	N § mxI·=Œ ÁQ6Wx<>,wÄ+–à0>üÔuÇ·ú†`Å»ª»‡CQizÛ	$c³Æ=ÇÚ$Lqn``ÁCº®ÄÉÈéL<T¤;|íyÓæ6Ç9iÇµ!¹è´Ö@;Ï ®r;Jµé¤4 ÉêZ¢™ ´HDùŒÆuÛ^xóÃ2ÖÅÙç‹òÈ:nÍÊÈL	ó1¬%n{´ÕË(Íİyq“·´aài—ÿÚ}&¼³
-‡	¦0˜[ÇPFV;uä¶4-ÛùA'›7rû8omW¼n¢½¸˜ÑÖão¡×­ÚÆõvHÉGïéÉÛQRt¨)¬qßÀ5OLB]Îk^iµ`Ä”è!r'·s¤±©mt\ÔøØÔµ•õ•Zmüzc½²²Î.9.…*¨ü‹Ä×~
-‡˜bı7©ı‹  °úïˆè&L<‘nÒy˜T-ª¢TşK©Nk–Ò96R3íHf\˜6‡i7?) E‘ä¤Ç´>ô€ÁìRl9=*¶À’pc¿ÿIq±…D¥@MQÖ´B]óé|+«¬RÏ°ôrP¦å#"ó&J#%&É"X‡Ã¹üéòê…zU?¢Œ‚YE”kaÊã„šM³NRÙõå*V€aÇ”˜aø­çgJAVĞ¯XÂìlª•tË’V÷°Bè+™QâsÊ†*»›Ø³Eü.ĞÌÿ@EEéçsjÿŠRAŸâ¸î•“†_P÷=¿
-èA‚å¡ä‹º¾÷PXÿ}š/U‡wlxİş®ÔÖP	2¦ßâOñ¼SZ•#ù‹±"Nwó»"Ş»‰†˜¥ÌœR)ÏOä†c7€Ù—£İƒKém€ÇúŸl¿šŞr	˜?Ù0vñ5ET–.ÖWØ¥ÊJqwB”G4N¡ÈÇIß>¸a`‚Û€Ÿƒ¯#>P¹Ã;]fÚ::?6Èû±ºº4Fx÷Ñ7±Ø&~sù¡tn•r´ã¥m™Æø.Qé"Í‘³´yulDC ƒªç‘TQÕ´ä[Ù„E§„ï…´&–Iåú_ôìŞh9kYôºêØh]6ıı=†}ª¦øy‡<øà‹H¡ñ›÷ˆ?ÄWO6”ˆÎB}"£¬ªÙ(DÚ{>VZL7<¤‚@ô5Ğv¬A0üAÜ#"ñ’‹x;ÅKwôÖŞ^0(ËSàu‹¨7Ş‘+ƒÕSü–µ@oìï¡4	¸Òæ¿Å¼Bô—I†l½HGÄ·ö÷ZX]*š	“‰Z®½b¢A²)e(¡º#pzÃ£!VÊìØLiS0Q	ßâØ³ì	3÷0ş›Ì¤ÉZò:¹€FåJm‰]Z[ıE­º.Phc}u­r¡6ŠD'5X¨^ûÓ¾ ¸°a?ûŒiü-gĞşi hbêMˆs!SªÜ:ä0K›n1^öÛ™2L²L¤`u»m¶::…P *à¼’ï”\¶á:=˜QÛì8˜æ¶‰ÂšóÒ«I L½4T‡t€/Û°àb×l·¹]H8*îøN¿ä	áXB[ùşé–fĞ×JJÃëuÅË(—{a2Ë¡-WT^Yi¢’œTÜåƒR…å~&>¨T×ëWj1½†</9ÎY)M«%ˆV#<ñÁN<Â{Ü
-²qÄ= n!ñ½ Q™éàgd„©†'ò…*bÃ>c$ôP^?rUh³Fìsp÷Pï Ä¡êãg!KÙ‘]<ONÑ=0§€ìô",Ï£áLÜ‹0Îõ…dzÎ9v¿Tyïæ
-İé›>Ã§l¸¥S¸Â§5E[ˆ}ê»d– :ô	KÔ	 Ãƒ^•7"é@s(9zÎ“";çä$ß˜0óGŒğÇe¸X¢ ¦3¿xÉÈVÃè÷Ğ1ƒ…œ<U¢ÊçÄ`>Œ8ş½Ø9kõş:@ÖÎ	9orº:4Âº[£¹Ñóîl Û\! VGçªCFs#«Äl™U]#QŒÅy`F‹2oJÕœîºs‡ò7¬jÖæBK( ,ä°sö’5ğª¦Û²¸’WçGåÕˆ»z¾æùÈ™ß¿Ë"É]¢ÊçÇ”T2óÈŒ­s~¿€Ê9êt!åÕµZe½ÆVj±F}ƒ$««kK‡Ò?£°Œ:·Adæ  œÎL>>Ëÿº×^ˆÖA‹¹cŸ’”H¥Î¤ Shê„bhaQíËQ8“àKc9H¢C¨Â±>‘lÎìïÎNÓ´¯'T¦·¹úg/×&/E=èo¦ËÓRŠÏ¦ğº²ùu\œ¦Ş´©òä/îLr•|%l8ÉË>·ñEª'¦>cŞØqwU6l,y½=&ÎÀã„ê_QÜ[hĞ§ÁU)L^fô\C÷7×ımZë‹*|1î°¼0Á5·ŞÙ(g¢?F#ÑCgà[¦ÍÖ:&cò›=!fšQzñÛ·GåMœ‹ø¶—ÂĞa6¾¬»pÔ­<Ñˆ˜ªp›†.‘¡.ŒÃŞ„åAˆ†dˆD#“’>O‚Ì3uLTB¢>
-è™öâÄÌIıvë[‹g2ˆ9åà¨C§O®Ğ¼’§oüã7—1îÿ¦çˆXÁ7|…À£~ôooÆak|¬°³×=b0Ç\OŒ&ë¢v!œÕáøà§k„gÖ	–m6º–­ë9nIV4G®=#1/ñ«Zw„Ì±-Šo‘¡NëdF<À¨Ts*³£]"%@âœ-&Ã'm$F'ÜË‹v‹8¶@ÒÃxù\™-câgƒ¡Q¿­óôzBo…ò‹P~Î5ù=¯—É‹"ŠX,s?ÜÑ„‹îéçÃÇÊl‰\×‹áÃ7.”«iD%ri·3Nî(ƒ˜ôÅßÍˆåÌÏóâŸò7	Ü:ƒr0"*AŒ¿2k¨‰DÍ¦'Ms‹[¨ŒÀ1o º69µLÑ«¯ÂDÔŞe¢ò±|qf”`Ô¶‰J‡ÑÈ4\?BõÔşYvë *™OQ¡ÀRrÇ iD!.º„¥WfN(/%Q]<#*®D'ƒeŸ–,¾8%Í¤7zyN=œrï½ù¾±İ«zFPOîôü‹Ş[5½İqÙNõoÈô½i7fjØ-xÌ‰Ä1‘õ£õæÍÈ«Gé¦„©>âš‚Û£yÏLJWiÅ¯çæƒ!·bVÏŒ ë`àÙ¨ÓW%~ŞÅ‚«XQ={~v‚3Ÿ^ÍuäıF!€Ó)<lÂ6šÌ±R`¤4ÚtG,2jıxp~äé!fšê632ÏõÒñ£+U5&Ü’œ]'Â;%œ«´õÖ_+ˆïÀ¬3Z ŸçnoO@ÙmuÌíã…s~gIï\0>“ˆ	ÍŒ€H‘ÓCÔğKnBXFİk‘¸·
-UèH*š••’$BÑÇf×\8Ê.Û85*³¥ÆÄe£W"c):‚(½;k¨Å(¬ì8·ÛŒÚ¦ÑÏN¡%˜ÔlwÁ¬Ü;Z5˜*4ëâ€×½r<Æğz¬YÁ1h»~”²ã%×ØÈÀ?Åi
-Vä‘lé`VæAHêªF‰ü|
->%œ\f5>0ZÇæéÓ]V!ŞIë5ñu!uì‚©®E
-Y
-Íí‚p%U¹Vdû]×’äXŞKãXB&KçS˜1Ñ;J?	«ü’Ë—~ÎXU0gûÿ¦ÊœŠIŸ3üV—‘Ÿ×±Í¸÷+º{3ŸA}ĞeË“j õÈå†×]Ã é‹Fi`Ñ Å6m!¢p6w.}Ë·¯P¾Ü8„Èy”¬ZçûØ€ò”ÉEü|’”·ø$à¥»š“®kóÊâÄ*-ÓŸW+F›®Z¿R_f•ËKõu¶¾V©/`jŠ²4…ğÜ–ü»­\?ÜbXn~LÀdU©œB @ı)­Û^#­®<ò‚ãêÏfa*<ŸáÎ/·È{£}n{ŒãZtº/0Û–˜ÇÒ¹cš@ceµ´tmÎ•ç—yÄ¡z\ŒY8¶´_3ä+ã Êbóx„1±$vÓ<.:mB›Ç5‘ &WrFĞ«¯^Vñ±b×2–Wçø°*Ü5æd>6\¬u‹áx?7=ªç>ç•åv²9Pë I¹-œjÑNaÊµ™ˆt‘¤
-0X¡èÔ3¶JİÒÌé0Ò`»„E{…/»×rËj@“ºfzôAÊd<ßu€Fç#ˆEêÓ¶išBûSèú¸¥è.ë¼ßQnvÃ==;°%‚y`È*†KbÔ(Ï{t¡`Mtˆ UPîÏÛv¤^‡‹'˜[oo‘½ÈŞ£‘àş#76™PaHB©O°º‰&qo^QÆşüO_²˜Q1p>ãøÉò»ÃÜ¾
-ô“ÙG>[;¾…°çÉ¹±%-@>IeµLú’—óN;Òìüê³ó“@Z±J'eŠÌÖµÅIá]rİYF
-“ÒThÇè³[š×À¥ °èéı	¢> ‘ŒÜ™îù
-š"GäààÍ'	ó~*›eÒ?¹°Ü9ÔJç¨ğ“Xê"ºBQ–ô'›A­z,U_6=*^ŞqE)¼
-´á8×OÑÿFŒ(³5c=KÎÃG@Î¾ñ`_¡ûåğ!e4	rVÜ$c6ğ¾éhS¢£Ÿ’ğOTò+e	¿û =Ë#!ÔRa‚—„P—Ç˜rÊ†m;>k;×mË1ÚÌqÛ‚MNQ¹¢¬kò–1ğ¸Lü€È¼ĞŒakÊ\¶ÍàwY$ñO·ë•Óy¥}„%¹ØÓÅÈÔuÓ†é•iZ“…Æ‘Z`,ùÑ#6˜'¡{‰<4³¯j¬³Š…<¢ÒùÓKKçß "K8d€X0óš©W14äq–š(Ã¾aZ°“}º€?Yœ0ô5¨ãÄ—
-ƒÇ‹ª0yÏ01CŒôı àeªèa5Ëeï1­øY‚5zûøä'ãŒ¤ª(òÔ‘ƒëxí'8ôÁETKâ‚]:•Šfÿ2ËğÉğ›ƒoêdÂN’æ
- |?Š9déiuşÄD¾ñ}-Ã¸4± ÅI©:B½JftdÎ¤FqxHx@TD‰aÄl>}u(+J{oNÅ™ŒìñEdJğÒ4&;©?xzpãàæBa½±†
-lYéŸfÄšïÂúWä€øÇCháª¬¯,î:Ïöv1”¦¥&¨•±öbˆµ‰İaår¹‚Å§¾ ´a¿Å9Bü[”SßÀ¬,ªÂÈ7[I'û¨'}óñ²?…”¸å&–›InšL÷åĞ£«ˆ%.4I³iF½Ÿ¯<Äèâö18;F{Ø,ñ0:Ñï†zŒ1´¨7Hw„>
-$9¡Ó0Q½¡ø í>yÆıœ2okên*!+ªşm:Ä·é_S:Ä·ùãŸÑ]ú6ß`¬“·ù×ßæüñæÁË••—1Y`£¶\«R¼"rù¢„•6£ÃW#Y1,È@ØUŒj°‚Š›<=!VN™Ï$¶Ñq÷2¯Pú>ö''Ôâ}Œ+İu3ã”I¦Íj’©0Lš¸¸¿,‡;‰§N«îˆE8aX+Šë,€£ò{Bİ›Ô…YÌŠGÀføv ’>7 •†ˆ@á-I^{í¬îDà“NHH(ÓZ™­d×ùEãt£Õ…Aé˜úÿ÷¯÷şÿşìïOõ{%'÷Ğ»sã¿ßîÜx»;Ó>‡Ø„/Ãİ©ß+¯kwr’ÇÏtwÂ”ŞîÎÑÏ!vçˆ?Ãİ©ß+Y»ó—êKË•_±Ë+õõ«¯,Õ«•õÕ56	 ü[v±¶¾V¯²Õ•å_MıµğwÇ”÷ ål%…áq"ósT£š…×FAF\Øïƒ¼ñ4tH¤I½+bcÛó÷‚|ÂÛÀF¹O¹!J7|‚÷0ÁÅe¸­õAÌL[A4Unè¯”&§¹‘ñd4ti.¢µèµ»CÅŸOÏ{gâé"¹›Ç¸Á¡õ+YØ§Q2X]RÔªmm³CœLY9Hq]§]è"P$ûUNÔ·>­«&]Õh†Õ2:ëÎf"yTõy<2µ*wAèU<OªÿÿH%¹IøÇŸ/n¨rİ•–%H¦…‰U”ÓzÊğÿİßÃ¥q,§cÂÉ{—÷ú¦E5a±~¤=°Óåò^äêÑm<ƒÄ}—]ñ1L–B\ÈR±ÈLw±—éoã/’=šê=8¸anzr$—û”`Ûx.ì.ï
-a…-²´5Z¬¸„éƒ³•`-.Ì7ÀíïuÜı=.ƒ]|KäÃL–H‡¢5¢f§qÉÈ¶–<›2}T 
-©Ö -¡³Œ'õ¦Ñ…CçŒLÛİ™”°ó {|Ãˆ ±b½´ˆõ%¢T¡æ|Š¡¥áxC@<¢w…Rs:¥hW<%4æ·[rù`«tÁqMÏãS¬Ä"ï@Z‰yp)÷øÁÍƒ™»BZÎÜ°#X¬o6yŞE]çtÅêìï¹&½lU¹kfZ–ÚGÊX—èB¢ìHOX”;Zd·ºÙÒå18daeaX¿¤ğÓ˜µd`ò~¾ºôiuuå|ıBããDNÑÛ'd¸ÈòbÂøj¶È
-uœnÌÉË“k2	7ÿL&§RL&sÚ’§&éÅ”ş%ç-Ç¯hQèĞ˜àköoV˜iNyYÖ#âN„ñrX‚£kå¯ZŒ0Íaš»¦‹ˆìPŸ;áş)ÓL‚X™H©aîs‰ÕÅ¹á›Ãq\_FÚp+Ã'&/TbD´Ñg‰–RÊ~híTÚLŒé/£YóÂ&‹$¦Ü©¸…Ü¶ÎÒÑQ«S¬«*Iq^×5ík¥¬LiÄYi~Æ]€Ô¨Ú¹€Ê³¼]8şh[5ÎTd/y¾#ÅH1’H„[j2£©Vmªn%V¥]éQüª«YñÌ4Ş}–"0#Û	h[Ç´l§|'’7¾ç”0WÖ¬ÄƒáÓ#€„ÍÂÂÏ ·¹Qä4s±)||‚|dêÄug7ÇS‚°ØÒ‘ä®Vä±\2²>%î+UV÷zè#‹KÖÌÔ¨‘9;ßR˜=x%+:ºøšı¾%I¡ÒÌ`¹?ğšß$w3~±³ù±ÚÌy±T(±•‰ªóX„"ôHw„µ.É¤²ˆå™˜#ôš »ı’ã ¹^ıüŠ\(H¸(xÚG’£€ˆ<N×Û&°<¾;6"@„A›s#|ÇíÔPÌ¾ŞÉ"cFóVÍãÆÓè âi°ë«ÁíQ¯É¤êjˆói)-S@9©ÂóU’ëß±FùŞ„5¡éÿ›ˆo
-î“,<“ÆEÌëğÌÉ<b¤—`UK–µ‚ÑbÇ°~aö±0âZîÚQzhÔÅ)®Oøğáõ0Pì}÷—_7eİâX›q3Õçvwj2ÅÊ¤Ã3:–à¸õÃ:Ütpcø‡ F0ÿ³á÷a½A¬#ÃNÉ
-	“µ­¾ã\Î–®Ñ4-ÓßfUåTZŞµ%^Vœ†ŒÌÊ._I¯I—=Ó*Ô©u1)â(EC¬Ç…däÅ®.=A–ÂqV«¿Wc”_xOèõ¦½\7Ì‘‡4û©F‰÷¾ÿ%à¥_d%¦‚›ïc	,6ü•Œ² }%#“¿‡}‚ÈBî‘I²¥Q­ FLçVzpğû©l_ûä ª°Sá?Æ-xËCÜuªWñögÈºª¢2"áŒ"ZÊC‰E$»/‘¾3üE÷ÆØ,l690ÌğŸº=’¹ƒ„¡Ï‰…BÈHvIpáw‚ïAúòa_¼Gàº7î¨æpTs)£’µKH›)Ô1ÃÜ$àş»h£Á‘~MUn„úŸ¸>8ûøõ6ŒéiÀíI·ÚgãëëT*´í,Ú%w(tş‘#„Õ+Õ5ˆæñ˜„—gs%s`K¸¿–Äş””Û°Y`#›Utwá¦ÍâiÌğløRFLEı;6ÜbK³Ú±¥ïúøşò	J¯Bmÿ-´ìP^Åˆàh†”~Ü“Ğ@6„rÓÊúQ°•a‘îÑb}(dø„jP’%é‰
-€|¢5’'„6’ w€ÇÆ¬v€ÁÔ#h
-·ÖçáóáXÇ|5ÇÆœşÕ0å—Âvó¶ËCü—öVQÊƒ¶Q$o cé. #Qæ—Ø4î¹;cÂª‚‹Y‘çásé•H}‘=€?]´oˆõy%
-˜
-~O\åáŞ˜oÇ•ªÌñíÑÃ:æûq¹*sGıw¢T$~}Œöà÷YÃĞ‡”e¹. fŞpM²aM+İn‘0rKMÒ2.–À	,6™•—Ã<M™ŸĞx	»PzLŒ~’ı¦Öæ°“jÓÄ<³ƒŞş¹ÿ´îS<\ÂçGLœ×:Ó½ÿ|>ÅR|¸M=Æ\4·Ø?ÛG^º1èõw;ÑË¡Ğ¯‡/X$rBäŠ…M—şşt'¤âŞïÁØ¢œt:Ï-±5¬q,qÂ±ˆX±¡lçºkôõ*~$ÆùÍw5hÄí°èşÈÖàúİ¸gŞlL–¾ÎE$èvDÄƒ…Ö;jä×ü‡áº°øİÃŒQ•,OdÕD×íøª\İ–96±°*f'z]ã©í`>2°¡Y¾x]ãhàöÖ¤aØí(Tqûuä‚klšbÚ©CÁûÜ
-óöÌï:–TN|ğÑtõ¨ÌTæ¤ÎşjÕÙÿŸMşlÄôêÀu¹İÚnl÷š59µKèîª0ĞÔËoyU²Éè<³—ıtvªÀ,ÈÀ]W¯fÊDrgı¦ÓŞB°µÙZÌä—„Y"v5­©PärÏÜRtH’¡E^K´ç¦´D,LY,ñé²Tãµ£Q;©Ş*´X±6ñ
-JäRFöãŸÈ)qpÖoëÑt¬^hET×ñ3(PÖKƒcM]¶‘[w×[o ³cë¬CéÈİÅQĞ|½‚r?HĞ´Öæ} 	ëÇ?9yîı33¨¬Ş`
-QLŠ|3•ûÖ,\• Ú!&ĞùL7vLÎÒar+Rf­.o]ó˜…õÇóšÎó•O<@;‚ŒÅå ˜İ'Ô=.ƒ™ÆEéJtJ.¶ï#B7Š‚™ÆÜ}^¯x>…|ƒüˆaDxû`fNVá0‹°™H"ÜÏ×"uoÇóëË (GÁ³X¬³rá˜EÄcxâC6)ñ™„)ağŒZŒº=ô”¨Q'Á'+‰šˆ8Elqx)‡Tå½âÏÿ÷_"{š^ğçÿóo¤[£ÜbY¬N6s’=ÿ<+YZÅ»ô²2”¾¼ØÊ#úŒx¹ !"Ë`±¤TÔAv²2„aD Û-`X¹Ş‰cßLÇÆ‡	Û¶Ùbè;ï†^–1·â*æ(¦ó<{10¡RgŠ­Òğ_©‡”
-¨¾r¥¾^¡üë«ìüòjS¼°JU–®Ô«k#óKÌMTóÌu9N”ìÎ€ˆ˜ı,İ¯~$«v„`á±S÷ÅuôüH©µ52ó)E„Gìåi¯LÙXÎ¦	O	rIF‚S"N*H¯?°0›¸rDMİ\@³×0³†Ìãr&kÿ¤4µ×7ßÒŒ~>5Şf¬$'÷D› ÆÓ™!C!ã%Dóèà‹›‚ğşğ_µÑç¸ç˜6k¿;°9s÷÷DÉ fözû{mÓ@ßzL&â»hÈE%gÒr¯p Æ=ÉÅƒ.%WÃè¦mLrÒRDº;}¨Qö¥û
-Y´`ÀŠ6/ÏsÊó€¢R~ƒLR±—È·‘ı€+l0{„¬ruÒ:˜‹^ˆü3¢ÏWh¹…ŸŠÔ2ø¯¡×,mˆÜòv="5)¿'£0¼ò[™+ˆâC÷ôÙhVhÑĞA…›–‡#Ã-Ëì`|Ú¦´Üh!!7:°ò,˜ï|84xpú¤@æ>æbì;+m9 C´D±ÀTdCÌ–ÈU³
-í½¦*5Ú°…“Òl{"Ç6lx—ëx%³éÃÚá 6?ƒE¬eùŒ–a1ØM$³åÑ#h¦è™¿•e6`³p°í©tÍÖµñ³Ú¹˜ëŞ¡KŞ’éq£aZä~	™„¼†Î
-µE",’å¾#rä(Ï(°ªx’¯`Ïİ Ôòç»ÿ[_sµº^?Ïj+ì\¥¡¤‹Wjì\myõ#º˜„|ÿ–F§ÏNèèMÌ™iï!ş‰ùùÕÕõÚ¥g[®]¨,³øMÒvvÃq¬E‹ª[¥ë¥÷€&÷„ñ Wæ4®ËiM½½¹yÉYV¤ú™´ÊÉAJYZÊû¾ LZ‘õM’¥Dv´±\®z£æ¥ìøK…’¢?ƒ4|“¶Ÿp×íÑ¿É„ùcr¦riy Ï#ÑÙmø3Ş£¬õ5b¤Ñœa?ôæ¸™)™¨,Ni²éH
-˜' „RìHÌ*‰wP0xøŞÀ{˜;Xä%{-gwkøGEcD—…À«áŸ ·ß±ÉJ§ãòÒßD(ñ”$<( éËTy<êí‡€nrx‰¼ú$È‡ÒˆgÉ q7¡Õ?­Cß’?u“h Qw¡ÁCÕc`Œa²ú™àh’ıŞD€	àöƒˆ³¹Ø[xäÜ~Ï`z÷
-t›(¤ò>øN%{»%â¿ïHºı$„ê—¨PW3º-IGKR¤lÛÑe¿dÔÀxĞĞ8¯…µÃÍÌ±Çú˜ÎÜäh#ˆÍXP5sÀ°¿qÉÈ~Kš,£%y*’Ü÷N0øØĞ£g¡´³eôÄc´9mA0éE@$…9)v‹h"Óô¹mºHÅe‘Îı=àœøk£ë¤_\UÁ”CÅáÁ{ˆKäáEÈ;^òtó+'áƒÄƒà Jm(ø´T»^$@Ş€s	muMà*¡k <C°İûr»Ømcò»6Ç|åTúùX²ú
-Ğ¸ÛÀò˜m ¢ä&°¥Pt3ºt<l¿mrÀ ¨-ñN™N°.ÈW¥ß€Øo	¸Zâl\§	ò[LÜ J»"ëUùWè^À†qªr+Eø•KòÂıtüÈ9ê¾JTÕO*l=²-˜|ĞıÕ7a¿¿Ã®…r$"ÿ…ÓôĞW´
-7š®¸ó[6š‹UõÂ¯™j™{å9¹@arIBAä‰ÙZ…Î=èòğ­øñğ¿Tôb:ÊgÒ}KÕ+Uò‚(!´Ûˆ™”Ÿú•½P˜ì½_ú´,|^_ Æ{*´ÁØïCÀ¨7¥³0Å£³•Œ”!¼&œ¤G°8 ÀÇÂæ1¹îšÀ´ƒ*­~.ñc$qfLÏ ù\0 Dhn©9ÜhEõõ·øbö€D¨'ıŠTá!|ÓB¯Ğ§ø$`ööˆï¹íÙì‹€F
-æ)€»—qJ4 ²qbúÏ¡ºBû{À_PY¿µÂí2«[Lpã®/	DĞƒs/9 NØµˆá	ïÙ‚¾Ğ/ç]@†‰Ù’;ó„„ĞçŞ36Lb{¨¦‰wÁ¦tg‡î1“……øÙz×ØØ0ÿ¡!ÖÚÿÎÆl$8H=@x0jìsl˜‚Ü¸‘²Ô8ĞAßGù¾áÆĞ;àö÷°9 ø×@3¼4¬^%pQ&	@—oPŞRÆNt¹SŠv€Íæ@¤#euŸ™ ãY×QTĞã¢Z%°ãÜ%!Ñ
-‘€O jbi c^˜ú]æ2t·Û®1 Ù
-È€Ì³½¾ğ«° znItÃ™ĞË¦"r	Ñ{ô< ¢C-Š¹ÏN¹„•àJcàõ`IXğøÔßÿÍîßü   ÿÿ ™ıc
+                          {/* Row 5: Additions */}
+                          <tr>
+                            <td className="p-3 font-bold text-slate-900 dark:text-slate-100">
+                              {language === "fr" ? "Adjuvants & Additions" : language === "en" ? "Admixtures & Additions" : "Ø§Ù„Ø¥Ø¶Ø§ÙØ§Øª ÙˆØ§Ù„Ù…Ø­Ø³Ù†Ø§Øª"}
+                            </td>
+                            <td className="p-3 text-center font-mono">
+                              {`${Math.round(((inputs.dosageSilicaFume > 0 ? results.cementWeight * (inputs.dosageSilicaFume / 100) : 0) + (inputs.dosageFlyAsh > 0 ? results.cementWeight * (inputs.dosageFlyAsh / 100) : 0) + (inputs.dosageSlag > 0 ? results.cementWeight * (inputs.dosageSlag / 100) : 0) + (results.admixtureWeights || []).reduce((s, a) => s + a.weight, 0)) * inputs.batchVolume).toLocaleString()} kg`}
+                            </td>
+                            <td className="p-3 text-center font-mono text-slate-500">
+                              {costBreakdown.avgAdditionsUnitPrice ? `${formatCurrency(costBreakdown.avgAdditionsUnitPrice)}/kg` : "-"}
+                            </td>
+                            <td className="p-3 text-center font-mono text-blue-500 font-bold">
+                              {formatCurrency(costBreakdown.additionsCost)}
+                            </td>
+                          </tr>
+
+                          {/* Row 6: Labor */}
+                          <tr>
+                            <td className="p-3 font-bold text-slate-900 dark:text-slate-100">
+                              {language === "fr" ? "Main d'Å“uvre & OpÃ©rations" : language === "en" ? "Labor & Operations" : "Ø§Ù„ÙŠØ¯ Ø§Ù„Ø¹Ø§Ù…Ù„Ø© ÙˆØ§Ù„ØªØ´ØºÙŠÙ„"}
+                            </td>
+                            <td className="p-3 text-center font-mono">
+                              {`${inputs.batchVolume} mÂ³`}
+                            </td>
+                            <td className="p-3 text-center font-mono text-slate-500">
+                              {formatCurrency(inputs.priceLabor)}/mÂ³
+                            </td>
+                            <td className="p-3 text-center font-mono text-blue-500 font-bold">
+                              {formatCurrency(costBreakdown.laborCost)}
+                            </td>
+                          </tr>
+                        </tbody>
+                        <tfoot className="bg-slate-50 dark:bg-slate-800/60 font-black border-t border-slate-200 dark:border-slate-700">
+                          <tr>
+                            <td colSpan={3} className="p-3 text-slate-800 dark:text-slate-100 font-bold">
+                              {language === "fr" ? "CoÃ»t Total de la GÃ¢chÃ©e" : language === "en" ? "Total Batch Cost" : "Ø§Ù„ØªÙƒÙ„ÙØ© Ø§Ù„Ø¥Ø¬Ù…Ø§Ù„ÙŠØ© Ù„Ù„ÙˆØ¬Ø¨Ø©"}
+                            </td>
+                            <td className="p-3 text-center font-mono text-emerald-500 font-black text-sm">
+                              {formatCurrency(costBreakdown.grandTotalCost)}
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Chart Box */}
+                  <div className="lg:col-span-5 border border-slate-200 dark:border-slate-800 rounded-xl p-4 bg-slate-50/50 dark:bg-slate-900/30 flex flex-col justify-between">
+                    <div>
+                      <h4 className="text-xs font-black text-slate-800 dark:text-slate-200 mb-3 flex items-center gap-1.5">
+                        <TrendingUp size={14} className="text-emerald-500" />
+                        <span>{language === "fr" ? "RÃ©partition des CoÃ»ts" : language === "en" ? "Cost Distribution" : "ØªÙˆØ²ÙŠØ¹ Ù‡ÙŠÙƒÙ„ Ø§Ù„ØªÙƒØ§Ù„ÙŠÙ"}</span>
+                      </h4>
+                      <div className="space-y-3 pt-2">
+                        <div>
+                          <div className="flex justify-between text-xs font-mono mb-1">
+                            <span className="text-slate-600 dark:text-slate-300">{language === "fr" ? "Ciment" : language === "en" ? "Cement" : "Ø§Ù„Ø¥Ø³Ù…Ù†Øª"}</span>
+                            <span className="font-bold text-blue-500">{((costBreakdown.cementPercent ?? costBreakdown.percentages?.cement) || 0).toFixed(1)}%</span>
+                          </div>
+                          <div className="w-full bg-slate-200 dark:bg-slate-700 h-2 rounded-full overflow-hidden">
+                            <div className="bg-blue-500 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(100, Math.max(0, (costBreakdown.cementPercent ?? costBreakdown.percentages?.cement) || 0))}%` }}></div>
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="flex justify-between text-xs font-mono mb-1">
+                            <span className="text-slate-600 dark:text-slate-300">{language === "fr" ? "Sable" : language === "en" ? "Sand" : "Ø§Ù„Ø±Ù…Ù„"}</span>
+                            <span className="font-bold text-amber-500">{((costBreakdown.sandPercent ?? costBreakdown.percentages?.sand) || 0).toFixed(1)}%</span>
+                          </div>
+                          <div className="w-full bg-slate-200 dark:bg-slate-700 h-2 rounded-full overflow-hidden">
+                            <div className="bg-amber-500 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(100, Math.max(0, (costBreakdown.sandPercent ?? costBreakdown.percentages?.sand) || 0))}%` }}></div>
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="flex justify-between text-xs font-mono mb-1">
+                            <span className="text-slate-600 dark:text-slate-300">{language === "fr" ? "Gravier" : language === "en" ? "Gravel" : "Ø§Ù„Ø­ØµÙ‰"}</span>
+                            <span className="font-bold text-red-500">{((costBreakdown.gravelPercent ?? costBreakdown.percentages?.gravel) || 0).toFixed(1)}%</span>
+                          </div>
+                          <div className="w-full bg-slate-200 dark:bg-slate-700 h-2 rounded-full overflow-hidden">
+                            <div className="bg-red-500 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(100, Math.max(0, (costBreakdown.gravelPercent ?? costBreakdown.percentages?.gravel) || 0))}%` }}></div>
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="flex justify-between text-xs font-mono mb-1">
+                            <span className="text-slate-600 dark:text-slate-300">{language === "fr" ? "Eau" : language === "en" ? "Water" : "Ø§Ù„Ù…Ø§Ø¡"}</span>
+                            <span className="font-bold text-cyan-500">{((costBreakdown.waterPercent ?? costBreakdown.percentages?.water) || 0).toFixed(1)}%</span>
+                          </div>
+                          <div className="w-full bg-slate-200 dark:bg-slate-700 h-2 rounded-full overflow-hidden">
+                            <div className="bg-cyan-500 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(100, Math.max(0, (costBreakdown.waterPercent ?? costBreakdown.percentages?.water) || 0))}%` }}></div>
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="flex justify-between text-xs font-mono mb-1">
+                            <span className="text-slate-600 dark:text-slate-300">{language === "fr" ? "Adjuvants & Additions" : language === "en" ? "Additions" : "Ø§Ù„Ø¥Ø¶Ø§ÙØ§Øª"}</span>
+                            <span className="font-bold text-purple-500">{((costBreakdown.additionsPercent ?? costBreakdown.percentages?.additions) || 0).toFixed(1)}%</span>
+                          </div>
+                          <div className="w-full bg-slate-200 dark:bg-slate-700 h-2 rounded-full overflow-hidden">
+                            <div className="bg-purple-500 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(100, Math.max(0, (costBreakdown.additionsPercent ?? costBreakdown.percentages?.additions) || 0))}%` }}></div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Profitability and Regional Analytics Dashboard Component */}
+                <div className="pt-4">
+                  <CostAnalysisDashboard
+                    inputs={inputs}
+                    setInputs={setInputs}
+                    results={results}
+                    costBreakdown={costBreakdown}
+                    formatCurrency={formatCurrency}
+                    getCurrencySymbol={getCurrencySymbol}
+                    language={language}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* TAB CONTENT: MATERIALS LIBRARY & DATABASES */}
+            {(activeSidebarTab === "materials_library" ||
+              activeSidebarTab === "cement_database" ||
+              activeSidebarTab === "aggregates_database" ||
+              activeSidebarTab === "admixtures_database" ||
+              activeSidebarTab === "materials") && (
+              <div className="space-y-6 animate-fade-in" id="materials-library-screen">
+                <MaterialEngineeringDatabase
+                  inputs={inputs}
+                  setInputs={setInputs}
+                  materials={materialsDatabase}
+                  onUpdateMaterials={setMaterialsDatabase}
+                  onClearAllMaterials={() => setMaterialsDatabase([])}
+                  testRecords={materialTestRecords}
+                  onOpenMaterialLabTests={() => {
+                    setActiveSidebarTab("materials_lab");
+                  }}
+                  selectedSandId={inputs.selectedSandId}
+                  selectedGravelId={inputs.selectedGravelId}
+                  selectedCementId={inputs.selectedCementId}
+                  language={language}
+                  customMaterialImages={customMaterialImages}
+                  generatingMaterialKey={generatingMaterialKey}
+                  handleGenerateMaterialImage={handleGenerateMaterialImage}
+                  generationError={generationError}
+                  defaultRepo={
+                    activeSidebarTab === "cement_database" ? "cement" :
+                    activeSidebarTab === "aggregates_database" ? "aggregates" :
+                    activeSidebarTab === "admixtures_database" ? "admixtures" : undefined
+                  }
+                />
+              </div>
+            )}
+
+            {/* TAB CONTENT: MATERIALS TESTING LAB & ACADEMIC LAB */}
+            {(activeSidebarTab === "materials_lab" ||
+              activeSidebarTab === "academic_lab" ||
+              activeSidebarTab === "lab_validation") && (
+              <div className="space-y-6 animate-fade-in" id="materials-lab-screen">
+                <LaboratoryDashboard
+                  materials={materialsDatabase}
+                  laboratoryTests={materialTestRecords}
+                  onSaveTestRecord={handleSaveTestRecord}
+                  onDeleteTestRecord={handleDeleteTestRecord}
+                  onNavigateToMaterialsLibrary={() => setActiveSidebarTab("materials_library")}
+                  language={language as "ar" | "fr" | "en"}
+                />
+              </div>
+            )}
+
+            {/* TAB CONTENT: RECIPE & TECHNICAL REPORTS */}
+            {activeSidebarTab === "reports" && (
+              <div className="space-y-6 animate-fade-in" id="recipe-report-screen">
+                <RecipeReport
+                  input={inputs}
+                  result={results}
+                  materialsDatabase={materialsDatabase}
+                  onChangeInputs={(up) => setInputs(prev => ({ ...prev, ...up }))}
+                  activeProject={activeProject}
+                />
+              </div>
+            )}
+
+            {/* TAB CONTENT: MIX OPTIMIZATION */}
+            {activeSidebarTab === "optimization" && (
+              <div className="space-y-6 animate-fade-in" id="mix-optimization-screen">
+                <MixOptimizationPanel
+                  inputs={inputs}
+                  setInputs={setInputs}
+                  results={results}
+                  currency={currency}
+                />
+              </div>
+            )}
+
+            {/* TAB CONTENT: KNOWLEDGE CENTER & METHODOLOGY */}
+            {activeSidebarTab === "methodology" && (
+              <div className="space-y-6 animate-fade-in" id="engineering-knowledge-screen">
+                <EngineeringKnowledgeCenter
+                  inputs={inputs}
+                  results={results}
+                  setActiveSidebarTab={setActiveSidebarTab}
+                  language={language as any}
+                />
+              </div>
+            )}
+
+            {/* TAB CONTENT: CALCULATION JOURNAL */}
+            {activeSidebarTab === "journal" && (
+              <div className="space-y-6 animate-fade-in" id="calculation-journal-screen">
+                <CalculationJournal
+                  inputs={inputs}
+                  result={results}
+                />
+              </div>
+            )}
+
+            {/* TAB CONTENT: COMPLIANCE AUDIT & STANDARDS REPORT */}
+            {activeSidebarTab === "compliance_reports" && (
+              <div className="space-y-6 animate-fade-in" id="compliance-reports-screen">
+                <ReportCompliance
+                  result={results}
+                />
+              </div>
+            )}
+
+            {/* TAB CONTENT: VISUAL & STRENGTH SIMULATION */}
+            {activeSidebarTab === "simulation" && (
+              <div className="space-y-6 animate-fade-in" id="simulation-screen">
+                <div className="grid grid-cols-1 gap-6">
+                  <VisualConcreteSimulation />
+                  <StrengthSimulationPanel input={inputs} result={results} />
+                </div>
+              </div>
+            )}
+
+            {/* TAB CONTENT: SIEVE & GRADING CURVES */}
+            {activeSidebarTab === "sieve" && (
+              <div className="space-y-6 animate-fade-in" id="sieve-curves-screen">
+                <SieveGradingCurves
+                  inputs={inputs}
+                  results={results}
+                  materialsDatabase={materialsDatabase}
+                />
+              </div>
+            )}
+
+            {/* TAB CONTENT: AI ENGINEERING ADVISOR */}
+            {activeSidebarTab === "engineering_assistant" && (
+              <div className="space-y-6 animate-fade-in" id="engineering-ai-advisor-screen">
+                <EngineeringAIAdvisor
+                  input={inputs}
+                  result={results}
+                  reportLanguage={language === "ar" ? "ar" : "en"}
+                  materialsDatabase={materialsDatabase}
+                  resolvedMaterials={activeResolvedMats}
+                />
+              </div>
+            )}
+
+            {/* TAB CONTENT: ADMIN PANEL */}
+            {activeSidebarTab === "admin" && (
+              <div className="space-y-6 animate-fade-in" id="admin-panel-screen">
+                <AdminPanel themeMode={themeMode} />
+              </div>
+            )}
+
+            {/* TAB CONTENT: SETTINGS & PREFERENCES */}
+            {activeSidebarTab === "settings" && (
+              <div className="space-y-6 animate-fade-in" id="settings-panel-screen">
+                <SettingsPanel
+                  currency={currency}
+                  setCurrency={setCurrency}
+                  currentPlant={currentPlant}
+                  setCurrentPlant={setCurrentPlant}
+                  currentProject={currentProject}
+                  setCurrentProject={setCurrentProject}
+                  onExportBackup={handleExportBackup}
+                  onImportBackup={handleImportBackup}
+                  onResetDatabase={handleResetDatabase}
+                />
+              </div>
+            )}
+            </>
+            )}
+          </main>
+        </div>
+      </div>
+
+      {/* Modals & Dialogs */}
+      <BatchMaterialPropertiesModal 
+        isOpen={isBatchPropertiesModalOpen} 
+        onClose={() => setIsBatchPropertiesModalOpen(false)}
+        materials={materialsDatabase}
+        inputs={inputs}
+        activeMaterials={activeMixMaterialsList}
+        onSaveSuccess={handleBatchPropertiesSave}
+        language={language as "ar" | "fr" | "en"}
+        userId={user?.uid}
+      />
+
+      <ProjectFileManagerModal 
+        mode="new"
+        isOpen={showNewProjectModal}
+        onClose={() => setShowNewProjectModal(false)}
+      />
+
+      <ProjectFileManagerModal 
+        mode="properties"
+        isOpen={showProjectPropertiesModal}
+        onClose={() => setShowProjectPropertiesModal(false)}
+      />
+
+      {/* Bottom Status Bar */}
+      <StatusBar 
+        fck28={inputs.fck28}
+        selectedMethod={inputs.selectedMethod}
+        exposureClass={inputs.exposureClass}
+        slumpValue={inputs.targetSlump}
+        isValid={true}
+      />
+    </Suspense>
+  </div>
+  );
+}

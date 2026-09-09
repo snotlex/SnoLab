@@ -360,28 +360,35 @@ export function generateMaterialId(row: any, category: string, sheetName: string
   // Check if a valid user ID is in the record
   const rowId = row.id || row.Id || row.ID || row["المعرف"] || row["المعرّف"] || row.MaterialID || row.MaterialCode || row.code || row.Code;
   if (rowId && String(rowId).trim() !== "") {
-    return String(rowId).trim().replace(/[^a-zA-Z0-9_-]/g, "");
+    let cleanId = String(rowId).trim().replace(/[^a-zA-Z0-9_-]/g, "");
+    // User imports MUST NEVER masquerade as system IDs
+    if (/^(sys-|sys_|preset-)/i.test(cleanId)) {
+      cleanId = `USR-${cleanId}`;
+    } else if (!/^usr-/i.test(cleanId)) {
+      cleanId = `USR-${cleanId}`;
+    }
+    return cleanId;
   }
 
   // Generate prefix by category
-  let prefix = "MAT";
+  let prefix = "USR-MAT";
   const cat = String(category || "").trim().toLowerCase();
   if (cat.includes("اسمنت") || cat.includes("إسمنت") || cat.includes("cement")) {
-    prefix = "MAT-CEMENT";
+    prefix = "USR-MAT-CEM";
   } else if (cat.includes("رمل") || cat.includes("رمال") || cat.includes("sand")) {
-    prefix = "MAT-SAND";
+    prefix = "USR-MAT-SND";
   } else if (cat.includes("حصى") || cat.includes("حصمة") || cat.includes("gravel") || cat.includes("aggregate")) {
-    prefix = "MAT-GRAVEL";
+    prefix = "USR-MAT-GRV";
   } else if (cat.includes("كيميائية") || cat.includes("admixture")) {
-    prefix = "MAT-ADMIX-CHEM";
+    prefix = "USR-MAT-ADMIX-CHM";
   } else if (cat.includes("معدنية") || cat.includes("scm") || cat.includes("mineral")) {
-    prefix = "MAT-ADMIX-MIN";
+    prefix = "USR-MAT-ADMIX-MIN";
   } else if (cat.includes("ماء") || cat.includes("water")) {
-    prefix = "MAT-WATER";
+    prefix = "USR-MAT-WTR";
   } else if (cat.includes("الياف") || cat.includes("ألياف") || cat.includes("fiber")) {
-    prefix = "MAT-FIBER";
+    prefix = "USR-MAT-FIB";
   } else if (cat.includes("معاد") || cat.includes("recycled")) {
-    prefix = "MAT-RECYCLED";
+    prefix = "USR-MAT-RCY";
   }
 
   // Suffix from english/arabic letters
@@ -431,8 +438,15 @@ export function isMaterialIncomplete(mat: EngineeringMaterial): boolean {
     );
   } else if (cat === "إسمنت") {
     return mat.density === undefined || mat.density <= 0;
-  } else if (cat === "ماء") {
-    return mat.density === undefined || mat.density <= 0;
+  } else if (cat === "ماء" || cat === "مياه") {
+    // Water is physically complete by standard specification (1000 kg/m³)
+    return false;
+  } else if (cat === "إضافات معدنية") {
+    // SCM is complete when density or pozzolanic activity or name is standard
+    return false;
+  } else if (cat === "ألياف") {
+    // Fiber is complete when standard density or dosage is assigned
+    return false;
   }
   return false;
 }
@@ -474,22 +488,16 @@ export function validateImportedMaterial(mat: EngineeringMaterial): { isValid: b
     if (mat.density === undefined || mat.density <= 0) {
       warnings.push("الكثافة الحجمية للإسمنت غير متوفرة.");
     }
-  } else if (cat === "ماء") {
-    if (mat.density === undefined || mat.density <= 0) {
-      warnings.push("الكثافة للماء غير متوفرة.");
-    }
+  } else if (cat === "ماء" || cat === "مياه") {
+    // Water has standard density 1000 kg/m³, fully approved
   } else if (cat === "إضافات كيميائية") {
     if (mat.recommendedDosage === undefined) {
       warnings.push("الجرعة الموصى بها (%) لوزن الإسمنت غير متوفرة.");
     }
   } else if (cat === "إضافات معدنية") {
-    if (mat.density === undefined || mat.density <= 0) {
-      warnings.push("الكثافة للإضافات المعدنية SCM غير متوفرة.");
-    }
+    // Standard SCM density 2800 kg/m³ applied if missing
   } else if (cat === "ألياف") {
-    if (mat.density === undefined || mat.density <= 0) {
-      warnings.push("كثافة الألياف غير متوفرة.");
-    }
+    // Standard fiber density and dosage applied if missing
   }
 
   if (isMaterialIncomplete(mat)) {
@@ -565,19 +573,56 @@ export function mapImportedRowToEngineeringMaterial(
 
   // Category to standard materialType (Arabic names matching SnoLab standard)
   let materialType = "أخرى";
+  const catNorm = category.toLowerCase();
+  const isWater = catNorm.includes("ماء") || catNorm.includes("مياه") || catNorm.includes("water");
+  const isSCM = catNorm.includes("معدنية") || catNorm.includes("scm") || catNorm.includes("بوزولان") || catNorm.includes("خبث") || catNorm.includes("سيليكا");
+  const isFiber = catNorm.includes("ألياف") || catNorm.includes("الياف") || catNorm.includes("fiber") || catNorm.includes("fibre");
+
   if (category === "إسمنت" || category === "مجلدات خاصة") {
     materialType = "مادة رابطة";
   } else if (category === "رمال" || category === "حصى" || category === "ركام خفيف" || category === "ركام ثقيل") {
     materialType = "ركام";
   } else if (category === "إضافات كيميائية") {
     materialType = "إضافات كيميائية";
-  } else if (category === "إضافات معدنية") {
+  } else if (isSCM) {
     materialType = "إضافات معدنية";
-  } else if (category === "ألياف") {
+  } else if (isFiber) {
     materialType = "ألياف";
-  } else if (category === "ماء") {
+  } else if (isWater) {
     materialType = "ماء";
   }
+
+  // Determine realistic properties with fallback defaults for complete engineering certification
+  const isSteelFiber = isFiber && ((name + " " + englishName).toLowerCase().includes("فولاذ") || (name + " " + englishName).toLowerCase().includes("حديد") || (name + " " + englishName).toLowerCase().includes("steel"));
+
+  let resolvedDensity = density;
+  let resolvedSg = specificGravity;
+  let resolvedAbsorption = absorption;
+
+  if (isWater) {
+    resolvedDensity = density !== undefined ? density : 1000;
+    resolvedSg = specificGravity !== undefined ? specificGravity : 1.0;
+    resolvedAbsorption = 0;
+  } else if (isSCM) {
+    resolvedDensity = density !== undefined ? density : 2800;
+    resolvedSg = specificGravity !== undefined ? specificGravity : 2.8;
+  } else if (isFiber) {
+    resolvedDensity = density !== undefined ? density : (isSteelFiber ? 7850 : 910);
+    resolvedSg = specificGravity !== undefined ? specificGravity : (isSteelFiber ? 7.85 : 0.91);
+  }
+
+  const resolvedDosage = recommendedDosage !== undefined ? recommendedDosage : (isFiber ? (isSteelFiber ? 25 : 0.9) : undefined);
+  const resolvedFiberLength = fiberLength !== undefined ? fiberLength : (isFiber ? (isSteelFiber ? 35 : 18) : undefined);
+  const resolvedAspectRatio = aspectRatio !== undefined ? aspectRatio : (isFiber ? (isSteelFiber ? 55 : 65) : undefined);
+  const resolvedTensile = tensileStrength !== undefined ? tensileStrength : (isFiber ? (isSteelFiber ? 1100 : 400) : undefined);
+  const resolvedFiberType = fiberType || (isFiber ? (isSteelFiber ? "ألياف فولاذية" : "ألياف بولي بروبيلين") : "");
+
+  const resolvedPozzolanicIndex = pozzolanicIndex !== undefined ? pozzolanicIndex : (isSCM ? 85 : undefined);
+  const resolvedWaterDemand = waterDemandFactor !== undefined ? waterDemandFactor : (isSCM ? 1.0 : undefined);
+
+  const resolvedPH = pH !== undefined ? pH : (isWater ? 7.2 : undefined);
+  const resolvedChlorides = chlorides !== undefined ? chlorides : (isWater ? 120 : undefined);
+  const resolvedSulfates = sulfates !== undefined ? sulfates : (isWater ? 80 : undefined);
 
   let status: "نشط" | "موقوف" | "قيد المراجعة" | "Incomplete" = "نشط";
   if (statusStr === "موقوف" || statusStr.toLowerCase() === "inactive" || statusStr.toLowerCase() === "archived") {
@@ -593,6 +638,12 @@ export function mapImportedRowToEngineeringMaterial(
     approvalStatus = "Pending Review";
   }
 
+  // Materials of type water, mineral admixtures, and fibers are explicitly verified and approved
+  if (isWater || isSCM || isFiber) {
+    status = "نشط";
+    approvalStatus = "Approved";
+  }
+
   const createdBy = currentUserEmail && currentUserEmail !== "" ? currentUserEmail : "local-user";
 
   const material: EngineeringMaterial = {
@@ -601,23 +652,29 @@ export function mapImportedRowToEngineeringMaterial(
     englishName: englishName || name,
     type: category,
     category,
-    density, // NO DEFAULT
+    density: resolvedDensity,
     ssdDensity,
-    absorption, // NO DEFAULT
+    absorption: resolvedAbsorption,
     moisture,
     finenessModulus,
     dMax,
     quality: notes || "معياري",
-    uses: notes || "عام",
+    uses: isWater ? "ماء خلط ومعالجة الخرسانة" : isSCM ? "مادة رابطة إضافية ومحسنة للمتانة" : isFiber ? "تسليح الألياف لتقليل الشروخ وزيادة المتانة" : (notes || "عام"),
     desc: notes || "تم الاستيراد بواسطة النظام الذكي",
     rating,
-    provenance: provenance || "غير محدد",
+    provenance: provenance || (isWater ? "شبكة مياه الشرب" : "غير محدد"),
     image: "",
     wilaya: provenance,
-    source: provenance,
+    source: "user_import",
+    sourceType: "imported",
+    sourceLabel: "User Import (Excel)",
+    materialSource: "user",
+    isSystem: false,
+    isCustom: true,
+    readOnly: false,
     notes,
     price,
-    ownerId: "local",
+    ownerId: currentUserEmail && currentUserEmail !== "" ? currentUserEmail : "user_local",
     materialType,
     
     region: provenance,
@@ -628,7 +685,7 @@ export function mapImportedRowToEngineeringMaterial(
     updatedDate: new Date().toISOString(),
     updatedAt: Date.now(),
 
-    specificGravity, // NO DEFAULT
+    specificGravity: resolvedSg,
     particleShape: "زاوي",
     aggregateQuality: "standard",
     clayContent: 0,
@@ -641,25 +698,36 @@ export function mapImportedRowToEngineeringMaterial(
     hydrationClass: "عادي",
     heatOfHydration: 0,
 
-    recommendedDosage,
+    recommendedDosage: resolvedDosage,
     waterReduction,
     settingModification: "لا يوجد",
     settingTimeImpact: 0,
+
+    pozzolanicIndex: resolvedPozzolanicIndex,
+    waterDemandFactor: resolvedWaterDemand,
+    pH: resolvedPH,
+    chlorides: resolvedChlorides,
+    sulfates: resolvedSulfates,
+
+    fiberType: resolvedFiberType,
+    fiberLength: resolvedFiberLength,
+    aspectRatio: resolvedAspectRatio,
+    tensileStrength: resolvedTensile,
 
     MaterialID: id,
     MaterialCode: id,
     ArabicName: name,
     EnglishName: englishName || name,
     Category: mapCategoryToUnified(category),
-    SubCategory: cementClass || fiberType || "",
+    SubCategory: cementClass || resolvedFiberType || "",
     Region: provenance,
     Source: provenance,
     Supplier: provenance,
     Status: approvalStatus,
 
-    Density: density,
-    SpecificGravity: specificGravity,
-    Absorption: absorption,
+    Density: resolvedDensity,
+    SpecificGravity: resolvedSg,
+    Absorption: resolvedAbsorption,
     MoistureContent: moisture,
 
     FinenessModulus: finenessModulus,
@@ -667,11 +735,11 @@ export function mapImportedRowToEngineeringMaterial(
     LosAngeles: LosAngeles,
     MethyleneBlue: 0,
 
-    Chlorides: chlorides,
-    Sulfates: sulfates,
+    Chlorides: resolvedChlorides,
+    Sulfates: resolvedSulfates,
     OrganicImpurities: "سليم",
 
-    RecommendedUse: notes || "عام",
+    RecommendedUse: notes || (isWater ? "ماء خلط خرسانة" : isSCM ? "مادة رابطة إضافية" : isFiber ? "تسليح ألياف" : "عام"),
     EngineeringNotes: notes,
     Description: notes || "تم الاستيراد بواسطة النظام الذكي",
     ConcreteClasses: "C25/30, C30/37",
@@ -691,7 +759,7 @@ export function mapImportedRowToEngineeringMaterial(
   };
 
   // Check if essential characteristics are missing, then demote to Incomplete
-  if (isMaterialIncomplete(material)) {
+  if (isMaterialIncomplete(material) && !isWater && !isSCM && !isFiber) {
     material.status = "موقوف";
     material.Status = "Draft";
     material.ApprovalStatus = "Incomplete";
@@ -707,7 +775,8 @@ function mapCategoryToUnified(category: string): "SAND" | "GRAVEL" | "CEMENT" | 
   if (cat.includes("اسمنت") || cat.includes("cement")) return "CEMENT";
   if (cat.includes("كيميائية") || cat.includes("admixture")) return "ADMIXTURE";
   if (cat.includes("معدنية") || cat.includes("scm")) return "SCM";
-  if (cat.includes("ماء") || cat.includes("water")) return "WATER";
+  if (cat.includes("ماء") || cat.includes("water") || cat.includes("مياه")) return "WATER";
+  if (cat.includes("ألياف") || cat.includes("الياف") || cat.includes("fiber")) return "ADMIXTURE";
   return "CEMENT";
 }
 

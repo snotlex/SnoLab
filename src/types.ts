@@ -389,7 +389,7 @@ export interface EngineeringMaterial {
   desc: string; // Description text
   rating: number; // 1 to 5 stars rating
   provenance: string; // Region/quarry in Algeria
-  image: string; // Image URL (can be blank or placeholder)
+  image?: string; // Image URL (can be blank or placeholder)
   wilaya?: string; // Wilaya index in Algeria
   source?: string; // Source Owner
   notes?: string; 
@@ -400,6 +400,10 @@ export interface EngineeringMaterial {
   materialType?: string; // e.g., 'مادة رابطة' | 'ركام' | 'إضافات معدنية' | 'ألياف' | 'إضافات كيميائية' | 'ماء' | 'أخرى'
 
   // --- SOURCE OF TRUTH & PROVENANCE METADATA ---
+  materialSource?: "system" | "user"; // Explicit strict separation between System Materials and User Materials
+  isSystem?: boolean; // True for immutable system materials
+  isCustom?: boolean; // True for user-created, imported, or customized materials
+  originalSystemMaterialId?: string; // Reference to original system material if forked/customized
   isDemo?: boolean; // True if this material is a system/demo preset and not created by the active user
   sourceType?: "system_demo" | "user_created" | "imported" | "lab_result";
   sourceLabel?: string; // "Demo Data" | "User Material" | "Imported" | "Laboratory Verified"
@@ -422,17 +426,54 @@ export interface EngineeringMaterial {
 
   // --- CEMENT TECHNICAL PROPERTIES (الإسمنت) ---
   cementClass?: string; // e.g., CEM I, CEM II
-  strengthClass?: "32.5" | "42.5" | "52.5" | string; // Strength rating
+  strengthClass?: number | "32.5" | "42.5" | "52.5" | string; // Strength rating
   hydrationClass?: "سريع" | "عادي" | "منخفض الحرارة" | string; // Hydration category
   heatOfHydration?: number; // Heat of hydration (J/g)
+  soundness?: number;
+  lossOnIgnition?: number;
+  insolubleResidue?: number;
+  sulfateContent?: number;
+  strength7d?: number;
 
   // --- ADMIXTURES TECHNICAL PROPERTIES (المضافات الكيماوية والمعدنية) ---
-  admixtureType?: "superplasticizer" | "retarder" | "accelerator" | "air_entraining" | "silica_fume" | "fly_ash" | "slag" | "custom" | string;
+  admixtureType?: "superplasticizer" | "plasticizer" | "retarder" | "accelerator" | "air_entraining" | "silica_fume" | "fly_ash" | "slag" | "custom" | string;
   recommendedDosage?: number; // recommended dosage (% of cement weight)
   waterReduction?: number; // reduction capabilities (%)
-  settingModification?: "تسريع" | "تأخير" | "تعديل المسامات" | "لا يوجد"; // setting effect
+  settingModification?: "تسريع" | "تأخير" | "تعديل المسامات" | "لا يوجد" | string; // setting effect
   settingTimeImpact?: number; // Setting time impact in minutes (+ for delay, - for acceleration)
   compatibilityNotes?: string; // Compatibility warning
+  airPercentage?: number;
+  ph?: number;
+
+  // Additional Special Binder, SCM, Fiber, Heavyweight, Lightweight & Recycled properties
+  dMin?: number;
+  sandEquivalent?: number;
+  calciumOxide?: number;
+  silicaContent?: number;
+  maxReplacementPercent?: number;
+  fiberDiameter?: number;
+  elasticModulus?: number;
+  calciumCarbonate?: number;
+  finesUnder63um?: number;
+  finesContent?: number;
+  crushingResistance?: number;
+  bariumSulfate?: number;
+  masonryContent?: number;
+  alkalineRatio?: number;
+  silicaModulus?: number;
+  spacingFactor?: number;
+  specificSurfaceAir?: number;
+  totalDissolvedSolids?: number;
+  organicMatter?: number;
+  relativeDensity?: number;
+  readOnly?: boolean;
+  approvalStatus?: "Draft" | "Under Review" | "Pending Review" | "Approved" | "Archived" | "Rejected" | "Validated" | "Incomplete" | "Not Verified" | string;
+  validationStatus?: "VALIDATED" | "VALID" | "Approved" | "PENDING_REVIEW" | "DRAFT" | string;
+  readinessStatus?: "READY" | "ready" | "incomplete" | "needs_review" | "draft" | string;
+  usableInMixDesign?: boolean;
+  dataProvenance?: "REFERENCE" | "TYPICAL" | "LABORATORY" | "CALCULATED" | string;
+  isComplete?: boolean;
+  sieveAnalysis?: Array<{ sieve: number; massRetained?: number; percentRetained?: number; cumulativeRetained?: number; passing: number }>;
 
   // ==========================================
   // UNIFIED EMMS MODEL PROPERTIES (UPGRADE)
@@ -519,6 +560,7 @@ export interface EngineeringMaterial {
   lifecycleHistory?: { date: string; version: number; author: string; changes: string; approvalStatus: string }[];
 
   // --- UNIFIED LABORATORY INTEGRATION & SINGLE SOURCE OF TRUTH ---
+  propertyMetadata?: Record<string, MaterialPropertyMetadata>; // Master property metadata map
   propertySources?: Record<string, any>; // maps propertyKey -> MaterialPropertySource
   propertyHistory?: Record<string, any[]>; // maps propertyKey -> MaterialPropertyHistoryEntry[]
   laboratoryTests?: string[]; // IDs of laboratory tests linked to this material
@@ -526,6 +568,71 @@ export interface EngineeringMaterial {
   foisonnement?: number; // % foisonnement (bulking factor)
   microDeval?: number; // % MDE coefficient
   methyleneBlue?: number; // MB value (g/kg)
+  
+  // Geotechnical, Bituminous & Masonry Properties
+  soilClassification?: string;
+  optimumMoisture?: number; // %
+  maxDryDensity?: number; // g/cm³
+  liquidLimit?: number; // %
+  plasticLimit?: number; // %
+  plasticityIndex?: number; // %
+  cbrValue?: number; // %
+  permeability?: number; // m/s
+  bitumenGrade?: string;
+  penetration?: number; // 0.1 mm
+  softeningPoint?: number; // °C
+  masonryType?: string;
+  compressiveStrength?: number; // MPa
+
+  // Dynamic and flexible engineering property dictionary
+  [key: string]: any;
+}
+
+export type MaterialPropertyValueSource = 
+  | "laboratory" 
+  | "user_entered" 
+  | "imported" 
+  | "reference" 
+  | "typical" 
+  | "calculated" 
+  | "system_demo";
+
+export type MaterialPropertyValueStatus = 
+  | "missing" 
+  | "draft" 
+  | "pending_validation" 
+  | "validated" 
+  | "rejected" 
+  | "archived" 
+  | "needs_review"
+  | "default_reference"
+  | "not_applicable"
+  | "user_edited";
+
+export interface MaterialPropertyMetadata {
+  propertyId?: string;
+  key: string;
+  value?: any;
+  unit?: string;
+  sourceType: MaterialPropertyValueSource;
+  sourceLabel?: string;
+  status: MaterialPropertyValueStatus;
+  testStandard?: string;
+  associatedLabTestId?: string;
+  testRecordId?: string;
+  testedAt?: string;
+  testedBy?: string;
+  notes?: string;
+  isWarning?: boolean;
+  validationErrorAr?: string;
+  validationErrorFr?: string;
+  validationErrorEn?: string;
+  isEditable?: boolean;
+  originalDefaultValue?: any;
+  confidence?: string;
+  referenceUrl?: string;
+  reason?: string; // e.g. for not_applicable
+  history?: Array<{ timestamp: string; value: any; sourceType: string; user?: string; note?: string; previousValue?: any }>;
 }
 
 export interface MixVersion {

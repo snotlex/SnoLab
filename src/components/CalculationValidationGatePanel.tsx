@@ -9,6 +9,7 @@ interface CalculationValidationGatePanelProps {
   setActiveSidebarTab?: (tab: any) => void;
   materialsDatabase?: any[];
   inputs?: any;
+  onOpenBatchModal?: () => void;
 }
 
 const LOCALIZED_MESSAGES: Record<"ar" | "fr" | "en", Record<string, { title: string; action: string }>> = {
@@ -507,7 +508,8 @@ export const CalculationValidationGatePanel: React.FC<CalculationValidationGateP
   language,
   setActiveSidebarTab,
   materialsDatabase,
-  inputs
+  inputs,
+  onOpenBatchModal
 }) => {
   const { isValidForReport, criticalErrors, warnings, infos } = validation;
   const isRtl = language === "ar";
@@ -719,53 +721,66 @@ export const CalculationValidationGatePanel: React.FC<CalculationValidationGateP
                   </div>
 
                   {err === "properties_missing" && getMissingPropertiesDetails().length > 0 && (
-                    <div className={`mt-3 pt-3 border-t border-rose-100/40 dark:border-rose-950/20 space-y-2 ${isRtl ? "text-right" : "text-left"}`}>
-                      <p className="text-[11px] font-bold text-rose-700 dark:text-rose-400">
-                        {isRtl ? "⚠️ الخصائص المفقودة المكتشفة:" : "⚠️ Detected Missing Properties:"}
-                      </p>
-                      <div className="grid grid-cols-1 gap-1.5">
-                        {getMissingPropertiesDetails().map((missingProp, idx) => (
-                          <div 
-                            key={idx} 
-                            className={`flex items-center justify-between gap-3 p-2 bg-rose-50/30 dark:bg-rose-950/10 rounded-lg border border-rose-100/30 dark:border-rose-950/20 ${isRtl ? "flex-row-reverse" : "flex-row"}`}
+                    <div className={`mt-3 pt-3 border-t border-rose-100/40 dark:border-rose-950/20 space-y-3 ${isRtl ? "text-right" : "text-left"}`}>
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 bg-rose-50/50 dark:bg-rose-950/20 p-2.5 rounded-xl border border-rose-200/50 dark:border-rose-900/30">
+                        <div>
+                          <p className="text-[11px] font-black text-rose-800 dark:text-rose-300">
+                            {isRtl ? "⚠️ تفاصيل الخصائص الهندسية الناقصة للمواد المختارة:" : "⚠️ Missing Technical Properties of Selected Materials:"}
+                          </p>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                            {isRtl ? "يمكنك إدخال وتعديل جميع الخصائص الناقصة دفعة واحدة من نافذة موحدة." : "You can complete all missing properties in batch via a single dialog."}
+                          </p>
+                        </div>
+                        {onOpenBatchModal && (
+                          <button
+                            type="button"
+                            onClick={onOpenBatchModal}
+                            className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-black text-[11px] rounded-lg transition-all cursor-pointer shadow-sm flex items-center gap-1.5 shrink-0"
                           >
-                            <div className="text-[10.5px]">
-                              <span className="font-bold text-slate-700 dark:text-slate-300">
-                                {missingProp.materialName}
+                            <span>{isRtl ? "إكمال خصائص المواد" : language === "fr" ? "Compléter les caractéristiques" : "Complete Material Properties"}</span>
+                            <span>⚡</span>
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Grouped informative list by material */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {(() => {
+                          const details = getMissingPropertiesDetails();
+                          const grouped: Record<string, { materialName: string; props: string[] }> = {};
+                          details.forEach(d => {
+                            if (!grouped[d.materialId]) {
+                              grouped[d.materialId] = { materialName: d.materialName, props: [] };
+                            }
+                            const propName = language === "ar" ? d.propertyAr : language === "fr" ? d.propertyFr : d.propertyEn;
+                            grouped[d.materialId].props.push(propName);
+                          });
+
+                          return Object.entries(grouped).map(([matId, group]) => (
+                            <div key={matId} className="p-2.5 bg-white dark:bg-slate-900/60 rounded-xl border border-slate-200/70 dark:border-slate-800 shadow-xs space-y-1">
+                              <span className="text-[11px] font-black text-slate-800 dark:text-slate-200 block">
+                                📦 {group.materialName}
                               </span>
-                              <span className="mx-1.5 text-slate-400">|</span>
-                              <span className="text-rose-600 dark:text-rose-400 font-semibold font-sans">
-                                {language === "ar" ? missingProp.propertyAr : language === "fr" ? missingProp.propertyFr : missingProp.propertyEn}
-                              </span>
+                              <ul className="list-disc list-inside text-[10px] text-rose-600 dark:text-rose-400 font-semibold space-y-0.5">
+                                {group.props.map((p, idx) => (
+                                  <li key={idx}>{p}</li>
+                                ))}
+                              </ul>
                             </div>
-                            
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (setActiveSidebarTab) {
-                                  setActiveSidebarTab("materials_library");
-                                  setTimeout(() => {
-                                    const triggerEdit = new CustomEvent("trigger-edit-material", { 
-                                      detail: { materialId: missingProp.materialId } 
-                                    });
-                                    window.dispatchEvent(triggerEdit);
-                                  }, 150);
-                                }
-                              }}
-                              className="shrink-0 flex items-center gap-1.5 px-2.5 py-1 bg-amber-600 hover:bg-amber-700 active:scale-95 text-white font-bold text-[10px] rounded transition-all cursor-pointer shadow-sm hover:shadow"
-                            >
-                              ⚙️ {isRtl ? "ضبط الآن" : language === "fr" ? "Ajuster" : "Adjust Now"}
-                            </button>
-                          </div>
-                        ))}
+                          ));
+                        })()}
                       </div>
                     </div>
                   )}
 
-                  {setActiveSidebarTab && (
+                  {setActiveSidebarTab && err !== "properties_missing" && (
                     <div className="mt-3 flex justify-end">
                       <button
                         onClick={() => {
+                          if (err === "properties_missing" && onOpenBatchModal) {
+                            onOpenBatchModal();
+                            return;
+                          }
                           const tabMap: Record<string, string> = {
                             material_blocked: "materials_library",
                             material_diagnostic_only: "materials_library",
@@ -841,9 +856,9 @@ export const CalculationValidationGatePanel: React.FC<CalculationValidationGateP
                               fr: "⚙️ Sélectionner les Matériaux ↗"
                             },
                             properties_missing: {
-                              ar: "⚙️ إدخال خصائص المواد ↗",
-                              en: "⚙️ Enter Material Properties ↗",
-                              fr: "⚙️ Saisir les Propriétés ↗"
+                              ar: "⚡ إكمال خصائص المواد ↗",
+                              en: "⚡ Complete Material Properties ↗",
+                              fr: "⚡ Compléter les Propriétés ↗"
                             },
                             sieve: {
                               ar: "📈 غرابيل وتدرج الركام ↗",

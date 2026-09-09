@@ -14,6 +14,7 @@ import {
   MapPin, 
   Check, 
   CheckCircle,
+  CheckCircle2,
   Award, 
   Plus, 
   Trash2, 
@@ -40,7 +41,10 @@ import {
   FolderOpen,
   EyeOff,
   Eye,
-  FlaskConical
+  FlaskConical,
+  ShieldCheck,
+  FileSpreadsheet,
+  Lock
 } from "lucide-react";
 import { MixDesignInput, EngineeringMaterial, AggregateType, AggregateQuality } from "../types";
 import { MaterialTestRecord } from "../types/laboratoryTypes";
@@ -62,18 +66,25 @@ import {
 import { useLanguage } from "../services/localization";
 import { CONCRETE_TYPE_CONFIGS } from "../concreteTypes";
 import { SEEDED_MATERIALS } from "../data/seededMaterials";
-import { isUserMaterial } from "../engine/suitabilityGate";
+import { isSystemMaterial, isUserMaterial, forkSystemMaterial, normalizeMaterialSource } from "../utils/materialSourceHelper";
+import { auditMaterial, auditAndFillSystemMaterials, runSystemMaterialsPreflight, SystemMaterialsBulkAuditReport } from "../services/materialAuditEngine";
+import { SystemMaterialsBulkAuditModal } from "./SystemMaterialsBulkAuditModal";
+import { MaterialImportWizardModal } from "./materials/MaterialImportWizardModal";
+import { MaterialBulkCompletionModal } from "./materials/MaterialBulkCompletionModal";
+import { CompletenessChecker } from "../services/import/CompletenessChecker";
+import { ExportService } from "../services/ExportService";
+import { MaterialService } from "../services/MaterialService";
 import * as XLSX from "xlsx";
 
 interface MaterialEngineeringDatabaseProps {
-  inputs: MixDesignInput;
-  setInputs: (inputs: any) => void;
-  handleSandPreset: (name: string, density: number) => void;
-  handleGravelPreset: (name: string, density: number) => void;
-  customMaterialImages: Record<string, string>;
-  generatingMaterialKey: string | null;
-  handleGenerateMaterialImage: (key: string, mat: any) => Promise<void>;
-  generationError: string | null;
+  inputs?: MixDesignInput;
+  setInputs?: (inputs: any) => void;
+  handleSandPreset?: (name: string, density: number) => void;
+  handleGravelPreset?: (name: string, density: number) => void;
+  customMaterialImages?: Record<string, string>;
+  generatingMaterialKey?: string | null;
+  handleGenerateMaterialImage?: (key: string, mat: any) => Promise<void>;
+  generationError?: string | null;
   defaultType?: "all" | "sand" | "gravel" | "cementitious" | "aggregates_only";
   defaultRepo?: "cement" | "aggregates" | "admixtures" | "water";
   materials?: EngineeringMaterial[];
@@ -81,6 +92,13 @@ interface MaterialEngineeringDatabaseProps {
   onClearAllMaterials?: () => void;
   testRecords?: MaterialTestRecord[];
   onOpenMaterialLabTests?: (material: EngineeringMaterial) => void;
+  onSelectSand?: (id: string) => void;
+  onSelectGravel?: (id: string) => void;
+  onSelectCement?: (id: string) => void;
+  selectedSandId?: string;
+  selectedGravelId?: string;
+  selectedCementId?: string;
+  language?: string;
 }
 
 // Map base categories to logical groups for navigation filters
@@ -341,21 +359,28 @@ export const parseNumericValue = (val: any): number => {
 };
 
 export function MaterialEngineeringDatabase({
-  inputs,
+  inputs = {} as MixDesignInput,
   setInputs,
   handleSandPreset,
   handleGravelPreset,
-  customMaterialImages,
-  generatingMaterialKey,
+  customMaterialImages = {},
+  generatingMaterialKey = null,
   handleGenerateMaterialImage,
-  generationError,
+  generationError = null,
   defaultType,
   defaultRepo,
   materials = [],
   onUpdateMaterials,
   onClearAllMaterials,
   testRecords = [],
-  onOpenMaterialLabTests
+  onOpenMaterialLabTests,
+  onSelectSand,
+  onSelectGravel,
+  onSelectCement,
+  selectedSandId,
+  selectedGravelId,
+  selectedCementId,
+  language: propLanguage
 }: MaterialEngineeringDatabaseProps) {
   const { t, language } = useLanguage();
   const [labHistoryMaterial, setLabHistoryMaterial] = useState<EngineeringMaterial | null>(null);
@@ -439,6 +464,16 @@ export function MaterialEngineeringDatabase({
   const [userShowOnlyFavorites, setUserShowOnlyFavorites] = useState(() => {
     return localStorage.getItem("user_material_showOnlyFavorites") === "true";
   });
+  const [isImportWizardOpen, setIsImportWizardOpen] = useState(false);
+  const [isBulkCompletionModalOpen, setIsBulkCompletionModalOpen] = useState(false);
+  const [bulkCompletionTargetMaterialId, setBulkCompletionTargetMaterialId] = useState<string | undefined>(undefined);
+
+  const userIncompleteCount = useMemo(() => {
+    return materials.filter(m => isUserMaterial(m)).filter(m => {
+      const audit = CompletenessChecker.inspectMaterial(m);
+      return audit.requiresAttention;
+    }).length;
+  }, [materials]);
 
   const [aiAssistSuccessMessage, setAIAssistSuccessMessage] = useState("");
   const [isDragging, setIsDragging] = useState(false);
@@ -576,6 +611,38 @@ export function MaterialEngineeringDatabase({
     }, 4500);
   };
 
+  // System Materials Bulk Audit & Auto-Completion States
+  const [systemAuditReport, setSystemAuditReport] = useState<SystemMaterialsBulkAuditReport | null>(null);
+  const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
+  const [isAuditingInProgress, setIsAuditingInProgress] = useState(false);
+  const [auditModalSearch, setAuditModalSearch] = useState("");
+  const [auditModalRoleFilter, setAuditModalRoleFilter] = useState("all");
+
+  const handleRunSystemBulkAudit = () => {
+    setIsAuditingInProgress(true);
+    try {
+      const sourceMaterials = materials && materials.length > 0 ? materials : SEEDED_MATERIALS;
+      const { auditedMaterials, report, hasChanges } = auditAndFillSystemMaterials(sourceMaterials);
+      
+      if (hasChanges && onUpdateMaterials) {
+        onUpdateMaterials(auditedMaterials);
+      }
+      setSystemAuditReport(report);
+      setIsAuditModalOpen(true);
+      showToast(
+        language === "ar"
+          ? `تم تدقيق ${report.totalSystemMaterials} مادة من مواد النظام بنجاح (${report.totalPropertiesAudited} خاصية - تعيين صفة REFERENCE و TYPICAL مع إتاحة التعديل)`
+          : `Audited ${report.totalSystemMaterials} system materials successfully (${report.totalPropertiesAudited} properties checked - assigned REFERENCE & TYPICAL with editable status).`,
+        "success"
+      );
+    } catch (err: any) {
+      console.error("Bulk audit error:", err);
+      showToast(language === "ar" ? "حدث خطأ أثناء تدقيق مواد النظام" : "Error auditing system materials", "error");
+    } finally {
+      setIsAuditingInProgress(false);
+    }
+  };
+
   const [showControlPanel, setShowControlPanel] = useState(false);
   const [importMode, setImportMode] = useState<"append" | "update">("append");
   const [importLog, setImportLog] = useState<string[]>([]);
@@ -701,22 +768,31 @@ export function MaterialEngineeringDatabase({
   // Automatically select the active material from the calibration when the category tab changes
   useEffect(() => {
     let targetId: string | undefined;
+    const effectiveCementId = inputs?.selectedCementId || selectedCementId;
+    const effectiveSandId = inputs?.selectedSandId || selectedSandId;
+    const effectiveGravelId = inputs?.selectedGravelId || selectedGravelId;
+    const effectiveAdmixtureId = inputs?.selectedAdmixtureId;
+    const effectiveScmId = inputs?.selectedScmId;
+    const effectiveWaterId = inputs?.selectedWaterId;
+    const effectiveFiberId = inputs?.selectedFiberId;
+    const effectiveSpecialBinderId = inputs?.selectedSpecialBinderId;
+
     if (selectedCategory === "إسمنت") {
-      targetId = inputs.selectedCementId;
+      targetId = effectiveCementId;
     } else if (selectedCategory === "رمال") {
-      targetId = inputs.selectedSandId;
+      targetId = effectiveSandId;
     } else if (selectedCategory === "حصى") {
-      targetId = inputs.selectedGravelId;
+      targetId = effectiveGravelId;
     } else if (selectedCategory === "إضافات كيميائية") {
-      targetId = inputs.selectedAdmixtureId;
+      targetId = effectiveAdmixtureId;
     } else if (selectedCategory === "إضافات معدنية") {
-      targetId = inputs.selectedScmId;
+      targetId = effectiveScmId;
     } else if (selectedCategory === "ماء") {
-      targetId = inputs.selectedWaterId;
+      targetId = effectiveWaterId;
     } else if (selectedCategory === "ألياف") {
-      targetId = inputs.selectedFiberId;
+      targetId = effectiveFiberId;
     } else if (selectedCategory === "مجلدات خاصة") {
-      targetId = inputs.selectedSpecialBinderId;
+      targetId = effectiveSpecialBinderId;
     }
 
     if (targetId && materials.some(m => m.id === targetId)) {
@@ -727,9 +803,12 @@ export function MaterialEngineeringDatabase({
         setActiveSourceTab(isUser ? "user" : "system");
       }
     }
-  }, [selectedCategory, inputs.selectedCementId, inputs.selectedSandId, inputs.selectedGravelId, inputs.selectedAdmixtureId, inputs.selectedScmId, inputs.selectedWaterId, inputs.selectedFiberId, inputs.selectedSpecialBinderId, materials]);
+  }, [selectedCategory, inputs?.selectedCementId, selectedCementId, inputs?.selectedSandId, selectedSandId, inputs?.selectedGravelId, selectedGravelId, inputs?.selectedAdmixtureId, inputs?.selectedScmId, inputs?.selectedWaterId, inputs?.selectedFiberId, inputs?.selectedSpecialBinderId, materials]);
 
-  const activeConcreteCode = (inputs.concreteType || "NSC").toUpperCase();
+  const rawConcrete = typeof inputs?.concreteType === "string"
+    ? inputs.concreteType
+    : (inputs?.concreteType as any)?.code || "NSC";
+  const activeConcreteCode = String(rawConcrete || "NSC").toUpperCase();
   const activeConfig = CONCRETE_TYPE_CONFIGS[activeConcreteCode];
 
   const checkIsCompatible = (mat: EngineeringMaterial) => {
@@ -754,7 +833,7 @@ export function MaterialEngineeringDatabase({
         setSelectedCategory(visibleCategories[0] || "الكل");
       }
     }
-  }, [inputs.concreteType, visibleCategories, selectedCategory]);
+  }, [inputs?.concreteType, visibleCategories, selectedCategory]);
 
   const activeMaterial = useMemo(() => {
     return materials.find(m => m.id === selectedMaterialId) || materials[0];
@@ -763,7 +842,7 @@ export function MaterialEngineeringDatabase({
   // Filter system materials using only system filters
   const filteredSystemMaterials = useMemo(() => {
     return materials.filter(mat => {
-      if (isUserMaterial(mat)) return false;
+      if (!isSystemMaterial(mat)) return false;
 
       // 1. Search text query
       const query = systemSearchQuery.trim();
@@ -1009,6 +1088,11 @@ export function MaterialEngineeringDatabase({
   const systemCount = filteredSystemMaterials.length;
   const userCount = filteredUserMaterials.length;
 
+  const systemPreflight = useMemo(() => {
+    const sysList = (materials && materials.length > 0 ? materials : SEEDED_MATERIALS).filter(m => !isUserMaterial(m));
+    return runSystemMaterialsPreflight(sysList);
+  }, [materials]);
+
   // Filters and Sorting logic
   const filteredMaterials = useMemo(() => {
     const listInTab = activeSourceTab === "system" ? filteredSystemMaterials : filteredUserMaterials;
@@ -1196,19 +1280,42 @@ export function MaterialEngineeringDatabase({
     setSelectedMaterialId(copied.id);
   };
 
-  // Delete helper (Soft delete / Archiving instead of hard deletion - Requirement 7)
+  // Delete helper (Protected system materials cannot be deleted - Requirement 7)
   const handleDeleteClick = () => {
     if (!activeMaterial || !onUpdateMaterials) return;
+    if (isSystemMaterial(activeMaterial)) {
+      showToast(
+        language === "ar"
+          ? "مواد النظام الأساسية محمية كمرجع قياسي ولا يمكن حذفها. يمكنك فقط حذف المواد الخاصة بك من تبويب 'موادي'."
+          : "System standard materials are protected references and cannot be deleted. You can only delete your own materials in 'My Materials'.",
+        "error"
+      );
+      return;
+    }
     setShowDeleteConfirm(true);
   };
 
   const handleConfirmDelete = () => {
     if (!activeMaterial || !onUpdateMaterials) return;
+    if (isSystemMaterial(activeMaterial)) {
+      setShowDeleteConfirm(false);
+      showToast(
+        language === "ar"
+          ? "محظور: لا يمكن حذف مادة من مواد النظام."
+          : "Blocked: Cannot delete a system material.",
+        "error"
+      );
+      return;
+    }
     const updated = materials.filter(m => m.id !== activeMaterial.id);
     onUpdateMaterials(updated);
     setIsEditing(false);
     setIsAdding(false);
     setShowDeleteConfirm(false);
+    showToast(
+      language === "ar" ? "تم حذف مادة المستخدم بنجاح." : "User material deleted successfully.",
+      "success"
+    );
   };
 
   const handleCancelDelete = () => {
@@ -1302,7 +1409,7 @@ export function MaterialEngineeringDatabase({
 
     if (concreteCode === "HSC") {
       if (cat === "إسمنت") {
-        const strClass = parseFloat(mat.strengthClass || "0");
+        const strClass = parseFloat(String(mat.strengthClass || "0"));
         if (strClass < 42.5 || isNaN(strClass)) {
           return {
             reasonAr: `رتبة مقاومة الإسمنت الحالية (${mat.strengthClass || "غير محددة"}) غير كافية للخرسانة عالية المقاومة (HSC). الحد الأدنى المطلوب هو 42.5.`,
@@ -2342,48 +2449,116 @@ export function MaterialEngineeringDatabase({
               return;
             } else if (rowResolution === "update") {
               const existing = currentMaterialsList[duplicateIndex];
-              const updatedMaterial: EngineeringMaterial = {
-                ...existing,
-                ...mat,
-                id: existing.id, // Preserve original stable ID
-                version: (existing.version || 1) + 1,
-                lifecycleHistory: [
-                  ...(existing.lifecycleHistory || []),
-                  {
-                    date: new Date().toISOString().split('T')[0],
-                    version: (existing.version || 1) + 1,
-                    changes: `تم تحديث المادة عبر معالج الاستيراد الذكي (ورقة: ${sheetName})`,
-                    author: userEmail,
-                    approvalStatus: existing.ApprovalStatus || "Approved"
+              // REQUIREMENT 3 & 9: If existing is a System Material, DO NOT OVERWRITE!
+              if (isSystemMaterial(existing)) {
+                // Find if there is already a user material with this name
+                const userDupIdx = currentMaterialsList.findIndex(m => isUserMaterial(m) && normalizeName(m.name) === normalizeName(mat.name));
+                if (userDupIdx !== -1) {
+                  const existingUser = currentMaterialsList[userDupIdx];
+                  currentMaterialsList[userDupIdx] = {
+                    ...existingUser,
+                    ...mat,
+                    id: existingUser.id,
+                    materialSource: "user",
+                    isSystem: false,
+                    isCustom: true,
+                    source: "user_import",
+                    sourceType: "imported",
+                    sourceLabel: "User Import (Excel)"
+                  };
+                  updatedCount++;
+                } else {
+                  // Fork into a new user material
+                  let uniqueName = `${mat.name} (مستورد)`;
+                  let uniqueId = `USR-${mat.id.replace(/^(sys-|sys_|preset-)/i, "")}`;
+                  let suffix = 1;
+                  while (currentMaterialsList.some(m => normalizeName(m.name) === normalizeName(uniqueName) || m.id === uniqueId)) {
+                    uniqueName = `${mat.name} (${suffix})`;
+                    uniqueId = `USR-${mat.id.replace(/^(sys-|sys_|preset-)/i, "")}-${suffix}`;
+                    suffix++;
                   }
-                ]
-              };
-              currentMaterialsList[duplicateIndex] = updatedMaterial;
-              updatedCount++;
+                  const newMat: EngineeringMaterial = {
+                    ...mat,
+                    name: uniqueName,
+                    id: uniqueId,
+                    MaterialID: uniqueId,
+                    MaterialCode: uniqueId,
+                    ArabicName: uniqueName,
+                    materialSource: "user",
+                    isSystem: false,
+                    isCustom: true,
+                    source: "user_import",
+                    sourceType: "imported",
+                    sourceLabel: "User Import (Excel)"
+                  };
+                  currentMaterialsList.push(newMat);
+                  addedCount++;
+                }
+              } else {
+                const updatedMaterial: EngineeringMaterial = {
+                  ...existing,
+                  ...mat,
+                  id: existing.id, // Preserve original stable ID
+                  materialSource: "user",
+                  isSystem: false,
+                  isCustom: true,
+                  source: "user_import",
+                  sourceType: "imported",
+                  sourceLabel: "User Import (Excel)",
+                  version: (existing.version || 1) + 1,
+                  lifecycleHistory: [
+                    ...(existing.lifecycleHistory || []),
+                    {
+                      date: new Date().toISOString().split('T')[0],
+                      version: (existing.version || 1) + 1,
+                      changes: `تم تحديث المادة عبر معالج الاستيراد الذكي (ورقة: ${sheetName})`,
+                      author: userEmail,
+                      approvalStatus: existing.ApprovalStatus || "Approved"
+                    }
+                  ]
+                };
+                currentMaterialsList[duplicateIndex] = updatedMaterial;
+                updatedCount++;
+              }
             } else if (rowResolution === "create_new") {
               // Create clean unique suffix
               let uniqueName = mat.name;
-              let uniqueId = mat.id;
+              let uniqueId = mat.id.startsWith("USR-") ? mat.id : `USR-${mat.id}`;
               let suffix = 1;
               while (currentMaterialsList.some(m => normalizeName(m.name) === normalizeName(uniqueName) || m.id === uniqueId)) {
                 uniqueName = `${mat.name} (${suffix})`;
                 uniqueId = `${mat.id}-${suffix}`;
                 suffix++;
               }
-              const newMat = {
+              const newMat: EngineeringMaterial = {
                 ...mat,
                 name: uniqueName,
                 id: uniqueId,
                 MaterialID: uniqueId,
                 MaterialCode: uniqueId,
-                ArabicName: uniqueName
+                ArabicName: uniqueName,
+                materialSource: "user",
+                isSystem: false,
+                isCustom: true,
+                source: "user_import",
+                sourceType: "imported",
+                sourceLabel: "User Import (Excel)"
               };
               currentMaterialsList.push(newMat);
               addedCount++;
             }
           } else {
             // Uniquely added
-            currentMaterialsList.push(mat);
+            const newMat: EngineeringMaterial = {
+              ...mat,
+              materialSource: "user",
+              isSystem: false,
+              isCustom: true,
+              source: "user_import",
+              sourceType: "imported",
+              sourceLabel: "User Import (Excel)"
+            };
+            currentMaterialsList.push(newMat);
             addedCount++;
           }
         } catch (err: any) {
@@ -2413,6 +2588,7 @@ export function MaterialEngineeringDatabase({
       unknownColumns
     });
 
+    setActiveSourceTab("user");
     setImportSession(null);
   };
 
@@ -2997,8 +3173,14 @@ export function MaterialEngineeringDatabase({
         createdDate: new Date().toISOString().split('T')[0],
         updatedDate: new Date().toISOString().split('T')[0],
         createdBy: "المستخدم",
+        materialSource: "user",
+        isSystem: false,
+        isCustom: true,
         source: "user",
-        ownerId: "user_created"
+        sourceType: "user_created",
+        sourceLabel: "User Material",
+        ownerId: "user_created",
+        readOnly: false
       };
 
       onUpdateMaterials([newMat, ...materials]);
@@ -3007,13 +3189,68 @@ export function MaterialEngineeringDatabase({
       setActiveSourceTab("user");
       showToast(
         language === "ar"
-          ? `تم إضافة مادة "${newMat.name}" بنجاح إلى مكتبة مواد المستخدم!`
-          : `Material "${newMat.name}" added successfully to User Materials!`,
+          ? `تم إضافة مادة "${newMat.name}" بنجاح إلى (موادي)!`
+          : `Material "${newMat.name}" added successfully to My Materials!`,
         "success"
       );
     } else if (isEditing && activeMaterial) {
       const existingMat = materials.find(m => m.id === activeMaterial.id);
       if (!existingMat) return;
+
+      // REQUIREMENT 6: When editing a System Material, DO NOT modify the original system record!
+      // Instead, fork it into a new User Material linked to the original system material.
+      if (isSystemMaterial(existingMat)) {
+        const userMatCopy = forkSystemMaterial(
+          existingMat,
+          formState.name && formState.name !== existingMat.name ? formState.name : `${existingMat.name} - مخصص`,
+          "المستخدم"
+        );
+
+        const finalizedUserMat: EngineeringMaterial = {
+          ...userMatCopy,
+          ...formState as any,
+          id: userMatCopy.id,
+          MaterialID: userMatCopy.id,
+          MaterialCode: userMatCopy.id,
+          name: formState.name || userMatCopy.name,
+          englishName: formState.englishName || userMatCopy.englishName,
+          materialSource: "user",
+          isSystem: false,
+          isCustom: true,
+          source: "user_custom",
+          sourceType: "user_created",
+          sourceLabel: "Customized from System Reference",
+          originalSystemMaterialId: existingMat.id,
+          type: matchedType,
+          density: Number(formState.density) || existingMat.density,
+          ssdDensity: formState.ssdDensity ? Number(formState.ssdDensity) : undefined,
+          absorption: Number(formState.absorption) || 0,
+          moisture: Number(formState.moisture) || 0,
+          finenessModulus: formState.finenessModulus ? Number(formState.finenessModulus) : undefined,
+          dMax: formState.dMax ? Number(formState.dMax) : undefined,
+          price: Number(formState.price) || 0,
+          updatedDate: new Date().toISOString().split('T')[0],
+          createdDate: new Date().toISOString().split('T')[0],
+          ownerId: "user_local",
+          createdBy: "المستخدم",
+          status: formState.status || "نشط",
+          ApprovalStatus: formState.ApprovalStatus || "Approved",
+          readOnly: false
+        };
+
+        // Prepend new User Material; original System Material remains 100% untouched!
+        onUpdateMaterials([finalizedUserMat, ...materials]);
+        setSelectedMaterialId(finalizedUserMat.id);
+        setIsEditing(false);
+        setActiveSourceTab("user");
+        showToast(
+          language === "ar"
+            ? `تم إنشاء نسخة مخصصة "${finalizedUserMat.name}" في (موادي) بنجاح مع الحفاظ على مادة النظام القياسية الأصلية دون أي مساس بها.`
+            : `Created custom copy "${finalizedUserMat.name}" in My Materials while preserving original standard system material intact!`,
+          "success"
+        );
+        return;
+      }
 
       const currentVer = (existingMat.version || 1) + 1;
       const prevHistory = existingMat.lifecycleHistory || [
@@ -3188,42 +3425,43 @@ export function MaterialEngineeringDatabase({
 
   // Check if material is actively used in project inputs
   const isMaterialCurrentlyActiveInInputs = (mat: EngineeringMaterial) => {
+    if (!mat) return false;
     const category = getMaterialCategory(mat);
     if (!category) return false;
     const cat = category.trim().toLowerCase();
     
     if (cat === "رمال" || cat === "sand") {
-      return inputs.selectedSandId === mat.id || inputs.sandType === mat.name;
+      return (inputs?.selectedSandId === mat.id || selectedSandId === mat.id || inputs?.sandType === mat.name);
     }
     if (cat === "حصى" || cat === "gravel" || cat === "aggregate") {
-      return inputs.selectedGravelId === mat.id || inputs.gravelType === mat.name;
+      return (inputs?.selectedGravelId === mat.id || selectedGravelId === mat.id || inputs?.gravelType === mat.name);
     }
     if (cat === "إسمنت" || cat === "cement") {
-      return inputs.selectedCementId === mat.id || inputs.cementType === mat.name;
+      return (inputs?.selectedCementId === mat.id || selectedCementId === mat.id || inputs?.cementType === mat.name);
     }
     if (cat === "إضافات كيميائية" || cat === "admixture" || cat === "chemical_admixture") {
-      return inputs.selectedAdmixtureId === mat.id || inputs.selectedAdmixtureName === mat.name;
+      return inputs?.selectedAdmixtureId === mat.id || inputs?.selectedAdmixtureName === mat.name;
     }
     if (cat === "إضافات معدنية" || cat === "scm" || cat === "mineral_admixture") {
-      return inputs.selectedScmId === mat.id || inputs.selectedScmName === mat.name;
+      return inputs?.selectedScmId === mat.id || inputs?.selectedScmName === mat.name;
     }
     if (cat === "ماء" || cat === "water") {
-      return inputs.selectedWaterId === mat.id || inputs.selectedWaterName === mat.name;
+      return inputs?.selectedWaterId === mat.id || inputs?.selectedWaterName === mat.name;
     }
     if (cat === "ركام خفيف" || cat === "lightweight_aggregate" || cat === "lightweight aggregate") {
-      return inputs.selectedLightweightAggregateId === mat.id || inputs.selectedLightweightAggregateName === mat.name;
+      return inputs?.selectedLightweightAggregateId === mat.id || inputs?.selectedLightweightAggregateName === mat.name;
     }
     if (cat === "ركام ثقيل" || cat === "heavyweight_aggregate" || cat === "heavyweight aggregate") {
-      return inputs.selectedHeavyweightAggregateId === mat.id || inputs.selectedHeavyweightAggregateName === mat.name;
+      return inputs?.selectedHeavyweightAggregateId === mat.id || inputs?.selectedHeavyweightAggregateName === mat.name;
     }
     if (cat === "ألياف" || cat === "fibers" || cat === "fiber") {
-      return inputs.selectedFiberId === mat.id || inputs.selectedFiberName === mat.name;
+      return inputs?.selectedFiberId === mat.id || inputs?.selectedFiberName === mat.name;
     }
     if (cat === "محتوى الهواء" || cat === "air_content" || cat === "air content") {
-      return inputs.selectedAirContentMaterialId === mat.id || inputs.selectedAirContentMaterialName === mat.name;
+      return inputs?.selectedAirContentMaterialId === mat.id || inputs?.selectedAirContentMaterialName === mat.name;
     }
     if (cat === "مجلدات خاصة" || cat === "special_binder" || cat === "special binder") {
-      return inputs.selectedSpecialBinderId === mat.id || inputs.selectedSpecialBinderName === mat.name;
+      return inputs?.selectedSpecialBinderId === mat.id || inputs?.selectedSpecialBinderName === mat.name;
     }
     return false;
   };
@@ -3258,124 +3496,35 @@ export function MaterialEngineeringDatabase({
   };
 
   const getMissingProperties = (mat: EngineeringMaterial) => {
-    const missing: { key: string; nameAr: string; nameFr: string; nameEn: string; recommended: any }[] = [];
-    if (!mat) return missing;
-    
-    const category = mat.category || mat.type;
-    if (category === "إسمنت") {
-      if (!mat.strengthClass) {
-        missing.push({
-          key: "strengthClass",
-          nameAr: "رتبة مقاومة الإسمنت",
-          nameFr: "Classe de résistance du ciment",
-          nameEn: "Cement strength class",
-          recommended: "42.5"
-        });
-      }
-      if (!mat.density || mat.density <= 0) {
-        missing.push({
-          key: "density",
-          nameAr: "الكثافة المطلقة للإسمنت",
-          nameFr: "Masse volumique absolue du ciment",
-          nameEn: "Cement absolute density",
-          recommended: 3100
-        });
-      }
-    } else if (category === "رمال") {
-      const spGravity = mat.specificGravity || mat.engineeringData?.specificGravity;
-      if (!spGravity || spGravity < 1.0 || spGravity > 4.0) {
-        missing.push({
-          key: "specificGravity",
-          nameAr: "الكثافة النوعية (الوزن النوعي) للرمل",
-          nameFr: "Densité relative du sable",
-          nameEn: "Sand relative density (specific gravity)",
-          recommended: 2.65
-        });
-      }
-      const moist = mat.moisture !== undefined ? mat.moisture : mat.engineeringData?.moistureContent;
-      if (moist === undefined || moist === null || moist < 0) {
-        missing.push({
-          key: "moisture",
-          nameAr: "المحتوى الرطوبي للرمل",
-          nameFr: "Humidité du sable",
-          nameEn: "Sand moisture content",
-          recommended: 3.0
-        });
-      }
-      if (!mat.finenessModulus) {
-        missing.push({
-          key: "finenessModulus",
-          nameAr: "معامل النعومة (FM)",
-          nameFr: "Module de finesse du sable",
-          nameEn: "Sand fineness modulus",
-          recommended: 2.6
-        });
-      }
-    } else if (category === "حصى") {
-      const spGravity = mat.specificGravity || mat.engineeringData?.specificGravity;
-      if (!spGravity || spGravity < 1.0 || spGravity > 4.0) {
-        missing.push({
-          key: "specificGravity",
-          nameAr: "الكثافة النوعية (الوزن النوعي) للحصى",
-          nameFr: "Densité relative du gravier",
-          nameEn: "Gravel relative density (specific gravity)",
-          recommended: 2.68
-        });
-      }
-      const moist = mat.moisture !== undefined ? mat.moisture : mat.engineeringData?.moistureContent;
-      if (moist === undefined || moist === null || moist < 0) {
-        missing.push({
-          key: "moisture",
-          nameAr: "المحتوى الرطوبي للحصى",
-          nameFr: "Humidité du gravier",
-          nameEn: "Gravel moisture content",
-          recommended: 1.0
-        });
-      }
-      if (!mat.dMax) {
-        missing.push({
-          key: "dMax",
-          nameAr: "القطر الأقصى للحبيبات (Dmax)",
-          nameFr: "Taille maximale des grains (Dmax)",
-          nameEn: "Gravel maximum size (Dmax)",
-          recommended: 20
-        });
-      }
-    }
-    return missing;
+    if (!mat) return [];
+    const audit = auditMaterial(mat, inputs?.selectedMethod || "dreux", inputs?.concreteType || "standard");
+    return audit.missingRequiredProperties.map(p => ({
+      key: p.key,
+      nameAr: p.labelAr,
+      nameFr: p.labelFr,
+      nameEn: p.labelEn,
+      testStandard: p.testStandard,
+      recommended: p.defaultVal ?? null
+    }));
   };
 
   const handleAutofillMissingProperties = (mat: EngineeringMaterial) => {
     if (!mat || !onUpdateMaterials) return;
-    const missing = getMissingProperties(mat);
-    if (missing.length === 0) return;
+    const audit = auditMaterial(mat, inputs?.selectedMethod || "dreux", inputs?.concreteType || "standard");
+    if (audit.missingRequiredProperties.length === 0) return;
 
     const updatedPrimaryRecord: EngineeringMaterial = {
       ...mat,
-      updatedDate: new Date().toISOString().split('T')[0]
+      updatedDate: new Date().toISOString().split('T')[0],
+      engineeringData: { ...(mat.engineeringData || {}) }
     };
 
-    missing.forEach(prop => {
-      if (prop.key === "strengthClass") {
-        updatedPrimaryRecord.strengthClass = prop.recommended;
-      } else if (prop.key === "density") {
-        updatedPrimaryRecord.density = prop.recommended;
-      } else if (prop.key === "specificGravity") {
-        updatedPrimaryRecord.specificGravity = prop.recommended;
-        if (!updatedPrimaryRecord.engineeringData) updatedPrimaryRecord.engineeringData = {};
-        updatedPrimaryRecord.engineeringData.specificGravity = prop.recommended;
-      } else if (prop.key === "moisture") {
-        updatedPrimaryRecord.moisture = prop.recommended;
-        if (!updatedPrimaryRecord.engineeringData) updatedPrimaryRecord.engineeringData = {};
-        updatedPrimaryRecord.engineeringData.moistureContent = prop.recommended;
-      } else if (prop.key === "finenessModulus") {
-        updatedPrimaryRecord.finenessModulus = prop.recommended;
-        if (!updatedPrimaryRecord.engineeringData) updatedPrimaryRecord.engineeringData = {};
-        updatedPrimaryRecord.engineeringData.finenessModulus = prop.recommended;
-      } else if (prop.key === "dMax") {
-        updatedPrimaryRecord.dMax = prop.recommended;
-        if (!updatedPrimaryRecord.engineeringData) updatedPrimaryRecord.engineeringData = {};
-        updatedPrimaryRecord.engineeringData.dMax = prop.recommended;
+    audit.missingRequiredProperties.forEach(prop => {
+      if (prop.defaultVal !== undefined && prop.defaultVal !== null) {
+        (updatedPrimaryRecord as any)[prop.key] = prop.defaultVal;
+        if (updatedPrimaryRecord.engineeringData) {
+          (updatedPrimaryRecord.engineeringData as any)[prop.key] = prop.defaultVal;
+        }
       }
     });
 
@@ -3387,6 +3536,12 @@ export function MaterialEngineeringDatabase({
     });
 
     onUpdateMaterials(updatedList);
+    showToast(
+      language === "ar" 
+        ? `تم تعبئة الخصائص القياسية المرجعية للمادة "${mat.name}" بنجاح!` 
+        : `Standard reference properties applied for "${mat.name}"!`, 
+      "success"
+    );
   };
 
   const activeRatingInfo = activeMaterial ? (ratingsState[activeMaterial.id] || { avg: activeMaterial.rating, votes: 35 }) : { avg: 4.5, votes: 12 };
@@ -5791,6 +5946,14 @@ export function MaterialEngineeringDatabase({
                   <span>{language === "ar" ? "تحديث الموجود" : "Update Existing"}</span>
                 </button>
                 <button
+                  onClick={handleRunSystemBulkAudit}
+                  disabled={isAuditingInProgress}
+                  className="w-full py-2 px-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm shadow-emerald-600/10"
+                >
+                  <ShieldCheck size={12} className="shrink-0" />
+                  <span>{language === "ar" ? "تدقيق وتعبئة نواقص مواد النظام" : "Audit & Fill System Materials"}</span>
+                </button>
+                <button
                   onClick={() => {
                     setCustomConfirm({
                       title: language === "ar" ? "تحذير: حذف كافة المواد" : "Warning: Clear All Materials",
@@ -5842,6 +6005,16 @@ export function MaterialEngineeringDatabase({
                   </div>
                 </div>
 
+                {/* ADVANCED MULTI-STEP IMPORT WIZARD BUTTON */}
+                <button
+                  type="button"
+                  onClick={() => setIsImportWizardOpen(true)}
+                  className="w-full py-2.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Sparkles size={14} />
+                  <span>{language === "ar" ? "معالج استيراد المواد المتقدم (Excel & PDF)" : "Advanced Material Import Wizard (Excel & PDF)"}</span>
+                </button>
+
                 <div
                   onDragOver={(e) => {
                     e.preventDefault();
@@ -5853,10 +6026,14 @@ export function MaterialEngineeringDatabase({
                     setIsDragging(false);
                     const file = e.dataTransfer.files?.[0];
                     if (file) {
-                      handleFileUpload(file, importMode);
+                      if (file.name.toLowerCase().endsWith(".pdf")) {
+                        setIsImportWizardOpen(true);
+                      } else {
+                        handleFileUpload(file, importMode);
+                      }
                     }
                   }}
-                  onClick={() => document.getElementById("bulk-material-file-uploader")?.click()}
+                  onClick={() => setIsImportWizardOpen(true)}
                   className={`relative p-4 rounded-xl border-2 border-dashed transition-all duration-200 flex flex-col items-center justify-center text-center cursor-pointer ${
                     isDragging
                       ? "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 scale-[1.02]"
@@ -5865,9 +6042,16 @@ export function MaterialEngineeringDatabase({
                 >
                   <input
                     type="file"
-                    accept=".json,.csv,.xlsx"
+                    accept=".json,.csv,.xlsx,.xls,.pdf"
                     id="bulk-material-file-uploader"
-                    onChange={(e) => handleFileUpload(e, importMode)}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f && f.name.toLowerCase().endsWith(".pdf")) {
+                        setIsImportWizardOpen(true);
+                      } else {
+                        handleFileUpload(e, importMode);
+                      }
+                    }}
                     className="hidden"
                   />
                   <Upload className={`h-6 w-6 mb-1.5 transition-all ${isDragging ? "text-emerald-500 scale-110 animate-bounce" : "text-slate-400 dark:text-slate-500"}`} />
@@ -5875,7 +6059,7 @@ export function MaterialEngineeringDatabase({
                     {language === "ar" ? "اسحب الملف هنا أو اضغط للاختيار" : "Drag & Drop file here or Click"}
                   </span>
                   <span className="text-[8.5px] text-slate-400 dark:text-slate-500 mt-0.5">
-                    {language === "ar" ? "يدعم صيغ Excel (.xlsx), CSV, JSON" : "Supports Excel (.xlsx), CSV, JSON"}
+                    {language === "ar" ? "يدعم صيغ Excel (.xlsx), CSV, JSON, ومستندات PDF" : "Supports Excel (.xlsx), CSV, JSON, and PDF documents"}
                   </span>
                 </div>
 
@@ -5904,11 +6088,22 @@ export function MaterialEngineeringDatabase({
 
               <div className="pt-4 space-y-2">
                 <button
-                  onClick={() => handleBulkExport("xlsx")}
-                  className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1 shadow-sm"
+                  type="button"
+                  onClick={() => {
+                    const coreMats = materials.map(m => MaterialService.fromEngineeringMaterial(m));
+                    ExportService.downloadStandardExcel(coreMats);
+                  }}
+                  className="w-full py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-md shadow-indigo-600/20"
                 >
-                  <Download size={11} />
-                  <span>{language === "ar" ? "تصدير الكل إلى Excel (XLSX)" : "Export All to Excel (.xlsx)"}</span>
+                  <FileSpreadsheet size={12} />
+                  <span>{language === "ar" ? "تصدير مصنف SnoLab القياسي الموحّد (18 ورقة)" : "Export Standard SnoLab (18 Sheets)"}</span>
+                </button>
+                <button
+                  onClick={() => handleBulkExport("xlsx")}
+                  className="w-full py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-[9.5px] font-medium transition-all cursor-pointer flex items-center justify-center gap-1"
+                >
+                  <Download size={10} />
+                  <span>{language === "ar" ? "تصدير جدول مختصر (Excel)" : "Export Flat Table (.xlsx)"}</span>
                 </button>
                 <div className="grid grid-cols-2 gap-2">
                   <button
@@ -5942,7 +6137,7 @@ export function MaterialEngineeringDatabase({
             }`}
           >
             <Database size={14} />
-            <span>{language === "ar" ? "مواد النظام" : "System Materials"}</span>
+            <span>{language === "ar" ? "مواد النظام (System Materials)" : "System Materials"}</span>
             <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold ${
               activeSourceTab === "system" ? "bg-white/20 text-white" : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400"
             }`}>
@@ -5954,18 +6149,74 @@ export function MaterialEngineeringDatabase({
             onClick={() => setActiveSourceTab("user")}
             className={`px-5 py-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 relative ${
               activeSourceTab === "user"
-                ? "bg-blue-600 text-white shadow-lg shadow-blue-500/20"
+                ? "bg-emerald-600 text-white shadow-lg shadow-emerald-500/20"
                 : "bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300"
             }`}
           >
             <User size={14} />
-            <span>{language === "ar" ? "مواد المستخدم" : "User Materials"}</span>
+            <span>{language === "ar" ? "موادي (My Materials)" : "My Materials"}</span>
             <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold ${
               activeSourceTab === "user" ? "bg-white/20 text-white" : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400"
             }`}>
               {userCount}
             </span>
           </button>
+
+          {activeSourceTab === "user" && (
+            <button
+              onClick={() => {
+                setBulkCompletionTargetMaterialId(undefined);
+                setIsBulkCompletionModalOpen(true);
+              }}
+              className={`px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                userIncompleteCount > 0
+                  ? "bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/50 text-amber-800 dark:text-amber-300 border border-amber-400/40 shadow-sm"
+                  : "bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-400/40 shadow-sm"
+              }`}
+              title={language === "ar" ? "فحص واستكمال النواقص الهندسية لمواد المستخدم" : "Audit and complete missing properties for user materials"}
+            >
+              <Sparkles size={14} className={userIncompleteCount > 0 ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"} />
+              <span>{language === "ar" ? "فحص واستكمال النواقص الهندسية" : "Audit & Complete Missing Properties"}</span>
+              {userIncompleteCount > 0 ? (
+                <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-600 text-white font-mono font-bold">
+                  {userIncompleteCount} {language === "ar" ? "نواقص" : "missing"}
+                </span>
+              ) : (
+                <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-600 text-white font-mono font-bold">
+                  {language === "ar" ? "جاهزة" : "Ready"}
+                </span>
+              )}
+            </button>
+          )}
+
+          {activeSourceTab === "system" && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <div 
+                className="px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 flex items-center gap-1.5 shadow-sm"
+                title={language === "ar" ? "جميع مواد النظام معتمدة ومكتملة الخصائص 100% وخالية من المسودات والنواقص، جاهزة فوراً لحسابات الخلطات وترشيحات المواد" : "All system materials are 100% complete and validated with zero missing properties, ready for mix calculations and recommendations"}
+              >
+                <CheckCircle2 size={14} className="text-emerald-600 dark:text-emerald-400" />
+                <span>
+                  {language === "ar" 
+                    ? `جاهزة ومعتمدة 100% (${systemPreflight.readyAndValidatedCount}/${systemPreflight.totalSystemMaterials})`
+                    : `100% Ready & Validated (${systemPreflight.readyAndValidatedCount}/${systemPreflight.totalSystemMaterials})`}
+                </span>
+                <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-600 text-white font-mono font-bold">
+                  VALIDATED
+                </span>
+              </div>
+
+              <button
+                onClick={handleRunSystemBulkAudit}
+                disabled={isAuditingInProgress}
+                className="px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 shadow-sm"
+                title={language === "ar" ? "عرض تقرير التدقيق المعتمد وإعادة فحص الخصائص المرجعية" : "View certified audit report and verify reference properties"}
+              >
+                <ShieldCheck size={14} className="text-blue-600 dark:text-blue-400" />
+                <span>{language === "ar" ? "تقرير التدقيق المعتمد" : "Audit Report"}</span>
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="hidden sm:block text-[11px] text-slate-450 dark:text-slate-500 font-medium">
@@ -6346,22 +6597,35 @@ export function MaterialEngineeringDatabase({
                             setIsAdding(false);
                             setFormState(mat);
                           }}
-                          title={language === "ar" ? "تعديل المادة" : "Edit Material"}
+                          title={
+                            isSystemMaterial(mat)
+                              ? (language === "ar" ? "تعديل المادة (سيتم إنشاء نسخة مخصصة في 'موادي' وحماية مادة النظام الأصلية)" : "Edit (creates custom copy in 'My Materials' preserving system original)")
+                              : (language === "ar" ? "تعديل مادة المستخدم" : "Edit User Material")
+                          }
                           className="p-1.5 rounded-lg bg-slate-100 hover:bg-blue-100 hover:text-blue-600 dark:bg-slate-800 dark:hover:bg-blue-900/40 text-slate-500 dark:text-slate-400 transition-colors cursor-pointer"
                         >
                           <Edit3 size={12} />
                         </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedMaterialId(mat.id);
-                            setShowDeleteConfirm(true);
-                          }}
-                          title={language === "ar" ? "حذف المادة" : "Delete Material"}
-                          className="p-1.5 rounded-lg bg-slate-100 hover:bg-rose-100 hover:text-rose-600 dark:bg-slate-800 dark:hover:bg-rose-900/40 text-slate-500 dark:text-slate-400 transition-colors cursor-pointer"
-                        >
-                          <Trash2 size={12} />
-                        </button>
+                        {isSystemMaterial(mat) ? (
+                          <div
+                            title={language === "ar" ? "مادة نظام قياسية - محمية كمرجع وغير قابلة للحذف" : "Protected Standard System Material - Cannot be deleted"}
+                            className="p-1.5 rounded-lg bg-slate-100/60 dark:bg-slate-800/40 text-slate-400 dark:text-slate-500 cursor-not-allowed"
+                          >
+                            <Lock size={12} />
+                          </div>
+                        ) : (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedMaterialId(mat.id);
+                              setShowDeleteConfirm(true);
+                            }}
+                            title={language === "ar" ? "حذف مادة المستخدم" : "Delete User Material"}
+                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-rose-100 hover:text-rose-600 dark:bg-slate-800 dark:hover:bg-rose-900/40 text-slate-500 dark:text-slate-400 transition-colors cursor-pointer"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        )}
                       </div>
                     )}
                     {isMaterialCurrentlyActiveInInputs(mat) && (
@@ -6435,13 +6699,59 @@ export function MaterialEngineeringDatabase({
                           </>
                         )}
                       </div>
-                      {mat.materialType && (
-                        <div className={`flex mt-1 ${language === "ar" ? "justify-end" : "justify-start"}`}>
+                      <div className={`flex flex-wrap items-center gap-1.5 mt-1.5 ${language === "ar" ? "justify-end" : "justify-start"}`}>
+                        {isSystemMaterial(mat) ? (
+                          <span className="p-0.5 px-2 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60 rounded text-[8.5px] font-bold flex items-center gap-1">
+                            <Database size={9} />
+                            <span>{language === "ar" ? "مادة نظام" : "System Material"}</span>
+                          </span>
+                        ) : (
+                          <>
+                            <span className="p-0.5 px-2 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 rounded text-[8.5px] font-bold flex items-center gap-1">
+                              <User size={9} />
+                              <span>{language === "ar" ? "مادة المستخدم" : "User Material"}</span>
+                            </span>
+
+                            {(() => {
+                              const audit = CompletenessChecker.inspectMaterial(mat);
+                              if (audit.overallStatus === "READY") {
+                                return (
+                                  <span className="p-0.5 px-2 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 rounded text-[8.5px] font-bold flex items-center gap-1" title={language === "ar" ? "المادة مكتملة وجاهزة فوراً لحسابات الخلطات" : "Ready for mix calculations"}>
+                                    <CheckCircle size={9} />
+                                    <span>{language === "ar" ? "جاهزة للحساب" : "Ready"}</span>
+                                  </span>
+                                );
+                              } else {
+                                return (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setBulkCompletionTargetMaterialId(mat.id);
+                                      setIsBulkCompletionModalOpen(true);
+                                    }}
+                                    className="p-0.5 px-2 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 text-amber-750 dark:text-amber-300 border border-amber-300 dark:border-amber-800/60 rounded text-[8.5px] font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                                    title={language === "ar" ? "اضغط لاستكمال الخصائص الناقصة لهذه المادة" : "Click to review and complete missing properties"}
+                                  >
+                                    <AlertTriangle size={9} />
+                                    <span>{language === "ar" ? `استكمال النواقص (${audit.unresolvedProperties.length})` : `Complete (${audit.unresolvedProperties.length})`}</span>
+                                  </button>
+                                );
+                              }
+                            })()}
+                          </>
+                        )}
+                        {mat.originalSystemMaterialId && (
+                          <span className="p-0.5 px-1.5 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60 rounded text-[8px] font-medium">
+                            {language === "ar" ? "مشتقة من النظام" : "System Fork"}
+                          </span>
+                        )}
+                        {mat.materialType && (
                           <span className="p-0.5 px-2 bg-indigo-500/10 text-indigo-650 dark:text-indigo-400 border border-indigo-500/15 rounded text-[8.5px] font-bold">
                             {mat.materialType}
                           </span>
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </div>
 
                   </div>
@@ -7490,9 +7800,22 @@ export function MaterialEngineeringDatabase({
               {/* Elegant, high-contrast engineering data header block */}
               <div className="relative h-44 rounded-2xl overflow-hidden shadow bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-850 p-5 flex flex-col justify-between text-right animate-fade-in">
                 <div className="flex justify-between items-start">
-                  <span className="text-[9px] font-black uppercase px-2.5 py-1 rounded-full bg-blue-600 text-white shadow-sm font-sans">
-                    {activeMaterial.category || activeMaterial.type}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[9px] font-black uppercase px-2.5 py-1 rounded-full bg-blue-600 text-white shadow-sm font-sans">
+                      {activeMaterial.category || activeMaterial.type}
+                    </span>
+                    {isSystemMaterial(activeMaterial) ? (
+                      <span className="text-[8.5px] font-bold px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 flex items-center gap-1 font-sans">
+                        <Database size={9} />
+                        <span>{language === "ar" ? "مادة نظام" : "System Material"}</span>
+                      </span>
+                    ) : (
+                      <span className="text-[8.5px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 flex items-center gap-1 font-sans">
+                        <User size={9} />
+                        <span>{language === "ar" ? "مادة المستخدم" : "User Material"}</span>
+                      </span>
+                    )}
+                  </div>
                   <div className="text-left font-mono">
                     <span className="text-[8px] text-slate-500 block leading-none">MATERIAL UNIQUE ID</span>
                     <span className="text-[10px] font-extrabold text-indigo-400 block mt-0.5">{activeMaterial.id}</span>
@@ -7540,13 +7863,23 @@ export function MaterialEngineeringDatabase({
               {/* CRUD TOOLBAR ACTION ROW */}
               {onUpdateMaterials && (
                 <div className="flex items-center gap-1.5 justify-end">
-                  <button
-                    onClick={handleDeleteClick}
-                    className="p-1 px-2.5 bg-rose-500/10 hover:bg-rose-500 text-rose-500 hover:text-white rounded-lg text-[9.5px] font-bold flex items-center gap-1 transition-all cursor-pointer"
-                  >
-                    <Trash2 size={10} />
-                    <span>{language === "ar" ? "حذف" : language === "fr" ? "Supprimer" : "Delete"}</span>
-                  </button>
+                  {isSystemMaterial(activeMaterial) ? (
+                    <div
+                      title={language === "ar" ? "مادة نظام قياسية - محمية كمرجع وغير قابلة للحذف" : "Protected Standard System Material - Cannot be deleted"}
+                      className="p-1 px-2.5 bg-slate-100 dark:bg-slate-800 text-slate-450 dark:text-slate-500 rounded-lg text-[9.5px] font-bold flex items-center gap-1 cursor-not-allowed border border-slate-200 dark:border-slate-700"
+                    >
+                      <Lock size={10} />
+                      <span>{language === "ar" ? "مادة نظام (محمية)" : "System (Protected)"}</span>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={handleDeleteClick}
+                      className="p-1 px-2.5 bg-rose-500/10 hover:bg-rose-500 text-rose-500 hover:text-white rounded-lg text-[9.5px] font-bold flex items-center gap-1 transition-all cursor-pointer"
+                    >
+                      <Trash2 size={10} />
+                      <span>{language === "ar" ? "حذف" : language === "fr" ? "Supprimer" : "Delete"}</span>
+                    </button>
+                  )}
                   <button
                     onClick={handleDuplicateClick}
                     className="p-1 px-2.5 bg-blue-500/10 hover:bg-blue-600 text-blue-600 hover:text-white rounded-lg text-[9.5px] font-bold flex items-center gap-1 transition-all cursor-pointer"
@@ -7557,9 +7890,18 @@ export function MaterialEngineeringDatabase({
                   <button
                     onClick={handleEditClick}
                     className="p-1 px-2.5 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-705 text-slate-700 dark:text-slate-200 rounded-lg text-[9.5px] font-bold flex items-center gap-1 transition-all cursor-pointer"
+                    title={
+                      isSystemMaterial(activeMaterial)
+                        ? (language === "ar" ? "تعديل المادة (سيتم إنشاء نسخة مخصصة في 'موادي' وحماية مادة النظام الأصلية)" : "Edit (creates custom copy in 'My Materials' preserving system original)")
+                        : (language === "ar" ? "تعديل مادة المستخدم" : "Edit User Material")
+                    }
                   >
                     <Edit3 size={10} />
-                    <span>{language === "ar" ? "تعديل" : language === "fr" ? "Modifier" : "Edit"}</span>
+                    <span>
+                      {isSystemMaterial(activeMaterial)
+                        ? (language === "ar" ? "تعديل (نسخ إلى موادي)" : "Edit (Copy)")
+                        : (language === "ar" ? "تعديل" : language === "fr" ? "Modifier" : "Edit")}
+                    </span>
                   </button>
                 </div>
               )}
@@ -7588,10 +7930,14 @@ export function MaterialEngineeringDatabase({
                   <div className="pt-1">
                     <button
                       type="button"
-                      onClick={() => handleAutofillMissingProperties(activeMaterial)}
-                      className="w-full py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-[9.5px] font-black transition-all flex items-center justify-center gap-1 shadow cursor-pointer"
+                      onClick={() => {
+                        setBulkCompletionTargetMaterialId(activeMaterial.id);
+                        setIsBulkCompletionModalOpen(true);
+                      }}
+                      className="w-full py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-[9.5px] font-black transition-all flex items-center justify-center gap-1.5 shadow cursor-pointer"
                     >
-                      <span>{language === "ar" ? "تعبئة الخصائص الناقصة تلقائياً بالقيم القياسية" : "Autofill Missing Properties Automatically"}</span>
+                      <Sparkles size={11} className="text-amber-200" />
+                      <span>{language === "ar" ? "إظهار الخصائص الناقصة واستكمالها" : "Show and Complete Missing Properties"}</span>
                     </button>
                   </div>
                 </div>
@@ -7604,7 +7950,9 @@ export function MaterialEngineeringDatabase({
                     {language === "ar" ? "الكثافة المطلقة" : language === "fr" ? "Masse volumique" : "Absolute Density"}
                   </span>
                   <strong className="text-[11px] text-slate-800 dark:text-slate-200">
-                    {`${activeMaterial.density} kg/m³`}
+                    {activeMaterial.density !== undefined && activeMaterial.density > 0 ? `${activeMaterial.density} kg/m³` : (
+                      <span className="text-amber-500 font-sans text-[10px] font-bold">{language === "ar" ? "مفقودة" : "Missing"}</span>
+                    )}
                   </strong>
                 </div>
 
@@ -7613,7 +7961,9 @@ export function MaterialEngineeringDatabase({
                     {language === "ar" ? "الامتصاص المائي" : language === "fr" ? "Absorption d'eau" : "Water Absorption"}
                   </span>
                   <strong className="text-[11px] text-blue-500 dark:text-blue-400">
-                    {activeMaterial.absorption > 0 ? `${activeMaterial.absorption}%` : "0%"}
+                    {activeMaterial.absorption !== undefined && activeMaterial.absorption !== null ? `${activeMaterial.absorption}%` : (
+                      <span className="text-slate-400 font-sans text-[10px]">--</span>
+                    )}
                   </strong>
                 </div>
 
@@ -7622,7 +7972,9 @@ export function MaterialEngineeringDatabase({
                     {language === "ar" ? "رطوبة الورشة الافتراضية" : language === "fr" ? "Humidité du chantier" : "Default Site Moisture"}
                   </span>
                   <strong className="text-[11px] text-amber-600">
-                    {activeMaterial.moisture !== undefined ? `${activeMaterial.moisture}%` : "1.0%"}
+                    {activeMaterial.moisture !== undefined && activeMaterial.moisture !== null ? `${activeMaterial.moisture}%` : (
+                      <span className="text-slate-400 font-sans text-[10px]">--</span>
+                    )}
                   </strong>
                 </div>
               </div>
@@ -7640,9 +7992,7 @@ export function MaterialEngineeringDatabase({
                       <div>
                         {language === "ar" ? "شكل الركام: " : language === "fr" ? "Forme des granulats : " : "Particle Shape: "}
                         <strong className="text-slate-800 dark:text-white">
-                          {activeMaterial.particleShape === "زاوي مكسر"
-                            ? (language === "ar" ? "زاوي مكسر" : language === "fr" ? "Concassé angulaire" : "Crushed Angular")
-                            : activeMaterial.particleShape || (language === "ar" ? "زاوي مكسر" : "Crushed Angular")}
+                          {activeMaterial.particleShape || (language === "ar" ? "غير محدد" : "Not specified")}
                         </strong>
                       </div>
                       <div>
@@ -7652,20 +8002,24 @@ export function MaterialEngineeringDatabase({
                             ? (language === "ar" ? "ممتاز" : "Excellent") 
                             : activeMaterial.aggregateQuality === "poor" 
                             ? (language === "ar" ? "ضعيف" : "Poor") 
-                            : (language === "ar" ? "عادي / قياسي" : "Standard")}
+                            : activeMaterial.aggregateQuality 
+                            ? (language === "ar" ? "عادي / قياسي" : "Standard")
+                            : (language === "ar" ? "غير محدد" : "Unspecified")}
                         </strong>
                       </div>
                       <div>
                         {language === "ar" ? "الكثافة النوعية (الوزن النوعي): " : language === "fr" ? "Densité relative : " : "Specific Gravity / Relative Density: "}
-                        <strong className="text-slate-800 dark:text-white font-mono">{activeMaterial.specificGravity || (activeMaterial.density/1000).toFixed(2)}</strong>
+                        <strong className="text-slate-800 dark:text-white font-mono">
+                          {activeMaterial.specificGravity ? activeMaterial.specificGravity : activeMaterial.density ? (activeMaterial.density/1000).toFixed(2) : "--"}
+                        </strong>
                       </div>
-                      {activeMaterial.finenessModulus && (
+                      {activeMaterial.finenessModulus !== undefined && (
                         <div>
                           {language === "ar" ? "رتبة النعومة FM: " : language === "fr" ? "Module de finesse FM : " : "Fineness Modulus FM: "}
                           <strong className="text-slate-800 dark:text-white font-mono">{activeMaterial.finenessModulus}</strong>
                         </div>
                       )}
-                      {activeMaterial.dMax && (
+                      {activeMaterial.dMax !== undefined && (
                         <div>
                           {language === "ar" ? "الحجم الحبيبي الأقصى Dmax: " : language === "fr" ? "Taille maximale Dmax : " : "Max Grain Size Dmax: "}
                           <strong className="text-slate-800 dark:text-white font-mono">{activeMaterial.dMax} {language === "ar" ? "مم" : "mm"}</strong>
@@ -7702,9 +8056,9 @@ export function MaterialEngineeringDatabase({
                       {language === "ar" ? "البطاقة الهندسية للمركب الإسمنتي والإماهة الحرارية:" : "Cementitious Compound & Thermal Hydration Spec Sheet:"}
                     </p>
                     <div className={`grid grid-cols-2 gap-2 text-slate-600 dark:text-slate-300 ${language === "ar" ? "text-right" : "text-left"}`}>
-                      <div>{language === "ar" ? "صنف الـ CEM النوعي: " : "Specific CEM Class: "} <strong className="text-slate-800 dark:text-white">{activeMaterial.cementClass || "CEM I"}</strong></div>
-                      <div>{language === "ar" ? "الرتبة المعيارية للمقاومة: " : "Standard Strength Class: "} <strong className="text-slate-800 dark:text-white font-mono">{activeMaterial.strengthClass || "42.5"} MPa</strong></div>
-                      <div>{language === "ar" ? "فئة سرعة الإماهة: " : "Hydration Speed Category: "} <strong className="text-slate-800 dark:text-white">{activeMaterial.hydrationClass || (language === "ar" ? "عادي" : "Normal")}</strong></div>
+                      <div>{language === "ar" ? "صنف الـ CEM النوعي: " : "Specific CEM Class: "} <strong className="text-slate-800 dark:text-white">{activeMaterial.cementClass || "--"}</strong></div>
+                      <div>{language === "ar" ? "الرتبة المعيارية للمقاومة: " : "Standard Strength Class: "} <strong className="text-slate-800 dark:text-white font-mono">{activeMaterial.strengthClass ? `${activeMaterial.strengthClass} MPa` : "--"}</strong></div>
+                      <div>{language === "ar" ? "فئة سرعة الإماهة: " : "Hydration Speed Category: "} <strong className="text-slate-800 dark:text-white">{activeMaterial.hydrationClass || "--"}</strong></div>
                       {activeMaterial.heatOfHydration && <div>{language === "ar" ? "حرارة الإماهة المطلقة: " : "Absolute Hydration Heat: "} <strong className="text-slate-800 dark:text-white font-mono">{activeMaterial.heatOfHydration} J/g</strong></div>}
                     </div>
                   </div>
@@ -7733,10 +8087,10 @@ export function MaterialEngineeringDatabase({
                       {language === "ar" ? "المعايير الهيدرولوجية لماء الخلط:" : "Mixing Water Hydrological Parameters:"}
                     </p>
                     <div className={`grid grid-cols-2 gap-2 text-slate-600 dark:text-slate-300 ${language === "ar" ? "text-right" : "text-left"}`}>
-                      <div>{language === "ar" ? "درجة الحموضة pH: " : "pH Level: "} <strong className="text-slate-800 dark:text-white font-mono">{activeMaterial.engineeringData?.pH || 7.0}</strong></div>
-                      <div>{language === "ar" ? "درجة الحرارة: " : "Temperature: "} <strong className="text-slate-800 dark:text-white font-mono">{activeMaterial.engineeringData?.temperature || 20} °C</strong></div>
-                      <div>{language === "ar" ? "محتوى الكلوريدات: " : "Chloride Content: "} <strong className="text-slate-800 dark:text-white font-mono">{activeMaterial.engineeringData?.chlorideContent || 250} mg/L</strong></div>
-                      <div>{language === "ar" ? "محتوى الكبريتات: " : "Sulfate Content: "} <strong className="text-slate-800 dark:text-white font-mono">{activeMaterial.engineeringData?.sulphateContent || 300} mg/L</strong></div>
+                      <div>{language === "ar" ? "درجة الحموضة pH: " : "pH Level: "} <strong className="text-slate-800 dark:text-white font-mono">{activeMaterial.engineeringData?.pH !== undefined ? activeMaterial.engineeringData.pH : "--"}</strong></div>
+                      <div>{language === "ar" ? "درجة الحرارة: " : "Temperature: "} <strong className="text-slate-800 dark:text-white font-mono">{activeMaterial.engineeringData?.temperature !== undefined ? `${activeMaterial.engineeringData.temperature} °C` : "--"}</strong></div>
+                      <div>{language === "ar" ? "محتوى الكلوريدات: " : "Chloride Content: "} <strong className="text-slate-800 dark:text-white font-mono">{activeMaterial.engineeringData?.chlorideContent !== undefined ? `${activeMaterial.engineeringData.chlorideContent} mg/L` : "--"}</strong></div>
+                      <div>{language === "ar" ? "محتوى الكبريتات: " : "Sulfate Content: "} <strong className="text-slate-800 dark:text-white font-mono">{activeMaterial.engineeringData?.sulphateContent !== undefined ? `${activeMaterial.engineeringData.sulphateContent} mg/L` : "--"}</strong></div>
                     </div>
                   </div>
                 )}
@@ -7748,9 +8102,9 @@ export function MaterialEngineeringDatabase({
                       {language === "ar" ? "البطاقة الهندسية للركام الخفيف الماص:" : "Lightweight Porous Aggregate Spec Sheet:"}
                     </p>
                     <div className={`grid grid-cols-2 gap-2 text-slate-600 dark:text-slate-300 ${language === "ar" ? "text-right" : "text-left"}`}>
-                      <div>{language === "ar" ? "الكثافة المطلقة: " : "Specific Density: "} <strong className="text-slate-800 dark:text-white font-mono">{activeMaterial.engineeringData?.density || activeMaterial.density || 1200} kg/m³</strong></div>
-                      <div>{language === "ar" ? "امتصاص الماء: " : "Water Absorption: "} <strong className="text-slate-800 dark:text-white font-mono">{activeMaterial.engineeringData?.waterAbsorption || activeMaterial.absorption || 15}%</strong></div>
-                      <div>{language === "ar" ? "مؤشر المسامية: " : "Porosity Index: "} <strong className="text-slate-800 dark:text-white font-mono">{activeMaterial.engineeringData?.porosityIndex || 25}%</strong></div>
+                      <div>{language === "ar" ? "الكثافة المطلقة: " : "Specific Density: "} <strong className="text-slate-800 dark:text-white font-mono">{activeMaterial.engineeringData?.density || activeMaterial.density || "--"} kg/m³</strong></div>
+                      <div>{language === "ar" ? "امتصاص الماء: " : "Water Absorption: "} <strong className="text-slate-800 dark:text-white font-mono">{activeMaterial.engineeringData?.waterAbsorption !== undefined ? `${activeMaterial.engineeringData.waterAbsorption}%` : activeMaterial.absorption !== undefined ? `${activeMaterial.absorption}%` : "--"}</strong></div>
+                      <div>{language === "ar" ? "مؤشر المسامية: " : "Porosity Index: "} <strong className="text-slate-800 dark:text-white font-mono">{activeMaterial.engineeringData?.porosityIndex !== undefined ? `${activeMaterial.engineeringData.porosityIndex}%` : "--"}</strong></div>
                     </div>
                   </div>
                 )}
@@ -7762,9 +8116,9 @@ export function MaterialEngineeringDatabase({
                       {language === "ar" ? "البطاقة الهندسية للركام الثقيل (دروع الحماية):" : "Heavyweight Aggregate Protective Shield Spec Sheet:"}
                     </p>
                     <div className={`grid grid-cols-2 gap-2 text-slate-600 dark:text-slate-300 ${language === "ar" ? "text-right" : "text-left"}`}>
-                      <div>{language === "ar" ? "الكثافة المطلقة: " : "Specific Density: "} <strong className="text-slate-800 dark:text-white font-mono">{activeMaterial.engineeringData?.density || activeMaterial.density || 4200} kg/m³</strong></div>
-                      <div>{language === "ar" ? "امتصاص الماء: " : "Water Absorption: "} <strong className="text-slate-800 dark:text-white font-mono">{activeMaterial.engineeringData?.waterAbsorption || activeMaterial.absorption || 0.5}%</strong></div>
-                      <div>{language === "ar" ? "نوع المعدن الثقيل: " : "Heavy Mineral Type: "} <strong className="text-slate-800 dark:text-white">{activeMaterial.engineeringData?.heavyType === "baryte" ? (language === "ar" ? "باريت" : "Baryte") : activeMaterial.engineeringData?.heavyType === "magnetite" ? (language === "ar" ? "ماغنيتيت" : "Magnetite") : (language === "ar" ? "هيماتيت" : "Hematite")}</strong></div>
+                      <div>{language === "ar" ? "الكثافة المطلقة: " : "Specific Density: "} <strong className="text-slate-800 dark:text-white font-mono">{activeMaterial.engineeringData?.density || activeMaterial.density || "--"} kg/m³</strong></div>
+                      <div>{language === "ar" ? "امتصاص الماء: " : "Water Absorption: "} <strong className="text-slate-800 dark:text-white font-mono">{activeMaterial.engineeringData?.waterAbsorption !== undefined ? `${activeMaterial.engineeringData.waterAbsorption}%` : activeMaterial.absorption !== undefined ? `${activeMaterial.absorption}%` : "--"}</strong></div>
+                      <div>{language === "ar" ? "نوع المعدن الثقيل: " : "Heavy Mineral Type: "} <strong className="text-slate-800 dark:text-white">{activeMaterial.engineeringData?.heavyType === "baryte" ? (language === "ar" ? "باريت" : "Baryte") : activeMaterial.engineeringData?.heavyType === "magnetite" ? (language === "ar" ? "ماغنيتيت" : "Magnetite") : activeMaterial.engineeringData?.heavyType ? (language === "ar" ? "هيماتيت" : "Hematite") : "--"}</strong></div>
                     </div>
                   </div>
                 )}
@@ -7776,10 +8130,10 @@ export function MaterialEngineeringDatabase({
                       {language === "ar" ? "المواصفات الفنية لألياف التسليح الحجمي:" : "Volumetric Fiber Reinforcement Specs:"}
                     </p>
                     <div className={`grid grid-cols-2 gap-2 text-slate-600 dark:text-slate-300 ${language === "ar" ? "text-right" : "text-left"}`}>
-                      <div>{language === "ar" ? "نوع الألياف: " : "Fiber Type: "} <strong className="text-slate-800 dark:text-white">{activeMaterial.engineeringData?.fiberType === "steel" ? (language === "ar" ? "فولاذية" : "Steel") : activeMaterial.engineeringData?.fiberType === "glass" ? (language === "ar" ? "زجاجية" : "Glass") : (language === "ar" ? "بولي بروبيلين" : "Polypropylene")}</strong></div>
-                      <div>{language === "ar" ? "الجرعة المقررة: " : "Dosage: "} <strong className="text-slate-800 dark:text-white font-mono">{activeMaterial.engineeringData?.dosage || 25} kg/m³</strong></div>
-                      <div>{language === "ar" ? "الطول / القطر: " : "Length / Diameter: "} <strong className="text-slate-800 dark:text-white font-mono">{activeMaterial.engineeringData?.length || 30}mm / {activeMaterial.engineeringData?.diameter || 0.55}mm</strong></div>
-                      <div>{language === "ar" ? "قوة الشد: " : "Tensile Strength: "} <strong className="text-slate-800 dark:text-white font-mono">{activeMaterial.engineeringData?.tensileStrength || 1100} MPa</strong></div>
+                      <div>{language === "ar" ? "نوع الألياف: " : "Fiber Type: "} <strong className="text-slate-800 dark:text-white">{activeMaterial.engineeringData?.fiberType === "steel" ? (language === "ar" ? "فولاذية" : "Steel") : activeMaterial.engineeringData?.fiberType === "glass" ? (language === "ar" ? "زجاجية" : "Glass") : activeMaterial.engineeringData?.fiberType === "synthetic" ? (language === "ar" ? "بولي بروبيلين" : "Polypropylene") : "--"}</strong></div>
+                      <div>{language === "ar" ? "الجرعة المقررة: " : "Dosage: "} <strong className="text-slate-800 dark:text-white font-mono">{activeMaterial.engineeringData?.dosage !== undefined ? `${activeMaterial.engineeringData.dosage} kg/m³` : "--"}</strong></div>
+                      <div>{language === "ar" ? "الطول / القطر: " : "Length / Diameter: "} <strong className="text-slate-800 dark:text-white font-mono">{activeMaterial.engineeringData?.length ? `${activeMaterial.engineeringData.length}mm` : "--"} / {activeMaterial.engineeringData?.diameter ? `${activeMaterial.engineeringData.diameter}mm` : "--"}</strong></div>
+                      <div>{language === "ar" ? "قوة الشد: " : "Tensile Strength: "} <strong className="text-slate-800 dark:text-white font-mono">{activeMaterial.engineeringData?.tensileStrength !== undefined ? `${activeMaterial.engineeringData.tensileStrength} MPa` : "--"}</strong></div>
                     </div>
                   </div>
                 )}
@@ -7793,7 +8147,7 @@ export function MaterialEngineeringDatabase({
                     <div className={`grid grid-cols-2 gap-2 text-slate-600 dark:text-slate-300 ${language === "ar" ? "text-right" : "text-left"}`}>
                       <div>
                         {language === "ar" ? "المحوى الهوائي المستهدف: " : "Target Air Content: "}
-                        <strong className="text-slate-800 dark:text-white font-mono">{activeMaterial.engineeringData?.airPercentage || 2.0}%</strong>
+                        <strong className="text-slate-800 dark:text-white font-mono">{activeMaterial.engineeringData?.airPercentage !== undefined ? `${activeMaterial.engineeringData.airPercentage}%` : "--"}</strong>
                       </div>
                     </div>
                   </div>
@@ -7808,11 +8162,11 @@ export function MaterialEngineeringDatabase({
                     <div className={`grid grid-cols-2 gap-2 text-slate-600 dark:text-slate-300 ${language === "ar" ? "text-right" : "text-left"}`}>
                       <div>
                         {language === "ar" ? "نسبة قلوية الجيوبوليمر: " : "Geopolymer Alkaline Ratio: "}
-                        <strong className="text-slate-800 dark:text-white font-mono">{activeMaterial.engineeringData?.alkalineRatio || 2.5}</strong>
+                        <strong className="text-slate-800 dark:text-white font-mono">{activeMaterial.engineeringData?.alkalineRatio !== undefined ? activeMaterial.engineeringData.alkalineRatio : "--"}</strong>
                       </div>
                       <div>
                         {language === "ar" ? "رتبة مقاومة الإيبوكسي: " : "Epoxy Tensile Strength Class: "}
-                        <strong className="text-slate-800 dark:text-white font-mono">{activeMaterial.engineeringData?.epoxyStrengthClass || "EP-60"}</strong>
+                        <strong className="text-slate-800 dark:text-white font-mono">{activeMaterial.engineeringData?.epoxyStrengthClass || "--"}</strong>
                       </div>
                     </div>
                   </div>
@@ -7828,19 +8182,19 @@ export function MaterialEngineeringDatabase({
                   {activeMaterial.category === "رمال" && (
                     <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 font-mono text-slate-600 dark:text-slate-300">
                       <div className={`flex justify-between border-b border-dashed border-slate-100 pb-0.5 ${language === "ar" ? "flex-row" : "flex-row-reverse"}`}>
-                        <span>{activeMaterial.SandEquivalent !== undefined ? `${activeMaterial.SandEquivalent}%` : "80.5%"}</span>
+                        <span>{activeMaterial.SandEquivalent !== undefined ? `${activeMaterial.SandEquivalent}%` : <span className="text-slate-400 font-sans">--</span>}</span>
                         <span className="text-slate-400 font-sans">{language === "ar" ? "المكافئ الرملي (SE):" : language === "fr" ? "Équivalent de sable (SE) :" : "Sand Equivalent (SE):"}</span>
                       </div>
                       <div className={`flex justify-between border-b border-dashed border-slate-100 pb-0.5 ${language === "ar" ? "flex-row" : "flex-row-reverse"}`}>
-                        <span>{activeMaterial.MethyleneBlue !== undefined ? `${activeMaterial.MethyleneBlue} g/kg` : "1.10"}</span>
+                        <span>{activeMaterial.MethyleneBlue !== undefined ? `${activeMaterial.MethyleneBlue} g/kg` : <span className="text-slate-400 font-sans">--</span>}</span>
                         <span className="text-slate-400 font-sans">{language === "ar" ? "أزرق الميثيلين (MB):" : language === "fr" ? "Bleu de méthylène (MB) :" : "Methylene Blue (MB):"}</span>
                       </div>
                       <div className={`flex justify-between border-b border-dashed border-slate-100 pb-0.5 ${language === "ar" ? "flex-row" : "flex-row-reverse"}`}>
-                        <span>{activeMaterial.Chlorides !== undefined ? `${activeMaterial.Chlorides}%` : "0.012%"}</span>
+                        <span>{activeMaterial.Chlorides !== undefined ? `${activeMaterial.Chlorides}%` : <span className="text-slate-400 font-sans">--</span>}</span>
                         <span className="text-slate-400 font-sans">{language === "ar" ? "محتوى الكلوريدات:" : language === "fr" ? "Teneur en chlorures :" : "Chloride Content:"}</span>
                       </div>
                       <div className={`flex justify-between border-b border-dashed border-slate-100 pb-0.5 ${language === "ar" ? "flex-row" : "flex-row-reverse"}`}>
-                        <span>{activeMaterial.Sulfates !== undefined ? `${activeMaterial.Sulfates}%` : "0.018%"}</span>
+                        <span>{activeMaterial.Sulfates !== undefined ? `${activeMaterial.Sulfates}%` : <span className="text-slate-400 font-sans">--</span>}</span>
                         <span className="text-slate-400 font-sans">{language === "ar" ? "محتوى الكبريتات:" : language === "fr" ? "Teneur en sulfates :" : "Sulfate Content:"}</span>
                       </div>
                     </div>
@@ -7849,19 +8203,19 @@ export function MaterialEngineeringDatabase({
                   {activeMaterial.category === "حصى" && (
                     <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 font-mono text-slate-600 dark:text-slate-300">
                       <div className={`flex justify-between border-b border-dashed border-slate-100 pb-0.5 ${language === "ar" ? "flex-row" : "flex-row-reverse"}`}>
-                        <span>{activeMaterial.LosAngeles !== undefined ? `${activeMaterial.LosAngeles}%` : "18%"}</span>
+                        <span>{activeMaterial.LosAngeles !== undefined ? `${activeMaterial.LosAngeles}%` : <span className="text-slate-400 font-sans">--</span>}</span>
                         <span className="text-slate-400 font-sans">{language === "ar" ? "صلادة لوس أنجلوس (LA):" : language === "fr" ? "Usure Los Angeles (LA) :" : "Los Angeles Abrasion (LA):"}</span>
                       </div>
                       <div className={`flex justify-between border-b border-dashed border-slate-100 pb-0.5 ${language === "ar" ? "flex-row" : "flex-row-reverse"}`}>
-                        <span>{activeMaterial.flakinessIndex !== undefined ? `${activeMaterial.flakinessIndex}%` : "11%"}</span>
+                        <span>{activeMaterial.flakinessIndex !== undefined ? `${activeMaterial.flakinessIndex}%` : <span className="text-slate-400 font-sans">--</span>}</span>
                         <span className="text-slate-400 font-sans">{language === "ar" ? "معامل الفلطحة (FI):" : language === "fr" ? "Indice d'aplatissement (FI) :" : "Flakiness Index (FI):"}</span>
                       </div>
                       <div className={`flex justify-between border-b border-dashed border-slate-100 pb-0.5 ${language === "ar" ? "flex-row" : "flex-row-reverse"}`}>
-                        <span>{activeMaterial.elongationIndex !== undefined ? `${activeMaterial.elongationIndex}%` : "8%"}</span>
+                        <span>{activeMaterial.elongationIndex !== undefined ? `${activeMaterial.elongationIndex}%` : <span className="text-slate-400 font-sans">--</span>}</span>
                         <span className="text-slate-400 font-sans">{language === "ar" ? "معامل الاستطالة (EI):" : language === "fr" ? "Indice d'élongation (EI) :" : "Elongation Index (EI):"}</span>
                       </div>
                       <div className={`flex justify-between border-b border-dashed border-slate-100 pb-0.5 ${language === "ar" ? "flex-row" : "flex-row-reverse"}`}>
-                        <span>{activeMaterial.crushingValue !== undefined ? `${activeMaterial.crushingValue}%` : "14%"}</span>
+                        <span>{activeMaterial.crushingValue !== undefined ? `${activeMaterial.crushingValue}%` : <span className="text-slate-400 font-sans">--</span>}</span>
                         <span className="text-slate-400 font-sans">{language === "ar" ? "تفتت بالضغط (ACV):" : language === "fr" ? "Valeur de concassage (ACV) :" : "Aggregate Crushing Value (ACV):"}</span>
                       </div>
                     </div>
@@ -7870,23 +8224,23 @@ export function MaterialEngineeringDatabase({
                   {activeMaterial.category === "إسمنت" && (
                     <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 font-mono text-slate-600 dark:text-slate-300">
                       <div className={`flex justify-between border-b border-dashed border-slate-100 pb-0.5 ${language === "ar" ? "flex-row" : "flex-row-reverse"}`}>
-                        <span>{activeMaterial.initialSetting !== undefined ? `${activeMaterial.initialSetting} min` : "120 min"}</span>
+                        <span>{activeMaterial.initialSetting !== undefined ? `${activeMaterial.initialSetting} min` : <span className="text-slate-400 font-sans">--</span>}</span>
                         <span className="text-slate-400 font-sans">{language === "ar" ? "شك ابتدائي:" : language === "fr" ? "Prise initiale :" : "Initial Setting Time:"}</span>
                       </div>
                       <div className={`flex justify-between border-b border-dashed border-slate-100 pb-0.5 ${language === "ar" ? "flex-row" : "flex-row-reverse"}`}>
-                        <span>{activeMaterial.finalSetting !== undefined ? `${activeMaterial.finalSetting} min` : "190 min"}</span>
+                        <span>{activeMaterial.finalSetting !== undefined ? `${activeMaterial.finalSetting} min` : <span className="text-slate-400 font-sans">--</span>}</span>
                         <span className="text-slate-400 font-sans">{language === "ar" ? "شك نهائي:" : language === "fr" ? "Prise finale :" : "Final Setting Time:"}</span>
                       </div>
                       <div className={`flex justify-between border-b border-dashed border-slate-100 pb-0.5 ${language === "ar" ? "flex-row" : "flex-row-reverse"}`}>
-                        <span>{activeMaterial.blaineFineness !== undefined ? `${activeMaterial.blaineFineness} cm²/g` : "3350"}</span>
+                        <span>{activeMaterial.blaineFineness !== undefined ? `${activeMaterial.blaineFineness} cm²/g` : <span className="text-slate-400 font-sans">--</span>}</span>
                         <span className="text-slate-400 font-sans">{language === "ar" ? "نعومة بلين فحص:" : language === "fr" ? "Finesse de Blaine :" : "Blaine Fineness:"}</span>
                       </div>
                       <div className={`flex justify-between border-b border-dashed border-slate-100 pb-0.5 ${language === "ar" ? "flex-row" : "flex-row-reverse"}`}>
-                        <span>{activeMaterial.strength2d !== undefined ? `${activeMaterial.strength2d} MPa` : "22.0 MPa"}</span>
+                        <span>{activeMaterial.strength2d !== undefined ? `${activeMaterial.strength2d} MPa` : <span className="text-slate-400 font-sans">--</span>}</span>
                         <span className="text-slate-400 font-sans">{language === "ar" ? "مقاومة مبكرة (2d):" : language === "fr" ? "Résistance initiale (2d) :" : "Early Strength (2d):"}</span>
                       </div>
                       <div className={`flex justify-between border-b border-dashed border-slate-105 pb-0.5 grid-cols-span-2 ${language === "ar" ? "flex-row" : "flex-row-reverse"}`}>
-                        <span>{activeMaterial.strength28d !== undefined ? `${activeMaterial.strength28d} MPa` : "52.5 MPa"}</span>
+                        <span>{activeMaterial.strength28d !== undefined ? `${activeMaterial.strength28d} MPa` : <span className="text-slate-400 font-sans">--</span>}</span>
                         <span className="text-slate-400 font-sans">{language === "ar" ? "مقاومة نهائية (28d):" : language === "fr" ? "Résistance nominale (28d) :" : "Standard Strength (28d):"}</span>
                       </div>
                     </div>
@@ -7895,11 +8249,11 @@ export function MaterialEngineeringDatabase({
                   {(activeMaterial.category === "إضافات كيميائية" || activeMaterial.category === "إضافات معدنية") && (
                     <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 font-mono text-slate-600 dark:text-slate-300">
                       <div className={`flex justify-between border-b border-dashed border-slate-100 pb-0.5 ${language === "ar" ? "flex-row" : "flex-row-reverse"}`}>
-                        <span>{activeMaterial.solidContent !== undefined ? `${activeMaterial.solidContent}%` : "38%"}</span>
+                        <span>{activeMaterial.solidContent !== undefined ? `${activeMaterial.solidContent}%` : <span className="text-slate-400 font-sans">--</span>}</span>
                         <span className="text-slate-400 font-sans">{language === "ar" ? "المحتوى الصلب الجاف:" : language === "fr" ? "Extrait sec :" : "Dry Solid Content:"}</span>
                       </div>
                       <div className={`flex justify-between border-b border-dashed border-slate-100 pb-0.5 ${language === "ar" ? "flex-row" : "flex-row-reverse"}`}>
-                        <span>{activeMaterial.chlorideContent !== undefined ? `${activeMaterial.chlorideContent}%` : "0.01%"}</span>
+                        <span>{activeMaterial.chlorideContent !== undefined ? `${activeMaterial.chlorideContent}%` : <span className="text-slate-400 font-sans">--</span>}</span>
                         <span className="text-slate-450 font-sans">{language === "ar" ? "محتوى الكلوريدات:" : language === "fr" ? "Teneur en chlorures :" : "Chloride Content:"}</span>
                       </div>
                     </div>
@@ -7957,6 +8311,51 @@ export function MaterialEngineeringDatabase({
                     );
                   })()}
                 </div>
+
+                {/* 6.5. PROPERTY METADATA, SOURCE TYPE & CANONICAL UNITS AUDIT CARD */}
+                {activeMaterial.propertyMetadata && Object.keys(activeMaterial.propertyMetadata).length > 0 && (
+                  <div className="p-3 bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 rounded-xl space-y-2.5 text-[10px] leading-relaxed">
+                    <div className={`flex items-center justify-between border-b border-slate-200/60 dark:border-slate-800 pb-1.5 ${language === "ar" ? "flex-row-reverse" : "flex-row"}`}>
+                      <div className="flex items-center gap-1.5 text-slate-800 dark:text-white font-bold">
+                        <ShieldCheck size={14} className="text-emerald-500" />
+                        <span>{language === "ar" ? "تدقيق مصادر الخصائص، الصلاحية والوحدات المعيارية" : "Property Metadata, Source Status & Canonical Units"}</span>
+                      </div>
+                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-mono font-bold">
+                        {Object.keys(activeMaterial.propertyMetadata).length} {language === "ar" ? "خاصية مدققة" : "Audited Properties"}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-48 overflow-y-auto pr-1">
+                      {Object.values(activeMaterial.propertyMetadata).map((meta: any, idx: number) => {
+                        const isTypical = meta.sourceType === "typical" || meta.sourceLabel === "TYPICAL";
+                        return (
+                          <div key={meta.key || idx} className="flex items-center justify-between p-2 bg-white dark:bg-slate-950 rounded-lg border border-slate-200/60 dark:border-slate-800/60 text-[9.5px]">
+                            <div className="flex items-center gap-1 truncate max-w-[50%]">
+                              <span className="font-semibold text-slate-700 dark:text-slate-300 truncate" title={meta.key}>{meta.key}</span>
+                              {meta.isEditable && (
+                                <span className="text-[7.5px] px-1 py-0.2 rounded bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 font-mono shrink-0" title="Editable by user">
+                                  {language === "ar" ? "قابل للتعديل" : "Editable"}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0 font-mono">
+                              <span className="font-bold text-slate-900 dark:text-white text-[10px]">
+                                {meta.value !== undefined ? String(meta.value) : "--"} {meta.unit || ""}
+                              </span>
+                              <span className={`text-[8px] px-1.5 py-0.5 rounded font-bold uppercase tracking-tight ${
+                                isTypical 
+                                  ? "bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20"
+                                  : "bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-500/20"
+                              }`}>
+                                {isTypical ? "TYPICAL" : "REFERENCE"}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 {/* 7. AI MATERIAL ADVISOR MODULE */}
                 {(() => {
@@ -8872,6 +9271,51 @@ export function MaterialEngineeringDatabase({
               onUpdateMaterials(materials.map(m => m.id === matId ? { ...m, ...updated, updatedAt: new Date().toISOString() } : m));
             }
           }}
+        />
+      )}
+
+      {/* System Materials Bulk Audit & Property Normalization Modal */}
+      {isAuditModalOpen && (
+        <SystemMaterialsBulkAuditModal
+          isOpen={isAuditModalOpen}
+          onClose={() => setIsAuditModalOpen(false)}
+          report={systemAuditReport}
+          onReRunAudit={handleRunSystemBulkAudit}
+          isAuditing={isAuditingInProgress}
+          language={language}
+        />
+      )}
+
+      {/* Advanced Engineering Material Import Wizard Modal */}
+      {isImportWizardOpen && (
+        <MaterialImportWizardModal
+          isOpen={isImportWizardOpen}
+          onClose={() => setIsImportWizardOpen(false)}
+          onImportComplete={(imported) => {
+            if (onUpdateMaterials) {
+              onUpdateMaterials(imported);
+            }
+          }}
+          language={language}
+        />
+      )}
+
+      {/* Smart Material Bulk Completion Modal */}
+      {isBulkCompletionModalOpen && (
+        <MaterialBulkCompletionModal
+          isOpen={isBulkCompletionModalOpen}
+          onClose={() => {
+            setIsBulkCompletionModalOpen(false);
+            setBulkCompletionTargetMaterialId(undefined);
+          }}
+          materials={materials}
+          initialMaterialId={bulkCompletionTargetMaterialId}
+          onMaterialsUpdated={(updatedMaterials) => {
+            if (onUpdateMaterials) {
+              onUpdateMaterials(updatedMaterials);
+            }
+          }}
+          language={language as any}
         />
       )}
 

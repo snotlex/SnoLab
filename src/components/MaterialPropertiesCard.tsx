@@ -15,47 +15,26 @@ import {
   Database
 } from "lucide-react";
 import { MixDesignInput, EngineeringMaterial } from "../types";
-
-// Helper to look up a property dynamically in nested object paths, capitalized or lowercase
-const getProp = (m: any, ...keys: string[]) => {
-  if (!m) return undefined;
-  for (const k of keys) {
-    if (m[k] !== undefined && m[k] !== null && m[k] !== "") return m[k];
-    
-    const lk = k.toLowerCase();
-    if (m[lk] !== undefined && m[lk] !== null && m[lk] !== "") return m[lk];
-    
-    const ck = k.charAt(0).toUpperCase() + k.slice(1);
-    if (m[ck] !== undefined && m[ck] !== null && m[ck] !== "") return m[ck];
-    
-    if (m.engineeringData) {
-      if (m.engineeringData[k] !== undefined && m.engineeringData[k] !== null && m.engineeringData[k] !== "") return m.engineeringData[k];
-      if (m.engineeringData[lk] !== undefined && m.engineeringData[lk] !== null && m.engineeringData[lk] !== "") return m.engineeringData[lk];
-      if (m.engineeringData[ck] !== undefined && m.engineeringData[ck] !== null && m.engineeringData[ck] !== "") return m.engineeringData[ck];
-    }
-  }
-  return undefined;
-};
+import { auditMaterial } from "../services/materialAuditEngine";
 
 interface MaterialPropertiesCardProps {
   inputs: MixDesignInput;
-  setInputs: React.Dispatch<React.SetStateAction<MixDesignInput>>;
+  setInputs?: React.Dispatch<React.SetStateAction<MixDesignInput>>;
   materials: EngineeringMaterial[];
   language?: string;
-  onOpenLibrary?: (category?: string, materialId?: string) => void;
+  onOpenBatchModal?: () => void;
 }
 
 export const MaterialPropertiesCard: React.FC<MaterialPropertiesCardProps> = ({ 
   inputs, 
   materials, 
   language = "ar",
-  onOpenLibrary 
+  onOpenBatchModal
 }) => {
   const isAr = language === "ar";
   const isFr = language === "fr";
 
   // State to track open/closed state of each collapsible material card
-  // Default first few open for high user engagement
   const [collapsedStates, setCollapsedStates] = useState<Record<string, boolean>>({});
 
   const toggleCollapse = (id: string) => {
@@ -63,150 +42,6 @@ export const MaterialPropertiesCard: React.FC<MaterialPropertiesCardProps> = ({
       ...prev,
       [id]: !prev[id]
     }));
-  };
-
-  // Helper to evaluate properties of a material based on its category
-  const evaluateMaterial = (categoryKey: string, m: any) => {
-    const properties: {
-      key: string;
-      labelAr: string;
-      labelFr: string;
-      labelEn: string;
-      required: boolean;
-      display: string;
-      hasValue: boolean;
-    }[] = [];
-
-    const addProp = (keys: string[], labelAr: string, labelFr: string, labelEn: string, required: boolean, unit: string = "") => {
-      const val = getProp(m, ...keys);
-      const hasValue = val !== undefined && val !== null && val !== "";
-      let display = "—";
-      if (hasValue) {
-        if (typeof val === "number") {
-          display = `${val}${unit}`;
-        } else {
-          display = `${val}${unit ? " " + unit : ""}`;
-        }
-      }
-      properties.push({ key: keys[0], labelAr, labelFr, labelEn, required, display, hasValue });
-    };
-
-    if (categoryKey === "cement") {
-      addProp(["cementClass", "cementType", "Category"], "نوع الإسمنت", "Type de Ciment", "Cement Type", true);
-      addProp(["strengthClass", "StrengthClass"], "فئة المقاومة", "Classe de Résistance", "Strength Class", true);
-      
-      // Specific Gravity / Absolute density
-      let spGrav = getProp(m, "specificGravity", "SpecificGravity");
-      if (!spGrav && m.density) {
-        spGrav = (m.density / 1000).toFixed(2);
-      }
-      const hasSpGrav = spGrav !== undefined && spGrav !== null && spGrav !== "";
-      properties.push({
-        key: "specificGravity",
-        labelAr: "الوزن النوعي",
-        labelFr: "Masse Volumique Absolue",
-        labelEn: "Specific Gravity",
-        required: true,
-        display: hasSpGrav ? `${spGrav}` : "—",
-        hasValue: hasSpGrav
-      });
-      addProp(["bulkDensity", "BulkDensity"], "الكثافة الظاهرية", "Masse Volumique Apparente", "Bulk Density", false, " g/cm³");
-      addProp(["blaineFineness", "BlaineFineness"], "نعومة بلين", "Finesse de Blaine", "Blaine Fineness", false, " cm²/g");
-    } 
-    else if (categoryKey === "sand") {
-      addProp(["density", "Density"], "الكثافة المطلقة", "Masse Volumique Absolue", "Density", true, " kg/m³");
-      addProp(["bulkDensity", "BulkDensity"], "الكثافة الظاهرية", "Masse Volumique Apparente", "Bulk Density", true, " kg/m³");
-      addProp(["ssdDensity", "SsdDensity"], "كثافة SSD", "Masse Volumique SSD", "SSD Density", false, " kg/m³");
-      addProp(["moisture", "moistureContent", "MoistureContent"], "محتوى الرطوبة", "Teneur en Eau", "Moisture Content", true, "%");
-      addProp(["absorption", "Absorption"], "امتصاص الماء", "Absorption d'Eau", "Water Absorption", true, "%");
-      addProp(["finenessModulus", "FinenessModulus"], "معامل النعومة", "Module de Finesse", "Fineness Modulus", true);
-      addProp(["sandEquivalent", "SandEquivalent", "clayContent"], "المكافئ الرملي", "Équivalent de Sable", "Sand Equivalent", true, "%");
-      
-      // Particle Size Distribution (gradationData)
-      const hasGradation = !!(m.gradationData && Array.isArray(m.gradationData) && m.gradationData.length > 0);
-      properties.push({
-        key: "gradationData",
-        labelAr: "التدرج الحبيبي",
-        labelFr: "Distribution Granulométrique",
-        labelEn: "Particle Size Distribution",
-        required: false,
-        display: hasGradation ? (isAr ? "متوفر (جدول المناخل)" : "Available (Sieve analysis)") : "—",
-        hasValue: hasGradation
-      });
-    } 
-    else if (categoryKey === "gravel") {
-      addProp(["density", "Density"], "الكثافة المطلقة", "Masse Volumique Absolue", "Density", true, " kg/m³");
-      addProp(["bulkDensity", "BulkDensity"], "الكثافة الظاهرية", "Masse Volumique Apparente", "Bulk Density", true, " kg/m³");
-      addProp(["ssdDensity", "SsdDensity"], "كثافة SSD", "Masse Volumique SSD", "SSD Density", false, " kg/m³");
-      addProp(["moisture", "moistureContent", "MoistureContent"], "محتوى الرطوبة", "Teneur en Eau", "Moisture Content", false, "%");
-      addProp(["absorption", "Absorption"], "امتصاص الماء", "Absorption d'Eau", "Water Absorption", true, "%");
-      addProp(["losAngelesAbrasion", "losAngeles", "LosAngeles"], "مقاومة لوس أنجلوس", "Essai Los Angeles", "Los Angeles Abrasion", false, "%");
-      addProp(["particleShape", "shape", "Shape"], "شكل الحبيبات", "Forme des Granulats", "Aggregate Shape", true);
-      addProp(["dMax", "dmax", "DMax"], "القطر الأقصى للحصمة Dmax", "Taille maximale des granulats Dmax", "Max Aggregate Size Dmax", true, " mm");
-      
-      // Particle Size Distribution
-      const hasGradation = !!(m.gradationData && Array.isArray(m.gradationData) && m.gradationData.length > 0);
-      properties.push({
-        key: "gradationData",
-        labelAr: "التدرج الحبيبي",
-        labelFr: "Distribution Granulométrique",
-        labelEn: "Particle Size Distribution",
-        required: false,
-        display: hasGradation ? (isAr ? "متوفر (جدول المناخل)" : "Available (Sieve analysis)") : "—",
-        hasValue: hasGradation
-      });
-    } 
-    else if (categoryKey === "admixture") {
-      addProp(["density", "Density"], "الكثافة المطلقة", "Masse Volumique Absolue", "Density", false, " kg/m³");
-      addProp(["recommendedDosage", "recommendedDosagePercent", "dosage"], "الجرعة الموصى بها", "Dosage Recommandé", "Recommended Dosage", true, "%");
-      addProp(["waterReduction", "waterReductionPercent"], "نسبة خفض الماء", "Réduction d'Eau", "Water Reduction", true, "%");
-      addProp(["chlorides", "chlorideContent"], "محتوى الكلوريدات", "Teneur en Chlorures", "Chloride Content", false, "%");
-    } 
-    else if (categoryKey === "scm") {
-      addProp(["density", "Density"], "الكثافة المطلقة", "Masse Volumique Absolue", "Density", true, " kg/m³");
-      addProp(["pozzolanicIndex", "PozzolanicIndex"], "مؤشر الفعالية البوزولانية", "Indice Pouzzolanique", "Pozzolanic Index", true, "%");
-      addProp(["waterDemandFactor", "WaterDemandFactor"], "عامل الطلب على الماء", "Demande en Eau SCM", "Water Demand Factor", false);
-    } 
-    else if (categoryKey === "water") {
-      addProp(["density", "Density"], "الكثافة المطلقة", "Masse Volumique", "Density", true, " kg/m³");
-      addProp(["ph", "PH"], "الرقم الهيدروجيني pH", "Valeur du pH", "pH Value", false);
-      addProp(["chlorides", "chlorideContent"], "محتوى الكلوريدات", "Teneur en Chlorures", "Chloride Content", false, " ppm");
-      addProp(["sulfates", "sulphates"], "محتوى الكبريتات", "Teneur en Sulfates", "Sulphate Content", false, " ppm");
-    } 
-    else if (categoryKey === "fiber") {
-      addProp(["fiberType", "type"], "نوع الألياف", "Type de Fibres", "Fiber Type", true);
-      addProp(["density", "Density"], "الكثافة المطلقة", "Masse Volumique", "Density", true, " kg/m³");
-      addProp(["fiberLength", "fiberLengthMm"], "طول الألياف", "Longueur des Fibres", "Length", false, " mm");
-      addProp(["fiberDiameter", "fiberDiameterMm"], "قطر الألياف", "Diamètre des Fibres", "Diameter", false, " mm");
-      addProp(["tensileStrength", "tensileStrengthMPa"], "مقاومة الشد", "Résistance à la Traction", "Tensile Strength", false, " MPa");
-    } 
-    else if (categoryKey === "specialBinder") {
-      addProp(["density", "Density"], "الكثافة المطلقة", "Masse Volumique Absolue", "Density", true, " kg/m³");
-      addProp(["alkalineRatio", "specialBinderAlkalineRatio"], "نسبة القلوية للرابط الخاص", "Rapport Alcalin", "Alkaline Ratio", false, "%");
-    }
-
-    const missingRequired: string[] = [];
-    const missingOptional: string[] = [];
-
-    properties.forEach(p => {
-      if (!p.hasValue) {
-        const label = isAr ? p.labelAr : isFr ? p.labelFr : p.labelEn;
-        if (p.required) {
-          missingRequired.push(label);
-        } else {
-          missingOptional.push(label);
-        }
-      }
-    });
-
-    let status: "complete" | "optional_missing" | "required_missing" = "complete";
-    if (missingRequired.length > 0) {
-      status = "required_missing";
-    } else if (missingOptional.length > 0) {
-      status = "optional_missing";
-    }
-
-    return { properties, status, missingRequired, missingOptional };
   };
 
   // Build the list of active/selected materials
@@ -239,26 +74,75 @@ export const MaterialPropertiesCard: React.FC<MaterialPropertiesCardProps> = ({
     }
   };
 
-  checkAndAdd(inputs.selectedCementId, "cement", "إسمنت", "Ciment", "Cement", "إسمنت", <Flame size={16} className="text-red-500" />);
-  checkAndAdd(inputs.selectedSandId, "sand", "رمل (ركام ناعم)", "Sable", "Fine Aggregate", "رمال", <Layers size={16} className="text-amber-500" />);
-  checkAndAdd(inputs.selectedGravelId, "gravel", "حصى (ركام خشن)", "Gravier", "Coarse Aggregate", "حصى", <Layers size={16} className="text-slate-500" />);
-  checkAndAdd(inputs.selectedAdmixtureId, "admixture", "إضافات كيميائية", "Adjuvants", "Chemical Admixture", "إضافات كيميائية", <Droplet size={16} className="text-emerald-500" />);
-  checkAndAdd(inputs.selectedScmId, "scm", "إضافات معدنية (SCM)", "Ajouts", "Mineral Admixture", "إضافات معدنية", <Layers size={16} className="text-purple-500" />);
-  checkAndAdd(inputs.selectedWaterId, "water", "مياه الخلط", "Eau", "Mixing Water", "ماء", <Droplet size={16} className="text-sky-500" />);
-  checkAndAdd(inputs.selectedFiberId, "fiber", "ألياف التسليح", "Fibres", "Fibers", "ألياف", <Bookmark size={16} className="text-amber-600" />);
-  checkAndAdd(inputs.selectedSpecialBinderId, "specialBinder", "روابط خاصة", "Liants Spéciaux", "Special Binders", "مجلدات خاصة", <Flame size={16} className="text-rose-500" />);
+  checkAndAdd(inputs?.selectedCementId, "cement", "إسمنت", "Ciment", "Cement", "إسمنت", <Flame size={16} className="text-red-500" />);
+  checkAndAdd(inputs?.selectedSandId, "sand", "رمل (ركام ناعم)", "Sable", "Fine Aggregate", "رمال", <Layers size={16} className="text-amber-500" />);
+  checkAndAdd(inputs?.selectedGravelId, "gravel", "حصى (ركام خشن)", "Gravier", "Coarse Aggregate", "حصى", <Layers size={16} className="text-slate-500" />);
+  checkAndAdd(inputs?.selectedAdmixtureId, "admixture", "إضافات كيميائية", "Adjuvants", "Chemical Admixture", "إضافات كيميائية", <Droplet size={16} className="text-emerald-500" />);
+  checkAndAdd(inputs?.selectedScmId, "scm", "إضافات معدنية (SCM)", "Ajouts", "Mineral Admixture", "إضافات معدنية", <Layers size={16} className="text-purple-500" />);
+  checkAndAdd(inputs?.selectedWaterId, "water", "مياه الخلط", "Eau", "Mixing Water", "ماء", <Droplet size={16} className="text-sky-500" />);
+  checkAndAdd(inputs?.selectedFiberId, "fiber", "ألياف التسليح", "Fibres", "Fibers", "ألياف", <Bookmark size={16} className="text-amber-600" />);
+  checkAndAdd(inputs?.selectedSpecialBinderId, "specialBinder", "روابط خاصة", "Liants Spéciaux", "Special Binders", "مجلدات خاصة", <Flame size={16} className="text-rose-500" />);
+
+  // Calculate total missing required properties across all active materials
+  let totalMissingRequiredCount = 0;
+  selectedMaterialsList.forEach(({ material }) => {
+    const audit = auditMaterial(material, inputs?.selectedMethod || "dreux", inputs?.concreteType || "standard");
+    totalMissingRequiredCount += audit.missingRequiredCount;
+  });
 
   return (
     <div className="space-y-4" id="cardE-materialSpecs" style={{ direction: isAr ? "rtl" : "ltr" }}>
       
+      {/* Top Banner for Missing Properties Action */}
+      {totalMissingRequiredCount > 0 && onOpenBatchModal && (
+        <div className="p-4 bg-gradient-to-r from-amber-500/15 via-rose-500/10 to-amber-500/5 border border-amber-500/30 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm animate-fade-in">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-amber-500 text-white rounded-xl shadow-md shadow-amber-500/20 shrink-0">
+              <AlertCircle size={20} className="animate-pulse" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <strong className="text-xs font-black text-amber-900 dark:text-amber-300">
+                  {isAr ? `⚠ توجد ${totalMissingRequiredCount} خصائص ناقصة في المواد المختارة.` : `⚠ ${totalMissingRequiredCount} missing properties in selected materials.`}
+                </strong>
+                <span className="text-[10px] font-bold px-2 py-0.5 bg-rose-500/10 text-rose-600 dark:text-rose-400 rounded-full border border-rose-500/20">
+                  {isAr ? "مطلوبة للمعادلات الحجمية" : "Required for Volumetric Mix"}
+                </span>
+              </div>
+              <p className="text-[11px] text-amber-800/90 dark:text-amber-400/90 mt-0.5">
+                {isAr 
+                  ? "توجد خصائص هندسية لم تُسجل بعد للمواد المستخدمة فعليًا في الخلطة. يمكنك إكمال جميع الخصائص الناقصة دفعة واحدة من هنا دون الانتقال للمكتبة."
+                  : "Some selected materials have missing properties. You can complete all missing properties directly from here without leaving mix preparation."}
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onOpenBatchModal}
+            className="w-full sm:w-auto px-5 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-black rounded-xl text-xs shadow-md shadow-blue-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer shrink-0"
+          >
+            <span>{isAr ? "إكمال خصائص المواد الناقصة" : isFr ? "Compléter les caractéristiques manquantes" : "Complete Missing Material Properties"}</span>
+            <ArrowUpRight size={14} />
+          </button>
+        </div>
+      )}
+
       {/* Mini Title Section */}
       <div className="flex justify-between items-center text-xs pb-1 border-b border-slate-100 dark:border-slate-800">
         <span className="font-extrabold text-slate-400 uppercase tracking-widest text-[9.5px]">
-          {isAr ? "مواصفات المواد النشطة للخلطة" : isFr ? "Spécifications des matériaux actifs" : "Specifications of Active Mix Materials"}
+          {isAr ? "بطاقات مواصفات المواد النشطة للخلطة (Schema-Driven)" : isFr ? "Spécifications des matériaux actifs" : "Specifications of Active Mix Materials"}
         </span>
-        <span className="text-[10px] bg-blue-500/10 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded font-mono font-bold">
-          {selectedMaterialsList.length} {isAr ? "مواد مختارة" : "Materials Selected"}
-        </span>
+        <div className="flex items-center gap-2">
+          {totalMissingRequiredCount === 0 && selectedMaterialsList.length > 0 && (
+            <span className="text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2.5 py-0.5 rounded-full font-bold border border-emerald-500/20 flex items-center gap-1">
+              ✓ {isAr ? "بيانات المواد مكتملة" : isFr ? "Données des matériaux complètes" : "Material Data Complete"}
+            </span>
+          )}
+          <span className="text-[10px] bg-blue-500/10 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded font-mono font-bold">
+            {selectedMaterialsList.length} {isAr ? "مواد مختارة" : "Materials Selected"}
+          </span>
+        </div>
       </div>
 
       {/* Empty State */}
@@ -278,35 +162,35 @@ export const MaterialPropertiesCard: React.FC<MaterialPropertiesCardProps> = ({
         </div>
       ) : (
         <div className="space-y-3">
-          {selectedMaterialsList.map(({ id, key, material, categoryAr, categoryFr, categoryEn, rawCategory, icon }) => {
+          {selectedMaterialsList.map(({ id, key, material, categoryAr, categoryFr, categoryEn, icon }) => {
             const isCollapsed = collapsedStates[id] ?? false;
-            const evaluation = evaluateMaterial(key, material);
+            const audit = auditMaterial(material, inputs?.selectedMethod || "dreux", inputs?.concreteType || "standard");
             const matName = isAr ? material.name : (material.englishName || material.name);
             const catLabel = isAr ? categoryAr : isFr ? categoryFr : categoryEn;
-            const supplier = material.supplierName || material.Supplier;
-            const updated = material.updatedDate || material.UpdatedAt || material.createdDate || "N/A";
+            const supplier = material.supplierName || (material as any).Supplier;
+            const updated = material.updatedDate || (material as any).UpdatedAt || material.createdDate || "N/A";
 
             // Status indicator badge helper
             const getStatusBadge = () => {
-              if (evaluation.status === "complete") {
+              if (audit.readinessStatus === "ready") {
                 return (
                   <span className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 dark:bg-emerald-500/5 border border-emerald-500/20 px-2.5 py-1 rounded-full">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                    <span>{isAr ? "🟢 مكتملة المواصفات" : isFr ? "🟢 Spécifications Complètes" : "🟢 Complete"}</span>
+                    <span>{isAr ? "🟢 100% جاهز للخلطات" : isFr ? "🟢 100% Prêt" : "🟢 100% Ready"}</span>
                   </span>
                 );
-              } else if (evaluation.status === "optional_missing") {
+              } else if (audit.readinessStatus === "needs_review") {
                 return (
                   <span className="flex items-center gap-1.5 text-[10px] font-bold text-amber-600 dark:text-amber-450 bg-amber-500/10 dark:bg-amber-500/5 border border-amber-500/20 px-2.5 py-1 rounded-full">
                     <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-                    <span>{isAr ? "🟡 خصائص اختيارية ناقصة" : isFr ? "🟡 Specs Optionnelles Manquantes" : "🟡 Optional Specs Missing"}</span>
+                    <span>{isAr ? `🟡 يحتاج مراجعة (${audit.completenessScore}%)` : `🟡 Review Needed (${audit.completenessScore}%)`}</span>
                   </span>
                 );
               } else {
                 return (
                   <span className="flex items-center gap-1.5 text-[10px] font-bold text-rose-600 dark:text-rose-400 bg-rose-500/10 dark:bg-rose-500/5 border border-rose-500/20 px-2.5 py-1 rounded-full">
                     <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
-                    <span>{isAr ? "🔴 خصائص إلزامية ناقصة" : isFr ? "🔴 Specs Requises Manquantes" : "🔴 Required Specs Missing"}</span>
+                    <span>{isAr ? `🔴 ناقص ${audit.missingRequiredCount} خصائص (${audit.completenessScore}%)` : `🔴 ${audit.missingRequiredCount} Missing (${audit.completenessScore}%)`}</span>
                   </span>
                 );
               }
@@ -316,7 +200,7 @@ export const MaterialPropertiesCard: React.FC<MaterialPropertiesCardProps> = ({
               <div 
                 key={id}
                 className={`bg-slate-50/50 dark:bg-slate-900/10 border rounded-2xl transition-all shadow-xs ${
-                  evaluation.status === "required_missing" 
+                  audit.readinessStatus === "incomplete" 
                     ? "border-rose-300/60 dark:border-rose-900/40 bg-rose-500/[0.01]" 
                     : "border-slate-200/80 dark:border-slate-800/80 hover:border-slate-300 dark:hover:border-slate-700"
                 }`}
@@ -339,9 +223,20 @@ export const MaterialPropertiesCard: React.FC<MaterialPropertiesCardProps> = ({
                       <h5 className="text-xs font-extrabold text-slate-800 dark:text-slate-100 mt-0.5 font-sans">
                         {matName}
                       </h5>
-                      <span className="text-[9px] font-mono text-slate-450 block mt-0.5">
-                        ID: {id}
-                      </span>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-[9px] font-mono text-slate-450">
+                          ID: {id}
+                        </span>
+                        <span className={`text-[8.5px] px-1.5 py-0.2 rounded font-bold ${
+                          audit.isSystemMaterial 
+                            ? "bg-purple-500/10 text-purple-600 border border-purple-500/20" 
+                            : "bg-blue-500/10 text-blue-600 border border-blue-500/20"
+                        }`}>
+                          {audit.isSystemMaterial 
+                            ? (isAr ? "مرجع نظام قياسي" : "Standard System Preset") 
+                            : (isAr ? "بيانات مستخدم" : "User Record")}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
@@ -361,122 +256,125 @@ export const MaterialPropertiesCard: React.FC<MaterialPropertiesCardProps> = ({
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[10px] text-slate-550 dark:text-slate-400 bg-white dark:bg-slate-950/40 p-2.5 rounded-xl border border-slate-200/40 dark:border-slate-800/50">
                       <div className="flex items-center gap-1.5 truncate">
                         <Building2 size={13} className="text-slate-400 shrink-0" />
-                        <span><strong>{isAr ? "المورد:" : "Supplier:"}</strong> {supplier || (isAr ? "غير محدد" : "Unspecified")}</span>
+                        <span><strong>{isAr ? "المورد / المصدر:" : "Supplier / Source:"}</strong> {supplier || (isAr ? "غير محدد" : "Unspecified")}</span>
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
                         <Calendar size={13} className="text-slate-400" />
-                        <span><strong>{isAr ? "آخر تحديث:" : "Last Updated:"}</strong> {updated}</span>
+                        <span><strong>{isAr ? "تاريخ التحقق والتحديث:" : "Audit / Update Date:"}</strong> {updated}</span>
                       </div>
                     </div>
 
                     {/* RED WARNING CARD FOR MISSING REQUIRED PROPERTIES */}
-                    {evaluation.status === "required_missing" && (
+                    {audit.missingRequiredCount > 0 && (
                       <div className="p-4 bg-rose-500/10 dark:bg-rose-500/5 border border-rose-500/20 dark:border-rose-500/10 text-rose-800 dark:text-rose-400 rounded-xl space-y-3 font-sans">
                         <div className="flex items-start gap-2">
                           <AlertCircle size={16} className="text-rose-600 dark:text-rose-400 shrink-0 mt-0.5 animate-bounce" />
                           <div className="space-y-1">
                             <strong className="text-[11px] block font-black">
-                              {isAr ? `تنبيه: مادة ركامية غير مكتملة المواصفات` : `Warning: Incomplete Aggregate Specifications`}
+                              {isAr ? `تنبيه: بطاقة مادة غير مكتملة المواصفات (${audit.missingRequiredCount} خصائص مفقودة)` : `Warning: Incomplete Material Card (${audit.missingRequiredCount} Missing)`}
                             </strong>
                             <p className="text-[10px] leading-relaxed opacity-90">
                               {isAr 
-                                ? "هذه المادة لا تحتوي على جميع الخصائص الهندسية الإلزامية المطلوبة لإجراء حسابات طريقة درو-غوريس (Dreux-Gorisse) بالشكل الصحيح."
-                                : "This material is missing core technical engineering parameters essential for executing Dreux-Gorisse absolute volumetric calculation."}
+                                ? "هذه المادة تفتقر إلى بعض الخصائص الهندسية الإلزامية في Schema الخاص بنوعها. لن يتم ملء قيم عشوائية لضمان سلامة الحسابات الإنشائية."
+                                : "This material lacks required schema properties. No synthetic values will be forged to ensure structural calculation safety."}
                             </p>
                           </div>
                         </div>
 
                         <div className="bg-white/60 dark:bg-slate-950/30 p-2.5 rounded-lg border border-rose-500/10">
                           <span className="text-[10px] font-extrabold text-rose-700 dark:text-rose-350 block mb-1">
-                            {isAr ? "الخصائص الناقصة الإلزامية:" : "Missing Required Properties:"}
+                            {isAr ? "الخصائص الإلزامية المفقودة (Status = Missing):" : "Missing Required Properties (Status = Missing):"}
                           </span>
-                          <ul className="list-disc list-inside text-[9.5px] font-bold space-y-0.5">
-                            {evaluation.missingRequired.map((propLabel, idx) => (
-                              <li key={idx} className="text-rose-600 dark:text-rose-400">{propLabel}</li>
+                          <div className="flex flex-wrap gap-1.5 mt-1">
+                            {audit.missingRequiredProperties.map((propDef) => (
+                              <span key={propDef.key} className="px-2 py-0.5 bg-rose-500/15 text-rose-700 dark:text-rose-300 rounded border border-rose-500/20 text-[9.5px] font-bold">
+                                {isAr ? propDef.labelAr : isFr ? propDef.labelFr : propDef.labelEn}
+                                {propDef.testStandard && <span className="font-mono text-[8px] opacity-75 mr-1">({propDef.testStandard})</span>}
+                              </span>
                             ))}
-                          </ul>
-                        </div>
-
-                        {onOpenLibrary && (
-                          <button
-                            type="button"
-                            onClick={() => onOpenLibrary(rawCategory, id)}
-                            className="bg-rose-600 hover:bg-rose-500 active:scale-95 text-white font-black py-1.5 px-3 rounded-lg text-[10px] flex items-center gap-1.5 transition-all cursor-pointer shadow-sm w-full sm:w-auto justify-center"
-                          >
-                            <span>{isAr ? "فتح مستودع المواد للتعديل" : isFr ? "Ouvrir la matériauthèque" : "Open Material Library"}</span>
-                            <ArrowUpRight size={12} strokeWidth={2.5} />
-                          </button>
-                        )}
-                      </div>
-                    )}
-
-                    {/* YELLOW WARNING CARD FOR MISSING OPTIONAL PROPERTIES */}
-                    {evaluation.status === "optional_missing" && (
-                      <div className="p-3 bg-amber-500/5 border border-amber-500/15 text-amber-800 dark:text-amber-450 rounded-xl space-y-2 font-sans">
-                        <div className="flex items-start gap-2">
-                          <AlertCircle size={14} className="text-amber-500 shrink-0 mt-0.5" />
-                          <div className="space-y-0.5">
-                            <strong className="text-[10px] block font-extrabold">
-                              {isAr ? `تنبيه: خصائص ثانوية مفقودة` : `Notice: Secondary Specs Missing`}
-                            </strong>
-                            <p className="text-[9px] leading-relaxed opacity-90">
-                              {isAr 
-                                ? "المادة صالحة للحسابات، ولكن ينقصها بعض الخصائص الاختيارية لتحقيق أقصى درجات الدقة والتحكم المخبري."
-                                : "The material is valid for calculation, but missing optional properties that would allow advanced micro-precision."}
-                            </p>
                           </div>
                         </div>
-                        <div className="text-[9px] text-amber-600 dark:text-amber-400 font-medium">
-                          {isAr ? "الخصائص الاختيارية الناقصة:" : "Missing Optional Properties:"}{" "}
-                          <span className="font-bold">{evaluation.missingOptional.join(" • ")}</span>
-                        </div>
                       </div>
                     )}
 
-                    {/* PROPERTIES DISPLAY GRID */}
+                    {/* PROPERTIES DISPLAY GRID (SCHEMA-DRIVEN) */}
                     <div className="space-y-2">
-                      <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider block">
-                        {isAr ? "المواصفات الفنية والفيزيائية:" : "Technical & Physical Properties:"}
-                      </span>
+                      <div className="flex justify-between items-center">
+                        <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider block">
+                          {isAr ? "مصفوفة الخصائص الهندسية (Property Schema Table):" : "Engineering Property Schema Matrix:"}
+                        </span>
+                        <span className="text-[9px] text-slate-400 font-mono">
+                          {audit.validRequiredCount}/{audit.requiredCount} {isAr ? "إلزامية محققة" : "Required Valid"}
+                        </span>
+                      </div>
                       
                       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
-                        {evaluation.properties.map((p, idx) => {
+                        {audit.evaluatedProperties.map((p, idx) => {
+                          const isMissing = p.status === "missing";
+                          const isInvalid = p.status === "invalid";
+
                           return (
                             <div 
                               key={idx}
                               className={`p-2.5 rounded-xl border flex flex-col justify-between transition-colors ${
-                                !p.hasValue 
-                                  ? p.required 
-                                    ? "bg-rose-500/[0.02] border-rose-200/50 dark:border-rose-900/30"
-                                    : "bg-slate-100/30 dark:bg-slate-900/30 border-slate-200/30 dark:border-slate-800/30 opacity-60"
+                                isMissing 
+                                  ? p.isRequired 
+                                    ? "bg-rose-500/[0.03] border-rose-300/60 dark:border-rose-900/40"
+                                    : "bg-slate-100/30 dark:bg-slate-900/30 border-dashed border-slate-200/60 dark:border-slate-800/60"
+                                  : isInvalid
+                                  ? "bg-amber-500/5 border-amber-300/60 dark:border-amber-900/40"
                                   : "bg-white dark:bg-slate-950 border-slate-200/60 dark:border-slate-800/80"
                               }`}
                             >
                               <div className="flex justify-between items-start text-[9.5px]">
-                                <span className="text-slate-450 font-bold">
-                                  {isAr ? p.labelAr : isFr ? p.labelFr : p.labelEn}
-                                </span>
-                                {p.required && (
-                                  <span className="text-[8px] font-black uppercase text-rose-500/80 font-mono tracking-widest bg-rose-500/5 px-1 py-0.25 rounded border border-rose-500/10">
+                                <div className="space-y-0.5">
+                                  <span className="text-slate-600 dark:text-slate-300 font-bold block">
+                                    {isAr ? p.labelAr : isFr ? p.labelFr : p.labelEn}
+                                  </span>
+                                  {p.testStandard && (
+                                    <span className="text-[8px] font-mono text-slate-400 block">
+                                      {p.testStandard}
+                                    </span>
+                                  )}
+                                </div>
+                                {p.isRequired ? (
+                                  <span className="text-[8px] font-black uppercase text-rose-500/90 font-mono tracking-widest bg-rose-500/10 px-1 py-0.25 rounded border border-rose-500/20 shrink-0">
                                     {isAr ? "إلزامي" : "Req"}
+                                  </span>
+                                ) : (
+                                  <span className="text-[8px] font-medium text-slate-400 font-mono bg-slate-100 dark:bg-slate-800 px-1 py-0.25 rounded shrink-0">
+                                    {isAr ? "اختياري" : "Opt"}
                                   </span>
                                 )}
                               </div>
-                              <div className="flex items-baseline justify-between mt-1.5">
-                                <strong className={`text-xs font-mono font-black ${
-                                  !p.hasValue 
-                                    ? "text-slate-400" 
-                                    : "text-slate-800 dark:text-slate-200"
-                                }`}>
-                                  {p.display}
-                                </strong>
+
+                              <div className="flex items-baseline justify-between mt-2 pt-1 border-t border-slate-100 dark:border-slate-850">
+                                <div className="space-y-0.5">
+                                  <strong className={`text-xs font-mono font-black ${
+                                    isMissing 
+                                      ? "text-rose-500 dark:text-rose-400 italic text-[11px]" 
+                                      : isInvalid
+                                      ? "text-amber-600 dark:text-amber-400"
+                                      : "text-slate-800 dark:text-slate-200"
+                                  }`}>
+                                    {isMissing ? (isAr ? "مفقودة (Missing)" : "Missing") : p.currentValueDisplay}
+                                  </strong>
+                                  {p.hasCurrentValue && (
+                                    <span className="text-[8px] text-slate-400 block font-mono">
+                                      {isAr ? p.sourceLabelAr : isFr ? p.sourceLabelFr : p.sourceLabelEn}
+                                    </span>
+                                  )}
+                                </div>
+                                
                                 <span className="text-[9px]">
-                                  {p.hasValue ? (
-                                    <span className="text-emerald-500">✓</span>
-                                  ) : p.required ? (
-                                    <span className="text-rose-500">✗</span>
+                                  {p.status === "valid" ? (
+                                    <span className="text-emerald-500 font-bold">✓</span>
+                                  ) : p.status === "invalid" ? (
+                                    <span className="text-amber-500 font-bold" title={isAr ? p.validationErrorAr : p.validationErrorEn}>⚠</span>
+                                  ) : p.isRequired ? (
+                                    <span className="text-rose-500 font-bold font-mono">✕</span>
                                   ) : (
-                                    <span className="text-slate-400 font-mono">—</span>
+                                    <span className="text-slate-450 font-mono">—</span>
                                   )}
                                 </span>
                               </div>
@@ -490,7 +388,7 @@ export const MaterialPropertiesCard: React.FC<MaterialPropertiesCardProps> = ({
                     {material.gradationData && Array.isArray(material.gradationData) && material.gradationData.length > 0 && (
                       <div className="mt-4 border-t border-slate-100 dark:border-slate-800/80 pt-3 bg-white dark:bg-slate-950 p-3 rounded-xl border border-slate-250/30 dark:border-slate-800">
                         <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider block mb-2">
-                          {isAr ? "التدرج الحبيبي (تحليل المناخل):" : "Sieve Gradation Analysis:"}
+                          {isAr ? "التدرج الحبيبي (تحليل المناخل EN 933-1 / ASTM C136):" : "Sieve Gradation Analysis (EN 933-1 / ASTM C136):"}
                         </span>
                         <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-1.5 text-center">
                           {material.gradationData.map((g: any, i: number) => (
@@ -508,8 +406,8 @@ export const MaterialPropertiesCard: React.FC<MaterialPropertiesCardProps> = ({
                       <Lock size={10} className="text-slate-450" />
                       <span>
                         {isAr 
-                          ? "هذه البيانات الفنية والفيزيائية مستوردة مباشرة وهي غير قابلة للتعديل اليدوي من هنا."
-                          : "These parameters are locked read-only and synchronized in real-time from the materials database."}
+                          ? "هذه البيانات الفنية مستمدة من Schema الموحد ومستودع المواد. لا يتم اختلاق أو تعويض أي قيم مفقودة تلقائياً."
+                          : "These technical properties are derived strictly from the unified Schema. Missing values are never fabricated."}
                       </span>
                     </div>
 
