@@ -66,7 +66,7 @@ export class ImportManager {
           
           // Detect or normalize category
           const rawCat = item.category || item.Category || item.type || item.materialType || "أخرى";
-          const detectedCatResult = MaterialDetector.detectCategory(draftName, rawCat, Object.keys(item));
+          const detectedCatResult = MaterialDetector.detectCategory(draftName + " " + (typeof rawCat === "string" ? rawCat : ""), Object.keys(item));
           const draftCat = detectedCatResult.category;
 
           // Process properties through mapping & normalization
@@ -446,6 +446,9 @@ export class ImportManager {
         materialSource: "user",
         isSystem: false,
         isCustom: true,
+        createdBy: userEmail || "مستخدم",
+        uploadedBy: userEmail || "مستخدم",
+        importedBy: userEmail || "مستخدم",
         source: "user_import",
         sourceType: "imported",
         sourceLabel: draft.sourceTracking.fileType === "pdf" ? "User Import (PDF)" : (draft.sourceTracking.fileType === "json" ? "User Import (JSON)" : "User Import (Excel)"),

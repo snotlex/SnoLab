@@ -168,27 +168,33 @@ export function isMaterialApprovedByEngineer(material: EngineeringMaterial): boo
     return true;
   }
 
-  // Explicit unapproved markers always override
-  const rawStatus = String(
-    material.ApprovalStatus || 
-    (material as any).approvalStatus || 
-    material.Status || 
-    (material as any).status || 
-    ""
-  ).trim().toLowerCase();
-
+  // Explicit unapproved markers in engineerApproval record
   if (
-    rawStatus === "pending review" || 
-    rawStatus === "pending approval" || 
-    rawStatus === "incomplete" || 
-    rawStatus === "draft" || 
-    rawStatus === "rejected" || 
-    rawStatus === "archived" ||
-    rawStatus === "\u0642\u064a\u062f \u0627\u0644\u0645\u0631\u0627\u062c\u0639\u0629" ||
-    rawStatus === "\u0645\u0633\u0648\u062f\u0629" ||
-    rawStatus === "\u0645\u0631\u0641\u0648\u0636" ||
-    rawStatus === "\u0645\u0648\u0642\u0648\u0641"
+    (material as any).engineerApproval?.status === "pending" ||
+    (material as any).engineerApproval?.status === "rejected"
   ) {
+    return false;
+  }
+
+  // Explicit unapproved markers in status fields
+  const approvalStatus = String(material.ApprovalStatus || (material as any).approvalStatus || "").trim().toLowerCase();
+  const generalStatus = String(material.Status || (material as any).status || "").trim().toLowerCase();
+
+  const unapprovedTerms = [
+    "pending review",
+    "pending approval",
+    "incomplete",
+    "draft",
+    "rejected",
+    "archived",
+    "suspended",
+    "قيد المراجعة",
+    "مسودة",
+    "مرفوض",
+    "موقوف"
+  ];
+
+  if (unapprovedTerms.includes(approvalStatus) || unapprovedTerms.includes(generalStatus)) {
     return false;
   }
 
@@ -197,6 +203,16 @@ export function isMaterialApprovedByEngineer(material: EngineeringMaterial): boo
     return true;
   }
 
-  // Check canonical ApprovalStatus
-  return rawStatus === "approved" || rawStatus === "certified" || rawStatus === "\u0645\u0639\u062a\u0645\u062f";
+  // Check canonical ApprovalStatus or Status
+  const approvedTerms = [
+    "approved",
+    "certified",
+    "معتمد"
+  ];
+
+  const isExplicitlyApproved = 
+    approvedTerms.includes(approvalStatus) || 
+    approvedTerms.includes(generalStatus);
+
+  return isExplicitlyApproved;
 }

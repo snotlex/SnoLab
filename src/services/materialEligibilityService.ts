@@ -561,7 +561,8 @@ export interface MaterialSelectionValidation {
 
 /**
  * Validates a material ID when an assignment attempt is made.
- * Permits selection in Mix Preparation so user can complete missing properties via the Batch Modal.
+ * Strict Canonical Gate: Material must be fully complete, validated, approved, active, and compatible.
+ * Incomplete or unapproved materials can be inspected in batch completion workflows, but cannot be used in mix calculation.
  */
 export function validateMaterialSelection(
   materialId: string | null | undefined,
@@ -722,12 +723,14 @@ export function handleMaterialMutationWithGovernance(
     const governedMaterial: EngineeringMaterial = {
       ...updatedMaterial,
       ApprovalStatus: "Pending Review",
+      Status: "Pending Review" as any,
+      approvalStatus: "Pending Review",
       status: "قيد المراجعة",
       version: (previousMaterial.version || 1) + 1,
       updatedDate: today,
       updatedAt: Date.now(),
       lifecycleHistory: nextHistory,
-      ...({ engineerApproval: updatedEngineerApproval } as any)
+      ...({ engineerApproval: updatedEngineerApproval, wasApproved: false } as any)
     };
 
     return {

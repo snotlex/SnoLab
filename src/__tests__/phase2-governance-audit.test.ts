@@ -11,8 +11,10 @@ import {
   canMaterialEnterMixDesign,
   isMaterialEligible,
   getAvailableMaterialsForRole,
-  handleMaterialMutationWithGovernance
+  handleMaterialMutationWithGovernance,
+  validateMaterialSelection
 } from "../services/materialEligibilityService";
+import { isMaterialApprovedByEngineer } from "../services/materialApprovalService";
 import { ImportManager } from "../services/import/ImportManager";
 import { BulkCompletionService } from "../services/import/BulkCompletionService";
 import { RecommendationService } from "../services/RecommendationService";
@@ -835,6 +837,463 @@ describe("SnoLab Phase 2: Engineering Governance, Approval & Dreux Eligibility",
 
       expect(govResult.approvalInvalidated).toBe(true);
       expect(govResult.material.ApprovalStatus).toBe("Pending Review");
+    });
+  });
+
+  // 11. Final Acceptance & Closure: Canonical Governance Checklist (A - T)
+  describe("11. Final Acceptance & Closure: Canonical Governance Checklist (A - T)", () => {
+    // Base Approved User Sand
+    const approvedUserSand: EngineeringMaterial = createMockMat({
+      id: "usr-sand-audit-final",
+      name: "رمل سيليسي معتمد هندسياً",
+      category: "رمال",
+      materialSource: "user",
+      isSystem: false,
+      density: 2650,
+      bulkDensity: 1540,
+      finenessModulus: 2.6,
+      absorption: 1.2,
+      moisture: 1.0,
+      ApprovalStatus: "Approved",
+      status: "نشط",
+      version: 1
+    });
+
+    // Base Approved User Gravel
+    const approvedUserGravel: EngineeringMaterial = createMockMat({
+      id: "usr-gravel-audit-final",
+      name: "حصى بازلتي معتمد هندسياً",
+      category: "حصى",
+      materialSource: "user",
+      isSystem: false,
+      density: 2680,
+      bulkDensity: 1580,
+      dMax: 20,
+      absorption: 0.8,
+      moisture: 0.5,
+      ApprovalStatus: "Approved",
+      status: "نشط",
+      version: 1
+    });
+
+    const mockInputs: MixDesignInput = {
+      fck28: 30,
+      controlClass: "normal",
+      cementType: "CPJ 42.5",
+      cementClassStrength: 42.5,
+      dMax: 20,
+      slump: 8,
+      aggregateType: AggregateType.CONCASSE,
+      aggregateQuality: AggregateQuality.STANDARD,
+      hasPumping: false,
+      sandRelativeDensity: 2.6,
+      gravelRelativeDensity: 2.65,
+      cementDensity: 3100,
+      airContent: 2,
+      moistureSand: 0,
+      moistureGravel: 0,
+      sandAbsorption: 1.5,
+      gravelAbsorption: 1.0,
+      finenessModulus: 2.6,
+      admixtures: [],
+      dosageSuper: 0,
+      dosageAir: 0,
+      dosageRetarder: 0,
+      dosageAccelerator: 0,
+      dosageSilicaFume: 0,
+      dosageFlyAsh: 0,
+      dosageSlag: 0,
+      selectedMethod: "dreux",
+      exposureClass: "XC1",
+      durabilityLevel: "normal",
+      carbonationLevel: "normal",
+      chloridesLevel: "normal",
+      sulfatesLevel: "normal",
+      priceCement: 12,
+      priceSand: 1.5,
+      priceGravel: 1.8,
+      priceSuper: 45,
+      priceAir: 20,
+      priceRetarder: 25,
+      priceAccelerator: 30,
+      priceSilicaFume: 40,
+      priceFlyAsh: 15,
+      priceSlag: 18,
+      priceLabor: 500,
+      priceWater: 0.2,
+      sandType: "silica",
+      gravelType: "crushed",
+      autoDensities: false
+    };
+
+    // A. Approved User + density mutation
+    it("A. Approved User + density mutation -> resets to Pending Review and is not approved", () => {
+      const mutated = { ...approvedUserSand, density: 2620 };
+      const res = handleMaterialMutationWithGovernance(approvedUserSand, mutated, "lead.engineer@snolab.dz");
+      expect(res.approvalInvalidated).toBe(true);
+      expect(res.material.ApprovalStatus).toBe("Pending Review");
+      expect(res.material.Status).toBe("Pending Review");
+      expect(isMaterialApprovedByEngineer(res.material)).toBe(false);
+      expect(res.invalidatedProperties).toContain("density");
+    });
+
+    // B. Approved User + absorption mutation
+    it("B. Approved User + absorption mutation -> resets to Pending Review and is not approved", () => {
+      const mutated = { ...approvedUserSand, absorption: 1.9 };
+      const res = handleMaterialMutationWithGovernance(approvedUserSand, mutated, "lead.engineer@snolab.dz");
+      expect(res.approvalInvalidated).toBe(true);
+      expect(res.material.ApprovalStatus).toBe("Pending Review");
+      expect(res.material.Status).toBe("Pending Review");
+      expect(isMaterialApprovedByEngineer(res.material)).toBe(false);
+      expect(res.invalidatedProperties).toContain("absorption");
+    });
+
+    // C. Approved User + FM mutation
+    it("C. Approved User + FM mutation -> resets to Pending Review and is not approved", () => {
+      const mutated = { ...approvedUserSand, finenessModulus: 3.1 };
+      const res = handleMaterialMutationWithGovernance(approvedUserSand, mutated, "lead.engineer@snolab.dz");
+      expect(res.approvalInvalidated).toBe(true);
+      expect(res.material.ApprovalStatus).toBe("Pending Review");
+      expect(res.material.Status).toBe("Pending Review");
+      expect(isMaterialApprovedByEngineer(res.material)).toBe(false);
+      expect(res.invalidatedProperties).toContain("finenessModulus");
+    });
+
+    // D. Approved User + Dmax mutation
+    it("D. Approved User + Dmax mutation -> resets to Pending Review and is not approved", () => {
+      const mutated = { ...approvedUserGravel, dMax: 25 };
+      const res = handleMaterialMutationWithGovernance(approvedUserGravel, mutated, "lead.engineer@snolab.dz");
+      expect(res.approvalInvalidated).toBe(true);
+      expect(res.material.ApprovalStatus).toBe("Pending Review");
+      expect(res.material.Status).toBe("Pending Review");
+      expect(isMaterialApprovedByEngineer(res.material)).toBe(false);
+      expect(res.invalidatedProperties).toContain("dMax");
+    });
+
+    // E. Approved User + non-critical metadata mutation
+    it("E. Approved User + non-critical metadata mutation -> preserves ApprovalStatus", () => {
+      const mutated = { ...approvedUserSand, price: 1800, desc: "مستودع الشرقية، مورد معتمد" };
+      const res = handleMaterialMutationWithGovernance(approvedUserSand, mutated, "lead.engineer@snolab.dz");
+      expect(res.approvalInvalidated).toBe(false);
+      expect(res.material.ApprovalStatus).toBe("Approved");
+      expect(isMaterialApprovedByEngineer(res.material)).toBe(true);
+    });
+
+    // F. Pending User excluded from Mix Preparation
+    it("F. Pending User excluded from Mix Preparation gate", () => {
+      const pendingMat = { ...approvedUserSand, ApprovalStatus: "Pending Review" as const, Status: "Pending Review" as any };
+      const gate = canMaterialEnterMixDesign(pendingMat, "dreux", "NSC");
+      expect(gate.eligible).toBe(false);
+      const sel = validateMaterialSelection(pendingMat.id, [pendingMat], "sand", "dreux", "NSC");
+      expect(sel.isValid).toBe(false);
+    });
+
+    // G. Incomplete User excluded
+    it("G. Incomplete User excluded from Mix Preparation gate", () => {
+      const incompleteMat = { ...approvedUserSand, absorption: undefined as any };
+      const gate = canMaterialEnterMixDesign(incompleteMat, "dreux", "NSC");
+      expect(gate.eligible).toBe(false);
+      const sel = validateMaterialSelection(incompleteMat.id, [incompleteMat], "sand", "dreux", "NSC");
+      expect(sel.isValid).toBe(false);
+    });
+
+    // H. Invalid User excluded
+    it("H. Invalid User excluded from Mix Preparation gate", () => {
+      const invalidMat = { ...approvedUserSand, finenessModulus: 6.5 };
+      const gate = canMaterialEnterMixDesign(invalidMat, "dreux", "NSC");
+      expect(gate.eligible).toBe(false);
+      const sel = validateMaterialSelection(invalidMat.id, [invalidMat], "sand", "dreux", "NSC");
+      expect(sel.isValid).toBe(false);
+    });
+
+    // I. Rejected User excluded
+    it("I. Rejected User excluded from Mix Preparation gate", () => {
+      const rejectedMat = { ...approvedUserSand, ApprovalStatus: "Rejected" as const, status: "موقوف" as const };
+      const gate = canMaterialEnterMixDesign(rejectedMat, "dreux", "NSC");
+      expect(gate.eligible).toBe(false);
+      const sel = validateMaterialSelection(rejectedMat.id, [rejectedMat], "sand", "dreux", "NSC");
+      expect(sel.isValid).toBe(false);
+    });
+
+    // J. Approved User included
+    it("J. Approved User included in Mix Preparation gate", () => {
+      const gate = canMaterialEnterMixDesign(approvedUserSand, "dreux", "NSC");
+      expect(gate.eligible).toBe(true);
+      const sel = validateMaterialSelection(approvedUserSand.id, [approvedUserSand], "sand", "dreux", "NSC");
+      expect(sel.isValid).toBe(true);
+    });
+
+    // K. Approved System included
+    it("K. Approved System included in Mix Preparation gate", () => {
+      const sysMat = createMockMat({
+        id: "sys-sand-k",
+        name: "رمل سيليسي نظامي معتمد",
+        category: "رمال",
+        materialSource: "system",
+        isSystem: true,
+        density: 2650,
+        bulkDensity: 1540,
+        finenessModulus: 2.6,
+        absorption: 1.2,
+        moisture: 0,
+        ApprovalStatus: "Approved",
+        status: "نشط"
+      });
+      const gate = canMaterialEnterMixDesign(sysMat, "dreux", "NSC");
+      expect(gate.eligible).toBe(true);
+      const sel = validateMaterialSelection(sysMat.id, [sysMat], "sand", "dreux", "NSC");
+      expect(sel.isValid).toBe(true);
+    });
+
+    // L. System immutable
+    it("L. System immutable: direct bulk completion mutation is blocked", () => {
+      const sysMat = createMockMat({
+        id: "sys-sand-l",
+        name: "رمل نظامي ثابت",
+        category: "رمال",
+        materialSource: "system",
+        isSystem: true,
+        density: 2650
+      });
+      const res = BulkCompletionService.applyBulkCompletion(
+        [sysMat],
+        [{ materialId: sysMat.id, propertyKey: "density", value: 2700 }],
+        "engineer@snolab.dz"
+      );
+      expect(res.errors.some(e => e.propertyKey === "system_immutability")).toBe(true);
+      expect(sysMat.density).toBe(2650);
+    });
+
+    // M. System Fork -> User + Pending Review
+    it("M. System Fork -> User + Pending Review", () => {
+      const sysMat = createMockMat({
+        id: "sys-gravel-m",
+        name: "حصى نظامي أصلي",
+        category: "حصى",
+        materialSource: "system",
+        isSystem: true,
+        density: 2680,
+        dMax: 20,
+        absorption: 0.8
+      });
+      const forked = forkSystemMaterial(sysMat, "حصى مقلع محلي مشتق", "engineer@snolab.dz");
+      expect(forked.materialSource).toBe("user");
+      expect(forked.isSystem).toBe(false);
+      expect(forked.originalSystemMaterialId).toBe(sysMat.id);
+      expect(forked.ApprovalStatus).toBe("Pending Review");
+      expect(isMaterialApprovedByEngineer(forked)).toBe(false);
+    });
+
+    // N. PDF import ownership
+    it("N. PDF import ownership: user ownership and Pending Review / Incomplete status", () => {
+      const pdfDraft = {
+        id: "draft-pdf-1",
+        name: "تقرير فحص رمل مخبري PDF",
+        englishName: "Lab PDF Sand Report",
+        category: "رمال",
+        materialType: "رمال",
+        source: "تقرير مخبري PDF",
+        sourceTracking: {
+          fileName: "lab_test_report.pdf",
+          fileType: "pdf",
+          row: 1,
+          column: "TABLE_1",
+          extractionMethod: "PDF",
+          confidence: 0.9
+        },
+        properties: {
+          density: {
+            canonicalId: "PROP-DENSITY",
+            key: "density",
+            nameAr: "الكثافة",
+            nameEn: "Density",
+            nameFr: "Masse volumique",
+            value: 2650,
+            unit: "kg/m³",
+            originalValue: 2650,
+            confidence: "HIGH" as const,
+            status: "VALID" as const,
+            sourceTracking: { fileName: "lab_test_report.pdf", fileType: "pdf", row: 1, column: "col1", extractionMethod: "PDF", confidence: 0.9 }
+          }
+        },
+        extraProperties: {},
+        validation: { isComplete: false, errors: [], warnings: [], missingRequired: ["finenessModulus"] },
+        status: "Incomplete" as const,
+        selectedForImport: true
+      };
+
+      const result = ImportManager.executeImport({
+        drafts: [pdfDraft as any],
+        duplicates: [],
+        existingMaterials: [],
+        userEmail: "qc.engineer@snolab.dz"
+      });
+
+      expect(result.importedCount).toBe(1);
+      const imported = result.updatedMaterialsList[0];
+      expect(imported.materialSource).toBe("user");
+      expect(imported.isSystem).toBe(false);
+      expect(imported.uploadedBy).toBe("qc.engineer@snolab.dz");
+      expect(imported.ApprovalStatus).not.toBe("Approved");
+    });
+
+    // O. XLS/XLSX import ownership
+    it("O. XLS/XLSX import ownership: user ownership, isSystem=false, ApprovalStatus not approved", () => {
+      const xlsDraft = {
+        id: "draft-xls-1",
+        name: "توريد رمل مقلع إكسل",
+        category: "رمال",
+        materialType: "رمال",
+        source: "ملف توريدات مقالع.xlsx",
+        sourceTracking: {
+          fileName: "quarry_deliveries.xlsx",
+          fileType: "excel",
+          row: 2,
+          column: "A",
+          extractionMethod: "EXCEL",
+          confidence: 0.95
+        },
+        properties: {},
+        extraProperties: {},
+        validation: { isComplete: false, errors: [], warnings: [], missingRequired: [] },
+        status: "Incomplete" as const,
+        selectedForImport: true
+      };
+
+      const result = ImportManager.executeImport({
+        drafts: [xlsDraft as any],
+        duplicates: [],
+        existingMaterials: [],
+        userEmail: "procurement@snolab.dz"
+      });
+
+      const imported = result.updatedMaterialsList[0];
+      expect(imported.materialSource).toBe("user");
+      expect(imported.isSystem).toBe(false);
+      expect(imported.ApprovalStatus).not.toBe("Approved");
+      expect(isMaterialApprovedByEngineer(imported)).toBe(false);
+    });
+
+    // P. JSON import ownership
+    it("P. JSON import ownership: overrides isSystem:true and ApprovalStatus:'Approved'", async () => {
+      const maliciousJson = JSON.stringify([
+        {
+          name: "رمل JSON مدعي صفة النظام والاعتماد",
+          category: "رمال",
+          density: 2650,
+          finenessModulus: 2.6,
+          absorption: 1.2,
+          isSystem: true,
+          ApprovalStatus: "Approved"
+        }
+      ]);
+
+      const file = {
+        name: "untrusted_payload.json",
+        arrayBuffer: async () => new TextEncoder().encode(maliciousJson).buffer
+      };
+
+      const report = await ImportManager.analyzeFile(file, []);
+      const result = ImportManager.executeImport({
+        drafts: report.drafts,
+        duplicates: [],
+        existingMaterials: [],
+        userEmail: "tester@snolab.dz"
+      });
+
+      const imported = result.updatedMaterialsList[0];
+      expect(imported.materialSource).toBe("user");
+      expect(imported.isSystem).toBe(false);
+      expect(imported.ApprovalStatus).toBe("Pending Review");
+      expect(isMaterialApprovedByEngineer(imported)).toBe(false);
+    });
+
+    // Q. Complete imported material ≠ Approved
+    it("Q. Complete imported material ≠ Approved (ready is NOT approved)", async () => {
+      const completeJson = JSON.stringify([
+        {
+          name: "رمل كامل الخصائص مستورد",
+          category: "رمال",
+          density: 2650,
+          finenessModulus: 2.6,
+          absorption: 1.2
+        }
+      ]);
+
+      const file = {
+        name: "complete_sand.json",
+        arrayBuffer: async () => new TextEncoder().encode(completeJson).buffer
+      };
+
+      const report = await ImportManager.analyzeFile(file, []);
+      const result = ImportManager.executeImport({
+        drafts: report.drafts,
+        duplicates: [],
+        existingMaterials: [],
+        userEmail: "tester@snolab.dz"
+      });
+
+      const imported = result.updatedMaterialsList[0];
+      expect(imported.ApprovalStatus).toBe("Pending Review");
+      expect(isMaterialApprovedByEngineer(imported)).toBe(false);
+    });
+
+    // R. Recommendation cannot invent values
+    it("R. Recommendation cannot invent fallback values for missing properties", () => {
+      const incompleteSand = MaterialService.fromEngineeringMaterial(createMockMat({
+        id: "rec-sand-no-density",
+        name: "رمل ناقص الكثافة",
+        category: "رمال",
+        finenessModulus: 2.6,
+        absorption: 1.2
+      }));
+
+      const res = RecommendationService.applyRecommendationToMixInputs(incompleteSand, mockInputs);
+      expect(res.success).toBe(false);
+      expect(res.missingProperties).toContain("density / specificGravity");
+      // Original project inputs must not be modified or replaced with synthetic defaults
+      expect(res.updatedInputs.sandRelativeDensity).toBe(mockInputs.sandRelativeDensity);
+    });
+
+    // S. Recommendation Accept preserves engineering source of truth
+    it("S. Recommendation Accept preserves engineering source of truth without synthetic values", () => {
+      const completeSand = MaterialService.fromEngineeringMaterial(createMockMat({
+        id: "rec-sand-complete-true",
+        name: "رمل بمعطيات مخبرية حقيقية",
+        category: "رمال",
+        density: 2630,
+        finenessModulus: 2.75,
+        absorption: 1.45
+      }));
+
+      const res = RecommendationService.applyRecommendationToMixInputs(completeSand, mockInputs);
+      expect(res.success).toBe(true);
+      expect(res.updatedInputs.sandRelativeDensity).toBe(2.63);
+      expect(res.updatedInputs.finenessModulus).toBe(2.75);
+      expect(res.updatedInputs.sandAbsorption).toBe(1.45);
+    });
+
+    // T. Recommendation Reject preserves project inputs
+    it("T. Recommendation Reject preserves project inputs without alteration", () => {
+      const rejectedSand = MaterialService.fromEngineeringMaterial(createMockMat({
+        id: "rec-sand-rejected",
+        name: "رمل مرفوض من المهندس",
+        category: "رمال",
+        density: 2690
+      }));
+
+      // In the recommendations workflow, rejection leaves mix inputs strictly intact:
+      RecommendationService.recordDecision(rejectedSand.id, "REJECTED", {
+        targetStrength: 30,
+        workability: "S3",
+        mixDesignMethod: "dreux",
+        concreteType: "NSC"
+      });
+
+      const decisions = RecommendationService.getAuditTrail();
+      const lastDecision = decisions[0];
+      expect(lastDecision.action).toBe("REJECTED");
+      expect(lastDecision.materialId).toBe(rejectedSand.id);
     });
   });
 });

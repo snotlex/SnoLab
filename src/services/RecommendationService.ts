@@ -117,6 +117,10 @@ export class RecommendationService {
     return [...RecommendationService.userDecisionLog];
   }
 
+  public static getAuditTrail() {
+    return RecommendationService.getDecisionHistory();
+  }
+
   /**
    * Strictly applies an approved and eligible material to mix design inputs.
    * Disallows silent engineering fallbacks (such as 3100, 2650, 2.6, 20).
@@ -168,7 +172,7 @@ export class RecommendationService {
         updatedInputs: {
           ...currentInputs,
           cementDensity,
-          cementType: (cementClass ? String(cementClass) : currentInputs.cementType) || "CEM I 42.5"
+          cementType: cementClass ? String(cementClass) : currentInputs.cementType
         },
         missingProperties: []
       };
