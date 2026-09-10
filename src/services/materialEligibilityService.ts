@@ -19,7 +19,7 @@ import {
   getMaterialPropValue 
 } from "./materialPropertySchema";
 import { CONCRETE_TYPE_CONFIGS } from "../concreteTypes";
-import { isUserMaterial } from "../engine/suitabilityGate";
+import { isUserMaterial } from "../utils/materialSourceHelper";
 
 export type MaterialLifecycleStatus =
   | "incomplete"
@@ -281,32 +281,69 @@ export function isMaterialEligible(
     }
   }
 
+  // Check 4.1: Strict Dreux-Gorisse method requirements (Requirement 11)
+  if (mixDesignMethod.toLowerCase().includes("dreux")) {
+    if (role === "sand") {
+      const hasDens = getMaterialPropValue(material, "density") !== undefined || getMaterialPropValue(material, "specificGravity") !== undefined;
+      const fm = getMaterialPropValue(material, "finenessModulus");
+      const abs = getMaterialPropValue(material, "absorption");
+      if (!hasDens && !missingProperties.includes("density")) {
+        missingProperties.push("density");
+      }
+      if ((fm === undefined || fm === null || fm === "") && !missingProperties.includes("finenessModulus")) {
+        missingProperties.push("finenessModulus");
+      }
+      if ((abs === undefined || abs === null || abs === "") && !missingProperties.includes("absorption")) {
+        missingProperties.push("absorption");
+      }
+    } else if (role === "gravel") {
+      const hasDens = getMaterialPropValue(material, "density") !== undefined || getMaterialPropValue(material, "specificGravity") !== undefined;
+      const dmax = getMaterialPropValue(material, "dMax");
+      if (!hasDens && !missingProperties.includes("density")) {
+        missingProperties.push("density");
+      }
+      if ((dmax === undefined || dmax === null || dmax === "") && !missingProperties.includes("dMax")) {
+        missingProperties.push("dMax");
+      }
+    } else if (role === "cement") {
+      const hasDens = getMaterialPropValue(material, "density") !== undefined || getMaterialPropValue(material, "specificGravity") !== undefined;
+      const str = getMaterialPropValue(material, "strength28d") || getMaterialPropValue(material, "strengthClass") || getMaterialPropValue(material, "cementClass");
+      if (!hasDens && !missingProperties.includes("density")) {
+        missingProperties.push("density");
+      }
+      if (!str && !missingProperties.includes("strengthClass")) {
+        missingProperties.push("strengthClass");
+      }
+    } else if (role === "water") {
+      const isContaminated = 
+        (material as any).isContaminated === true ||
+        (material as any).contaminated === true ||
+        String((material as any).quality || "").toLowerCase().includes("contamin") ||
+        String((material as any).quality || "").toLowerCase().includes("ملوث");
+      if (isContaminated) {
+        invalidProperties.push({
+          key: "waterQuality",
+          value: "contaminated",
+          errorAr: "ماء ملوث غير مطابق لمواصفة خلط الخرسانة (EN 1008)"
+        });
+      }
+    }
+  }
+
   // Check 5: Engineer Approval verification
-  // Accept Approved, Certified, Validated, معتمد, نشط, or complete & verified status
-  const isApprovedByEngineer = 
+  // Rule: READY IS NOT APPROVED (Requirement 6)
+  // System materials are pre-certified standard references.
+  // User materials require explicit engineer approval. Completeness does NOT automatically confer approval.
+  const isApprovedByEngineer = isSystem ? true : (
     rawApproval === "Approved" || 
     rawApproval === "Certified" || 
-    rawApproval === "Validated" ||
     rawApproval === "\u0645\u0639\u062a\u0645\u062f" ||
-    rawApproval === "\u0646\u0634\u0637" ||
-    rawApproval === "\u0645\u0642\u0628\u0648\u0644" ||
     rawApproval.toLowerCase() === "approved" ||
-    rawApproval.toLowerCase() === "validated" ||
     rawApproval.toLowerCase() === "certified" ||
-    rawApproval.toLowerCase() === "active" ||
-    statusStr === "\u0646\u0634\u0637" ||
-    statusStr === "active" ||
-    (material as any).isComplete === true ||
-    (material as any).validationStatus === "VALID" ||
-    (material as any).validationStatus === "VALIDATED" ||
-    (material as any).readinessStatus === "READY" ||
-    (material as any).sourceType === "SYSTEM" ||
-    (material as any).validationStatus === "Approved" ||
-    (material as any).engineerApproval?.status === "approved" ||
-    // If material has complete properties and is not explicitly draft/rejected, consider approved
-    (missingProperties.length === 0 && invalidProperties.length === 0 && !isDraft);
+    (material as any).engineerApproval?.status === "approved"
+  ) && !isDraft && rawApproval !== "Incomplete" && rawApproval !== "Pending Review" && rawApproval !== "Pending Approval" && rawApproval !== "Draft" && rawApproval !== "\u0642\u064a\u062f \u0627\u0644\u0645\u0631\u0627\u062c\u0639\u0629";
 
-  const isPendingApproval = !isApprovedByEngineer && (isDraft || rawApproval === "Pending Review" || rawApproval === "Pending Approval" || rawApproval === "قيد المراجعة");
+  const isPendingApproval = !isApprovedByEngineer && (isDraft || rawApproval === "Pending Review" || rawApproval === "Pending Approval" || rawApproval === "قيد المراجعة" || rawApproval === "Incomplete");
 
   let engineerApprovalRecord = (material as any).engineerApproval;
   if (!engineerApprovalRecord && isApprovedByEngineer) {
@@ -386,16 +423,49 @@ export function isMaterialEligible(
 // ============================================================================
 // FILTER ELIGIBLE MATERIALS FOR A GIVEN SELECTION SLOT
 // ============================================================================
+// CENTRAL ELIGIBILITY GATE FUNCTION (Requirement 12)
+// ============================================================================
 
 /**
- * Returns ALL materials in repository matching a specific role/category slot,
- * whether they are fully complete or currently have missing properties.
- * This allows selecting the material in Mix Preparation and completing its
- * missing properties via the Batch Material Properties Modal.
+ * Consolidated Central Eligibility Gate.
+ * Evaluates if a material can enter mix design calculations.
+ * Used identically across Mix Preparation, Compatibility Engine, and UI selectors.
+ */
+export function canMaterialEnterMixDesign(
+  material: EngineeringMaterial | null | undefined,
+  mixDesignMethod: string = "dreux",
+  concreteType: string = "NSC",
+  project?: any
+): { eligible: boolean; reasons: string[]; missingProperties: string[]; status: MaterialLifecycleStatus } {
+  if (!material) {
+    return {
+      eligible: false,
+      reasons: ["المادة غير محددة."],
+      missingProperties: [],
+      status: "incomplete"
+    };
+  }
+  const evalResult = isMaterialEligible(material, mixDesignMethod, concreteType, project);
+  return {
+    eligible: evalResult.eligible,
+    reasons: evalResult.reasonsAr,
+    missingProperties: evalResult.missingProperties,
+    status: evalResult.lifecycleStatus
+  };
+}
+
+/**
+ * Returns materials in repository matching a specific role/category slot that are eligible
+ * for use in Mix Preparation (Requirement 14).
+ * Raw or incomplete materials that do not pass the eligibility gate are excluded.
  */
 export function getAvailableMaterialsForRole(
   materials: EngineeringMaterial[],
-  roleOrCategory: string
+  roleOrCategory: string,
+  mixDesignMethod: string = "dreux",
+  concreteType: string = "NSC",
+  project?: any,
+  onlyEligible: boolean = true
 ): EngineeringMaterial[] {
   if (!Array.isArray(materials)) return [];
 
@@ -418,7 +488,14 @@ export function getAvailableMaterialsForRole(
       if ((targetRole === "specialBinder" || (targetRole as string) === "special_binder") && ["مجلدات خاصة", "special_binder"].includes(material.category || material.type)) isRoleMatch = true;
     }
 
-    return isRoleMatch;
+    if (!isRoleMatch) return false;
+
+    if (onlyEligible) {
+      const gate = canMaterialEnterMixDesign(material, mixDesignMethod, concreteType, project);
+      return gate.eligible;
+    }
+
+    return true;
   });
 }
 

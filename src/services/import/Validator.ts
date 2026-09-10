@@ -82,6 +82,7 @@ export class Validator {
         }
         if (!hasValue("absorption")) {
           missingRequiredForCategory.push("نسبة الامتصاص المائي");
+          missingRequiredForDreux.push("نسبة الامتصاص المائي (Absorption)");
         }
         if (!hasValue("finenessModulus")) {
           missingRequiredForDreux.push("معامل النعومة (FM) لحساب منحنى درو-غوريس");
@@ -104,17 +105,25 @@ export class Validator {
           missingRequiredForCategory.push("كثافة الإسمنت الحقيقية");
           missingRequiredForDreux.push("كثافة الإسمنت لحساب الحجم المطلق");
         }
-        if (!hasValue("strength28d")) {
-          missingRequiredForCategory.push("مقاومة الإسمنت في 28 يوماً");
+        if (!hasValue("strength28d") && !hasValue("strengthClass") && !hasValue("cementClass")) {
+          missingRequiredForCategory.push("مقاومة الإسمنت في 28 يوماً أو رتبة القوة المعيارية");
           missingRequiredForDreux.push("مقاومة الإسمنت المعيارية (f_c28) لتطبيق معادلة بولومي");
         }
         break;
 
-      case "ماء":
-        if (!hasDensityOrSg) {
-          // Note: Standard water density is 1000 kg/m³ and is automatically supplied if unstated
+      case "ماء": {
+        const isContaminated = 
+          properties["isContaminated"]?.normalizedValue === true || 
+          properties["contaminated"]?.normalizedValue === true ||
+          String(properties["quality"]?.normalizedValue || properties["quality"]?.value || "").toLowerCase().includes("contamin") ||
+          String(properties["quality"]?.normalizedValue || properties["quality"]?.value || "").toLowerCase().includes("ملوث");
+
+        if (isContaminated) {
+          errors.push("ماء غير صالح للاستخدام الخرساني (ملوث أو غير مطابق للمواصفة EN 1008).");
+          missingRequiredForDreux.push("ماء صالح وغير ملوث للاستخدام الخرساني");
         }
         break;
+      }
 
       case "إضافات كيميائية":
         if (!hasValue("recommendedDosage")) {

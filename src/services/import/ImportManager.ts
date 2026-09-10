@@ -1,5 +1,6 @@
 import {
   ParsedMaterialDraft,
+  MaterialDraftProperty,
   ImportPipelineReport,
   DuplicateMatch,
   DuplicateResolutionStrategy,
@@ -8,6 +9,10 @@ import {
 import { ExcelParser } from "./ExcelParser";
 import { PDFParser } from "./PDFParser";
 import { DuplicateDetector } from "./DuplicateDetector";
+import { MaterialDetector } from "./MaterialDetector";
+import { PropertyMapper } from "./PropertyMapper";
+import { UnitNormalizer } from "./UnitNormalizer";
+import { Validator } from "./Validator";
 import { EngineeringMaterial } from "../../types";
 import { MaterialService } from "../MaterialService";
 
@@ -48,44 +53,108 @@ export class ImportManager {
       unmappedHeaders = excelResult.unmappedColumns;
     } else if (lowerName.endsWith(".json")) {
       fileType = "JSON";
-      if (onProgress) onProgress("جاري قراءة ملف JSON...", 40);
+      if (onProgress) onProgress("جاري قراءة ملف JSON وفحص المواصفات الهندسية...", 40);
       try {
         const text = new TextDecoder().decode(buffer);
         const jsonContent = JSON.parse(text);
-        const rawArray = Array.isArray(jsonContent) ? jsonContent : jsonContent.materials || [jsonContent];
-        // Parse simple JSON objects into drafts
-        drafts = rawArray.map((item: any, idx: number) => {
-          const draftName = String(item.name || item.ArabicName || `مادة JSON #${idx + 1}`).trim();
-          const draftCat = item.category || "أخرى";
+        const rawArray = Array.isArray(jsonContent) ? jsonContent : jsonContent.materials || jsonContent.data || [jsonContent];
+        
+        drafts = rawArray.filter((item: any) => item && typeof item === "object").map((item: any, idx: number) => {
+          const draftName = String(item.name || item.ArabicName || item.arabicName || item.EnglishName || item.englishName || `مادة JSON #${idx + 1}`).trim();
+          
+          // Detect or normalize category
+          const rawCat = item.category || item.Category || item.type || item.materialType || "أخرى";
+          const detectedCatResult = MaterialDetector.detectCategory(draftName, rawCat, Object.keys(item));
+          const draftCat = detectedCatResult.category;
+
+          // Process properties through mapping & normalization
+          const sourceObj = { ...item, ...(item.properties || {}), ...(item.engineeringData || {}) };
+          const properties: Record<string, MaterialDraftProperty> = {};
+          const extraProperties: Record<string, any> = {};
+
+          Object.entries(sourceObj).forEach(([rawKey, rawVal]) => {
+            if (rawVal === undefined || rawVal === null || typeof rawVal === "object" || typeof rawVal === "function") {
+              return;
+            }
+            // Skip top-level metadata keys that shouldn't be mapped as physical properties
+            if (["id", "name", "arabicName", "englishName", "category", "materialType", "materialSource", "isSystem", "status", "approvalStatus", "ApprovalStatus"].includes(rawKey)) {
+              return;
+            }
+
+            const match = PropertyMapper.matchHeader(rawKey, [rawVal], draftCat);
+            if (match.canonicalKey === "ignore" || (match.confidence === "LOW" && match.confidenceScore < 40)) {
+              extraProperties[rawKey] = rawVal;
+              return;
+            }
+
+            const targetKey = match.canonicalKey;
+            const normResult = UnitNormalizer.normalizePropertyValue(
+              targetKey,
+              rawVal,
+              match.expectedUnit
+            );
+
+            properties[targetKey] = {
+              canonicalId: match.canonicalPropertyId,
+              key: targetKey,
+              nameAr: match.propertyLabelAr,
+              nameEn: match.propertyLabelEn,
+              nameFr: match.propertyLabelFr,
+              value: normResult.normalizedValue ?? rawVal,
+              unit: normResult.normalizedUnit || match.expectedUnit,
+              originalValue: rawVal,
+              originalUnit: normResult.sourceUnit,
+              normalizedValue: normResult.normalizedValue ?? rawVal,
+              normalizedUnit: normResult.normalizedUnit,
+              confidence: match.confidence,
+              confidenceScore: match.confidenceScore,
+              sourceTracking: {
+                fileName,
+                fileType: "json",
+                row: idx + 1,
+                column: rawKey,
+                extractionMethod: "JSON",
+                confidence: 0.95
+              },
+              status: match.isNeedsReview ? "WARNING" : "VALID"
+            };
+          });
+
+          // Perform engineering validation through SnoLab Validator
+          const validation = Validator.validateDraft(draftName, draftCat, properties);
+
+          // Determine engineering status: Complete, Incomplete, Needs Review, or Invalid
+          let status: "Complete" | "Incomplete" | "Needs Review" | "Invalid" = "Complete";
+          if (validation.errors.length > 0) {
+            status = "Invalid";
+          } else if (detectedCatResult.needsReview || Object.values(properties).some(p => p.confidence === "NEEDS_REVIEW")) {
+            status = "Needs Review";
+          } else if (!validation.isComplete) {
+            status = "Incomplete";
+          }
+
           return {
-            id: item.id || `USR-JSON-${Date.now().toString(36)}-${idx + 1}`,
+            id: `USR-JSON-${Date.now().toString(36)}-${idx + 1}`,
             name: draftName,
-            englishName: item.englishName,
+            englishName: item.englishName || item.EnglishName,
             category: draftCat,
-            materialType: item.materialType || "أخرى",
-            categoryConfidence: "HIGH",
-            categoryNeedsReview: false,
+            materialType: item.materialType || draftCat,
+            categoryConfidence: detectedCatResult.confidence,
+            categoryNeedsReview: detectedCatResult.needsReview,
             source: item.provenance || "مستورد من JSON",
             sourceTracking: {
               fileName,
               fileType: "json",
               row: idx + 1,
               column: "ALL",
-              extractionMethod: "EXCEL",
-              confidence: 1.0
+              extractionMethod: "JSON",
+              confidence: 0.95
             },
-            properties: {},
-            extraProperties: item,
-            validation: {
-              isComplete: true,
-              isEligibleForDreuxGorisse: true,
-              missingRequiredForCategory: [],
-              missingRequiredForDreux: [],
-              errors: [],
-              warnings: []
-            },
-            status: "Complete",
-            selectedForImport: true
+            properties,
+            extraProperties,
+            validation,
+            status,
+            selectedForImport: status !== "Invalid"
           };
         });
       } catch (e) {
@@ -291,10 +360,37 @@ export class ImportManager {
       const calculatedDensity = propMap.density !== undefined ? propMap.density : (propMap.specificGravity ? propMap.specificGravity * 1000 : defaultDensity);
       const calculatedSg = propMap.specificGravity !== undefined ? propMap.specificGravity : (propMap.density ? propMap.density / 1000 : defaultSg);
 
-      // Water, SCM, and Fiber are fully recognized, approved, and verified
-      const isAutoApprovedCategory = isWater || isSCM || isFiber;
-      const finalStatus: "نشط" | "قيد المراجعة" = (isAutoApprovedCategory || draft.status !== "Incomplete") ? "نشط" : "قيد المراجعة";
-      const finalApprovalStatus: "Approved" | "Incomplete" = (isAutoApprovedCategory || draft.status !== "Incomplete") ? "Approved" : "Incomplete";
+      // Engineering Governance: No auto-approval based on category.
+      // Ready is NOT approved: Complete materials start as "Pending Review" (قيد المراجعة للاعتماد).
+      // Incomplete materials start as "Incomplete".
+      const isComplete = draft.validation?.isComplete ?? (draft.status === "Complete");
+      const finalStatus: "نشط" | "قيد المراجعة" = isComplete ? "نشط" : "قيد المراجعة";
+      const finalApprovalStatus: "Pending Review" | "Incomplete" = isComplete ? "Pending Review" : "Incomplete";
+
+      // Build explicit property-level provenance metadata
+      const todayIso = new Date().toISOString();
+      const propertyMetadata: Record<string, any> = {};
+      const propertySources: Record<string, any> = {};
+
+      Object.entries(propMap).forEach(([propK, propV]) => {
+        if (propV !== undefined && propV !== null) {
+          propertyMetadata[propK] = {
+            key: propK,
+            value: propV,
+            sourceType: "imported",
+            sourceLabel: `مستورد من ${draft.sourceTracking.fileName}`,
+            source: "import",
+            confidence: "High",
+            requiresConfirmation: false,
+            lastUpdated: todayIso
+          };
+          propertySources[propK] = {
+            source: "imported",
+            provenance: "IMPORTED",
+            timestamp: todayIso
+          };
+        }
+      });
 
       const newMaterial: EngineeringMaterial = {
         id: finalId,
@@ -314,7 +410,7 @@ export class ImportManager {
         density: calculatedDensity,
         ssdDensity: propMap.ssdDensity,
         specificGravity: calculatedSg,
-        absorption: propMap.absorption !== undefined ? propMap.absorption : (isWater ? 0 : 0),
+        absorption: propMap.absorption !== undefined ? propMap.absorption : (isWater ? 0 : undefined),
         moisture: propMap.moisture !== undefined ? propMap.moisture : 0,
         finenessModulus: propMap.finenessModulus,
         dMax: propMap.dMax,
@@ -323,9 +419,9 @@ export class ImportManager {
         LosAngeles: propMap.LosAngeles,
         recommendedDosage: propMap.recommendedDosage !== undefined ? propMap.recommendedDosage : (isFiber ? (isSteelFiber ? 25 : 0.9) : undefined),
         waterReduction: propMap.waterReduction,
-        pozzolanicIndex: propMap.pozzolanicIndex !== undefined ? propMap.pozzolanicIndex : (isSCM ? 85 : undefined),
-        waterDemandFactor: propMap.waterDemandFactor !== undefined ? propMap.waterDemandFactor : (isSCM ? 1.0 : undefined),
-        finenessBlaine: propMap.finenessBlaine !== undefined ? propMap.finenessBlaine : (isSCM ? 450 : undefined),
+        pozzolanicIndex: propMap.pozzolanicIndex !== undefined ? propMap.pozzolanicIndex : undefined,
+        waterDemandFactor: propMap.waterDemandFactor !== undefined ? propMap.waterDemandFactor : undefined,
+        finenessBlaine: propMap.finenessBlaine !== undefined ? propMap.finenessBlaine : undefined,
         strengthClass: propMap.strengthClass || (propMap.strength28d ? String(propMap.strength28d) : undefined),
         cementClass: propMap.cementClass,
         fiberType: propMap.fiberType || (isFiber ? (isSteelFiber ? "ألياف فولاذية" : "ألياف بولي بروبيلين") : undefined),
@@ -344,17 +440,19 @@ export class ImportManager {
         isCustom: true,
         source: "user_import",
         sourceType: "imported",
-        sourceLabel: draft.sourceTracking.fileType === "pdf" ? "User Import (PDF)" : "User Import (Excel)",
+        sourceLabel: draft.sourceTracking.fileType === "pdf" ? "User Import (PDF)" : (draft.sourceTracking.fileType === "json" ? "User Import (JSON)" : "User Import (Excel)"),
         version: 1,
         createdDate: new Date().toISOString().split("T")[0],
         lastModified: new Date().toISOString().split("T")[0],
+        propertyMetadata,
+        propertySources,
         notes: draft.extraProperties.notes || `تم استيراد المادة من ملف ${draft.sourceTracking.fileName}`,
         extraProperties: draft.extraProperties,
         lifecycleHistory: [
           {
             date: new Date().toISOString().split("T")[0],
             version: 1,
-            changes: `إنشاء واستيراد أولي معتمد عبر محرك الاستيراد الذكي (${draft.sourceTracking.fileType.toUpperCase()})`,
+            changes: `استيراد مادة مستخدم من ملف (${draft.sourceTracking.fileType.toUpperCase()}) بانتظار اعتماد المهندس المشرف`,
             author: userEmail || "مستخدم",
             approvalStatus: finalApprovalStatus
           }

@@ -3,7 +3,7 @@ import { MaterialCoreRecord, GranulometrySieveEntry } from "../../types/material
 
 export type ConfidenceLevel = "HIGH" | "MEDIUM" | "LOW" | "NEEDS_REVIEW";
 
-export type ExtractionMethod = "EXCEL" | "PDF_TABLE" | "PDF_STRUCTURED_TEXT" | "OCR";
+export type ExtractionMethod = "EXCEL" | "PDF_TABLE" | "PDF_STRUCTURED_TEXT" | "OCR" | "JSON";
 
 export type DuplicateResolutionStrategy = "SKIP" | "IMPORT_NEW" | "REPLACE" | "CREATE_VERSION";
 

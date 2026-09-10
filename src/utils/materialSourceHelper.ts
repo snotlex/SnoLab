@@ -18,14 +18,14 @@ import { EngineeringMaterial } from "../types";
 export function isSystemMaterial(m: any): boolean {
   if (!m) return false;
 
-  // 1. Explicit materialSource flag takes precedence
-  if (m.materialSource === "system") return true;
-  if (m.materialSource === "user") return false;
-
-  // 2. Explicit boolean flags
-  if (m.isCustom === true) return false;
+  // 1. Explicit user-owned markers always override
+  if (m.materialSource === "user" || m.isCustom === true) return false;
   if (m.source === "user_import" || m.source === "user_custom" || m.source === "user") return false;
   if (m.sourceType === "imported" || m.sourceType === "user_created") return false;
+  if (m.importedFrom || m.importSource) return false;
+
+  // 2. Explicit materialSource flag
+  if (m.materialSource === "system") return true;
 
   // 3. System indicators
   if (m.isSystem === true) return true;
@@ -72,6 +72,49 @@ export function isSystemMaterial(m: any): boolean {
 export function isUserMaterial(m: any): boolean {
   if (!m) return false;
   return !isSystemMaterial(m);
+}
+
+/**
+ * Checks if an operation can be performed on a material based on engineering governance.
+ * - System materials: Read-only references; cannot be modified in-place or deleted, but CAN be forked.
+ * - User materials: Can be edited, deleted, forked, or approved.
+ */
+export function canEditMaterial(
+  material: any,
+  action: "edit" | "delete" | "fork" | "approve" = "edit"
+): boolean {
+  if (!material) return false;
+
+  const isSys = isSystemMaterial(material);
+
+  if (action === "fork") {
+    // Both system and user materials can be duplicated/forked
+    return true;
+  }
+
+  if (isSys) {
+    // System materials are immutable reference standards
+    return false;
+  }
+
+  // User materials can be edited, deleted, and approved
+  return true;
+}
+
+/**
+ * Checks if a material can be forked into a new user copy.
+ */
+export function canForkMaterial(material: any): boolean {
+  return canEditMaterial(material, "fork");
+}
+
+/**
+ * Checks if a material can undergo the engineer approval workflow.
+ * Only user materials require engineer approval; system materials are pre-certified standards.
+ */
+export function canApproveMaterial(material: any): boolean {
+  if (!material) return false;
+  return isUserMaterial(material);
 }
 
 /**

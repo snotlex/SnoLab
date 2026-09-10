@@ -35,7 +35,9 @@ export type PropertySourceProvenance =
   | "LABORATORY" 
   | "USER_ENTERED" 
   | "IMPORTED" 
-  | "CALCULATED";
+  | "CALCULATED"
+  | "SYSTEM_SUGGESTION"
+  | "ESTIMATED";
 
 export type PropertyValidationStatus = 
   | "VALID" 

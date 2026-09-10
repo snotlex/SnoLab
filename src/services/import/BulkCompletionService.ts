@@ -177,10 +177,27 @@ export class BulkCompletionService {
       // Re-inspect material to determine new status
       const postAudit = CompletenessChecker.inspectMaterial(updatedCopy);
       const isReady = postAudit.overallStatus === "READY";
+      const isSys = updatedCopy.materialSource === "system" || updatedCopy.isSystem === true;
+
       updatedCopy.status = isReady ? "نشط" : "قيد المراجعة";
-      updatedCopy.Status = isReady ? "Approved" : "Draft";
-      updatedCopy.ApprovalStatus = isReady ? "Approved" : "Incomplete";
       updatedCopy.validationStatus = isReady ? "VALID" : "PENDING";
+
+      // Engineering Governance: READY IS NOT APPROVED (Requirement 6).
+      // System materials are pre-certified standards.
+      // User materials becoming complete transition to "Pending Review", requiring explicit engineer review.
+      if (isSys) {
+        updatedCopy.Status = "Approved";
+        updatedCopy.ApprovalStatus = "Approved";
+      } else {
+        const wasApproved = updatedCopy.ApprovalStatus === "Approved" || updatedCopy.engineerApproval?.status === "approved";
+        if (wasApproved) {
+          updatedCopy.Status = "Approved";
+          updatedCopy.ApprovalStatus = "Approved";
+        } else {
+          updatedCopy.Status = isReady ? "Pending Review" : "Draft";
+          updatedCopy.ApprovalStatus = isReady ? "Pending Review" : "Incomplete";
+        }
+      }
 
       updatedMaterials[matIdx] = updatedCopy;
       // Persist in local storage via MaterialService

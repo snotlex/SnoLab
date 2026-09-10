@@ -6,7 +6,7 @@ export function isUserMaterial(m: any): boolean {
   if (m.isSystem === true || (m as any).sourceType === "system_demo" || m.readOnly === true) {
     return false;
   }
-  if (m.materialSource === "user" && m.isCustom === true) {
+  if (m.materialSource === "user" || m.source === "user" || m.isCustom === true) {
     return true;
   }
   const idStr = String(m.id || m.Id || "").toLowerCase();
