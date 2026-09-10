@@ -4,6 +4,7 @@ import {
 } from "../types/materialCoreTypes";
 import { MaterialService } from "./MaterialService";
 import { ValidationService, MaterialValidationReport } from "./ValidationService";
+import { canMaterialEnterMixDesign } from "./materialEligibilityService";
 
 export interface EligibilityResult {
   materialId: string;
@@ -113,7 +114,31 @@ export class EligibilityService {
       };
     }
 
-    // 4. Domain & Concrete Type Compatibility Rules
+    // Authoritative Single Gate Integration:
+    // Verify using canMaterialEnterMixDesign from materialEligibilityService
+    const engMat = MaterialService.toEngineeringMaterial(material);
+    const canonicalGate = canMaterialEnterMixDesign(
+      engMat, 
+      context.mixDesignMethod || "dreux", 
+      context.concreteType || "NSC"
+    );
+
+    if (!canonicalGate.eligible) {
+      const isNeedsData = canonicalGate.status === "incomplete" || canonicalGate.missingProperties.length > 0;
+      return {
+        materialId: material.id,
+        isEligible: false,
+        status: isNeedsData ? "NEEDS_DATA" : "INELIGIBLE",
+        score: isNeedsData ? 30 : 10,
+        reasonsAr: canonicalGate.reasons,
+        reasonsEn: canonicalGate.reasons,
+        missingRequiredProperties: canonicalGate.missingProperties,
+        incompatibleReasons: canonicalGate.reasons,
+        validationReport: valReport
+      };
+    }
+
+    // 4. Domain & Concrete Type Compatibility Rules (No false fallback values)
     const getNum = (propId: string): number | undefined => {
       const p = material.properties[propId];
       if (!p || p.value === null || p.value === undefined) return undefined;
@@ -129,17 +154,19 @@ export class EligibilityService {
 
     // Cement specific checks
     if (targetRole === "CEMENT") {
-      const strength = getNum("PROP-CEM-STRENGTH-28D") || 42.5;
+      const strength = getNum("PROP-CEM-STRENGTH-28D");
       const targetFck = context.targetStrength || 25;
 
-      if (context.concreteType === "HPC" && strength < 42.5) {
-        incompatibleReasons.push("الخرسانة عالية الأداء (HPC) تتطلب إسمنت برتبة 42.5 أو 52.5 على الأقل");
-      } else if (strength >= 52.5 && targetFck >= 40) {
-        score += 15;
-        reasonsAr.push("رتبة مقاومة عالية 52.5 ممتازة للمقاومة العالية المستهدفة");
-      } else if (strength >= 42.5) {
-        score += 10;
-        reasonsAr.push("رتبة مقاومة معيارية 42.5 مناسبة ومطابقة");
+      if (strength !== undefined) {
+        if (context.concreteType === "HPC" && strength < 42.5) {
+          incompatibleReasons.push("الخرسانة عالية الأداء (HPC) تتطلب إسمنت برتبة 42.5 أو 52.5 على الأقل");
+        } else if (strength >= 52.5 && targetFck >= 40) {
+          score += 15;
+          reasonsAr.push("رتبة مقاومة عالية 52.5 ممتازة للمقاومة العالية المستهدفة");
+        } else if (strength >= 42.5) {
+          score += 10;
+          reasonsAr.push("رتبة مقاومة معيارية 42.5 مناسبة ومطابقة");
+        }
       }
 
       // Sulfate exposure
@@ -154,37 +181,43 @@ export class EligibilityService {
 
     // Sand specific checks
     if (targetRole === "SAND") {
-      const fm = getNum("PROP-FM") || 2.6;
-      const se = getNum("PROP-SAND-EQUIVALENT") || 75;
+      const fm = getNum("PROP-FM");
+      const se = getNum("PROP-SAND-EQUIVALENT");
 
-      if (fm >= 2.2 && fm <= 2.8) {
-        score += 10;
-        reasonsAr.push(`معامل نعومة مثالي (${fm}) يمنح قابلية تشغيل ممتازة ورصاً متجانساً`);
-      } else if (fm < 2.0) {
-        score -= 10;
-        reasonsAr.push(`رمل ناعم جداً (${fm}) قد يزيد من استهلاك الماء والإسمنت`);
-      } else if (fm > 3.0) {
-        score -= 5;
-        reasonsAr.push(`رمل خشن نسبياً (${fm}) قد يسبب انفصالاً حبيبياً ما لم يعوض برمل ناعم`);
+      if (fm !== undefined) {
+        if (fm >= 2.2 && fm <= 2.8) {
+          score += 10;
+          reasonsAr.push(`معامل نعومة مثالي (${fm}) يمنح قابلية تشغيل ممتازة ورصاً متجانساً`);
+        } else if (fm < 2.0) {
+          score -= 10;
+          reasonsAr.push(`رمل ناعم جداً (${fm}) قد يزيد من استهلاك الماء والإسمنت`);
+        } else if (fm > 3.0) {
+          score -= 5;
+          reasonsAr.push(`رمل خشن نسبياً (${fm}) قد يسبب انفصالاً حبيبياً ما لم يعوض برمل ناعم`);
+        }
       }
 
-      if (se < 65) {
-        incompatibleReasons.push(`المكافئ الرملي (${se}%) دون الحد الأدنى المسموح للمنشآت (65%)`);
-      } else if (se >= 75) {
-        score += 10;
-        reasonsAr.push(`مكافئ رملي ممتاز (${se}%) يؤكد نظافة الرمل من الطين`);
+      if (se !== undefined) {
+        if (se < 65) {
+          incompatibleReasons.push(`المكافئ الرملي (${se}%) دون الحد الأدنى المسموح للمنشآت (65%)`);
+        } else if (se >= 75) {
+          score += 10;
+          reasonsAr.push(`مكافئ رملي ممتاز (${se}%) يؤكد نظافة الرمل من الطين`);
+        }
       }
     }
 
     // Gravel specific checks
     if (targetRole === "GRAVEL") {
-      const dmax = getNum("PROP-DMAX") || 20;
-      if (context.dMax && Math.abs(dmax - context.dMax) > 5) {
-        score -= 10;
-        reasonsAr.push(`المقاس الأقصى Dmax (${dmax} mm) يختلف عن المستهدف (${context.dMax} mm)`);
-      } else {
-        score += 10;
-        reasonsAr.push(`المقاس الأقصى Dmax (${dmax} mm) متوافق تماماً مع قيود التسليح والأبعاد`);
+      const dmax = getNum("PROP-DMAX");
+      if (dmax !== undefined) {
+        if (context.dMax && Math.abs(dmax - context.dMax) > 5) {
+          score -= 10;
+          reasonsAr.push(`المقاس الأقصى Dmax (${dmax} mm) يختلف عن المستهدف (${context.dMax} mm)`);
+        } else {
+          score += 10;
+          reasonsAr.push(`المقاس الأقصى Dmax (${dmax} mm) متوافق تماماً مع قيود التسليح والأبعاد`);
+        }
       }
     }
 
@@ -194,17 +227,17 @@ export class EligibilityService {
       reasonsAr.push("بيانات معتمدة من نتائج اختبارات مخبرية فعلية");
     }
 
-    const isEligible = incompatibleReasons.length === 0;
+    const isEligible = canonicalGate.eligible && incompatibleReasons.length === 0;
 
     return {
       materialId: material.id,
       isEligible,
       status: isEligible ? "ELIGIBLE" : "INELIGIBLE",
       score: Math.min(100, Math.max(0, score)),
-      reasonsAr: isEligible ? reasonsAr : incompatibleReasons,
-      reasonsEn: isEligible ? reasonsEn : incompatibleReasons,
+      reasonsAr: isEligible ? reasonsAr : [...canonicalGate.reasons, ...incompatibleReasons],
+      reasonsEn: isEligible ? reasonsEn : [...canonicalGate.reasons, ...incompatibleReasons],
       missingRequiredProperties: [],
-      incompatibleReasons,
+      incompatibleReasons: [...canonicalGate.reasons, ...incompatibleReasons],
       validationReport: valReport
     };
   }

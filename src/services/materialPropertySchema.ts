@@ -3060,6 +3060,37 @@ export function getMaterialPropValue(m: any, propKey: string): any {
     }
   }
 
+  // Nested in extraProperties
+  if (resVal === undefined && m.extraProperties) {
+    if (m.extraProperties[propKey] !== undefined && m.extraProperties[propKey] !== null && m.extraProperties[propKey] !== "") {
+      resVal = m.extraProperties[propKey];
+    } else {
+      for (const alias of aliases) {
+        if (m.extraProperties[alias] !== undefined && m.extraProperties[alias] !== null && m.extraProperties[alias] !== "") {
+          resVal = m.extraProperties[alias];
+          break;
+        }
+      }
+    }
+  }
+
+  // Nested in properties dictionary (e.g. MaterialCoreRecord format)
+  if (resVal === undefined && m.properties) {
+    const p = m.properties[propKey];
+    if (p !== undefined && p !== null) {
+      resVal = typeof p === "object" && p.value !== undefined ? p.value : p;
+    }
+    if (resVal === undefined) {
+      for (const alias of aliases) {
+        const pa = m.properties[alias];
+        if (pa !== undefined && pa !== null) {
+          resVal = typeof pa === "object" && pa.value !== undefined ? pa.value : pa;
+          break;
+        }
+      }
+    }
+  }
+
   if (resVal !== undefined && (propKey === "density" || propKey === "bulkDensity")) {
     const num = typeof resVal === "number" ? resVal : parseFloat(String(resVal));
     if (!isNaN(num) && num > 0 && num < 10) {

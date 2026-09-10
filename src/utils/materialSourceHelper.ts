@@ -197,19 +197,43 @@ export function forkSystemMaterial(
     updatedDate: new Date().toISOString().split("T")[0],
     updatedAt: timestamp,
     version: 1,
-    status: "نشط",
-    ApprovalStatus: "Approved",
+    status: "قيد المراجعة",
+    Status: "Pending Review",
+    ApprovalStatus: "Pending Review",
+    approvalStatus: "Pending Review",
+    validationStatus: "VALID",
     readOnly: false,
+    engineerApproval: {
+      status: "pending",
+      engineerName: undefined,
+      approvalDate: undefined,
+      notes: `نسخة مستخدم مشتقة من مادة النظام (${systemMat.name}). تتطلب مراجعة واعتماد المهندس المشرف.`,
+      history: [
+        {
+          date: new Date().toISOString().split("T")[0],
+          action: "reset_to_pending",
+          engineerName: userEmail,
+          notes: `Forked from system reference (${systemMat.id}). Requires engineer review.`,
+          previousStatus: "system_reference",
+          newStatus: "pending"
+        }
+      ]
+    },
     lifecycleHistory: [
       {
         date: new Date().toISOString().split("T")[0],
         version: 1,
         author: userEmail,
-        changes: `إنشاء نسخة مستخدم مخصصة مشتقة من مادة النظام الأصلية (${systemMat.name} [${systemMat.id}])`,
-        approvalStatus: "Approved"
+        changes: `إنشاء نسخة مستخدم مخصصة مشتقة من مادة النظام الأصلية (${systemMat.name} [${systemMat.id}]) - تتطلب اعتماد المهندس`,
+        approvalStatus: "Pending Review"
       }
     ]
   };
+
+  // Strip pre-certified system markers
+  delete (userCopy as any).isDemo;
+  delete (userCopy as any).isCertified;
+  delete (userCopy as any).certificationStatus;
 
   return userCopy;
 }

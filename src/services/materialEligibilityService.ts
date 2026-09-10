@@ -20,6 +20,8 @@ import {
 } from "./materialPropertySchema";
 import { CONCRETE_TYPE_CONFIGS } from "../concreteTypes";
 import { isUserMaterial } from "../utils/materialSourceHelper";
+import { isMaterialApprovedByEngineer } from "./materialApprovalService";
+import { MaterialService } from "./MaterialService";
 
 export type MaterialLifecycleStatus =
   | "incomplete"
@@ -432,7 +434,7 @@ export function isMaterialEligible(
  * Used identically across Mix Preparation, Compatibility Engine, and UI selectors.
  */
 export function canMaterialEnterMixDesign(
-  material: EngineeringMaterial | null | undefined,
+  material: EngineeringMaterial | any | null | undefined,
   mixDesignMethod: string = "dreux",
   concreteType: string = "NSC",
   project?: any
@@ -445,7 +447,18 @@ export function canMaterialEnterMixDesign(
       status: "incomplete"
     };
   }
-  const evalResult = isMaterialEligible(material, mixDesignMethod, concreteType, project);
+
+  // Support transparent bridging from MaterialCoreRecord if passed
+  let targetMat: EngineeringMaterial = material;
+  if (material.properties && !material.name && (material.categoryUnified || material.category)) {
+    try {
+      targetMat = MaterialService.toEngineeringMaterial(material);
+    } catch {
+      targetMat = material;
+    }
+  }
+
+  const evalResult = isMaterialEligible(targetMat, mixDesignMethod, concreteType, project);
   return {
     eligible: evalResult.eligible,
     reasons: evalResult.reasonsAr,
@@ -585,11 +598,13 @@ export function validateMaterialSelection(
   // Gracefully handle both 5-argument and 6-argument calls:
   // 6 args: (materialId, materials, role, method, concreteType, project)
   // 5 args: (materialId, materials, method, concreteType, project)
+  let targetRole: string | undefined = undefined;
   let mixDesignMethod = "dreux";
   let concreteType = "NSC";
   let project: any = undefined;
 
   if (arg6 !== undefined) {
+    targetRole = typeof arg3 === "string" ? arg3 : undefined;
     mixDesignMethod = typeof arg4 === "string" ? arg4 : "dreux";
     concreteType = typeof arg5 === "string" ? arg5 : (arg5?.code || "NSC");
     project = arg6;
@@ -605,18 +620,39 @@ export function validateMaterialSelection(
     project = arg5;
   }
 
+  // 1. Role match check if targetRole provided
+  if (targetRole) {
+    const normTarget = normalizeMaterialRole(targetRole);
+    const normMat = normalizeMaterialRole(material.category || material.type);
+    if (normTarget !== normMat) {
+      return {
+        isValid: false,
+        material,
+        errorAr: `صنف المادة (${material.category || material.type}) لا يطابق المكون المطلوب (${targetRole}).`,
+        errorEn: `Material category (${material.category || material.type}) does not match required role (${targetRole}).`,
+        errorFr: `La catégorie (${material.category || material.type}) ne correspond pas au rôle requis (${targetRole}).`
+      };
+    }
+  }
+
+  // 2. Strict eligibility check using canonical gate
   const eligibility = isMaterialEligible(material, mixDesignMethod, concreteType, project);
 
-  // Return isValid: true so selection in Mix Preparation is never blocked by alert(),
-  // allowing the user to select the material and complete its missing properties
-  // directly from Mix Preparation via the Batch Material Properties Modal!
+  if (!eligibility.eligible) {
+    return {
+      isValid: false,
+      material,
+      eligibility,
+      errorAr: eligibility.reasonsAr.length > 0 ? eligibility.reasonsAr[0] : "المادة غير مؤهلة للاستخدام في تحضير الخلطة الخرسانية.",
+      errorEn: eligibility.reasonsEn.length > 0 ? eligibility.reasonsEn[0] : "Material is not eligible for use in concrete mix preparation.",
+      errorFr: eligibility.reasonsFr.length > 0 ? eligibility.reasonsFr[0] : "Le matériau n'est pas éligible pour la préparation du mélange."
+    };
+  }
+
   return {
     isValid: true,
     material,
-    eligibility,
-    errorAr: eligibility.reasonsAr.length > 0 ? eligibility.reasonsAr[0] : undefined,
-    errorEn: eligibility.reasonsEn.length > 0 ? eligibility.reasonsEn[0] : undefined,
-    errorFr: eligibility.reasonsFr.length > 0 ? eligibility.reasonsFr[0] : undefined
+    eligibility
   };
 }
 

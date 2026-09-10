@@ -1,6 +1,8 @@
 import { EngineeringMaterial } from "../../types";
 import { MaterialService } from "../MaterialService";
 import { CompletenessChecker, MaterialCompletenessAudit, PropertyInspectionItem } from "./CompletenessChecker";
+import { isSystemMaterial } from "../../utils/materialSourceHelper";
+import { handleMaterialMutationWithGovernance } from "../materialEligibilityService";
 
 export interface BulkPropertyEntry {
   materialId: string;
@@ -53,7 +55,8 @@ export class BulkCompletionService {
       }
 
       const existing = updatedMaterials[matIdx];
-      const updatedCopy: EngineeringMaterial = {
+      const previousMaterial: EngineeringMaterial = JSON.parse(JSON.stringify(existing));
+      let updatedCopy: EngineeringMaterial = {
         ...existing,
         lastModified: todayIso,
         engineeringData: { ...(existing.engineeringData || {}) },
@@ -177,25 +180,42 @@ export class BulkCompletionService {
       // Re-inspect material to determine new status
       const postAudit = CompletenessChecker.inspectMaterial(updatedCopy);
       const isReady = postAudit.overallStatus === "READY";
-      const isSys = updatedCopy.materialSource === "system" || updatedCopy.isSystem === true;
-
-      updatedCopy.status = isReady ? "نشط" : "قيد المراجعة";
-      updatedCopy.validationStatus = isReady ? "VALID" : "PENDING";
+      const isSys = isSystemMaterial(updatedCopy);
 
       // Engineering Governance: READY IS NOT APPROVED (Requirement 6).
       // System materials are pre-certified standards.
       // User materials becoming complete transition to "Pending Review", requiring explicit engineer review.
+      updatedCopy.status = isReady ? "نشط" : "قيد المراجعة";
+      updatedCopy.validationStatus = isReady ? "VALID" : "PENDING";
+
       if (isSys) {
         updatedCopy.Status = "Approved";
         updatedCopy.ApprovalStatus = "Approved";
       } else {
-        const wasApproved = updatedCopy.ApprovalStatus === "Approved" || updatedCopy.engineerApproval?.status === "approved";
-        if (wasApproved) {
-          updatedCopy.Status = "Approved";
-          updatedCopy.ApprovalStatus = "Approved";
+        // User material: apply governance check on critical property mutations
+        const govResult = handleMaterialMutationWithGovernance(previousMaterial, updatedCopy, userEmail || "المهندس");
+        if (govResult.approvalInvalidated) {
+          updatedCopy = govResult.material;
+          updatedCopy.Status = "Pending Review";
+          updatedCopy.ApprovalStatus = "Pending Review";
+          updatedCopy.status = isReady ? "نشط" : "قيد المراجعة";
+          updatedCopy.validationStatus = isReady ? "VALID" : "PENDING";
         } else {
-          updatedCopy.Status = isReady ? "Pending Review" : "Draft";
-          updatedCopy.ApprovalStatus = isReady ? "Pending Review" : "Incomplete";
+          const wasApproved = 
+            previousMaterial.ApprovalStatus === "Approved" || 
+            (previousMaterial as any).approvalStatus === "Approved" || 
+            (previousMaterial as any).Status === "Approved" || 
+            (previousMaterial as any).engineerApproval?.status === "approved";
+
+          if (wasApproved) {
+            updatedCopy.Status = "Approved";
+            updatedCopy.ApprovalStatus = "Approved";
+          } else {
+            // User material that was NOT approved:
+            // Becoming complete (READY) transitions to Pending Review, NEVER Approved!
+            updatedCopy.Status = isReady ? "Pending Review" : "Draft";
+            updatedCopy.ApprovalStatus = isReady ? "Pending Review" : "Incomplete";
+          }
         }
       }
 

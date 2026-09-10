@@ -6,6 +6,7 @@
 
 import { EngineeringMaterial } from "../types";
 import { normalizeProjectId } from "./materialRecommendationEngine";
+import { isSystemMaterial } from "../utils/materialSourceHelper";
 
 export interface EngineerSignOffRecord {
   approvalId: string;
@@ -154,11 +155,48 @@ export function logGovernanceAudit(entry: {
 
 /**
  * Checks if a material is approved by an engineer or system-certified.
+ * Rule: READY IS NOT APPROVED.
+ * Quality classification ("excellent", "standard") cannot confer engineer approval.
+ * System materials are certified reference standards only when verified by isSystemMaterial.
+ * User materials require explicit engineer approval.
  */
 export function isMaterialApprovedByEngineer(material: EngineeringMaterial): boolean {
-  if (material.isSystem || material.isDemo || material.sourceType === "system_demo") {
-    return true; // System presets are pre-calibrated & approved
+  if (!material) return false;
+
+  // System reference materials are pre-certified standards
+  if (isSystemMaterial(material)) {
+    return true;
   }
-  const status = (material.approvalStatus || "").toLowerCase();
-  return status === "approved" || status === "validated" || material.quality === "excellent" || material.quality === "standard";
+
+  // Explicit unapproved markers always override
+  const rawStatus = String(
+    material.ApprovalStatus || 
+    (material as any).approvalStatus || 
+    material.Status || 
+    (material as any).status || 
+    ""
+  ).trim().toLowerCase();
+
+  if (
+    rawStatus === "pending review" || 
+    rawStatus === "pending approval" || 
+    rawStatus === "incomplete" || 
+    rawStatus === "draft" || 
+    rawStatus === "rejected" || 
+    rawStatus === "archived" ||
+    rawStatus === "\u0642\u064a\u062f \u0627\u0644\u0645\u0631\u0627\u062c\u0639\u0629" ||
+    rawStatus === "\u0645\u0633\u0648\u062f\u0629" ||
+    rawStatus === "\u0645\u0631\u0641\u0648\u0636" ||
+    rawStatus === "\u0645\u0648\u0642\u0648\u0641"
+  ) {
+    return false;
+  }
+
+  // Check canonical engineerApproval record
+  if ((material as any).engineerApproval?.status === "approved") {
+    return true;
+  }
+
+  // Check canonical ApprovalStatus
+  return rawStatus === "approved" || rawStatus === "certified" || rawStatus === "\u0645\u0639\u062a\u0645\u062f";
 }
