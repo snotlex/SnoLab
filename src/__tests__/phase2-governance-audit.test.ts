@@ -10,11 +10,14 @@ import {
 import {
   canMaterialEnterMixDesign,
   isMaterialEligible,
-  getAvailableMaterialsForRole
+  getAvailableMaterialsForRole,
+  handleMaterialMutationWithGovernance
 } from "../services/materialEligibilityService";
 import { ImportManager } from "../services/import/ImportManager";
 import { BulkCompletionService } from "../services/import/BulkCompletionService";
-import { EngineeringMaterial } from "../types";
+import { RecommendationService } from "../services/RecommendationService";
+import { MaterialService } from "../services/MaterialService";
+import { EngineeringMaterial, MixDesignInput, AggregateType, AggregateQuality } from "../types";
 
 const createMockMat = (m: any): EngineeringMaterial => ({
   englishName: m.name || "Test Material",
@@ -423,6 +426,415 @@ describe("SnoLab Phase 2: Engineering Governance, Approval & Dreux Eligibility",
       expect(ids).not.toContain("usr-sand-pending");
       expect(ids).not.toContain("usr-sand-incomplete");
       expect(selectable.length).toBe(2);
+    });
+  });
+
+  // 6. P0-1: Critical Property Mutation Invalidation
+  describe("6. P0-1: Critical Property Mutation Invalidation", () => {
+    const approvedUserSand: EngineeringMaterial = createMockMat({
+      id: "usr-sand-app-1",
+      name: "رمل سيليسي معتمد",
+      category: "رمال",
+      materialSource: "user",
+      isSystem: false,
+      density: 2650,
+      finenessModulus: 2.6,
+      absorption: 1.2,
+      moisture: 2.0,
+      ApprovalStatus: "Approved",
+      status: "نشط",
+      version: 1
+    });
+
+    it("should invalidate approval when density is mutated", () => {
+      const mutated = { ...approvedUserSand, density: 2700 };
+      const govResult = handleMaterialMutationWithGovernance(approvedUserSand, mutated, "engineer@snolab.dz");
+
+      expect(govResult.approvalInvalidated).toBe(true);
+      expect(govResult.material.ApprovalStatus).toBe("Pending Review");
+      expect(govResult.material.version).toBe(2);
+      expect(govResult.invalidatedProperties).toContain("density");
+    });
+
+    it("should invalidate approval when finenessModulus is mutated", () => {
+      const mutated = { ...approvedUserSand, finenessModulus: 2.8 };
+      const govResult = handleMaterialMutationWithGovernance(approvedUserSand, mutated, "engineer@snolab.dz");
+
+      expect(govResult.approvalInvalidated).toBe(true);
+      expect(govResult.material.ApprovalStatus).toBe("Pending Review");
+      expect(govResult.invalidatedProperties).toContain("finenessModulus");
+    });
+
+    it("should invalidate approval when dMax is mutated on gravel", () => {
+      const approvedGravel: EngineeringMaterial = createMockMat({
+        id: "usr-gravel-app-1",
+        name: "حصى معتمد",
+        category: "حصى",
+        materialSource: "user",
+        isSystem: false,
+        density: 2680,
+        dMax: 20,
+        absorption: 0.8,
+        ApprovalStatus: "Approved",
+        status: "نشط"
+      });
+
+      const mutated = { ...approvedGravel, dMax: 25 };
+      const govResult = handleMaterialMutationWithGovernance(approvedGravel, mutated, "engineer@snolab.dz");
+
+      expect(govResult.approvalInvalidated).toBe(true);
+      expect(govResult.material.ApprovalStatus).toBe("Pending Review");
+      expect(govResult.invalidatedProperties).toContain("dMax");
+    });
+
+    it("should invalidate approval when 28-day strength is mutated on cement", () => {
+      const approvedCement: EngineeringMaterial = createMockMat({
+        id: "usr-cem-app-1",
+        name: "إسمنت معتمد",
+        category: "إسمنت",
+        materialSource: "user",
+        isSystem: false,
+        density: 3100,
+        strength28d: 42.5,
+        ApprovalStatus: "Approved",
+        status: "نشط"
+      });
+
+      const mutated = { ...approvedCement, strength28d: 52.5 };
+      const govResult = handleMaterialMutationWithGovernance(approvedCement, mutated, "engineer@snolab.dz");
+
+      expect(govResult.approvalInvalidated).toBe(true);
+      expect(govResult.material.ApprovalStatus).toBe("Pending Review");
+      expect(govResult.invalidatedProperties).toContain("strength28d");
+    });
+
+    it("should NOT invalidate approval when non-critical property is mutated", () => {
+      const mutated = { ...approvedUserSand, price: 1500, notes: "ملاحظات تجارية محدثة" };
+      const govResult = handleMaterialMutationWithGovernance(approvedUserSand, mutated, "engineer@snolab.dz");
+
+      expect(govResult.approvalInvalidated).toBe(false);
+      expect(govResult.material.ApprovalStatus).toBe("Approved");
+    });
+  });
+
+  // 7. P0-2: Strict Mix Preparation Gate
+  describe("7. P0-2: Authoritative Mix Preparation Gate (canMaterialEnterMixDesign)", () => {
+    it("should block Draft, Incomplete, Pending Review, Rejected, Suspended, Archived materials", () => {
+      const baseProps = {
+        name: "مادة فحص الحظر",
+        category: "رمال",
+        materialSource: "user",
+        isSystem: false,
+        density: 2650,
+        bulkDensity: 1540,
+        finenessModulus: 2.6,
+        absorption: 1.2,
+        moisture: 2.0
+      };
+
+      const statesToBlock = [
+        { ApprovalStatus: "Draft", status: "نشط" },
+        { ApprovalStatus: "Incomplete", status: "قيد المراجعة" },
+        { ApprovalStatus: "Pending Review", status: "نشط" },
+        { ApprovalStatus: "Pending Approval", status: "نشط" },
+        { ApprovalStatus: "Rejected", status: "نشط" },
+        { ApprovalStatus: "Approved", status: "archived" },
+        { ApprovalStatus: "Approved", status: "موقوف" }
+      ];
+
+      for (const st of statesToBlock) {
+        const mat = createMockMat({ ...baseProps, id: `test-block-${st.ApprovalStatus}-${st.status}`, ...st });
+        const gate = canMaterialEnterMixDesign(mat, "dreux", "NSC");
+        expect(gate.eligible).toBe(false);
+      }
+    });
+
+    it("should allow valid System materials to enter without user approval", () => {
+      const validSysSand = createMockMat({
+        id: "sys-sand-gate",
+        name: "رمل نظام قياسي",
+        category: "رمال",
+        materialSource: "system",
+        isSystem: true,
+        density: 2650,
+        bulkDensity: 1540,
+        finenessModulus: 2.6,
+        absorption: 1.2,
+        moisture: 2.0,
+        ApprovalStatus: "Approved",
+        status: "نشط"
+      });
+
+      const gate = canMaterialEnterMixDesign(validSysSand, "dreux", "NSC");
+      expect(gate.eligible).toBe(true);
+    });
+
+    it("should allow complete and explicitly Approved User materials to enter", () => {
+      const approvedUserMat = createMockMat({
+        id: "usr-sand-gate-app",
+        name: "رمل مستخدم معتمد بالكامل",
+        category: "رمال",
+        materialSource: "user",
+        isSystem: false,
+        density: 2650,
+        bulkDensity: 1540,
+        finenessModulus: 2.6,
+        absorption: 1.2,
+        moisture: 2.0,
+        ApprovalStatus: "Approved",
+        status: "نشط"
+      });
+
+      const gate = canMaterialEnterMixDesign(approvedUserMat, "dreux", "NSC");
+      expect(gate.eligible).toBe(true);
+    });
+  });
+
+  // 8. P1-1: Strict Recommendation Application (No Fallbacks)
+  describe("8. P1-1: Recommendation Application Strict Property Retrieval", () => {
+    const mockInputs: MixDesignInput = {
+      fck28: 30,
+      controlClass: "normal",
+      cementType: "CPJ 42.5",
+      cementClassStrength: 42.5,
+      dMax: 20,
+      slump: 8,
+      aggregateType: AggregateType.CONCASSE,
+      aggregateQuality: AggregateQuality.STANDARD,
+      hasPumping: false,
+      sandRelativeDensity: 2.6,
+      gravelRelativeDensity: 2.65,
+      cementDensity: 3100,
+      airContent: 2,
+      moistureSand: 0,
+      moistureGravel: 0,
+      sandAbsorption: 1.5,
+      gravelAbsorption: 1.0,
+      finenessModulus: 2.6,
+      admixtures: [],
+      dosageSuper: 0,
+      dosageAir: 0,
+      dosageRetarder: 0,
+      dosageAccelerator: 0,
+      dosageSilicaFume: 0,
+      dosageFlyAsh: 0,
+      dosageSlag: 0,
+      selectedMethod: "dreux",
+      exposureClass: "XC1",
+      durabilityLevel: "normal",
+      carbonationLevel: "normal",
+      chloridesLevel: "normal",
+      sulfatesLevel: "normal",
+      priceCement: 12,
+      priceSand: 1.5,
+      priceGravel: 1.8,
+      priceSuper: 45,
+      priceAir: 20,
+      priceRetarder: 25,
+      priceAccelerator: 30,
+      priceSilicaFume: 40,
+      priceFlyAsh: 15,
+      priceSlag: 18,
+      priceLabor: 500,
+      priceWater: 0.2,
+      sandType: "silica",
+      gravelType: "crushed",
+      autoDensities: false
+    };
+
+    it("Eligible material with density = 2650: relative density 2.65 comes from material data", () => {
+      const sandWith2650 = MaterialService.fromEngineeringMaterial(createMockMat({
+        id: "mat-sand-2650",
+        name: "رمل بكثافة 2650",
+        category: "رمال",
+        density: 2650,
+        absorption: 1.3,
+        finenessModulus: 2.7
+      }));
+
+      const res = RecommendationService.applyRecommendationToMixInputs(sandWith2650, mockInputs);
+      expect(res.success).toBe(true);
+      expect(res.updatedInputs.sandRelativeDensity).toBe(2.65);
+      expect(res.updatedInputs.sandAbsorption).toBe(1.3);
+      expect(res.updatedInputs.finenessModulus).toBe(2.7);
+    });
+
+    it("Material missing density: no fallback value, recommendation rejected, project input unchanged", () => {
+      const sandNoDensity = MaterialService.fromEngineeringMaterial(createMockMat({
+        id: "mat-sand-no-dens",
+        name: "رمل بدون كثافة",
+        category: "رمال",
+        density: undefined,
+        specificGravity: undefined,
+        absorption: 1.2,
+        finenessModulus: 2.5
+      }));
+
+      const res = RecommendationService.applyRecommendationToMixInputs(sandNoDensity, mockInputs);
+      expect(res.success).toBe(false);
+      expect(res.missingProperties).toContain("density / specificGravity");
+      // Existing mix inputs must remain completely unchanged
+      expect(res.updatedInputs.sandRelativeDensity).toBe(mockInputs.sandRelativeDensity);
+    });
+
+    it("Material missing FM: no 2.6 fallback, application rejected, input preserved", () => {
+      const sandNoFm = MaterialService.fromEngineeringMaterial(createMockMat({
+        id: "mat-sand-no-fm",
+        name: "رمل بدون معامل نعومة",
+        category: "رمال",
+        density: 2640,
+        absorption: 1.2,
+        finenessModulus: undefined
+      }));
+
+      const res = RecommendationService.applyRecommendationToMixInputs(sandNoFm, mockInputs);
+      expect(res.success).toBe(false);
+      expect(res.missingProperties).toContain("finenessModulus");
+      expect(res.updatedInputs.finenessModulus).toBe(mockInputs.finenessModulus);
+    });
+
+    it("Material missing Dmax: no 20 mm fallback, application rejected, input preserved", () => {
+      const gravelNoDmax = MaterialService.fromEngineeringMaterial(createMockMat({
+        id: "mat-gravel-no-dmax",
+        name: "حصى بدون مقاس أقصى",
+        category: "حصى",
+        density: 2680,
+        absorption: 0.9,
+        dMax: undefined
+      }));
+
+      const res = RecommendationService.applyRecommendationToMixInputs(gravelNoDmax, mockInputs);
+      expect(res.success).toBe(false);
+      expect(res.missingProperties).toContain("dMax");
+      expect(res.updatedInputs.dMax).toBe(mockInputs.dMax);
+    });
+  });
+
+  // 9. P1-2: Import Ownership and Governance
+  describe("9. P1-2: Import Pipeline Ownership and Governance", () => {
+    it("JSON import: User ownership, isSystem = false, not automatically Approved", async () => {
+      const completeJson = JSON.stringify([
+        {
+          name: "رمل مستورد كامل JSON",
+          category: "رمال",
+          density: 2650,
+          finenessModulus: 2.6,
+          absorption: 1.2,
+          isSystem: true, // Should be ignored/overridden!
+          ApprovalStatus: "Approved" // Should be ignored/overridden!
+        }
+      ]);
+
+      const file = {
+        name: "test-complete.json",
+        arrayBuffer: async () => new TextEncoder().encode(completeJson).buffer
+      };
+
+      const report = await ImportManager.analyzeFile(file, []);
+      const result = ImportManager.executeImport({
+        drafts: report.drafts,
+        duplicates: [],
+        existingMaterials: [],
+        userEmail: "engineer@snolab.dz"
+      });
+
+      expect(result.importedCount).toBe(1);
+      const imported = result.updatedMaterialsList[0];
+      expect(imported.materialSource).toBe("user");
+      expect(imported.isSystem).toBe(false);
+      // Must NOT be Approved: remains Pending Review for engineer sign-off
+      expect(imported.ApprovalStatus).toBe("Pending Review");
+    });
+
+    it("Incomplete imported material: ApprovalStatus must NOT be Approved", async () => {
+      const incompleteJson = JSON.stringify([
+        {
+          name: "رمل ناقص JSON",
+          category: "رمال",
+          density: 2650
+        }
+      ]);
+
+      const file = {
+        name: "test-incomplete.json",
+        arrayBuffer: async () => new TextEncoder().encode(incompleteJson).buffer
+      };
+
+      const report = await ImportManager.analyzeFile(file, []);
+      const result = ImportManager.executeImport({
+        drafts: report.drafts,
+        duplicates: [],
+        existingMaterials: [],
+        userEmail: "engineer@snolab.dz"
+      });
+
+      const imported = result.updatedMaterialsList[0];
+      expect(imported.ApprovalStatus).toBe("Incomplete");
+      expect(imported.ApprovalStatus).not.toBe("Approved");
+    });
+  });
+
+  // 10. P1-3: System Material Immutability
+  describe("10. P1-3: System Material Immutability & Fork Governance", () => {
+    const originalSystemGravel: EngineeringMaterial = createMockMat({
+      id: "sys-gravel-ref-1",
+      name: "حصى نظام قياسي معتمد",
+      category: "حصى",
+      materialSource: "system",
+      isSystem: true,
+      density: 2680,
+      dMax: 20,
+      absorption: 0.8,
+      ApprovalStatus: "Approved",
+      status: "نشط"
+    });
+
+    it("Test A: Attempt to edit System material through BulkCompletionService - remains unchanged", () => {
+      const systemCopy = JSON.parse(JSON.stringify(originalSystemGravel));
+
+      const res = BulkCompletionService.applyBulkCompletion(
+        [systemCopy],
+        [
+          {
+            materialId: "sys-gravel-ref-1",
+            propertyKey: "dMax",
+            value: 25
+          }
+        ],
+        "user@snolab.dz"
+      );
+
+      // System material must be rejected from mutation
+      expect(res.errors.length).toBeGreaterThan(0);
+      expect(res.errors.some(e => e.propertyKey === "system_immutability")).toBe(true);
+      expect(systemCopy.dMax).toBe(20); // Unchanged!
+    });
+
+    it("Test B: Fork System material -> isSystem = false, materialSource = user, originalSystemMaterialId exists, ApprovalStatus = Pending Review", () => {
+      const forked = forkSystemMaterial(originalSystemGravel, "حصى مقلع مشتق", "engineer@snolab.dz");
+
+      expect(forked.isSystem).toBe(false);
+      expect(forked.materialSource).toBe("user");
+      expect(forked.originalSystemMaterialId).toBe(originalSystemGravel.id);
+      expect(forked.ApprovalStatus).toBe("Pending Review");
+      expect(forked.engineerApproval?.status).toBe("pending");
+    });
+
+    it("Test C: Modify fork's critical property -> approval remains/resets to Pending Review", () => {
+      const forked = forkSystemMaterial(originalSystemGravel, "حصى مقلع مشتق", "engineer@snolab.dz");
+      // Suppose an engineer approved it initially:
+      const approvedFork = {
+        ...forked,
+        ApprovalStatus: "Approved" as const,
+        Status: "Approved" as const
+      };
+
+      // Modifying critical property dMax:
+      const mutatedFork = { ...approvedFork, dMax: 25 };
+      const govResult = handleMaterialMutationWithGovernance(approvedFork, mutatedFork, "engineer@snolab.dz");
+
+      expect(govResult.approvalInvalidated).toBe(true);
+      expect(govResult.material.ApprovalStatus).toBe("Pending Review");
     });
   });
 });

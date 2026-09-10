@@ -15,6 +15,8 @@ import { UnitNormalizer } from "./UnitNormalizer";
 import { Validator } from "./Validator";
 import { EngineeringMaterial } from "../../types";
 import { MaterialService } from "../MaterialService";
+import { isSystemMaterial } from "../../utils/materialSourceHelper";
+import { handleMaterialMutationWithGovernance } from "../materialEligibilityService";
 
 export class ImportManager {
   /**
@@ -278,7 +280,7 @@ export class ImportManager {
           const existingIdx = currentMaterials.findIndex(m => m.id === dupMatch.existingId);
           if (existingIdx !== -1) {
             const existingMat = currentMaterials[existingIdx];
-            const isSystem = existingMat.isSystem || existingMat.materialSource === "system" || existingMat.sourceType === "system_demo";
+            const isSystem = isSystemMaterial(existingMat);
 
             if (isSystem) {
               // System materials cannot be mutated. Fork into a customized User Material!
@@ -286,8 +288,9 @@ export class ImportManager {
               finalName = unique.uniqueName;
               finalId = unique.uniqueId;
             } else {
-              // Update user material
-              const updated: EngineeringMaterial = {
+              // Update user material with governance audit
+              const previousMat: EngineeringMaterial = JSON.parse(JSON.stringify(existingMat));
+              let updated: EngineeringMaterial = {
                 ...existingMat,
                 ...propMap,
                 name: finalName,
@@ -316,10 +319,13 @@ export class ImportManager {
                     version: (existingMat.version || 1) + 1,
                     changes: `تم تحديث المادة عبر معالج الاستيراد المتقدم (${draft.sourceTracking.fileType.toUpperCase()})`,
                     author: userEmail || "مستخدم",
-                    approvalStatus: existingMat.ApprovalStatus || "Approved"
+                    approvalStatus: existingMat.ApprovalStatus || "Pending Review"
                   }
                 ]
               };
+
+              const gov = handleMaterialMutationWithGovernance(previousMat, updated, userEmail || "مستورد");
+              updated = gov.material;
 
               currentMaterials[existingIdx] = updated;
               MaterialService.saveMyMaterial(MaterialService.fromEngineeringMaterial(updated));
@@ -434,7 +440,9 @@ export class ImportManager {
         price: propMap.price || 0,
         rating: 5,
         status: finalStatus,
+        Status: (finalApprovalStatus === "Incomplete" ? "Draft" : finalApprovalStatus) as any,
         ApprovalStatus: finalApprovalStatus,
+        approvalStatus: finalApprovalStatus,
         materialSource: "user",
         isSystem: false,
         isCustom: true,
@@ -446,6 +454,13 @@ export class ImportManager {
         lastModified: new Date().toISOString().split("T")[0],
         propertyMetadata,
         propertySources,
+        engineerApproval: {
+          status: "pending",
+          engineerName: undefined,
+          approvalDate: undefined,
+          notes: "مادة مستوردة - تتطلب مراجعة واعتماد المهندس المشرف",
+          history: []
+        },
         notes: draft.extraProperties.notes || `تم استيراد المادة من ملف ${draft.sourceTracking.fileName}`,
         extraProperties: draft.extraProperties,
         lifecycleHistory: [

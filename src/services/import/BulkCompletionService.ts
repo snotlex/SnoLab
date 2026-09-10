@@ -55,6 +55,19 @@ export class BulkCompletionService {
       }
 
       const existing = updatedMaterials[matIdx];
+
+      // System Material Immutability (P1-3)
+      // System reference materials are immutable and cannot be altered by batch completion.
+      if (isSystemMaterial(existing)) {
+        errors.push({
+          materialId: matId,
+          materialName: existing.name,
+          propertyKey: "system_immutability",
+          message: "مواد النظام القياسية المعتمدة غير قابلة للتعديل. يرجى اشتقاق (Fork) نسخة مخصصة للمشروع لتعديل الخصائص."
+        });
+        continue;
+      }
+
       const previousMaterial: EngineeringMaterial = JSON.parse(JSON.stringify(existing));
       let updatedCopy: EngineeringMaterial = {
         ...existing,

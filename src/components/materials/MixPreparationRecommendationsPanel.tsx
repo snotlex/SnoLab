@@ -81,39 +81,23 @@ export const MixPreparationRecommendationsPanel: React.FC<MixPreparationRecommen
 
   const currentReport = recommendationReports[activeCategory];
 
-  // Action: Accept Recommendation
+  // Action: Accept Recommendation (Strict Governance: No engineering fallbacks)
   const handleAcceptRecommendation = (material: MaterialCoreRecord) => {
     RecommendationService.recordDecision(material.id, "ACCEPTED", mixContext);
 
-    // Apply material to mix input based on category
-    if (material.category === "CEMENT") {
-      const sg = MaterialService.getMaterialPropertyValue(material, "PROP-SPECIFIC-GRAVITY") || 3100;
-      setInputs((prev: any) => ({
-        ...prev,
-        cementDensity: sg,
-        cementClass: MaterialService.getMaterialPropertyValue(material, "PROP-CEM-CLASS") || prev.cementClass
-      }));
-    } else if (material.category === "SAND") {
-      const sg = MaterialService.getMaterialPropertyValue(material, "PROP-SPECIFIC-GRAVITY") || 2650;
-      const abs = MaterialService.getMaterialPropertyValue(material, "PROP-ABSORPTION") ?? 1.5;
-      const fm = MaterialService.getMaterialPropertyValue(material, "PROP-FM") ?? 2.6;
-      setInputs((prev: any) => ({
-        ...prev,
-        sandRelativeDensity: sg > 10 ? sg / 1000 : sg,
-        sandAbsorption: abs,
-        sandFinenessModulus: fm
-      }));
-    } else if (material.category === "GRAVEL") {
-      const sg = MaterialService.getMaterialPropertyValue(material, "PROP-SPECIFIC-GRAVITY") || 2650;
-      const abs = MaterialService.getMaterialPropertyValue(material, "PROP-ABSORPTION") ?? 1.0;
-      const dmax = MaterialService.getMaterialPropertyValue(material, "PROP-DMAX") ?? 20;
-      setInputs((prev: any) => ({
-        ...prev,
-        gravelRelativeDensity: sg > 10 ? sg / 1000 : sg,
-        gravelAbsorption: abs,
-        gravelDmax: dmax
-      }));
+    const applyResult = RecommendationService.applyRecommendationToMixInputs(material, inputs, mixContext);
+
+    if (!applyResult.success) {
+      setDecisionFeedback(
+        isAr 
+          ? (applyResult.errorMessageAr || `فشل تطبيق التوصية: تنقص المادة (${material.name}) خصائص هندسية أساسية.`)
+          : (applyResult.errorMessageEn || `Failed to apply recommendation: Material (${material.name}) missing required properties.`)
+      );
+      setTimeout(() => setDecisionFeedback(null), 5000);
+      return;
     }
+
+    setInputs(applyResult.updatedInputs);
 
     setDecisionFeedback(
       isAr 

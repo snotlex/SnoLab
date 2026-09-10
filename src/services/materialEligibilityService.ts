@@ -336,14 +336,7 @@ export function isMaterialEligible(
   // Rule: READY IS NOT APPROVED (Requirement 6)
   // System materials are pre-certified standard references.
   // User materials require explicit engineer approval. Completeness does NOT automatically confer approval.
-  const isApprovedByEngineer = isSystem ? true : (
-    rawApproval === "Approved" || 
-    rawApproval === "Certified" || 
-    rawApproval === "\u0645\u0639\u062a\u0645\u062f" ||
-    rawApproval.toLowerCase() === "approved" ||
-    rawApproval.toLowerCase() === "certified" ||
-    (material as any).engineerApproval?.status === "approved"
-  ) && !isDraft && rawApproval !== "Incomplete" && rawApproval !== "Pending Review" && rawApproval !== "Pending Approval" && rawApproval !== "Draft" && rawApproval !== "\u0642\u064a\u062f \u0627\u0644\u0645\u0631\u0627\u062c\u0639\u0629";
+  const isApprovedByEngineer = isSystem ? true : isMaterialApprovedByEngineer(material);
 
   const isPendingApproval = !isApprovedByEngineer && (isDraft || rawApproval === "Pending Review" || rawApproval === "Pending Approval" || rawApproval === "قيد المراجعة" || rawApproval === "Incomplete");
 

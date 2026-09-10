@@ -3,6 +3,8 @@ import {
   MaterialCategoryUnified 
 } from "../types/materialCoreTypes";
 import { EligibilityService, MixDesignContext, EligibilityResult } from "./EligibilityService";
+import { MixDesignInput } from "../types";
+import { MaterialService } from "./MaterialService";
 
 export interface MaterialCandidateRecommendation {
   material: MaterialCoreRecord;
@@ -113,5 +115,146 @@ export class RecommendationService {
     context: MixDesignContext;
   }> {
     return [...RecommendationService.userDecisionLog];
+  }
+
+  /**
+   * Strictly applies an approved and eligible material to mix design inputs.
+   * Disallows silent engineering fallbacks (such as 3100, 2650, 2.6, 20).
+   * If a required property is missing, the application is rejected and existing mix inputs are preserved.
+   */
+  public static applyRecommendationToMixInputs(
+    material: MaterialCoreRecord,
+    currentInputs: MixDesignInput,
+    _context?: MixDesignContext
+  ): {
+    success: boolean;
+    updatedInputs: MixDesignInput;
+    missingProperties: string[];
+    errorMessageAr?: string;
+    errorMessageEn?: string;
+  } {
+    if (!material) {
+      return {
+        success: false,
+        updatedInputs: currentInputs,
+        missingProperties: ["material"],
+        errorMessageAr: "المادة غير محددة.",
+        errorMessageEn: "Material is not specified."
+      };
+    }
+
+    const category = material.category;
+
+    if (category === "CEMENT") {
+      const rawSg = MaterialService.getMaterialPropertyValue(material, "PROP-SPECIFIC-GRAVITY") ?? MaterialService.getMaterialPropertyValue(material, "PROP-DENSITY");
+      const numSg = typeof rawSg === "number" ? rawSg : (rawSg ? parseFloat(String(rawSg)) : NaN);
+      
+      if (isNaN(numSg) || numSg <= 0) {
+        return {
+          success: false,
+          updatedInputs: currentInputs,
+          missingProperties: ["specificGravity / density"],
+          errorMessageAr: `فشل تطبيق التوصية: خاصية الكثافة/الوزن النوعي غير متوفرة في مادة الإسمنت (${material.name}).`,
+          errorMessageEn: `Failed to apply recommendation: Density / Specific Gravity missing in cement (${material.name}).`
+        };
+      }
+
+      // Convert to standard relative density if in kg/m³
+      const cementDensity = numSg > 10 ? numSg : numSg * 1000;
+      const cementClass = MaterialService.getMaterialPropertyValue(material, "PROP-CEM-CLASS");
+
+      return {
+        success: true,
+        updatedInputs: {
+          ...currentInputs,
+          cementDensity,
+          cementType: (cementClass ? String(cementClass) : currentInputs.cementType) || "CEM I 42.5"
+        },
+        missingProperties: []
+      };
+    }
+
+    if (category === "SAND") {
+      const rawSg = MaterialService.getMaterialPropertyValue(material, "PROP-SPECIFIC-GRAVITY") ?? MaterialService.getMaterialPropertyValue(material, "PROP-DENSITY");
+      const rawAbs = MaterialService.getMaterialPropertyValue(material, "PROP-ABSORPTION");
+      const rawFm = MaterialService.getMaterialPropertyValue(material, "PROP-FM");
+
+      const missing: string[] = [];
+      const numSg = typeof rawSg === "number" ? rawSg : (rawSg ? parseFloat(String(rawSg)) : NaN);
+      const numAbs = typeof rawAbs === "number" ? rawAbs : (rawAbs !== undefined && rawAbs !== null && rawAbs !== "" ? parseFloat(String(rawAbs)) : NaN);
+      const numFm = typeof rawFm === "number" ? rawFm : (rawFm !== undefined && rawFm !== null && rawFm !== "" ? parseFloat(String(rawFm)) : NaN);
+
+      if (isNaN(numSg) || numSg <= 0) missing.push("density / specificGravity");
+      if (isNaN(numAbs) || numAbs < 0) missing.push("absorption");
+      if (isNaN(numFm) || numFm <= 0) missing.push("finenessModulus");
+
+      if (missing.length > 0) {
+        return {
+          success: false,
+          updatedInputs: currentInputs,
+          missingProperties: missing,
+          errorMessageAr: `فشل تطبيق التوصية: تنقص رمل (${material.name}) خصائص أساسية بدون قيم بديلة: ${missing.join(", ")}.`,
+          errorMessageEn: `Failed to apply recommendation: Sand (${material.name}) missing required properties: ${missing.join(", ")}.`
+        };
+      }
+
+      const sandRelativeDensity = numSg > 10 ? numSg / 1000 : numSg;
+
+      return {
+        success: true,
+        updatedInputs: {
+          ...currentInputs,
+          sandRelativeDensity,
+          sandAbsorption: numAbs,
+          finenessModulus: numFm
+        },
+        missingProperties: []
+      };
+    }
+
+    if (category === "GRAVEL") {
+      const rawSg = MaterialService.getMaterialPropertyValue(material, "PROP-SPECIFIC-GRAVITY") ?? MaterialService.getMaterialPropertyValue(material, "PROP-DENSITY");
+      const rawAbs = MaterialService.getMaterialPropertyValue(material, "PROP-ABSORPTION");
+      const rawDmax = MaterialService.getMaterialPropertyValue(material, "PROP-DMAX");
+
+      const missing: string[] = [];
+      const numSg = typeof rawSg === "number" ? rawSg : (rawSg ? parseFloat(String(rawSg)) : NaN);
+      const numAbs = typeof rawAbs === "number" ? rawAbs : (rawAbs !== undefined && rawAbs !== null && rawAbs !== "" ? parseFloat(String(rawAbs)) : NaN);
+      const numDmax = typeof rawDmax === "number" ? rawDmax : (rawDmax !== undefined && rawDmax !== null && rawDmax !== "" ? parseFloat(String(rawDmax)) : NaN);
+
+      if (isNaN(numSg) || numSg <= 0) missing.push("density / specificGravity");
+      if (isNaN(numAbs) || numAbs < 0) missing.push("absorption");
+      if (isNaN(numDmax) || numDmax <= 0) missing.push("dMax");
+
+      if (missing.length > 0) {
+        return {
+          success: false,
+          updatedInputs: currentInputs,
+          missingProperties: missing,
+          errorMessageAr: `فشل تطبيق التوصية: تنقص حصى (${material.name}) خصائص أساسية بدون قيم بديلة: ${missing.join(", ")}.`,
+          errorMessageEn: `Failed to apply recommendation: Gravel (${material.name}) missing required properties: ${missing.join(", ")}.`
+        };
+      }
+
+      const gravelRelativeDensity = numSg > 10 ? numSg / 1000 : numSg;
+
+      return {
+        success: true,
+        updatedInputs: {
+          ...currentInputs,
+          gravelRelativeDensity,
+          gravelAbsorption: numAbs,
+          dMax: numDmax
+        },
+        missingProperties: []
+      };
+    }
+
+    // Other categories do not alter aggregate/cement core mix inputs directly
+    return {
+      success: true,
+      updatedInputs: currentInputs,
+      missingProperties: []
+    };
   }
 }
