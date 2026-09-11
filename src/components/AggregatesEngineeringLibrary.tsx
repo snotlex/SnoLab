@@ -1526,7 +1526,7 @@ export function AggregatesEngineeringLibrary({
                       <div className="flex flex-wrap gap-2 justify-end flex-row-reverse">
                         {selectedAgg.gradationData.map((g: any, i: number) => (
                           <div key={i} className="bg-slate-50 dark:bg-slate-950 px-2 py-1 rounded text-[10px] font-mono border border-slate-100 dark:border-slate-800">
-                            <span className="text-slate-400">{g.sieve}mm:</span> <span className="font-bold text-blue-600 dark:text-blue-400">{g.passing}%</span>
+                            <span className="text-slate-400">{g.sieve ?? g.sieveSize}mm:</span> <span className="font-bold text-blue-600 dark:text-blue-400">{g.passing ?? g.percentPassing}%</span>
                           </div>
                         ))}
                       </div>

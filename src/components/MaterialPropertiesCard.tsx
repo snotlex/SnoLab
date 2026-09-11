@@ -393,8 +393,8 @@ export const MaterialPropertiesCard: React.FC<MaterialPropertiesCardProps> = ({
                         <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-1.5 text-center">
                           {material.gradationData.map((g: any, i: number) => (
                             <div key={i} className="p-1 bg-slate-50 dark:bg-slate-900 rounded border border-slate-100 dark:border-slate-800">
-                              <div className="text-[9px] text-slate-400 font-mono">{g.sieve}mm</div>
-                              <div className="text-[10px] font-black font-mono text-blue-500 mt-0.5">{g.passing}%</div>
+                              <div className="text-[9px] text-slate-400 font-mono">{g.sieve ?? g.sieveSize}mm</div>
+                              <div className="text-[10px] font-black font-mono text-blue-500 mt-0.5">{g.passing ?? g.percentPassing}%</div>
                             </div>
                           ))}
                         </div>

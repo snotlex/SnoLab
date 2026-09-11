@@ -46,6 +46,22 @@ interface MaterialLabHistoryModalProps {
   onUpdateTestStatus?: (testId: string, newStatus: TestApprovalStatus) => void;
 }
 
+function formatHistoryValue(val: any, unit?: string): string {
+  if (val === undefined || val === null) return "—";
+  if (Array.isArray(val)) {
+    return `${val.length} نقاط تدرج (${val.length} pts)`;
+  }
+  if (typeof val === "object") {
+    try {
+      return JSON.stringify(val);
+    } catch {
+      return "[بيانات كائن]";
+    }
+  }
+  const u = unit ? ` ${unit}` : "";
+  return `${val}${u}`.trim();
+}
+
 export const MaterialLabHistoryModal: React.FC<MaterialLabHistoryModalProps> = ({
   material,
   tests,
@@ -305,7 +321,7 @@ export const MaterialLabHistoryModal: React.FC<MaterialLabHistoryModalProps> = (
                               <div key={h.id || i} className="flex items-center justify-between text-slate-500 py-1 border-b border-slate-200/50 dark:border-slate-800/50 last:border-0">
                                 <div>
                                   <span className="font-mono font-bold text-slate-700 dark:text-slate-300">
-                                    {h.oldValue !== undefined ? `${h.oldValue} ${h.unit || ""}` : "قيمة أولية"}
+                                    {h.oldValue !== undefined ? formatHistoryValue(h.oldValue, h.unit) : "قيمة أولية"}
                                   </span>
                                   <span className="text-[10px] text-slate-400 mx-1.5 font-mono">
                                     [{h.testId} • {h.testDate}]
@@ -563,7 +579,7 @@ export const MaterialLabHistoryModal: React.FC<MaterialLabHistoryModalProps> = (
                                 <div className="space-y-0.5">
                                   <div className="flex items-center gap-2">
                                     <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
-                                      {e.oldValue !== undefined ? `${e.oldValue} ${e.unit || ""}` : "—"} ➔ {e.newValue} {e.unit || ""}
+                                      {formatHistoryValue(e.oldValue, e.unit)} ➔ {formatHistoryValue(e.newValue, e.unit)}
                                     </span>
                                     <span className="text-[10px] px-2 py-0.2 rounded bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-mono">
                                       {e.testId}
