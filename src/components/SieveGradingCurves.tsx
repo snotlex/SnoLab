@@ -111,8 +111,12 @@ const mapMaterialToAggregateProps = (m: EngineeringMaterial): AggregateProps => 
   });
 
   if (m.gradationData && m.gradationData.length > 0) {
-    m.gradationData.forEach(p => {
-      gradation[p.sieve] = p.passing;
+    m.gradationData.forEach((p: any) => {
+      const s = p.sieve ?? p.sieveSize;
+      const pass = p.passing ?? p.percentPassing;
+      if (s !== undefined && pass !== undefined) {
+        gradation[s] = pass;
+      }
     });
   } else {
     const isSand = m.category === "رمال" || m.type === "sand";

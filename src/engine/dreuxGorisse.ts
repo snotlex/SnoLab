@@ -13,12 +13,12 @@ export function calculateDreuxGorisseEngine(input: MixDesignInput): MixDesignRes
     ...input,
     aggregateType: input.aggregateType as any,
     aggregateQuality: input.aggregateQuality as any,
-    cementDensity: input.cementDensity !== undefined ? input.cementDensity : 3105,
+    cementDensity: input.cementDensity,
     airContent: input.airContent !== undefined ? input.airContent : 0.0,
     moistureSand: input.moistureSand !== undefined ? input.moistureSand : 0,
     moistureGravel: input.moistureGravel !== undefined ? input.moistureGravel : 0,
-    sandAbsorption: input.sandAbsorption !== undefined ? input.sandAbsorption : 1.5,
-    gravelAbsorption: input.gravelAbsorption !== undefined ? input.gravelAbsorption : 0.8,
+    sandAbsorption: input.sandAbsorption,
+    gravelAbsorption: input.gravelAbsorption,
     admixtures: input.admixtures || [],
     dosageSuper: input.dosageSuper !== undefined ? input.dosageSuper : 0,
     dosageAir: input.dosageAir !== undefined ? input.dosageAir : 0,
@@ -60,9 +60,9 @@ export function calculateDreuxGorisseEngine(input: MixDesignInput): MixDesignRes
     coarseAggregateKg: coreResult.gravelWeightDry,
     admixtureKg: coreResult.admixtureWeights.reduce((s, a) => s + a.weight, 0),
     airContentPercent: input.airContent || 0.0,
-    cementDensityKgM3: input.cementDensity || 3105,
-    sandRelativeDensity: input.sandRelativeDensity || 2.65,
-    gravelRelativeDensity: input.gravelRelativeDensity || 2.68
+    cementDensityKgM3: input.cementDensity!,
+    sandRelativeDensity: input.sandRelativeDensity!,
+    gravelRelativeDensity: input.gravelRelativeDensity!
   });
 
   const totalAdmix = coreResult.admixtureWeights.reduce((s, a) => s + a.weight, 0);

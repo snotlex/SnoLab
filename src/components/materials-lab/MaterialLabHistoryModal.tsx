@@ -393,7 +393,7 @@ export const MaterialLabHistoryModal: React.FC<MaterialLabHistoryModalProps> = (
                           {sieveRows.map((row: any, idx: number) => (
                             <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
                               <td className="py-2 px-3 font-mono font-bold text-blue-600 dark:text-blue-400">
-                                {row.sieve} mm
+                                {row.sieve ?? row.sieveSize} mm
                               </td>
                               <td className="py-2 px-3 font-mono">
                                 {row.retainedWeight !== undefined ? `${row.retainedWeight} g` : "—"}
@@ -405,7 +405,7 @@ export const MaterialLabHistoryModal: React.FC<MaterialLabHistoryModalProps> = (
                                 {row.cumulativePercentRetained !== undefined ? `${row.cumulativePercentRetained}%` : "—"}
                               </td>
                               <td className="py-2 px-3 font-mono font-black text-emerald-600 dark:text-emerald-400">
-                                {row.percentPassing !== undefined ? `${row.percentPassing}%` : "—"}
+                                {row.percentPassing !== undefined ? `${row.percentPassing}%` : row.passing !== undefined ? `${row.passing}%` : "—"}
                               </td>
                             </tr>
                           ))}
@@ -421,7 +421,7 @@ export const MaterialLabHistoryModal: React.FC<MaterialLabHistoryModalProps> = (
                       </div>
                       <div className="h-36 w-full flex items-end gap-2 pt-6 pb-2 px-2 border-b border-slate-700">
                         {sieveRows.map((r: any, i: number) => {
-                          const passing = r.percentPassing || 0;
+                          const passing = r.percentPassing ?? r.passing ?? 0;
                           return (
                             <div key={i} className="flex-1 flex flex-col items-center gap-1 h-full justify-end">
                               <span className="text-[9px] font-mono text-emerald-400 font-bold">
@@ -432,7 +432,7 @@ export const MaterialLabHistoryModal: React.FC<MaterialLabHistoryModalProps> = (
                                 className="w-full max-w-[28px] rounded-t bg-gradient-to-t from-blue-600 to-emerald-400 transition-all"
                               />
                               <span className="text-[9px] font-mono text-slate-400 truncate max-w-[32px]">
-                                {r.sieve}
+                                {r.sieve ?? r.sieveSize}
                               </span>
                             </div>
                           );

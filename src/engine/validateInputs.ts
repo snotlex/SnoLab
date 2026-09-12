@@ -5,6 +5,36 @@ export interface InputValidationResult {
 }
 
 const INPUT_MESSAGES_MAP: Record<string, { ar: string; fr: string; en: string }> = {
+  "حجم الركام الأقصى Dmax مطلوب ولم يتم تحديده.": {
+    ar: "حجم الركام الأقصى Dmax مطلوب ولم يتم تحديده.",
+    fr: "Le diamètre maximal des granulats Dmax est requis et non renseigné.",
+    en: "Maximum aggregate size Dmax is required and not specified."
+  },
+  "رتبة مقاومة الإسمنت (Cement Strength Class) مطلوبة لحساب نسبة الماء إلى الإسمنت.": {
+    ar: "رتبة مقاومة الإسمنت (Cement Strength Class) مطلوبة لحساب نسبة الماء إلى الإسمنت.",
+    fr: "La classe de résistance du ciment est requise pour calculer le rapport E/C.",
+    en: "Cement strength class is required to calculate the water-cement ratio."
+  },
+  "رتبة مقاومة الإسمنت (Cement Strength Class) يجب أن تكون بين 20 و 80 ميجاباسكال.": {
+    ar: "رتبة مقاومة الإسمنت (Cement Strength Class) يجب أن تكون بين 20 و 80 ميجاباسكال.",
+    fr: "La classe de résistance du ciment doit être comprise entre 20 et 80 MPa.",
+    en: "Cement strength class must be between 20 and 80 MPa."
+  },
+  "الكثافة المطلقة للإسمنت (Cement Density) مطلوبة لحساب الحجم المطلق.": {
+    ar: "الكثافة المطلقة للإسمنت (Cement Density) مطلوبة لحساب الحجم المطلق.",
+    fr: "La masse volumique absolue du ciment est requise pour le calcul du volume absolu.",
+    en: "Cement absolute density is required for absolute volume calculations."
+  },
+  "الكثافة النوعية للرمل (Sand Specific Gravity) مطلوبة لحساب توازن الخلطة.": {
+    ar: "الكثافة النوعية للرمل (Sand Specific Gravity) مطلوبة لحساب توازن الخلطة.",
+    fr: "La densité relative du sable est requise pour l'équilibre du mélange.",
+    en: "Sand specific gravity is required for mix design equilibrium."
+  },
+  "الكثافة النوعية للحصى (Gravel Specific Gravity) مطلوبة لحساب توازن الخلطة.": {
+    ar: "الكثافة النوعية للحصى (Gravel Specific Gravity) مطلوبة لحساب توازن الخلطة.",
+    fr: "La densité relative du gravier est requise pour l'équilibre du mélange.",
+    en: "Gravel specific gravity is required for mix design equilibrium."
+  },
   "حجم الصب (Concrete Volume) يجب أن يكون أكبر من الصفر.": {
     ar: "حجم الصب (Concrete Volume) يجب أن يكون أكبر من الصفر.",
     fr: "Le volume de béton doit être supérieur à zéro.",
@@ -114,8 +144,17 @@ export function validateMixInputs(input: any, language: "ar" | "fr" | "en" = "ar
   }
 
   // 2b. Aggregate size Dmax
-  if (input.dMax !== undefined && (input.dMax < 2 || input.dMax > 150)) {
+  if (input.dMax === undefined || input.dMax === null || input.dMax <= 0) {
+    errors.push("حجم الركام الأقصى Dmax مطلوب ولم يتم تحديده.");
+  } else if (input.dMax < 2 || input.dMax > 150) {
     errors.push("حجم الركام الأقصى Dmax غير مقبول هندسياً (يجب أن يكون بين 2 و 150 مم).");
+  }
+
+  // 2c. Cement strength class
+  if (input.cementClassStrength === undefined || input.cementClassStrength === null || input.cementClassStrength <= 0) {
+    errors.push("رتبة مقاومة الإسمنت (Cement Strength Class) مطلوبة لحساب نسبة الماء إلى الإسمنت.");
+  } else if (input.cementClassStrength < 20 || input.cementClassStrength > 80) {
+    errors.push("رتبة مقاومة الإسمنت (Cement Strength Class) يجب أن تكون بين 20 و 80 ميجاباسكال.");
   }
 
   // 3. Slump
@@ -125,8 +164,10 @@ export function validateMixInputs(input: any, language: "ar" | "fr" | "en" = "ar
 
   // 4. Air Content
   if (input.airContent !== undefined) {
-    if (input.airContent < 0 || input.airContent > 10) {
+    if (input.airContent < 0 || input.airContent > 100) {
       errors.push("نسبة الهواء المدمج (Air Content) يجب أن تكون بين 0٪ و 10٪.");
+    } else if (input.airContent > 10) {
+      warnings.push("نسبة الهواء المدمج (Air Content) يجب أن تكون بين 0٪ و 10٪.");
     }
   }
 
@@ -134,14 +175,18 @@ export function validateMixInputs(input: any, language: "ar" | "fr" | "en" = "ar
   const sandSG = input.sandRelativeDensity;
   const gravelSG = input.gravelRelativeDensity;
   
-  if (sandSG !== undefined) {
+  if (sandSG === undefined || sandSG === null || sandSG <= 0) {
+    errors.push("الكثافة النوعية للرمل (Sand Specific Gravity) مطلوبة لحساب توازن الخلطة.");
+  } else {
     const normalizedSandSG = sandSG > 10 ? sandSG / 1000 : sandSG;
     if (normalizedSandSG <= 1.5 || normalizedSandSG > 3.5) {
       errors.push("الكثافة النوعية للرمال للرمل (Sand Specific Gravity) غير منطقية هندسياً (يجب أن تقع بين 1.5 و 3.5).");
     }
   }
   
-  if (gravelSG !== undefined) {
+  if (gravelSG === undefined || gravelSG === null || gravelSG <= 0) {
+    errors.push("الكثافة النوعية للحصى (Gravel Specific Gravity) مطلوبة لحساب توازن الخلطة.");
+  } else {
     const normalizedGravelSG = gravelSG > 10 ? gravelSG / 1000 : gravelSG;
     if (normalizedGravelSG <= 1.5 || normalizedGravelSG > 3.5) {
       errors.push("الكثافة النوعية للحصى (Gravel Specific Gravity) غير منطقية هندسياً (يجب أن تقع بين 1.5 و 3.5).");
@@ -150,7 +195,9 @@ export function validateMixInputs(input: any, language: "ar" | "fr" | "en" = "ar
 
   // 6. Cement Density
   const cementDens = input.cementDensity;
-  if (cementDens !== undefined) {
+  if (cementDens === undefined || cementDens === null || cementDens <= 0) {
+    errors.push("الكثافة المطلقة للإسمنت (Cement Density) مطلوبة لحساب الحجم المطلق.");
+  } else {
     const normalizedCementSG = cementDens > 10 ? cementDens / 1000 : cementDens;
     if (normalizedCementSG <= 2.5 || normalizedCementSG > 3.5) {
       errors.push("الكثافة المطلقة للإسمنت (Cement Specific Gravity) غير منطقية (يجب أن تقع بين 2.5 و 3.5، أي 2500 - 3500 كجم/م³).");

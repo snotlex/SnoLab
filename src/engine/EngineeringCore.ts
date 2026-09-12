@@ -135,20 +135,20 @@ export class MaterialEngine {
       scmId: inputs.selectedScmId,
     };
 
-    // Defaults
+    // Strict engineering properties - do not invent missing data
     const resolved = {
-      cementClassStrength: inputs.cementClassStrength || 42.5,
-      cementDensity: inputs.cementDensity || 3100,
-      sandRelativeDensity: inputs.sandRelativeDensity || 2.65,
-      sandAbsorption: inputs.sandAbsorption !== undefined ? inputs.sandAbsorption : 1.5,
-      moistureSand: inputs.moistureSand || 0,
-      finenessModulus: inputs.finenessModulus || 2.6,
-      gravelRelativeDensity: inputs.gravelRelativeDensity || 2.68,
-      gravelAbsorption: inputs.gravelAbsorption !== undefined ? inputs.gravelAbsorption : 0.8,
-      moistureGravel: inputs.moistureGravel || 0,
-      dMax: inputs.dMax || 20,
-      aggregateType: (inputs.aggregateType || "roule") as "roule" | "concasse",
-      aggregateQuality: (inputs.aggregateQuality || "standard") as "excellent" | "standard" | "poor",
+      cementClassStrength: inputs.cementClassStrength,
+      cementDensity: inputs.cementDensity,
+      sandRelativeDensity: inputs.sandRelativeDensity,
+      sandAbsorption: inputs.sandAbsorption !== undefined ? inputs.sandAbsorption : undefined,
+      moistureSand: inputs.moistureSand !== undefined ? inputs.moistureSand : 0,
+      finenessModulus: inputs.finenessModulus,
+      gravelRelativeDensity: inputs.gravelRelativeDensity,
+      gravelAbsorption: inputs.gravelAbsorption !== undefined ? inputs.gravelAbsorption : undefined,
+      moistureGravel: inputs.moistureGravel !== undefined ? inputs.moistureGravel : 0,
+      dMax: inputs.dMax,
+      aggregateType: inputs.aggregateType as "roule" | "concasse" | undefined,
+      aggregateQuality: inputs.aggregateQuality as "excellent" | "standard" | "poor" | undefined,
       waterPh: inputs.selectedWaterPH,
       waterChlorideContent: inputs.selectedWaterChlorideContent,
       waterSulphateContent: inputs.selectedWaterSulphateContent,
@@ -283,7 +283,17 @@ export class MaterialEngine {
       }
     }
 
-    const isComplete = !!(inputs.selectedCementId && inputs.selectedSandId && inputs.selectedGravelId && inputs.selectedWaterId);
+    const isComplete = !!(
+      (inputs.selectedCementId || resolved.cementClassStrength) &&
+      (inputs.selectedSandId || resolved.sandRelativeDensity) &&
+      (inputs.selectedGravelId || resolved.gravelRelativeDensity) &&
+      (inputs.selectedWaterId || (inputs as any).waterType) &&
+      resolved.cementClassStrength &&
+      resolved.cementDensity &&
+      resolved.sandRelativeDensity &&
+      resolved.gravelRelativeDensity &&
+      resolved.dMax
+    );
 
     return {
       selectedIds,
@@ -306,7 +316,7 @@ export class GranularEngine {
     const gradingCurve = calcResult?.gradingCurve || [];
     
     // Derived values
-    const fm = materialsState.resolvedProperties.finenessModulus || 2.6;
+    const fm = materialsState.resolvedProperties.finenessModulus !== undefined ? materialsState.resolvedProperties.finenessModulus : 0;
     const voidRatio = isReady ? (inputs.packingFactor ? (1 - inputs.packingFactor) * 0.45 : 0.35) : 0;
     const packingDensity = inputs.packingFactor || 0.85;
     

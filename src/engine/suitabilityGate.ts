@@ -797,8 +797,7 @@ export function checkMaterialSuitability(
     }
 
     // Pervious must have low sand content
-    const sandPercent = input.internalSandRatio || 15; // default or from calculations
-    if (sandPercent > 15) {
+    if (input.internalSandRatio !== undefined && input.internalSandRatio > 15) {
       warnings.push("نسبة الرمل في الخرسانة النفاذة يجب ألا تتجاوز 15% للحفاظ على الفراغات المتصلة.");
       recommendations.push("💡 يُنصح بخفض نسبة الرمل إلى الحد الأدنى لضمان بقاء القنوات المسامية مفتوحة لتصريف مياه الأمطار بكفاءة عالية.");
     }

@@ -356,14 +356,14 @@ export class DreuxInputResolver {
       if (nameStr.includes("52.5")) cementStrengthClass = 52.5;
       else if (nameStr.includes("42.5")) cementStrengthClass = 42.5;
       else if (nameStr.includes("32.5")) cementStrengthClass = 32.5;
-      else cementStrengthClass = 42.5;
+      else cementStrengthClass = undefined;
     }
 
     let cementDensity = parseNumeric(getMaterialPropValue(cementMat, "density")) ?? 
                         parseNumeric(cementMat?.density) ?? 
-                        (inputs.cementDensity && inputs.cementDensity > 0 ? inputs.cementDensity : 3100);
-    if (cementDensity < 10) cementDensity *= 1000; // if given as specific gravity (3.10)
-    const cementSG = Math.round((cementDensity / 1000) * 100) / 100;
+                        (inputs.cementDensity && inputs.cementDensity > 0 ? inputs.cementDensity : undefined);
+    if (cementDensity !== undefined && cementDensity < 10) cementDensity *= 1000; // if given as specific gravity (3.10)
+    const cementSG = cementDensity !== undefined ? Math.round((cementDensity / 1000) * 100) / 100 : undefined;
 
     traceItems.push({
       inputName: "Cement Strength Class",
@@ -371,12 +371,12 @@ export class DreuxInputResolver {
       materialId: cementMat?.id,
       materialName: cementMat?.name,
       value: cementStrengthClass,
-      formattedValue: `${cementStrengthClass} MPa`,
+      formattedValue: cementStrengthClass !== undefined ? `${cementStrengthClass} MPa` : "MISSING",
       unit: "MPa",
       source: cementMat ? (cementMat.isSystem ? "System Material Library" : "User Material") : "Project Input",
       required: true,
-      validation: cementStrengthClass >= 25 && cementStrengthClass <= 70 ? "VALID" : "INVALID",
-      statusMessage: cementStrengthClass >= 25 ? "Conforms to EN 197-1" : "Invalid strength class"
+      validation: cementStrengthClass !== undefined ? (cementStrengthClass >= 25 && cementStrengthClass <= 70 ? "VALID" : "INVALID") : "MISSING",
+      statusMessage: cementStrengthClass !== undefined ? (cementStrengthClass >= 25 ? "Conforms to EN 197-1" : "Invalid strength class") : "Mandatory cement strength class missing"
     });
 
     traceItems.push({
@@ -385,20 +385,20 @@ export class DreuxInputResolver {
       materialId: cementMat?.id,
       materialName: cementMat?.name,
       value: cementDensity,
-      formattedValue: `${cementDensity} kg/m³ (SG: ${cementSG})`,
+      formattedValue: cementDensity !== undefined ? `${cementDensity} kg/m³ (SG: ${cementSG})` : "MISSING",
       unit: "kg/m³",
-      source: cementMat ? "Material Library" : "Standard Default (3100 kg/m³)",
+      source: cementMat ? "Material Library" : "Project Input",
       required: true,
-      validation: cementDensity >= 2800 && cementDensity <= 3300 ? "VALID" : "INVALID",
-      statusMessage: "Conforms to standard portland cement density"
+      validation: cementDensity !== undefined ? (cementDensity >= 2500 && cementDensity <= 3500 ? "VALID" : "INVALID") : "MISSING",
+      statusMessage: cementDensity !== undefined ? "Conforms to standard cement density" : "Mandatory cement density missing"
     });
 
     const resolvedCement: ResolvedCement = {
       materialId: cementMat?.id || inputs.selectedCementId || "",
       name: cementMat?.name || inputs.cementType || "Standard Portland Cement",
-      density: cementDensity,
-      specificGravity: cementSG,
-      strengthClass: cementStrengthClass,
+      density: cementDensity || 0,
+      specificGravity: cementSG || 0,
+      strengthClass: cementStrengthClass || 0,
       cementType: cementMat?.category || inputs.cementType || "CEM I",
       source: cementMat?.source || (cementMat?.isSystem ? "System Library" : "Project Repository")
     };
@@ -435,27 +435,29 @@ export class DreuxInputResolver {
     if (!sandSG && sandDensity) sandSG = sandDensity < 10 ? sandDensity : sandDensity / 1000;
     if (sandDensity && sandDensity < 10) sandDensity *= 1000;
     if (!sandDensity) {
-      sandDensity = inputs.sandRelativeDensity > 10 ? inputs.sandRelativeDensity : (inputs.sandRelativeDensity * 1000 || 2620);
-      sandSG = sandDensity / 1000;
+      if (inputs.sandRelativeDensity && inputs.sandRelativeDensity > 0) {
+        sandDensity = inputs.sandRelativeDensity > 10 ? inputs.sandRelativeDensity : inputs.sandRelativeDensity * 1000;
+        sandSG = sandDensity / 1000;
+      }
     }
 
     const sandSsdDensity = parseNumeric(getMaterialPropValue(sandMat, "ssdDensity")) ?? 
                            parseNumeric(sandMat?.ssdDensity) ?? 
                            sandDensity;
     const sandBulkDensity = parseNumeric(getMaterialPropValue(sandMat, "bulkDensity")) ?? 
-                            parseNumeric(sandMat?.bulkDensity) ?? 1550;
+                            parseNumeric(sandMat?.bulkDensity);
     const sandAbsorption = parseNumeric(getMaterialPropValue(sandMat, "absorption")) ?? 
                            parseNumeric(sandMat?.absorption) ?? 
-                           inputs.sandAbsorption ?? 1.2;
+                           inputs.sandAbsorption;
     const sandMoisture = parseNumeric(getMaterialPropValue(sandMat, "moisture")) ?? 
                          parseNumeric(sandMat?.moisture) ?? 
-                         inputs.moistureSand ?? 1.0;
+                         inputs.moistureSand ?? 0;
     const sandSE = parseNumeric(getMaterialPropValue(sandMat, "sandEquivalent")) ?? 
-                   parseNumeric(sandMat?.sandEquivalent) ?? 80;
+                   parseNumeric(sandMat?.sandEquivalent);
     const sandDmax = parseNumeric(getMaterialPropValue(sandMat, "dMax")) ?? 
-                     parseNumeric(sandMat?.dMax) ?? 4;
+                     parseNumeric(sandMat?.dMax);
     const sandDmin = parseNumeric(getMaterialPropValue(sandMat, "dMin")) ?? 
-                     parseNumeric(sandMat?.dMin) ?? 0;
+                     parseNumeric(sandMat?.dMin);
 
     traceItems.push({
       inputName: "Sand Fineness Modulus (FM)",
@@ -466,9 +468,9 @@ export class DreuxInputResolver {
       formattedValue: fm ? fm.toFixed(2) : "MISSING",
       unit: "Dimensionless",
       source: fmSource === "derived_from_granulometry" ? "Derived from Sieve Curve" : "Material Library",
-      required: true,
-      validation: fm && fm >= 1.5 && fm <= 3.8 ? "VALID" : (fm ? "INVALID" : "MISSING"),
-      statusMessage: fm && fm >= 1.8 && fm <= 3.2 ? "Optimal for standard structural concrete (EN 12620)" : "Outside recommended 1.8 - 3.2 range",
+      required: false,
+      validation: fm ? (fm >= 1.5 && fm <= 3.8 ? "VALID" : "INVALID") : "MISSING",
+      statusMessage: fm && fm >= 1.8 && fm <= 3.2 ? "Optimal for standard structural concrete (EN 12620)" : "Optional/advisory parameter",
       derivationDetails: fmDerivation,
       actionRequired: !fm ? "Complete Sand Fineness Modulus or Gradation Curve in Material Library" : undefined
     });
@@ -479,12 +481,12 @@ export class DreuxInputResolver {
       materialId: sandMat?.id,
       materialName: sandMat?.name,
       value: sandSG,
-      formattedValue: `${sandSG.toFixed(2)} (Density: ${sandDensity} kg/m³)`,
+      formattedValue: sandSG !== undefined && sandDensity !== undefined ? `${sandSG.toFixed(2)} (Density: ${sandDensity} kg/m³)` : "MISSING",
       unit: "kg/m³ / Specific Gravity",
       source: sandMat ? "Material Library" : "Project Input",
       required: true,
-      validation: sandSG >= 2.0 && sandSG <= 3.2 ? "VALID" : "INVALID",
-      statusMessage: "Standard siliceous/calcareous river or crushed sand density"
+      validation: sandSG !== undefined ? (sandSG >= 1.5 && sandSG <= 3.5 ? "VALID" : "INVALID") : "MISSING",
+      statusMessage: sandSG !== undefined ? "Standard sand density" : "Mandatory sand density missing"
     });
 
     traceItems.push({
@@ -493,25 +495,25 @@ export class DreuxInputResolver {
       materialId: sandMat?.id,
       materialName: sandMat?.name,
       value: { absorption: sandAbsorption, moisture: sandMoisture },
-      formattedValue: `Abs: ${sandAbsorption.toFixed(1)}%, Moisture: ${sandMoisture.toFixed(1)}%`,
+      formattedValue: `Abs: ${sandAbsorption !== undefined ? sandAbsorption.toFixed(1) : 0}%, Moisture: ${sandMoisture.toFixed(1)}%`,
       unit: "%",
       source: sandMat ? "Material Library" : "Field Input",
-      required: true,
-      validation: sandAbsorption >= 0 && sandAbsorption <= 10 ? "VALID" : "INVALID",
+      required: false,
+      validation: sandAbsorption === undefined || (sandAbsorption >= 0 && sandAbsorption <= 10) ? "VALID" : "INVALID",
       statusMessage: "Required for field batch moisture correction"
     });
 
     const resolvedFine: ResolvedFineAggregate = {
       materialId: sandMat?.id || inputs.selectedSandId || "",
       name: sandMat?.name || inputs.sandType || "Standard Sand 0/4",
-      finenessModulus: fm || 2.55,
-      dMin: sandDmin,
-      dMax: sandDmax,
-      density: sandDensity,
-      specificGravity: sandSG,
+      finenessModulus: fm || 0,
+      dMin: sandDmin || 0,
+      dMax: sandDmax || 4,
+      density: sandDensity || 0,
+      specificGravity: sandSG || 0,
       ssdDensity: sandSsdDensity,
       bulkDensity: sandBulkDensity,
-      absorption: sandAbsorption,
+      absorption: sandAbsorption || 0,
       moisture: sandMoisture,
       sandEquivalent: sandSE,
       gradationData: sandGradation,
@@ -551,23 +553,25 @@ export class DreuxInputResolver {
     if (!gravelSG && gravelDensity) gravelSG = gravelDensity < 10 ? gravelDensity : gravelDensity / 1000;
     if (gravelDensity && gravelDensity < 10) gravelDensity *= 1000;
     if (!gravelDensity) {
-      gravelDensity = inputs.gravelRelativeDensity > 10 ? inputs.gravelRelativeDensity : (inputs.gravelRelativeDensity * 1000 || 2660);
-      gravelSG = gravelDensity / 1000;
+      if (inputs.gravelRelativeDensity && inputs.gravelRelativeDensity > 0) {
+        gravelDensity = inputs.gravelRelativeDensity > 10 ? inputs.gravelRelativeDensity : inputs.gravelRelativeDensity * 1000;
+        gravelSG = gravelDensity / 1000;
+      }
     }
 
     const gravelSsdDensity = parseNumeric(getMaterialPropValue(gravelMat, "ssdDensity")) ?? 
                              parseNumeric(gravelMat?.ssdDensity) ?? 
                              gravelDensity;
     const gravelBulkDensity = parseNumeric(getMaterialPropValue(gravelMat, "bulkDensity")) ?? 
-                              parseNumeric(gravelMat?.bulkDensity) ?? 1450;
+                              parseNumeric(gravelMat?.bulkDensity);
     const gravelAbsorption = parseNumeric(getMaterialPropValue(gravelMat, "absorption")) ?? 
                              parseNumeric(gravelMat?.absorption) ?? 
-                             inputs.gravelAbsorption ?? 1.1;
+                             inputs.gravelAbsorption;
     const gravelMoisture = parseNumeric(getMaterialPropValue(gravelMat, "moisture")) ?? 
                            parseNumeric(gravelMat?.moisture) ?? 
-                           inputs.moistureGravel ?? 0.8;
+                           inputs.moistureGravel ?? 0;
     const gravelDmin = parseNumeric(getMaterialPropValue(gravelMat, "dMin")) ?? 
-                       parseNumeric(gravelMat?.dMin) ?? 8;
+                       parseNumeric(gravelMat?.dMin);
     const gravelLA = parseNumeric(getMaterialPropValue(gravelMat, "losAngelesAbrasion")) ?? 
                      parseNumeric(gravelMat?.losAngelesAbrasion);
 
@@ -600,7 +604,7 @@ export class DreuxInputResolver {
       unit: "mm",
       source: dMaxSource === "derived_from_granulometry" ? "Derived from Gradation Curve" : (gravelMat ? "Material Library" : "Project Input"),
       required: true,
-      validation: dMax && dMax >= 4 && dMax <= 150 ? "VALID" : (dMax ? "INVALID" : "MISSING"),
+      validation: dMax && dMax >= 2 && dMax <= 150 ? "VALID" : (dMax ? "INVALID" : "MISSING"),
       statusMessage: dMax ? `Dmax = ${dMax} mm defines the Dreux reference curve pivot point and water demand.` : "Dmax is mandatory for the Dreux-Gorisse method.",
       derivationDetails: dMaxDerivation,
       actionRequired: !dMax ? "Complete coarse aggregate Dmax or Sieve Analysis in Material Library." : undefined
@@ -612,12 +616,12 @@ export class DreuxInputResolver {
       materialId: gravelMat?.id,
       materialName: gravelMat?.name,
       value: gravelSG,
-      formattedValue: `${gravelSG.toFixed(2)} (Density: ${gravelDensity} kg/m³)`,
+      formattedValue: gravelSG !== undefined && gravelDensity !== undefined ? `${gravelSG.toFixed(2)} (Density: ${gravelDensity} kg/m³)` : "MISSING",
       unit: "kg/m³ / Specific Gravity",
       source: gravelMat ? "Material Library" : "Project Input",
       required: true,
-      validation: gravelSG >= 2.0 && gravelSG <= 3.5 ? "VALID" : "INVALID",
-      statusMessage: "Conforms to limestone/granite gravel specific gravity range"
+      validation: gravelSG !== undefined ? (gravelSG >= 1.5 && gravelSG <= 3.5 ? "VALID" : "INVALID") : "MISSING",
+      statusMessage: gravelSG !== undefined ? "Conforms to aggregate specific gravity range" : "Mandatory gravel density missing"
     });
 
     traceItems.push({
@@ -637,17 +641,17 @@ export class DreuxInputResolver {
     const resolvedCoarse: ResolvedCoarseAggregate = {
       materialId: gravelMat?.id || inputs.selectedGravelId || "",
       name: gravelMat?.name || inputs.gravelType || "Gravel 8/15",
-      dMin: gravelDmin,
-      dMax: dMax || 15,
-      density: gravelDensity,
-      specificGravity: gravelSG,
+      dMin: gravelDmin || 0,
+      dMax: dMax || 0,
+      density: gravelDensity || 0,
+      specificGravity: gravelSG || 0,
       ssdDensity: gravelSsdDensity,
       bulkDensity: gravelBulkDensity,
-      absorption: gravelAbsorption,
+      absorption: gravelAbsorption || 0,
       moisture: gravelMoisture,
       particleShape: shapeStr || "angular",
-      aggregateType: aggType,
-      aggregateQuality: aggQuality,
+      aggregateType: aggType || AggregateType.CONCASSE,
+      aggregateQuality: aggQuality || AggregateQuality.STANDARD,
       losAngelesAbrasion: gravelLA,
       gradationData: gravelGradation,
       source: gravelMat?.source || (gravelMat?.isSystem ? "System Library" : "Project Repository")
@@ -754,8 +758,8 @@ export class DreuxInputResolver {
     // =========================================================================
     // 7. PROJECT PARAMETERS RESOLUTION
     // =========================================================================
-    const fck28 = inputs.fck28 || 25;
-    const slump = inputs.slump !== undefined ? inputs.slump : 8;
+    const fck28 = inputs.fck28;
+    const slump = inputs.slump;
     const controlClass = inputs.controlClass || "normal";
     const exposureClass = inputs.exposureClass || "X0";
     const airContent = inputs.airContent !== undefined ? inputs.airContent : 1.0;
@@ -766,24 +770,24 @@ export class DreuxInputResolver {
       inputName: "Characteristic Compressive Strength (fck28)",
       propertyId: DREUX_PROPERTY_IDS.PROJECT_FCK28,
       value: fck28,
-      formattedValue: `${fck28} MPa`,
+      formattedValue: fck28 !== undefined ? `${fck28} MPa` : "MISSING",
       unit: "MPa",
       source: "Project Specifications",
       required: true,
-      validation: fck28 >= 10 && fck28 <= 120 ? "VALID" : "INVALID",
-      statusMessage: `Governs target mean strength fcm28 = fck + 1.64σ`
+      validation: fck28 !== undefined ? (fck28 >= 10 && fck28 <= 120 ? "VALID" : "INVALID") : "MISSING",
+      statusMessage: fck28 !== undefined ? `Governs target mean strength fcm28 = fck + 1.64σ` : "Mandatory project specification missing"
     });
 
     traceItems.push({
       inputName: "Target Workability (Slump)",
       propertyId: DREUX_PROPERTY_IDS.PROJECT_SLUMP,
       value: slump,
-      formattedValue: `${slump} cm`,
+      formattedValue: slump !== undefined ? `${slump} cm` : "MISSING",
       unit: "cm",
       source: "Project Specifications",
       required: true,
-      validation: slump >= 0 && slump <= 30 ? "VALID" : "INVALID",
-      statusMessage: `Conforms to slump class S${slump <= 4 ? 1 : slump <= 9 ? 2 : slump <= 15 ? 3 : 4}`
+      validation: slump !== undefined ? (slump >= 0 && slump <= 40 ? "VALID" : "INVALID") : "MISSING",
+      statusMessage: slump !== undefined ? `Conforms to slump class S${slump <= 4 ? 1 : slump <= 9 ? 2 : slump <= 15 ? 3 : 4}` : "Mandatory workability missing"
     });
 
     // =========================================================================

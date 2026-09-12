@@ -553,11 +553,19 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
 
                     <td className="p-3">
                       <div className="flex flex-wrap gap-1 max-w-[150px]">
-                        {Object.keys(rec.syncedProperties || {}).map(k => (
-                          <span key={k} className="px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-mono text-[9px]">
-                            {k}: {rec.syncedProperties[k]}
-                          </span>
-                        ))}
+                        {Object.keys(rec.syncedProperties || {}).map(k => {
+                          const val = rec.syncedProperties[k];
+                          const displayVal = Array.isArray(val)
+                            ? `${val.length} نقاط تدرج`
+                            : typeof val === "object" && val !== null
+                            ? "[بيانات تفصيلية]"
+                            : String(val ?? "—");
+                          return (
+                            <span key={k} className="px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-mono text-[9px]">
+                              {k}: {displayVal}
+                            </span>
+                          );
+                        })}
                       </div>
                     </td>
 

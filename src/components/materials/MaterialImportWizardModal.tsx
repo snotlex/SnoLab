@@ -502,11 +502,18 @@ export const MaterialImportWizardModal: React.FC<MaterialImportWizardModalProps>
                           </td>
                           <td className="p-2.5">
                             <div className="flex flex-wrap gap-1 max-w-[180px]">
-                              {Object.values(d.properties).slice(0, 3).map((p: any, pIdx: number) => (
-                                <span key={pIdx} className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 font-mono">
-                                  {p.key}: {p.value} {p.unit || ""}
-                                </span>
-                              ))}
+                              {Object.values(d.properties).slice(0, 3).map((p: any, pIdx: number) => {
+                                const valStr = Array.isArray(p.value)
+                                  ? `${p.value.length} pts`
+                                  : typeof p.value === "object" && p.value !== null
+                                  ? "[بيانات]"
+                                  : String(p.value ?? "");
+                                return (
+                                  <span key={pIdx} className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 font-mono">
+                                    {p.key}: {valStr} {p.unit || ""}
+                                  </span>
+                                );
+                              })}
                               {Object.keys(d.properties).length > 3 && (
                                 <span className="text-[9px] text-slate-400 self-center">
                                   +{Object.keys(d.properties).length - 3}

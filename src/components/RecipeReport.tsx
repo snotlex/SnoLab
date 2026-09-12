@@ -2498,8 +2498,8 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
                       <div className="grid grid-cols-7 gap-1 text-[9.5px] text-center font-mono py-1 bg-slate-50 border border-slate-100 rounded-lg">
                         {passport.gradation.slice(0, 14).map((gr, grIdx) => (
                           <div key={grIdx} className="p-1 border-r border-slate-200 last:border-r-0">
-                            <span className="block text-slate-400 font-bold text-[8px]">{gr.sieve} mm</span>
-                            <span className="font-extrabold text-slate-800">{gr.passing}%</span>
+                            <span className="block text-slate-400 font-bold text-[8px]">{(gr as any).sieve ?? (gr as any).sieveSize} mm</span>
+                            <span className="font-extrabold text-slate-800">{(gr as any).passing ?? (gr as any).percentPassing}%</span>
                           </div>
                         ))}
                       </div>

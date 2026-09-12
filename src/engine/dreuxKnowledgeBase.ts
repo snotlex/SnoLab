@@ -343,7 +343,15 @@ export const DREUX_KNOWLEDGE_BASE: DreuxKnowledgeBase = {
           arabicName: "المقاومة المستهدفة fc28",
           requirement: "fc28 <= 35 MPa",
           evaluate: (inputs, results) => {
-            const fck = inputs.fck28 || 25;
+            const fck = inputs.fck28;
+            if (fck === undefined || fck === null) {
+              return {
+                status: "warning",
+                actual: "غير محدد",
+                note: "المقاومة المستهدفة غير محددة.",
+                recommendation: "يرجى تحديد المقاومة المستهدفة fc28."
+              };
+            }
             const ok = fck <= 35;
             return {
               status: ok ? "compliant" : "warning",
@@ -359,7 +367,15 @@ export const DREUX_KNOWLEDGE_BASE: DreuxKnowledgeBase = {
           arabicName: "محتوى الإسمنت الكلي",
           requirement: "280 - 380 kg/m³",
           evaluate: (inputs, results) => {
-            const cement = results.cementWeight || results.cementKg || 350;
+            const cement = results?.cementWeight ?? results?.cementKg;
+            if (cement === undefined || cement === null) {
+              return {
+                status: "warning",
+                actual: "غير محسوب",
+                note: "محتوى الإسمنت غير محسوب.",
+                recommendation: "يرجى إكمال مدخلات التصميم."
+              };
+            }
             const ok = cement >= 280 && cement <= 380;
             return {
               status: ok ? "compliant" : "warning",
@@ -441,7 +457,15 @@ export const DREUX_KNOWLEDGE_BASE: DreuxKnowledgeBase = {
           arabicName: "المقاومة المستهدفة fc28",
           requirement: "fc28 >= 40 MPa",
           evaluate: (inputs, results) => {
-            const fck = inputs.fck28 || 25;
+            const fck = inputs.fck28;
+            if (fck === undefined || fck === null) {
+              return {
+                status: "non_compliant",
+                actual: "غير محدد",
+                note: "المقاومة المستهدفة غير محددة.",
+                recommendation: "يرجى تحديد المقاومة المستهدفة fc28."
+              };
+            }
             const ok = fck >= 40;
             return {
               status: ok ? "compliant" : "non_compliant",
@@ -457,7 +481,15 @@ export const DREUX_KNOWLEDGE_BASE: DreuxKnowledgeBase = {
           arabicName: "نسبة الماء إلى الإسمنت W/C",
           requirement: "W/C <= 0.35",
           evaluate: (inputs, results) => {
-            const wc = results.wcRatioAdjusted || results.wcRatio || 0.50;
+            const wc = results?.wcRatioAdjusted ?? results?.wcRatio;
+            if (wc === undefined || wc === null) {
+              return {
+                status: "non_compliant",
+                actual: "غير محسوب",
+                note: "نسبة الماء إلى الإسمنت غير محسوبة.",
+                recommendation: "يرجى إكمال مدخلات التصميم."
+              };
+            }
             const ok = wc <= 0.35;
             return {
               status: ok ? "compliant" : "non_compliant",
@@ -539,7 +571,15 @@ export const DREUX_KNOWLEDGE_BASE: DreuxKnowledgeBase = {
           arabicName: "هبوط مخروط أبرامز المستهدف",
           requirement: "Slump >= 20 cm",
           evaluate: (inputs, results) => {
-            const slump = inputs.slump || 8;
+            const slump = inputs.slump;
+            if (slump === undefined || slump === null) {
+              return {
+                status: "non_compliant",
+                actual: "غير محدد",
+                note: "الهبوط المستهدف غير محدد.",
+                recommendation: "يرجى تحديد الهبوط المستهدف."
+              };
+            }
             const ok = slump >= 20;
             return {
               status: ok ? "compliant" : "non_compliant",
@@ -555,7 +595,15 @@ export const DREUX_KNOWLEDGE_BASE: DreuxKnowledgeBase = {
           arabicName: "القطر الأقصى للركام Dmax",
           requirement: "Dmax <= 16 mm",
           evaluate: (inputs, results) => {
-            const dMax = inputs.dMax || 20;
+            const dMax = inputs.dMax;
+            if (dMax === undefined || dMax === null) {
+              return {
+                status: "warning",
+                actual: "غير محدد",
+                note: "القطر الأقصى للركام غير محدد.",
+                recommendation: "يرجى إدخال القطر الأقصى للركام Dmax."
+              };
+            }
             const ok = dMax <= 16;
             return {
               status: ok ? "compliant" : "warning",
@@ -719,7 +767,15 @@ export const DREUX_KNOWLEDGE_BASE: DreuxKnowledgeBase = {
           arabicName: "رتبة مقاومة الإسمنت",
           requirement: ">= 42.5 MPa",
           evaluate: (inputs, results) => {
-            const strength = inputs.cementClassStrength || 32.5;
+            const strength = inputs.cementClassStrength;
+            if (strength === undefined || strength === null) {
+              return {
+                status: "warning",
+                actual: "غير محدد",
+                note: "رتبة مقاومة الإسمنت غير محددة.",
+                recommendation: "يرجى تحديد رتبة مقاومة الإسمنت."
+              };
+            }
             const ok = strength >= 42.5;
             return {
               status: ok ? "compliant" : "warning",
@@ -760,7 +816,15 @@ export const DREUX_KNOWLEDGE_BASE: DreuxKnowledgeBase = {
           arabicName: "المقاومة المستهدفة fc28",
           requirement: "fc28 >= 45 MPa",
           evaluate: (inputs, results) => {
-            const fck = inputs.fck28 || 25;
+            const fck = inputs.fck28;
+            if (fck === undefined || fck === null) {
+              return {
+                status: "non_compliant",
+                actual: "غير محدد",
+                note: "المقاومة المستهدفة غير محددة.",
+                recommendation: "يرجى تحديد المقاومة المستهدفة fc28."
+              };
+            }
             const ok = fck >= 45;
             return {
               status: ok ? "compliant" : "non_compliant",
@@ -881,7 +945,15 @@ export const DREUX_KNOWLEDGE_BASE: DreuxKnowledgeBase = {
           arabicName: "الهبوط المستهدف للخرسانة المدحولة",
           requirement: "Slump <= 3 cm",
           evaluate: (inputs, results) => {
-            const slump = inputs.slump || 0;
+            const slump = inputs.slump;
+            if (slump === undefined || slump === null) {
+              return {
+                status: "non_compliant",
+                actual: "غير محدد",
+                note: "الهبوط المستهدف غير محدد.",
+                recommendation: "يرجى تحديد الهبوط المستهدف."
+              };
+            }
             const ok = slump <= 3;
             return {
               status: ok ? "compliant" : "non_compliant",
@@ -922,7 +994,15 @@ export const DREUX_KNOWLEDGE_BASE: DreuxKnowledgeBase = {
           arabicName: "القطر الأقصى لركام خرسانة الرش",
           requirement: "Dmax <= 16 mm",
           evaluate: (inputs, results) => {
-            const dMax = inputs.dMax || 20;
+            const dMax = inputs.dMax;
+            if (dMax === undefined || dMax === null) {
+              return {
+                status: "warning",
+                actual: "غير محدد",
+                note: "القطر الأقصى للركام غير محدد.",
+                recommendation: "يرجى إدخال القطر الأقصى للركام Dmax."
+              };
+            }
             const ok = dMax <= 16;
             return {
               status: ok ? "compliant" : "warning",

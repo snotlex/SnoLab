@@ -100,15 +100,11 @@ export function calculateDreuxGorisseCore(input: MixDesignInput, language: "ar" 
 
   // Step 0: Input Pre-checks
   const valRes = validateMixInputs(input, language);
-  if (input.fck28 === undefined || input.fck28 <= 0) {
+  if (!valRes.valid) {
     return {
       valid: false,
       isValid: false,
-      errors: valRes.errors.length > 0 ? valRes.errors : [
-        language === "fr" ? "Résistance de formulation fck28 invalide." :
-        language === "en" ? "Characteristic concrete strength fck28 is invalid." :
-        "مقاومة الضغط للخرسانة fck28 غير منطقية."
-      ],
+      errors: valRes.errors,
       warnings: valRes.warnings,
       fcm28: 0,
       stdDev: 0,
@@ -134,11 +130,7 @@ export function calculateDreuxGorisseCore(input: MixDesignInput, language: "ar" 
       totalAggregateVolume: 0,
       pivotPoint: { x: 0, y: 0 },
       gradingCurve: [],
-      detailedSteps: [
-        language === "fr" ? "Erreur : Résistance d'entrée invalide." :
-        language === "en" ? "Error: Invalid entry strength." :
-        "خطأ: المقاومة المدخلة غير صالحة."
-      ],
+      detailedSteps: valRes.errors.map(err => language === "fr" ? `Erreur : ${err}` : language === "en" ? `Error: ${err}` : `خطأ: ${err}`),
       strengthEvolution: [],
       standardsCompliance: [],
       designWater: 0,
@@ -165,7 +157,7 @@ export function calculateDreuxGorisseCore(input: MixDesignInput, language: "ar" 
   const hasPumping = !!input.hasPumping;
   const sandRelativeDensity = input.sandRelativeDensity;
   let gravelRelativeDensity = input.gravelRelativeDensity;
-  const cementDensity = input.cementDensity !== undefined ? input.cementDensity : DREUX_KNOWLEDGE_BASE.validationLimits.cementDensityDefaultKgM3;
+  const cementDensity = input.cementDensity;
   let airContent = input.airContent !== undefined ? input.airContent : 0.0;
   
   const moistureSand = input.moistureSand !== undefined ? input.moistureSand : 0;
