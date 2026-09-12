@@ -79,9 +79,9 @@ export interface ProjectRequirementsInput {
 export interface MaterialRequirementPlan {
   concreteType: string;
   mixDesignMethod: string;
-  targetStrength: number;
+  targetStrength?: number;
   exposureClass: string;
-  maxAggregateSize: number;
+  maxAggregateSize?: number;
   roles: MaterialRoleRequirement[];
   mandatoryRolesCount: number;
   optionalRolesCount: number;
@@ -99,10 +99,16 @@ export function determineMaterialRequirements(inputs: ProjectRequirementsInput):
     : (inputs.concreteType as any)?.code || (inputs.concreteType as any)?.concreteType || "NSC";
   const concreteType = String(rawConcreteType || "NSC").toUpperCase();
   const method = String(inputs.mixDesignMethod || "dreux").toLowerCase();
-  const fck = Number(inputs.targetStrength) || 25;
-  const dMax = Number(inputs.maxAggregateSize) || 20;
+  const fck = typeof inputs.targetStrength === "number" && !isNaN(inputs.targetStrength)
+    ? inputs.targetStrength
+    : undefined;
+  const dMax = typeof inputs.maxAggregateSize === "number" && !isNaN(inputs.maxAggregateSize)
+    ? inputs.maxAggregateSize
+    : undefined;
   const exposure = (inputs.exposureClass || "X0").toUpperCase();
-  const slump = Number(inputs.slumpCm) || 8;
+  const slump = typeof inputs.slumpCm === "number" && !isNaN(inputs.slumpCm)
+    ? inputs.slumpCm
+    : undefined;
   const isPumping = !!inputs.hasPumping;
   const special = inputs.specialRequirements || {};
 
@@ -113,7 +119,7 @@ export function determineMaterialRequirements(inputs: ProjectRequirementsInput):
   // ==========================================================================
   const isGpc = concreteType === "GPC";
   const isUhpcOrBfup = concreteType === "UHPC" || concreteType === "BFUP";
-  const isHsc = concreteType === "HSC" || fck >= 50;
+  const isHsc = concreteType === "HSC" || (fck !== undefined && fck >= 50);
   const isHpc = concreteType === "HPC";
   const isSulfateAttack = exposure.startsWith("XA") || special.sulfateResistance || special.marineEnvironment || exposure.startsWith("XS");
   const isLowHeat = special.lowHeatOfHydration || concreteType === "RCC";
@@ -130,13 +136,15 @@ export function determineMaterialRequirements(inputs: ProjectRequirementsInput):
     cementReasonFr = "Le béton géopolymère utilise des liants aluminosilicates activés par voie alcaline sans ciment Portland.";
   } else if (isUhpcOrBfup) {
     cementConstraint = { minStrengthClass: 52.5 };
-    cementReasonAr = `يتطلب إسمنت نقي عالي المقاومة والفينيسيا (CEM I 52.5 R) لتحقيق تراص مجهري فائق ومقاومة تفوق ${Math.max(fck, 120)} MPa.`;
-    cementReasonEn = `Requires high-purity, high-fineness cement (CEM I 52.5 R) for ultra-dense micro-packing and strength exceeding ${Math.max(fck, 120)} MPa.`;
+    const targetDisplay = fck !== undefined ? Math.max(fck, 120) : 120;
+    cementReasonAr = `يتطلب إسمنت نقي عالي المقاومة والفينيسيا (CEM I 52.5 R) لتحقيق تراص مجهري فائق ومقاومة تفوق ${targetDisplay} MPa.`;
+    cementReasonEn = `Requires high-purity, high-fineness cement (CEM I 52.5 R) for ultra-dense micro-packing and strength exceeding ${targetDisplay} MPa.`;
     cementReasonFr = `Exige un ciment haute performance CEM I 52.5 R pour une compacité micrométrique maximale.`;
   } else if (isHsc || isHpc) {
     cementConstraint = { minStrengthClass: 42.5, sulfateResistanceRequired: isSulfateAttack };
-    cementReasonAr = `يتطلب إسمنت عالي الرتبة (CEM I 42.5 R أو 52.5) لضمان متانة الهيكل الخرساني ومقاومة ضغط ${fck} MPa.`;
-    cementReasonEn = `Requires high-class cement (CEM I 42.5 R or 52.5) to ensure dense matrix and compressive strength of ${fck} MPa.`;
+    const targetDisplay = fck !== undefined ? `${fck} MPa` : "المقاومة المستهدفة";
+    cementReasonAr = `يتطلب إسمنت عالي الرتبة (CEM I 42.5 R أو 52.5) لضمان متانة الهيكل الخرساني ومقاومة ضغط ${targetDisplay}.`;
+    cementReasonEn = `Requires high-class cement (CEM I 42.5 R or 52.5) to ensure dense matrix and compressive strength of ${targetDisplay}.`;
     cementReasonFr = `Nécessite un ciment de classe 42.5 ou 52.5 pour assurer une matrice à haute performance.`;
   } else if (isSulfateAttack) {
     cementConstraint = { sulfateResistanceRequired: true };
@@ -170,7 +178,7 @@ export function determineMaterialRequirements(inputs: ProjectRequirementsInput):
   const isPervious = concreteType === "PERVIOUS";
   const isPaste = concreteType === "PASTE";
   let sandReqType: RoleRequirementType = isPaste ? "forbidden" : (isPervious ? "optional" : "mandatory");
-  let sandConstraint: RoleConstraint = { maxDmax: isUhpcOrBfup ? 2.0 : (dMax <= 4 ? dMax : 5.0) };
+  let sandConstraint: RoleConstraint = { maxDmax: isUhpcOrBfup ? 2.0 : ((dMax !== undefined && dMax <= 4) ? dMax : 5.0) };
   let sandReasonAr = "مطلوب لتأمين الهيكل الحبيبي الناعم وملء الفراغات بين الحصى وتوفير قابلية التشغيل.";
   let sandReasonEn = "Required to supply the fine granular skeleton, fill voids between gravel particles, and ensure workability.";
   let sandReasonFr = "Requis pour le squelette granulaire fin, le remplissage des vides et la maniabilité.";
@@ -208,7 +216,7 @@ export function determineMaterialRequirements(inputs: ProjectRequirementsInput):
   // ==========================================================================
   // 3. COARSE AGGREGATE (GRAVEL) ROLE
   // ==========================================================================
-  const isMortar = concreteType === "MORTAR" || concreteType === "GROUT" || concreteType === "PASTE" || dMax <= 4;
+  const isMortar = concreteType === "MORTAR" || concreteType === "GROUT" || concreteType === "PASTE" || (dMax !== undefined && dMax <= 4);
   const isLwc = concreteType === "LWC";
   const isHwc = concreteType === "HWC";
   const isRac = concreteType === "RAC";
@@ -220,10 +228,16 @@ export function determineMaterialRequirements(inputs: ProjectRequirementsInput):
     gravelReqType = "forbidden"; // Replaced by Lightweight / Heavyweight aggregate
   }
 
-  let gravelConstraint: RoleConstraint = { maxDmax: dMax };
-  let gravelReasonAr = `مطلوب لتشكيل الهيكل العظمي الخشن للخرسانة ومقاومة الانكماش، بقطر أقصى Dmax = ${dMax} مم.`;
-  let gravelReasonEn = `Required to form the coarse skeletal matrix and resist drying shrinkage (Dmax = ${dMax} mm).`;
-  let gravelReasonFr = `Requis pour former le squelette granulaire grossier et limiter le retrait (Dmax = ${dMax} mm).`;
+  let gravelConstraint: RoleConstraint = dMax !== undefined ? { maxDmax: dMax } : {};
+  let gravelReasonAr = dMax !== undefined 
+    ? `مطلوب لتشكيل الهيكل العظمي الخشن للخرسانة ومقاومة الانكماش، بقطر أقصى Dmax = ${dMax} مم.`
+    : "مطلوب لتشكيل الهيكل العظمي الخشن للخرسانة ومقاومة الانكماش.";
+  let gravelReasonEn = dMax !== undefined 
+    ? `Required to form the coarse skeletal matrix and resist drying shrinkage (Dmax = ${dMax} mm).`
+    : "Required to form the coarse skeletal matrix and resist drying shrinkage.";
+  let gravelReasonFr = dMax !== undefined 
+    ? `Requis pour former le squelette granulaire grossier et limiter le retrait (Dmax = ${dMax} mm).`
+    : "Requis pour former le squelette granulaire grossier et limiter le retrait.";
 
   if (concreteType === "SCC") {
     gravelConstraint = { maxDmax: 16 };
@@ -287,7 +301,7 @@ export function determineMaterialRequirements(inputs: ProjectRequirementsInput):
   let admixReasonEn = "Optional to improve workability, reduce water demand, or adjust setting time.";
   let admixReasonFr = "Optionnel pour améliorer l'ouvrabilité, réduire l'eau ou ajuster la prise.";
 
-  if (isUhpcOrBfup || isScc || isHsc || isHpc || fck >= 40 || slump >= 16 || isPumping) {
+  if (isUhpcOrBfup || isScc || isHsc || isHpc || (fck !== undefined && fck >= 40) || (slump !== undefined && slump >= 16) || isPumping) {
     admixReqType = "mandatory";
     admixConstraint = {
       preferredAdmixtureType: "superplasticizer",
@@ -355,7 +369,7 @@ export function determineMaterialRequirements(inputs: ProjectRequirementsInput):
     scmReasonAr = "إلزامي: غبار سيليكا فائق النعومة (Silica Fume >= 15%) لملء الفراغات النانوية وتفعيل التفاعل البوزولاني.";
     scmReasonEn = "Mandatory: Ultra-fine silica fume (>=15%) to fill nanometric voids and react with Ca(OH)2.";
     scmReasonFr = "Obligatoire : Fumée de silice ultra-fine pour densifier les nanopores et former du C-S-H secondaire.";
-  } else if (isHpc || (isHsc && fck >= 80)) {
+  } else if (isHpc || (isHsc && fck !== undefined && fck >= 80)) {
     scmReqType = "mandatory";
     scmConstraint = { preferredScmType: "silica_fume" };
     scmReasonAr = "إلزامي: إضافة بوزولانية نشطة (غبار سيليكا، رماد متطاير، أو خبث) لرفع الكثافة والكتامة.";

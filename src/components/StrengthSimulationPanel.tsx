@@ -52,7 +52,7 @@ export const StrengthSimulationPanel: React.FC<StrengthSimulationPanelProps> = (
   result 
 }) => {
   // Base target design characteristic strength is fully synchronized from parent inputs
-  const fck28Override = input.fck28 || 25;
+  const fck28Override = input.fck28;
 
   // Weather States
   const [ambientTemp, setAmbientTemp] = useState<number>(32); // Summer daytime default
@@ -210,6 +210,8 @@ export const StrengthSimulationPanel: React.FC<StrengthSimulationPanelProps> = (
       28: t_eq_28,
       90: t_eq_90
     };
+
+    if (!fck28Override) return [];
 
     return ages.map((age) => {
       const teq = t_eq_map[age];
@@ -573,19 +575,21 @@ export const StrengthSimulationPanel: React.FC<StrengthSimulationPanelProps> = (
                   />
                   
                   {/* Reference line showing 100% Target Lab fcm28 */}
-                  <ReferenceLine 
-                    y={toUnit(fck28Override)} 
-                    stroke="#94a3b8" 
-                    strokeWidth="1.5" 
-                    strokeDasharray="4 4" 
-                    label={{ 
-                      value: `مقاومة الكود المستهدفة: ${toUnit(fck28Override)} ${unitStr}`, 
-                      position: 'top', 
-                      fill: '#64748b', 
-                      fontSize: 8,
-                      fontWeight: 'bold'
-                    }} 
-                  />
+                  {fck28Override && (
+                    <ReferenceLine 
+                      y={toUnit(fck28Override)} 
+                      stroke="#94a3b8" 
+                      strokeWidth="1.5" 
+                      strokeDasharray="4 4" 
+                      label={{ 
+                        value: `مقاومة الكود المستهدفة: ${toUnit(fck28Override)} ${unitStr}`, 
+                        position: 'top', 
+                        fill: '#64748b', 
+                        fontSize: 8,
+                        fontWeight: 'bold'
+                      }} 
+                    />
+                  )}
 
                   {/* Line 1: Excellent Curing (💧 معالجة ممتازة) */}
                   <Line 

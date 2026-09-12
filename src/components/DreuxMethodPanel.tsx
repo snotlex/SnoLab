@@ -75,7 +75,7 @@ export const DreuxMethodPanel: React.FC<DreuxMethodPanelProps> = ({
       color: "from-purple-500 to-indigo-600",
       descriptionAr: "المقاومة الاسمية لعلامة أو صنف الإسمنت المستعمل (مثل 32.5 أو 42.5 أو 52.5 ميجاباسكال). تؤثر مباشرة في حساب نسبة الماء/الإسمنت ومعدل صلابة الخرسانة المبكر.",
       descriptionFr: "La classe de résistance nominale du ciment utilisé (par ex. 32.5, 42.5, 52.5 MPa) influençant directement le rapport E/C.",
-      currentValue: `${inputs.cementClassStrength || 42.5} MPa (${inputs.cementType || "CEM I / CEM II"})`
+      currentValue: `${inputs.cementClassStrength !== undefined ? `${inputs.cementClassStrength} MPa` : "—"} (${inputs.cementType || "CEM I / CEM II"})`
     },
     {
       id: 3,
@@ -231,7 +231,7 @@ export const DreuxMethodPanel: React.FC<DreuxMethodPanelProps> = ({
       color: "from-blue-600 to-slate-700",
       descriptionAr: "الوزن الكلي للإسمنت المطلوب لكل متر مكعب من الخرسانة. يتم استنتاجه بقسمة حجم المياه الفعال على نسبة الماء/الإسمنت مع مطابقة الحد الأدنى للكود لضمان الديمومة.",
       descriptionFr: "La masse de ciment requise par m³ de béton, calculée pour satisfaire la résistance cible et les exigences normatives de durabilité.",
-      currentValue: `${Math.round(results.cementWeight || 350)} kg/m³`
+      currentValue: `${results.cementWeight !== undefined ? `${Math.round(results.cementWeight)} kg/m³` : "—"}`
     },
     {
       id: 15,

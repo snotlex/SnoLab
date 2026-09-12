@@ -111,11 +111,17 @@ export function calculate(inputs: any): MixDesignResult {
 }
 
 export function getAssumptions(inputs: any): string[] {
-  return [
-    `Target Characteristic Compressive Strength fck = ${inputs.fck28 || 25} MPa.`,
-    `Cement nominal rating class = ${inputs.cementClassStrength || 42.5} MPa.`,
-    `D_max = ${inputs.dMax || 20} mm.`
-  ];
+  const assumptions: string[] = [];
+  if (inputs.fck28 !== undefined) {
+    assumptions.push(`Target Characteristic Compressive Strength fck = ${inputs.fck28} MPa.`);
+  }
+  if (inputs.cementClassStrength !== undefined) {
+    assumptions.push(`Cement nominal rating class = ${inputs.cementClassStrength} MPa.`);
+  }
+  if (inputs.dMax !== undefined) {
+    assumptions.push(`D_max = ${inputs.dMax} mm.`);
+  }
+  return assumptions;
 }
 
 export function getWarnings(inputs: any): string[] {

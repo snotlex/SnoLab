@@ -33,32 +33,54 @@ export class NormalStrengthConcreteRule implements ConcreteTypeRule {
     const recommendations: string[] = [];
     const optimizationSuggestions: string[] = [];
 
-    const fck = inputs.fck28 || 25;
-    const cement = result.cementWeight || 350;
+    const fck = inputs.fck28;
+    const cement = result.cementWeight;
 
-    const fckOk = fck <= 35;
-    assessments.push({
-      paramName: "strength_range",
-      arabicName: "المقاومة المستهدفة (fc28)",
-      status: fckOk ? "compliant" : "warning",
-      requirement: "fc28 <= 35 MPa",
-      actual: `${fck} MPa`,
-      note: fckOk ? "المقاومة مثالية للخرسانة العادية دون الحاجة لمحسنات خاصة." : "المقاومة مرتفعة نسبياً للخرسانة العادية، نوصي بترقية تصنيف الخرسانة إلى HSC."
-    });
-
-    const cementOk = cement >= 280 && cement <= 380;
-    assessments.push({
-      paramName: "cement_range",
-      arabicName: "محتوى الإسمنت (Cement)",
-      status: cementOk ? "compliant" : "warning",
-      requirement: "280 - 380 kg/m³",
-      actual: `${Math.round(cement)} kg/m³`,
-      note: cementOk ? "محتوى الإسمنت متطابق هندسياً للخرسانة الهيكلية العادية." : "كمية الإسمنت خارج النطاق الاقتصادي العادي."
-    });
-
-    if (!fckOk) {
-      recommendations.push("⚠ يرجى تعديل خيار 'نوع الخرسانة' إلى خرسانة عالية المقاومة (HSC) لتلقي توجيهات تدعيم أفضل لإجهاد الضغط الكبير.");
+    if (fck !== undefined && fck !== null) {
+      const fckOk = fck <= 35;
+      assessments.push({
+        paramName: "strength_range",
+        arabicName: "المقاومة المستهدفة (fc28)",
+        status: fckOk ? "compliant" : "warning",
+        requirement: "fc28 <= 35 MPa",
+        actual: `${fck} MPa`,
+        note: fckOk ? "المقاومة مثالية للخرسانة العادية دون الحاجة لمحسنات خاصة." : "المقاومة مرتفعة نسبياً للخرسانة العادية، نوصي بترقية تصنيف الخرسانة إلى HSC."
+      });
+      if (!fckOk) {
+        recommendations.push("⚠ يرجى تعديل خيار 'نوع الخرسانة' إلى خرسانة عالية المقاومة (HSC) لتلقي توجيهات تدعيم أفضل لإجهاد الضغط الكبير.");
+      }
+    } else {
+      assessments.push({
+        paramName: "strength_range",
+        arabicName: "المقاومة المستهدفة (fc28)",
+        status: "warning",
+        requirement: "fc28 <= 35 MPa",
+        actual: "غير محدد",
+        note: "قيمة المقاومة المستهدفة غير محددة."
+      });
     }
+
+    if (cement !== undefined && cement !== null && cement > 0) {
+      const cementOk = cement >= 280 && cement <= 380;
+      assessments.push({
+        paramName: "cement_range",
+        arabicName: "محتوى الإسمنت (Cement)",
+        status: cementOk ? "compliant" : "warning",
+        requirement: "280 - 380 kg/m³",
+        actual: `${Math.round(cement)} kg/m³`,
+        note: cementOk ? "محتوى الإسمنت متطابق هندسياً للخرسانة الهيكلية العادية." : "كمية الإسمنت خارج النطاق الاقتصادي العادي."
+      });
+    } else {
+      assessments.push({
+        paramName: "cement_range",
+        arabicName: "محتوى الإسمنت (Cement)",
+        status: "warning",
+        requirement: "280 - 380 kg/m³",
+        actual: "غير محدد",
+        note: "لم يتم حساب محتوى الإسمنت بعد."
+      });
+    }
+
     recommendations.push("✓ الخلطة ملائمة للمشاريع الاعتيادية والمنشآت السكنية البسيطة.");
     optimizationSuggestions.push("تأكد من الحفاظ على رطوبة الركام بمستواها الفعلي والتحكم في ماء الخلط للحفاظ على رتبة الخرسانة.");
 
@@ -77,40 +99,46 @@ export class HighStrengthConcreteRule implements ConcreteTypeRule {
     const recommendations: string[] = [];
     const optimizationSuggestions: string[] = [];
 
-    const fck = inputs.fck28 || 25;
-    const wc = result.wcRatioAdjusted || result.wcRatio || 0.50;
-    const cement = result.cementWeight || 350;
+    const fck = inputs.fck28;
+    const wc = result.wcRatioAdjusted ?? result.wcRatio;
+    const cement = result.cementWeight;
     const sSuper = inputs.dosageSuper || 0;
     const silica = inputs.dosageSilicaFume || 0;
 
-    const fckOk = fck >= 40;
+    const fckOk = fck !== undefined && fck >= 40;
     assessments.push({
       paramName: "hsc_strength",
       arabicName: "المقاومة المستهدفة (fc28)",
-      status: fckOk ? "compliant" : "non_compliant",
+      status: fck === undefined ? "warning" : (fckOk ? "compliant" : "non_compliant"),
       requirement: "fc28 >= 40 MPa",
-      actual: `${fck} MPa`,
-      note: fckOk ? "سليمة، المقاومة تناسب متطلبات الخرسانة المرتفعة التحمل." : "غير كافية، الخرسانة عالية المقاومة هندسياً تتطلب مقاومة ضغط حقيقية لا تقل عن 40 ميغاباسكال."
+      actual: fck !== undefined ? `${fck} MPa` : "غير محدد",
+      note: fck === undefined
+        ? "قيمة المقاومة المستهدفة غير محددة."
+        : (fckOk ? "سليمة، المقاومة تناسب متطلبات الخرسانة المرتفعة التحمل." : "غير كافية، الخرسانة عالية المقاومة هندسياً تتطلب مقاومة ضغط حقيقية لا تقل عن 40 ميغاباسكال.")
     });
 
-    const wcOk = wc <= 0.35;
+    const wcOk = wc !== undefined && wc <= 0.35;
     assessments.push({
       paramName: "hsc_wc",
       arabicName: "نسبة الماء للاسمنت (W/C)",
-      status: wcOk ? "compliant" : "non_compliant",
+      status: wc === undefined ? "warning" : (wcOk ? "compliant" : "non_compliant"),
       requirement: "W/C <= 0.35",
-      actual: `${wc.toFixed(2)}`,
-      note: wcOk ? "ممتازة، النسبة مخفضة لرفع تماسك العجينة وتقوية منطقة الاتصال الفاصلة (ITZ)." : "مرفوض هندسياً، الخرسانة عالية المقاومة تتطلب W/C منخفض جداً لتفادي المسامية الكبيرة."
+      actual: wc !== undefined ? `${wc.toFixed(2)}` : "غير محدد",
+      note: wc === undefined
+        ? "نسبة الماء للإسمنت غير محسوبة بعد."
+        : (wcOk ? "ممتازة، النسبة مخفضة لرفع تماسك العجينة وتقوية منطقة الاتصال الفاصلة (ITZ)." : "مرفوض هندسياً، الخرسانة عالية المقاومة تتطلب W/C منخفض جداً لتفادي المسامية الكبيرة.")
     });
 
-    const cementOk = cement >= 400;
+    const cementOk = cement !== undefined && cement >= 400;
     assessments.push({
       paramName: "hsc_cement",
       arabicName: "وزن الإسمنت",
-      status: cementOk ? "compliant" : "warning",
+      status: cement === undefined ? "warning" : (cementOk ? "compliant" : "warning"),
       requirement: "Cement >= 400 kg/m³",
-      actual: `${Math.round(cement)} kg/m³`,
-      note: cementOk ? "جرعة صحيحة لتأمين كمية مناسبة من جل الـ C-S-H الرابط." : "نوصي برفع كمية الإسمنت أو استخدام غبار السيليكا لتعويض النقص الحركي لجهود الضغط."
+      actual: cement !== undefined ? `${Math.round(cement)} kg/m³` : "غير محدد",
+      note: cement === undefined
+        ? "وزن الإسمنت غير محسوب بعد."
+        : (cementOk ? "جرعة صحيحة لتأمين كمية مناسبة من جل الـ C-S-H الرابط." : "نوصي برفع كمية الإسمنت أو استخدام غبار السيليكا لتعويض النقص الحركي لجهود الضغط.")
     });
 
     const superOk = sSuper >= 1.0;
@@ -147,18 +175,20 @@ export class HighPerformanceConcreteRule implements ConcreteTypeRule {
     const recommendations: string[] = [];
     const optimizationSuggestions: string[] = [];
 
-    const wc = result.wcRatioAdjusted || result.wcRatio || 0.50;
+    const wc = result.wcRatioAdjusted ?? result.wcRatio;
     const sSuper = inputs.dosageSuper || 0;
     const silica = inputs.dosageSilicaFume || 0;
 
-    const wcOk = wc <= 0.38;
+    const wcOk = wc !== undefined && wc <= 0.38;
     assessments.push({
       paramName: "hpc_wc",
       arabicName: "نسبة الماء الشامل (W/C)",
-      status: wcOk ? "compliant" : "non_compliant",
+      status: wc === undefined ? "warning" : (wcOk ? "compliant" : "non_compliant"),
       requirement: "W/C <= 0.38",
-      actual: `${wc.toFixed(2)}`,
-      note: wcOk ? "مثالية لخفض المسامية المتصلة بالبيتون وتحقيق أعلى درجات المتانة." : "نسبة الماء مرتفعة وتسهل نفاذ الكبريتات والكلوريدات الساحلية. يجب أن لا تزيد عن 0.38 للـ HPC."
+      actual: wc !== undefined ? `${wc.toFixed(2)}` : "غير محدد",
+      note: wc === undefined
+        ? "نسبة الماء للإسمنت غير محسوبة بعد."
+        : (wcOk ? "مثالية لخفض المسامية المتصلة بالبيتون وتحقيق أعلى درجات المتانة." : "نسبة الماء مرتفعة وتسهل نفاذ الكبريتات والكلوريدات الساحلية. يجب أن لا تزيد عن 0.38 للـ HPC.")
     });
 
     const superOk = sSuper >= 1.2;
@@ -204,21 +234,23 @@ export class SelfConsolidatingConcreteRule implements ConcreteTypeRule {
     const recommendations: string[] = [];
     const optimizationSuggestions: string[] = [];
 
-    const slump = inputs.slump || 8;
+    const slump = inputs.slump;
     const sSuper = inputs.dosageSuper || 0;
-    const cement = result.cementWeight || 350;
+    const cement = result.cementWeight;
     const silica = inputs.dosageSilicaFume || 0;
     const flyAsh = inputs.dosageFlyAsh || 0;
     const slag = inputs.dosageSlag || 0;
 
-    const slumpOk = slump >= 20;
+    const slumpOk = slump !== undefined && slump >= 20;
     assessments.push({
       paramName: "scc_slump",
       arabicName: "هبوط مخروط أبرامز (Slump)",
-      status: slumpOk ? "compliant" : "non_compliant",
+      status: slump === undefined ? "warning" : (slumpOk ? "compliant" : "non_compliant"),
       requirement: "Slump >= 20 cm (Slump Flow > 600mm)",
-      actual: `${slump} cm`,
-      note: slumpOk ? "السيولة ممتازة لمطابقة شروط التدفق الذاتي للخرسانة ذاتية الرص." : "القيمة منخفضة جداً للخرسانة ذاتية الرص. البيتون سيتطلب هزا ميكانيكيا ولن ينساب بحرية."
+      actual: slump !== undefined ? `${slump} cm` : "غير محدد",
+      note: slump === undefined
+        ? "قيمة الهبوط غير محددة."
+        : (slumpOk ? "السيولة ممتازة لمطابقة شروط التدفق الذاتي للخرسانة ذاتية الرص." : "القيمة منخفضة جداً للخرسانة ذاتية الرص. البيتون سيتطلب هزا ميكانيكيا ولن ينساب بحرية.")
     });
 
     const superOk = sSuper >= 1.2;
@@ -232,16 +264,27 @@ export class SelfConsolidatingConcreteRule implements ConcreteTypeRule {
     });
 
     // Total powder estimation
-    const totalPowder = cement + (cement * (silica + flyAsh + slag) / 100);
-    const powderOk = totalPowder >= 450;
-    assessments.push({
-      paramName: "scc_powder",
-      arabicName: "المحتوى الغباري الناعم (Powder Content)",
-      status: powderOk ? "compliant" : "warning",
-      requirement: "Powder >= 450 kg/m³",
-      actual: `${Math.round(totalPowder)} kg/m³`,
-      note: powderOk ? "كمية الرواسب الدقيقة كافية لحماية حبات الرص من الانعزال المائي (Segregation)." : "مستوى الناعم قليل مما يؤدي لمخاطر الانعزال وهرب حصى الكتل (Segregation). نوصي برفع المكونات الغبارية من خبث أو رماد متطاير."
-    });
+    if (cement !== undefined) {
+      const totalPowder = cement + (cement * (silica + flyAsh + slag) / 100);
+      const powderOk = totalPowder >= 450;
+      assessments.push({
+        paramName: "scc_powder",
+        arabicName: "المحتوى الغباري الناعم (Powder Content)",
+        status: powderOk ? "compliant" : "warning",
+        requirement: "Powder >= 450 kg/m³",
+        actual: `${Math.round(totalPowder)} kg/m³`,
+        note: powderOk ? "كمية الرواسب الدقيقة كافية لحماية حبات الرص من الانعزال المائي (Segregation)." : "مستوى الناعم قليل مما يؤدي لمخاطر الانعزال وهرب حصى الكتل (Segregation). نوصي برفع المكونات الغبارية من خبث أو رماد متطاير."
+      });
+    } else {
+      assessments.push({
+        paramName: "scc_powder",
+        arabicName: "المحتوى الغباري الناعم (Powder Content)",
+        status: "warning",
+        requirement: "Powder >= 450 kg/m³",
+        actual: "غير محدد",
+        note: "لم يتم حساب وزن الإسمنت لتقدير المحتوى الغباري."
+      });
+    }
 
     const dmaxOk = inputs.dMax <= 16;
     assessments.push({
@@ -404,27 +447,31 @@ export class RollerCompactedConcreteRule implements ConcreteTypeRule {
     const recommendations: string[] = [];
     const optimizationSuggestions: string[] = [];
 
-    const slump = inputs.slump || 8;
-    const cement = result.cementWeight || 350;
+    const slump = inputs.slump;
+    const cement = result.cementWeight;
 
-    const slumpOk = slump === 0;
+    const slumpOk = slump !== undefined && slump === 0;
     assessments.push({
       paramName: "rcc_slump",
       arabicName: "الهبوط بقمع أبرامز (Slump)",
-      status: slumpOk ? "compliant" : "non_compliant",
+      status: slump === undefined ? "warning" : (slumpOk ? "compliant" : "non_compliant"),
       requirement: "Slump = 0 cm (Zero-Slump)",
-      actual: `${slump} cm`,
-      note: slumpOk ? "مثالية، الخليط جاف جداً ومطابق لخواص فرش المداحل الإنشائية." : "غير متوافقة، الخرسانة المدحولة يجب أن تكون جافة تماماً وقوامها ترابي رطب بدون هبوط إطلاقاً ليتسنى رصها بالمداحل."
+      actual: slump !== undefined ? `${slump} cm` : "غير محدد",
+      note: slump === undefined
+        ? "قيمة الهبوط غير محددة."
+        : (slumpOk ? "مثالية، الخليط جاف جداً ومطابق لخواص فرش المداحل الإنشائية." : "غير متوافقة، الخرسانة المدحولة يجب أن تكون جافة تماماً وقوامها ترابي رطب بدون هبوط إطلاقاً ليتسنى رصها بالمداحل.")
     });
 
-    const cementOk = cement <= 280;
+    const cementOk = cement !== undefined && cement <= 280;
     assessments.push({
       paramName: "rcc_cement",
       arabicName: "جرعة الإسمنت",
-      status: cementOk ? "compliant" : "warning",
+      status: cement === undefined ? "warning" : (cementOk ? "compliant" : "warning"),
       requirement: "Cement <= 280 kg/m³",
-      actual: `${Math.round(cement)} kg/m³`,
-      note: cementOk ? "اقتصادية، جرعة الإسمنت ملائمة لمتطلبات السدود والفرش الكتلي." : "نوصي بخفض محتوى الإسمنت كإجراء اقتصادي وتقليل الانبعاثات الحرارية في السدد الكبيرة."
+      actual: cement !== undefined ? `${Math.round(cement)} kg/m³` : "غير محدد",
+      note: cement === undefined
+        ? "وزن الإسمنت غير محسوب بعد."
+        : (cementOk ? "اقتصادية، جرعة الإسمنت ملائمة لمتطلبات السدود والفرش الكتلي." : "نوصي بخفض محتوى الإسمنت كإجراء اقتصادي وتقليل الانبعاثات الحرارية في السدد الكبيرة.")
     });
 
     if (!slumpOk) recommendations.push("⚠ قم بتعديل قيمة الهبوط (Slump) في الواجهة لتكون صفر سم (0) لتحقيق الهيكل الجاف والمجفف الترابي للخرسانة المدحولة.");
@@ -449,7 +496,7 @@ export class SprayedConcreteRule implements ConcreteTypeRule {
     const optimizationSuggestions: string[] = [];
 
     const sAcc = inputs.dosageAccelerator || 0;
-    const dMax = inputs.dMax || 20;
+    const dMax = inputs.dMax;
 
     const accOk = sAcc >= 1.0;
     assessments.push({
@@ -461,14 +508,16 @@ export class SprayedConcreteRule implements ConcreteTypeRule {
       note: accOk ? "تمت برمجة المسرع الكيميائي بمعدل يساعد على التصلد اللحظي عند الارتطام بالأسقف." : "نوصي بتفعيل أو رفع جرعة معجل التصليد (Accelerator) في لوحة الإضافات الكيميائية لمنع تساقط الكتل المصبوبة بالموقع."
     });
 
-    const dmaxOk = dMax <= 16;
+    const dmaxOk = dMax !== undefined && dMax <= 16;
     assessments.push({
       paramName: "shotcrete_dmax",
       arabicName: "أقصى قطر للركام (Dmax)",
-      status: dmaxOk ? "compliant" : "warning",
+      status: dMax === undefined ? "warning" : (dmaxOk ? "compliant" : "warning"),
       requirement: "Dmax <= 16mm",
-      actual: `${dMax} mm`,
-      note: dmaxOk ? "ممتازة، لمنع التناثر والارتداد العكسي للحصوات الضخمة (Rebound Loss)." : "حجم الركام كبير وقد يقود لارتداد ثقيل للحبيبات على العمال. يرجى تعديله ليكون Dmax <= 16 مم."
+      actual: dMax !== undefined ? `${dMax} mm` : "غير محدد",
+      note: dMax === undefined
+        ? "أقصى قطر للركام (Dmax) غير محدد."
+        : (dmaxOk ? "ممتازة، لمنع التناثر والارتداد العكسي للحصوات الضخمة (Rebound Loss)." : "حجم الركام كبير وقد يقود لارتداد ثقيل للحبيبات على العمال. يرجى تعديله ليكون Dmax <= 16 مم.")
     });
 
     if (!accOk) recommendations.push("💡 قم بزيادة نسبة 'المسرّع' الكيميائي لزر تسريع الترابط اللحظي للخرسانة المقذوفة.");

@@ -695,11 +695,16 @@ export function applyRecommendedMaterialToInputs(
 
   switch (role) {
     case "cement": {
-      const strClass = parseFloat(String(material.strengthClass || material.cementClass || "42.5")) || prevInputs.cementClassStrength;
+      const parsedStr = material.strengthClass ? parseFloat(String(material.strengthClass)) : undefined;
+      const strClass = !isNaN(Number(parsedStr)) ? parsedStr : prevInputs.cementClassStrength;
       updated.selectedCementId = material.id;
       updated.cementType = material.name;
-      updated.cementDensity = dens > 1000 ? dens : dens * 1000 || 3100;
-      updated.cementClassStrength = strClass;
+      if (dens > 0) {
+        updated.cementDensity = dens > 1000 ? dens : dens * 1000;
+      }
+      if (strClass !== undefined) {
+        updated.cementClassStrength = strClass;
+      }
       if (price > 0) updated.priceCement = price;
       break;
     }
@@ -707,9 +712,11 @@ export function applyRecommendedMaterialToInputs(
     case "sand": {
       updated.selectedSandId = material.id;
       updated.sandType = material.name;
-      updated.sandRelativeDensity = dens > 10 ? dens / 1000 : dens || 2.65;
-      updated.sandAbsorption = abs;
-      updated.moistureSand = moist;
+      if (dens > 0) {
+        updated.sandRelativeDensity = dens > 10 ? dens / 1000 : dens;
+      }
+      if (abs !== undefined) updated.sandAbsorption = abs;
+      if (moist !== undefined) updated.moistureSand = moist;
       if (material.finenessModulus) updated.finenessModulus = material.finenessModulus;
       if (price > 0) updated.priceSand = price;
       break;
@@ -739,9 +746,11 @@ export function applyRecommendedMaterialToInputs(
 
       updated.selectedGravelId = material.id;
       updated.gravelType = material.name;
-      updated.gravelRelativeDensity = dens > 10 ? dens / 1000 : dens || 2.68;
-      updated.gravelAbsorption = abs;
-      updated.moistureGravel = moist;
+      if (dens > 0) {
+        updated.gravelRelativeDensity = dens > 10 ? dens / 1000 : dens;
+      }
+      if (abs !== undefined) updated.gravelAbsorption = abs;
+      if (moist !== undefined) updated.moistureGravel = moist;
       if (material.dMax) updated.dMax = material.dMax;
       updated.aggregateType = shape;
       updated.aggregateQuality = qualityVal;
@@ -750,27 +759,31 @@ export function applyRecommendedMaterialToInputs(
     }
 
     case "water": {
-      const pH = material.engineeringData?.pH || (material as any).pH || 7;
-      const chloride = material.engineeringData?.chloride || (material as any).chlorideContent || 0;
-      const sulphate = material.engineeringData?.sulphate || (material as any).sulphateContent || 0;
-      const temp = material.engineeringData?.temperature || (material as any).temperature || 20;
+      const pH = material.engineeringData?.pH ?? (material as any).pH;
+      const chloride = material.engineeringData?.chloride ?? (material as any).chlorideContent;
+      const sulphate = material.engineeringData?.sulphate ?? (material as any).sulphateContent;
+      const temp = material.engineeringData?.temperature ?? (material as any).temperature;
 
       updated.selectedWaterId = material.id;
       updated.selectedWaterName = material.name;
-      updated.selectedWaterPH = pH;
-      updated.selectedWaterChlorideContent = chloride;
-      updated.selectedWaterSulphateContent = sulphate;
-      updated.selectedWaterTemperature = temp;
+      if (pH !== undefined) updated.selectedWaterPH = pH;
+      if (chloride !== undefined) updated.selectedWaterChlorideContent = chloride;
+      if (sulphate !== undefined) updated.selectedWaterSulphateContent = sulphate;
+      if (temp !== undefined) updated.selectedWaterTemperature = temp;
       if (price > 0) updated.priceWater = price;
       break;
     }
 
     case "admixture": {
-      const wr = material.waterReduction || 20;
+      const wr = material.waterReduction;
       updated.selectedAdmixtureId = material.id;
       updated.selectedAdmixtureName = material.name;
-      updated.selectedAdmixtureDensity = dens > 10 ? dens / 1000 : dens || 1.15;
-      updated.selectedAdmixtureWaterReduction = wr;
+      if (dens > 0) {
+        updated.selectedAdmixtureDensity = dens > 10 ? dens / 1000 : dens;
+      }
+      if (wr !== undefined) {
+        updated.selectedAdmixtureWaterReduction = wr;
+      }
       if (price > 0) updated.priceSuper = price;
       break;
     }
@@ -778,7 +791,9 @@ export function applyRecommendedMaterialToInputs(
     case "scm": {
       updated.selectedScmId = material.id;
       updated.selectedScmName = material.name;
-      updated.selectedScmDensity = dens > 100 ? dens : dens * 1000 || 2200;
+      if (dens > 0) {
+        updated.selectedScmDensity = dens > 100 ? dens : dens * 1000;
+      }
       if (price > 0) updated.priceSilicaFume = price;
       break;
     }
@@ -786,8 +801,10 @@ export function applyRecommendedMaterialToInputs(
     case "fiber": {
       updated.selectedFiberId = material.id;
       updated.selectedFiberName = material.name;
-      updated.fiberType = material.fiberType || "steel";
-      updated.fiberDensity = dens > 100 ? dens : dens * 1000 || 7850;
+      if (material.fiberType) updated.fiberType = material.fiberType;
+      if (dens > 0) {
+        updated.fiberDensity = dens > 100 ? dens : dens * 1000;
+      }
       if ((material as any).tensileStrength) updated.fiberTensileStrengthMPa = (material as any).tensileStrength;
       if (price > 0) updated.priceFiber = price;
       break;
@@ -796,7 +813,9 @@ export function applyRecommendedMaterialToInputs(
     case "specialBinder": {
       updated.selectedSpecialBinderId = material.id;
       updated.selectedSpecialBinderName = material.name;
-      updated.specialBinderDensity = dens > 100 ? dens : dens * 1000 || 2400;
+      if (dens > 0) {
+        updated.specialBinderDensity = dens > 100 ? dens : dens * 1000;
+      }
       if (price > 0) updated.priceSpecialBinder = price;
       break;
     }
@@ -804,18 +823,18 @@ export function applyRecommendedMaterialToInputs(
     case "lightweightAggregate": {
       updated.selectedLightweightAggregateId = material.id;
       updated.selectedLightweightAggregateName = material.name;
-      updated.lightweightAggregateDensity = dens || 1200;
-      updated.lightweightAggregateAbsorption = abs;
-      updated.lightweightAggregateMoisture = moist;
+      if (dens > 0) updated.lightweightAggregateDensity = dens;
+      if (abs !== undefined) updated.lightweightAggregateAbsorption = abs;
+      if (moist !== undefined) updated.lightweightAggregateMoisture = moist;
       break;
     }
 
     case "heavyweightAggregate": {
       updated.selectedHeavyweightAggregateId = material.id;
       updated.selectedHeavyweightAggregateName = material.name;
-      updated.heavyweightAggregateDensity = dens || 3800;
-      updated.heavyweightAggregateAbsorption = abs;
-      updated.heavyweightAggregateMoisture = moist;
+      if (dens > 0) updated.heavyweightAggregateDensity = dens;
+      if (abs !== undefined) updated.heavyweightAggregateAbsorption = abs;
+      if (moist !== undefined) updated.heavyweightAggregateMoisture = moist;
       break;
     }
   }

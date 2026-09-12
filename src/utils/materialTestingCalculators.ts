@@ -278,11 +278,11 @@ export function calculateSandBulking(
     };
   });
 
-  const maxBulkingPoint = curvePoints.reduce((max, curr) => curr.bulkingPercent > max.bulkingPercent ? curr : max, curvePoints[0] || { moisture: 4, bulkingPercent: 25 });
+  const maxBulkingPoint = curvePoints.length > 0 ? curvePoints.reduce((max, curr) => curr.bulkingPercent > max.bulkingPercent ? curr : max, curvePoints[0]) : undefined;
 
   const compliance: ComplianceDetail[] = [{
     parameter: "أقصى انتفاخ حجمي للرمل (Max Bulking)",
-    measured: `+${maxBulkingPoint?.bulkingPercent || 25}% عند رطوبة ${maxBulkingPoint?.moisture || 4}%`,
+    measured: maxBulkingPoint ? `+${maxBulkingPoint.bulkingPercent}% عند رطوبة ${maxBulkingPoint.moisture}%` : "غير متوفر",
     limit: "15% - 35% (ظاهرة طبيعية في الرمال الرطبة)",
     status: "PASS",
     note: "يؤكد ضرورة الكيل بالوزن في محطات الخلط وتجنب الكيل بالحجم"
@@ -290,10 +290,12 @@ export function calculateSandBulking(
 
   return {
     curvePoints,
-    maxBulkingPercent: maxBulkingPoint?.bulkingPercent || 25,
-    criticalMoisture: maxBulkingPoint?.moisture || 4,
+    maxBulkingPercent: maxBulkingPoint?.bulkingPercent ?? 0,
+    criticalMoisture: maxBulkingPoint?.moisture ?? 0,
     status: "PASS" as TestStatus,
-    interpretation: `يصل انتفاخ الرمل الرطب إلى ذروته (+${maxBulkingPoint?.bulkingPercent}%) عند رطوبة ${maxBulkingPoint?.moisture}%. يُثبت هذا الاختبار علمياً خطورة الكيل الحجمي للخرسانة ويبرهن حتمية الكيل بالوزن مع تصحيح الرطوبة.`,
+    interpretation: maxBulkingPoint
+      ? `يصل انتفاخ الرمل الرطب إلى ذروته (+${maxBulkingPoint.bulkingPercent}%) عند رطوبة ${maxBulkingPoint.moisture}%. يُثبت هذا الاختبار علمياً خطورة الكيل الحجمي للخرسانة ويبرهن حتمية الكيل بالوزن مع تصحيح الرطوبة.`
+      : "لم يتم تقديم نقاط منحنى كافية لتحديد ذروة الانتفاخ الحجمي.",
     compliance
   };
 }

@@ -15,19 +15,19 @@ app.use(express.urlencoded({ limit: "15mb", extended: true }));
 
 // Local engineering intelligence engine to handle API quota limits (429) or interruptions gracefully.
 function generateLocalFallbackAnalysis(params: {
-  fck28: number;
-  fcm28: number;
-  cementType: string;
-  cementStrength: number;
-  aggregateType: string;
-  aggregateQuality: string;
-  dMax: number;
-  slump: number;
-  waterContent: number;
-  cementContent: number;
-  sandWeight: number;
-  gravelWeight: number;
-  admixtures: any[];
+  fck28?: number;
+  fcm28?: number;
+  cementType?: string;
+  cementStrength?: number;
+  aggregateType?: string;
+  aggregateQuality?: string;
+  dMax?: number;
+  slump?: number;
+  waterContent?: number;
+  cementContent?: number;
+  sandWeight?: number;
+  gravelWeight?: number;
+  admixtures?: any[];
   userMessage?: string;
 }): string {
   const {
@@ -47,7 +47,9 @@ function generateLocalFallbackAnalysis(params: {
     userMessage
   } = params;
 
-  const wcRatio = waterContent / (cementContent || 1);
+  const wcRatio = (waterContent !== undefined && cementContent !== undefined && cementContent > 0)
+    ? waterContent / cementContent
+    : undefined;
 
   if (userMessage) {
     const query = userMessage.trim().toLowerCase();
@@ -142,25 +144,36 @@ function generateLocalFallbackAnalysis(params: {
 إذا كان لديك أي سؤال محدد حول نسب مكونات خلطتك الراهنة أو كيفية تعديل جرعات الملدنات، فلا تتردد في طرحه!`;
   }
 
-  const isWcGood = wcRatio <= 0.55 && wcRatio >= 0.40;
-  const isSlumpHigh = slump >= 8;
-  const aggTypeText = aggregateType === 'roule' ? 'ركام الوديان المدور (Roulé)' : 'الركام الكلسي المكسر (Concassé)';
+  const isWcGood = wcRatio !== undefined ? (wcRatio <= 0.55 && wcRatio >= 0.40) : false;
+  const isSlumpHigh = slump !== undefined ? slump >= 8 : false;
+  const aggTypeText = aggregateType 
+    ? (aggregateType === 'roule' ? 'ركام الوديان المدور (Roulé)' : 'الركام الكلسي المكسر (Concassé)')
+    : 'غير محدد (Not provided)';
+
+  const fckText = fck28 !== undefined ? `${fck28} MPa` : 'غير محدد في المدخلات (Not provided)';
+  const fcmText = fcm28 !== undefined ? `${fcm28} MPa` : 'غير محدد (Not provided)';
+  const cementStrengthText = cementStrength !== undefined ? `${cementStrength} MPa` : 'غير محدد (Not provided)';
+  const cementTypeText = cementType || 'غير محدد (Not provided)';
+  const dMaxText = dMax !== undefined ? `${dMax} مم` : 'غير محدد (Not provided)';
+  const slumpText = slump !== undefined ? `${slump} سم` : 'غير محدد (Not provided)';
 
   return `⚠️ **تنبيه من النظام:** تم تفعيل وحدة التحليل الهندسي المحلي مؤقتاً لتخطي حدود API المجانية.
 
 ### 📊 التقرير الفني والمراجعة الشاملة للخلطة (حسب معيار Dreux-Gorisse)
 
-أهلاً بك في التقرير التحليلي لطلب تركيبتك الخرسانية الحالية. بناءً على الحسابات الرياضية المعتمدة لطريقة درو-غوريس (Dreux-Gorisse) والمواصفات التي أدخلتها، إليك التقييم الهندسي الشامل والمكتمل:
+أهلاً بك في التقرير التحليلي لطلب تركيبتك الخرسانية الحالية. بناءً على الحسابات الرياضية المعتمدة لطريقة درو-غوريس (Dreux-Gorisse) والمواصفات المتوفرة في الطلب:
 
 #### 1. متطلبات المقاومة والمتانة (fck & fcm)
-- **المقاومة المميزة المستهدفة (fck):** **${fck28} MPa** عند عمر 28 يوماً.
-- **المقاومة المتوسطة المطلوبة بالورشة (fcm):** **${fcm28} MPa** (شاملاً معامل الضمان والرقابة بالموقع).
-- **توافق الرتبة:** الإسمنت المستعمل من فئة **${cementStrength} MPa** (${cementType}) يعتبر متوافقاً تماماً ومناسباً لتركيب خرسانة إنشائية ممتازة تلبي المقاومة المميزة ${fck28} MPa بأمان تام.
+- **المقاومة المميزة المستهدفة (fck):** **${fckText}** عند عمر 28 يوماً.
+- **المقاومة المتوسطة المطلوبة بالورشة (fcm):** **${fcmText}** (شاملاً معامل الضمان والرقابة بالموقع).
+- **توافق الرتبة:** الإسمنت المستعمل: فئة **${cementStrengthText}** (${cementTypeText}). ${cementStrength !== undefined && fck28 !== undefined ? (cementStrength >= fck28 ? "الرتبة متوافقة هندسياً مع المقاومة المستهدفة." : "تنبيه: رتبة الإسمنت قد تكون منخفضة مقارنة بالمقاومة المستهدفة.") : "يتطلب إدخال رتبة الإسمنت والمقاومة المستهدفة للتقييم الدقيق."}
 
 #### 2. تحليل نسبة الماء إلى الإسمنت (W/C Ratio)
-- **نسبة (W/C) الفعلية:** **${wcRatio.toFixed(2)}**.
+- **نسبة (W/C) الفعلية:** **${wcRatio !== undefined ? wcRatio.toFixed(2) : "غير متوفرة (كميات الماء أو الإسمنت غير محددة)"}**.
 - **التقييم التقني:** 
-  ${wcRatio < 0.45 ? 
+  ${wcRatio === undefined ?
+    "لم يتم توفير كميات الإسمنت أو الماء المحسوبة لتقييم نسبة W/C." :
+    wcRatio < 0.45 ? 
     "نسبة الماء منخفضة وجيدة جداً لضمان متانة عالية وتقليل النفاذية. يوصى باستخدام ملدنات فائقة لضمان سهولة الصب والتراص دون حدوث تعشيش ميكانيكي." :
     isWcGood ?
     "نسبة الماء مثالية ومتوازنة للغاية. تحقق هذه النسبة تناسباً ممتازاً بين متطلبات الإماهة الكيميائية للإسمنت وقابلية التشغيل وضمان عدم تبخر المياه الزائدة مسببة فجوات شعرية." :
@@ -168,29 +181,30 @@ function generateLocalFallbackAnalysis(params: {
   }
 
 #### 3. القوام وقابلية التشغيل (Slump & Placement)
-- **مقدار الهبوط المخروطي (Slump):** **${slump} سم**.
-- **تصنيف القوام:** **S${slump <= 2 ? "1 (جاف)" : slump <= 5 ? "2 (شبه لدن)" : slump <= 9 ? "3 (لدن عياري)" : slump <= 15 ? "4 (سائل جزئياً)" : "5 (سائل جداً)"}**.
+- **مقدار الهبوط المخروطي (Slump):** **${slumpText}**.
+- **تصنيف القوام:** ${slump !== undefined ? `**S${slump <= 2 ? "1 (جاف)" : slump <= 5 ? "2 (شبه لدن)" : slump <= 9 ? "3 (لدن عياري)" : slump <= 15 ? "4 (سائل جزئياً)" : "5 (سائل جداً)"}**` : "غير محدد"}
 - **سهولة الصب والضخ:** 
-  ${isSlumpHigh ? 
+  ${slump === undefined ? "لم يتم تحديد قيمة الهبوط لتقييم سهولة الصب." :
+    isSlumpHigh ? 
     "الخلطة تتمتع بقوام ممتاز يسهل الصب في الأعضاء الضيقة والمكتظة بحديد التسليح، وهو ملائم جداً لعمليات الضخ وحركة المعدات بالموقع دون خطر الانفصال الحبيبي." : 
     "الخلطة قوامها جاف إلى لدن عياري. يوصى بالدمك الجيد وبشكل مكثف باستخدام الهزازات الميكانيكية لضمان ملء الفراغات ومنع التعشيش في الزوايا الإنشائية."
   }
 
 #### 4. تدرج حبيبات الركام وجزيئات الهيكل الجاف
-- **أقصى قطر للركام (D_max):** **${dMax} ملم**.
+- **أقصى قطر للركام (D_max):** **${dMaxText}**.
 - **شكل حبيبات الركام والمنشأ:** **${aggTypeText}**.
-  - *تأثير الركام على معيار درو:* ${aggregateType === 'roule' ? "الركام المدور يسهل الحركة والتشغيل ويقلل من الحاجة للماء بنسبة ضئيلة، لكن تماسك جزيئاته الميكانيكي أقل مقارنة بالمكسر." : "الركام المكسر يوفر تماسكاً ميكانيكياً رائعاً (Mechanical Interlocking) يساهم في صلابة خرسانة الانحناء والضغط، ولكنه يتطلب زيادة طفيفة في كمية معجون الإسمنت والمياه لتعويض خشونة زواياه."}
+  - *تأثير الركام على معيار درو:* ${aggregateType === 'roule' ? "الركام المدور يسهل الحركة والتشغيل ويقلل من الحاجة للماء بنسبة ضئيلة، لكن تماسك جزيئاته الميكانيكي أقل مقارنة بالمكسر." : aggregateType === 'concasse' ? "الركام المكسر يوفر تماسكاً ميكانيكياً رائعاً (Mechanical Interlocking) يساهم في صلابة خرسانة الانحناء والضغط، ولكنه يتطلب زيادة طفيفة في كمية معجون الإسمنت والمياه لتعويض خشونة زواياه." : "يرجى تحديد نوع الركام (مدور أو مكسر)."}
 
 #### 5. دور الإضافات والملدنات الكيميائية المعتمدة
 - **الملاحظات الميدانية:** 
   ${admixtures && admixtures.length > 0 ? 
     admixtures.map((adm: any) => `⚠️ تم دمج **${adm.name}** بجرعة **${adm.dosage}%** كنسبة وزنية من وزن الإسمنت. هذا الإجراء الفعال يحسن بشكل ملحوظ قابلية التشغيل ويقلل نسبة W/C لتأكيد المتانة ومقاومة الكربنة والكلوريدات.`).join("\n") : 
-    "لم يتم دمج أي إضافات ملدنة أو مخفضة للماء في هذه الخلطة اليدوية. من الموصى به هندسياً إدخال ملدن متطور بنسبة (0.8% - 1.5%) لتحسين الانسيابية وزيادة الكفاءة الإنشائية بموقع الصب والمحافظة على إسمنت أمثل."
+    "لم يتم دمج أي إضافات ملدنة أو مخفضة للماء في هذه الخلطة. من الموصى به هندسياً إدخال ملدن متطور بنسبة (0.8% - 1.5%) لتحسين الانسيابية وزيادة الكفاءة الإنشائية بموقع الصب والمحافظة على إسمنت أمثل."
   }
 
 #### 6. توصيات هندسية هامة للموقع:
 1. **الرطوبة التصحيحية للرمل:** يجب فحص مستمر لرطوبة الرمل الموقعية وتخفيض مياه الخلط بالخلاطة بمقدار المياه الحرة الموجودة بالرمل لتفادي زيادة سيولة الخرسانة وضعفها.
-2. **المعالجة بالرش (Curing):** للحصول على المقاومة التصميمية المرجوة (${fck28} MPa)، يجب تغطية السطح بالخيش الرطب أو رش المياه بانتظام لمدة لا تقل عن 7 أيام متتالية لمنع التبخر السريع وحدوث شقوق الجفاف الانكماشية.`;
+2. **المعالجة بالرش (Curing):** ${fck28 !== undefined ? `للحصول على المقاومة التصميمية المرجوة (${fck28} MPa)` : "للحصول على المقاومة التصميمية المطلوبة"}، يجب تغطية السطح بالخيش الرطب أو رش المياه بانتظام لمدة لا تقل عن 7 أيام متتالية لمنع التبخر السريع وحدوث شقوق الجفاف الانكماشية.`;
 }
 
 // API: Health / Status Check (Production Safety Inspection Checkpoint)
@@ -568,18 +582,18 @@ ${admixtures && admixtures.length > 0 ? admixtures.map((adm: any) => `- ${adm.na
     
     try {
       const fallbackText = generateLocalFallbackAnalysis({
-        fck28: typeof req.body.fck28 === 'number' ? req.body.fck28 : 25,
-        fcm28: typeof req.body.fcm28 === 'number' ? req.body.fcm28 : 29,
-        cementType: req.body.cementType || "CEM I 42.5",
-        cementStrength: typeof req.body.cementStrength === 'number' ? req.body.cementStrength : 42.5,
-        aggregateType: req.body.aggregateType || "concasse",
-        aggregateQuality: req.body.aggregateQuality || "normal",
-        dMax: typeof req.body.dMax === 'number' ? req.body.dMax : 20,
-        slump: typeof req.body.slump === 'number' ? req.body.slump : 7,
-        waterContent: typeof req.body.waterContent === 'number' ? req.body.waterContent : 185,
-        cementContent: typeof req.body.cementContent === 'number' ? req.body.cementContent : 350,
-        sandWeight: typeof req.body.sandWeight === 'number' ? req.body.sandWeight : 750,
-        gravelWeight: typeof req.body.gravelWeight === 'number' ? req.body.gravelWeight : 1100,
+        fck28: typeof req.body.fck28 === 'number' ? req.body.fck28 : undefined,
+        fcm28: typeof req.body.fcm28 === 'number' ? req.body.fcm28 : undefined,
+        cementType: req.body.cementType || undefined,
+        cementStrength: typeof req.body.cementStrength === 'number' ? req.body.cementStrength : undefined,
+        aggregateType: req.body.aggregateType || undefined,
+        aggregateQuality: req.body.aggregateQuality || undefined,
+        dMax: typeof req.body.dMax === 'number' ? req.body.dMax : undefined,
+        slump: typeof req.body.slump === 'number' ? req.body.slump : undefined,
+        waterContent: typeof req.body.waterContent === 'number' ? req.body.waterContent : undefined,
+        cementContent: typeof req.body.cementContent === 'number' ? req.body.cementContent : undefined,
+        sandWeight: typeof req.body.sandWeight === 'number' ? req.body.sandWeight : undefined,
+        gravelWeight: typeof req.body.gravelWeight === 'number' ? req.body.gravelWeight : undefined,
         admixtures: Array.isArray(req.body.admixtures) ? req.body.admixtures : [],
         userMessage: req.body.userMessage
       });
@@ -1179,58 +1193,41 @@ function getLocalMaterialFallback(name: string, category: string, region: string
   const cat = (category || "").toUpperCase();
   const reg = region || "الجزائر";
   
-  let description = `مادة ${name} عالية الجودة تم اختبارها في منطقة ${reg} وتطابق الممارسات الهندسية المعتمدة.`;
-  let engineeringNotes = `توصية تقنية: يوصى بمراقبة تدرج الحبيبات والشوائب باستمرار لضمان تراص ميكانيكي مثالي للخرسانة المعتمدة.`;
-  let recommendedUses = `تستخدم في الأعمال الإنشائية العامة، والقواعد المسلحة، والأعمدة والأسقف المصبوبة موقعياً.`;
-  let concreteClasses = `ملائم لرتب الخرسانة القياسية C25/30 وC30/37 وC40/50.`;
-  let warnings = `انتباه: قم بإجراء فحص رطوبة الرمل وتصحيح نسب مياه الخلط بالورشة لتفادي إضعاف مقاومة الضغط بالتبخر السريع.`;
-  let density = 2600;
-  let absorption = 1.2;
-  let moisture = 0.5;
+  let description = `مادة ${name} في منطقة ${reg}.`;
+  let engineeringNotes = `توصية تقنية: يرجى إدخال نتائج الفحوصات المخبرية الحقيقية (الكثافة، التدرج، الامتصاص) بدقة لتشغيل الحسابات الهندسية.`;
+  let recommendedUses = `تستخدم وفق متطلبات المواصفات الفنية المعتمدة للمشروع.`;
+  let concreteClasses = `تحدد بناءً على الفحوصات المخبرية ونتائج التصميم.`;
+  let warnings = `تنبيه: لا يتم افتراض خواص هندسية افتراضية للمادة دون تقرير مخبري معتمد.`;
+  let density = null as number | null;
+  let absorption = null as number | null;
+  let moisture = null as number | null;
   let finenessModulus = null as number | null;
-  let quality = `معتمد ومطابق للمواصفات الوطنية`;
+  let quality = `قيد التحقق المخبري`;
 
   if (cat.includes("SAND") || cat.includes("رمل") || cat.includes("SABLE")) {
-    description = `رمل من فئة ${name} ذو مصدر محلي بـ ${reg}، يتميز بتوزع حبيبي ممتاز ملائم لتعبئة فراغات الخرسانة.`;
-    engineeringNotes = `تحليل كيميائي وميكانيكي: نسبة المواد الناعمة فائقة الدقة أقل من 3%، مما يعزز التماسك ومقاومة الانكماش الجاف. 98% سيليكا.`;
-    recommendedUses = `أعمال الخرسانة الإنشائية عالية الجودة، وأعمدة وجسور المباني السكنية والتجارية، والملاط الإنشائي.`;
-    concreteClasses = `C20/25, C25/30, C30/37`;
-    warnings = `تنبيه: راقب نسبة الطين والمواد الناعمة بالرمل (Silt content) لتفادي زيادة كميات المياه المطلوبة بالخلطة ومخاطر التشقق السطحي.`;
-    density = 2620;
-    absorption = 1.5;
-    moisture = 1.0;
-    finenessModulus = 2.65;
-    quality = `رمل مغسول وعياري مطابق`;
+    description = `رمل من فئة ${name} ذو مصدر محلي بـ ${reg}.`;
+    engineeringNotes = `تحليل متطلبات الرمل: يتطلب فحص معامل النعومة (FM) والمكافئ الرملي (SE) ونسبة الامتصاص والكثافة الحقيقية في المختبر قبل الاعتماد في الخلطة.`;
+    recommendedUses = `أعمال الخرسانة الإنشائية والملاط بعد التحقق من مطابقة منحنى التدرج الحبيبي.`;
+    concreteClasses = `يحدد حسب الرتبة المستهدفة ونظافة الرمل.`;
+    warnings = `تنبيه: راقب نسبة المواد الناعمة والمكافئ الرملي لمنع زيادة استهلاك مياه الخلط أو الانكماش.`;
   } else if (cat.includes("GRAVEL") || cat.includes("حصى") || cat.includes("GRAVIER")) {
-    description = `حصى مكسر صلب من منطقة ${reg} ذو زوايا حادة يحقق ارتباطاً ميكانيكياً مبهراً مع عجينة الإسمنت التفاعلية.`;
-    engineeringNotes = `صلابة ميكانيكية فائقة: معامل لوس أنجلوس (Los Angeles) أقل من 20%، مما يدل على قدرته الفائقة على تحمل جهود الضغط والبري الموقعية.`;
-    recommendedUses = `العناصر الخرسانية الحاملة للجهود، القواعد العميقة، وجسور بحور تسليح طويلة المدى.`;
-    concreteClasses = `C25/30, C30/37, C40/50`;
-    warnings = `تجنب استخدام الحصى الحاوي على مواد كبريتية أو شوائب غبارية غير مغسولة تؤخر التماسك.`;
-    density = 2680;
-    absorption = 0.8;
-    moisture = 0.4;
-    quality = `كلسي صلصال بصلابة ممتازة`;
+    description = `حصى من منطقة ${reg}.`;
+    engineeringNotes = `تحليل متطلبات الحصى: يجب تحديد القطر الأقصى Dmax والكثافة ومعامل الامتصاص واختبار لوس أنجلوس (LA) من واقع الفحص المخبري.`;
+    recommendedUses = `العناصر الخرسانية وفق المقاس الأقصى المتوافق مع تباعد حديد التسليح.`;
+    concreteClasses = `يحدد حسب جودة وصلابة الحصى المكسر.`;
+    warnings = `تجنب استخدام الحصى الحاوي على شوائب طينية أو كبريتية غير مغسولة.`;
   } else if (cat.includes("CEMENT") || cat.includes("إسمنت") || cat.includes("CIMENT")) {
-    description = `إسمنت رمادي عالي الأداء من رتبة تماسك سريعة، مطحون بدقة متناهية لتحقيق فاعلية تماسك ممتازة بمشاريع الجزائر.`;
-    engineeringNotes = `تحليل تفاعل المواد: حرارة إماهة متوسطة، يناسب صبات الأجواء الحارة عند الالتزام بالمعالجة المباشرة بالرش.`;
-    recommendedUses = `المنشآت سريعة التجهيز، فك القوالب المعجل، والخرسانة المسلحة ذات المتطلبات الميكانيكية المبكرة العالية.`;
-    concreteClasses = `C30/37, C40/50, C50/60`;
+    description = `إسمنت من نوع ${name} في منطقة ${reg}.`;
+    engineeringNotes = `تحليل متطلبات الإسمنت: يجب تحديد رتبة المقاومة الاسمية (مثل 42.5 أو 52.5) والكثافة الحقيقية من شهادة الجودة للمصنع.`;
+    recommendedUses = `المنشآت الإنشائية وفق رتبة المقاومة وظروف التعرض البيئي.`;
+    concreteClasses = `تحدد وفق رتبة الإسمنت ونسبة W/C.`;
     warnings = `تنبيه الحماية: تجنب تخزينه بمواقع رطبة لتلافي حدوث كتل تصلد قبل الاستخدام بالخلاطة.`;
-    density = 3100;
-    absorption = 0;
-    moisture = 0;
-    quality = `إنشائي فائق CEM I 42.5R`;
   } else if (cat.includes("ADMIXTURE") || cat.includes("إضافة") || cat.includes("ADJUVANT")) {
-    description = `إضافة ملدنة متطورة لتقليل نسب تعاطي ماء الفراغات بالخلطة ورفع كفاءة تسييل وقابلية ضخ الخرسانة.`;
-    engineeringNotes = `توزيع كيميائي ومشتت شحنات: تعمل الإضافة على شحن حبيبات الإسمنت بالسالب لمنع تكتلها بالمسامات المجهرية.`;
-    recommendedUses = `الخلطات فائقة الانسيابية ذات الهبوط الموقعي العالي مع المحافظة على نسبة W/C متدنية وآمنة.`;
-    concreteClasses = `C30/37, C45/55, C60/75`;
-    warnings = `يجب التقيد بالجرعات الموصى بها (بين 0.8% إلى 2.0% من وزن الإسمنت) لتفادي حدوث الانفصال الحبيبي أو تأخير غير مبرر للشك.`;
-    density = 1050;
-    absorption = 0;
-    moisture = 0;
-    quality = `ملدن فائق متطور (HRWRA)`;
+    description = `إضافة من نوع ${name}.`;
+    engineeringNotes = `تحليل الإضافة: يجب مراجعة النشرة الفنية للمصنّع لتحديد نسبة تخفيض الماء والكثافة والجرعة الموصى بها كنسبة مئوية من وزن الإسمنت.`;
+    recommendedUses = `تحسين قابلية التشغيل وتخفيض مياه الخلط وفق البطاقة التقنية للمنتج.`;
+    concreteClasses = `تحدد حسب نوع الملدن والأداء المطلوب.`;
+    warnings = `يجب التقيد بالجرعات الموصى بها من المصنع لتفادي حدوث الانفصال الحبيبي أو تأخير غير مبرر للشك.`;
   }
 
   return {

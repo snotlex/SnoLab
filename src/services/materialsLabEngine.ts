@@ -699,6 +699,8 @@ export function executeLaboratoryTest(
   inputs: Record<string, any>,
   material: EngineeringMaterial
 ): TestExecutionResult {
+  const testDef = MASTER_TEST_CATALOG.find(t => t.id === testType);
+
   switch (testType) {
     // ------------------------------------------------------------------------
     // AGGREGATES
@@ -1666,9 +1668,9 @@ export function executeLaboratoryTest(
     }
 
     case "ADM_SOLID_CONTENT": {
-      const m0 = inputs.emptyDishMassG || 22.45;
-      const m1 = inputs.dishPlusWetAdmixtureMassG || 32.45;
-      const m2 = inputs.dishPlusDryResidueMassG || 25.95;
+      const m0 = inputs.emptyDishMassG ?? testDef.defaultInputs?.emptyDishMassG ?? 0;
+      const m1 = inputs.dishPlusWetAdmixtureMassG ?? testDef.defaultInputs?.dishPlusWetAdmixtureMassG ?? 0;
+      const m2 = inputs.dishPlusDryResidueMassG ?? testDef.defaultInputs?.dishPlusDryResidueMassG ?? 0;
 
       const wetSample = m1 - m0;
       const dryResidue = m2 - m0;
@@ -1738,9 +1740,9 @@ export function executeLaboratoryTest(
     // MINERAL ADDITIVES (SCM)
     // ------------------------------------------------------------------------
     case "SCM_SPECIFIC_GRAVITY": {
-      const mass = inputs.sampleMassG || 50.0;
-      const vol = inputs.displacedVolumeMl || 22.7;
-      const density = vol > 0 ? parseFloat((mass / vol).toFixed(3)) : 2.20;
+      const mass = inputs.sampleMassG ?? testDef.defaultInputs?.sampleMassG ?? 0;
+      const vol = inputs.displacedVolumeMl ?? testDef.defaultInputs?.displacedVolumeMl ?? 0;
+      const density = vol > 0 ? parseFloat((mass / vol).toFixed(3)) : 0;
 
       const status: TestStatus = "PASS";
       const compliance: ComplianceDetail[] = [
@@ -1768,9 +1770,9 @@ export function executeLaboratoryTest(
     }
 
     case "SCM_ACTIVITY_INDEX": {
-      const fControl = inputs.controlPrism28dStrengthMpa || 52.0;
-      const fScm = inputs.scmBlendedPrism28dStrengthMpa || 48.5;
-      const rep = inputs.replacementRatePercent || 25.0;
+      const fControl = inputs.controlPrism28dStrengthMpa ?? testDef.defaultInputs?.controlPrism28dStrengthMpa ?? 0;
+      const fScm = inputs.scmBlendedPrism28dStrengthMpa ?? testDef.defaultInputs?.scmBlendedPrism28dStrengthMpa ?? 0;
+      const rep = inputs.replacementRatePercent ?? testDef.defaultInputs?.replacementRatePercent ?? 0;
 
       const iap = fControl > 0 ? parseFloat(((fScm / fControl) * 100).toFixed(1)) : 93.3;
       const isIapGood = iap >= 75.0;
@@ -1838,10 +1840,10 @@ export function executeLaboratoryTest(
     // FIBERS
     // ------------------------------------------------------------------------
     case "FIBER_GEOMETRY": {
-      const len = inputs.lengthMm || 50.0;
-      const dia = inputs.diameterMm || 0.85;
-      const tensile = inputs.tensileStrengthMpa || 1150;
-      const aspectRatio = dia > 0 ? parseFloat((len / dia).toFixed(1)) : 58.8;
+      const len = inputs.lengthMm ?? testDef.defaultInputs?.lengthMm ?? 0;
+      const dia = inputs.diameterMm ?? testDef.defaultInputs?.diameterMm ?? 0;
+      const tensile = inputs.tensileStrengthMpa ?? testDef.defaultInputs?.tensileStrengthMpa ?? 0;
+      const aspectRatio = dia > 0 ? parseFloat((len / dia).toFixed(1)) : 0;
 
       const isRatioGood = aspectRatio >= 40 && aspectRatio <= 90;
       const status: TestStatus = isRatioGood ? "PASS" : "WARNING";
@@ -1884,13 +1886,13 @@ export function executeLaboratoryTest(
     }
 
     case "FIBER_DOSAGE_OPTIMIZATION": {
-      const dosage = inputs.fiberDosageKgPerM3 || 25.0;
-      const rho = inputs.fiberDensityGPerCm3 || 7.85;
-      const len = inputs.fiberLengthMm || 50.0;
-      const dia = inputs.fiberDiameterMm || 0.85;
+      const dosage = inputs.fiberDosageKgPerM3 ?? testDef.defaultInputs?.fiberDosageKgPerM3 ?? 0;
+      const rho = inputs.fiberDensityGPerCm3 ?? testDef.defaultInputs?.fiberDensityGPerCm3 ?? 0;
+      const len = inputs.fiberLengthMm ?? testDef.defaultInputs?.fiberLengthMm ?? 0;
+      const dia = inputs.fiberDiameterMm ?? testDef.defaultInputs?.fiberDiameterMm ?? 0;
 
       // Volume fraction Vf % = (dosage in kg / (rho * 1000)) * 100
-      const vfPct = rho > 0 ? parseFloat(((dosage / (rho * 1000)) * 100).toFixed(2)) : 0.32;
+      const vfPct = rho > 0 ? parseFloat(((dosage / (rho * 1000)) * 100).toFixed(2)) : 0;
 
       // Single fiber volume in mm³ = pi * (d/2)^2 * L
       const singleVolMm3 = Math.PI * Math.pow(dia / 2, 2) * len;

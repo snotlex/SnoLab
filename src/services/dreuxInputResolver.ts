@@ -508,7 +508,7 @@ export class DreuxInputResolver {
       name: sandMat?.name || inputs.sandType || "Standard Sand 0/4",
       finenessModulus: fm || 0,
       dMin: sandDmin || 0,
-      dMax: sandDmax || 4,
+      dMax: sandDmax || 0,
       density: sandDensity || 0,
       specificGravity: sandSG || 0,
       ssdDensity: sandSsdDensity,
@@ -661,11 +661,11 @@ export class DreuxInputResolver {
     // 4. WATER RESOLUTION
     // =========================================================================
     const waterPH = parseNumeric(getMaterialPropValue(waterMat, "ph")) ?? 
-                    parseNumeric(waterMat?.ph) ?? 7.2;
+                    parseNumeric(waterMat?.ph);
     const waterCl = parseNumeric(getMaterialPropValue(waterMat, "chlorides")) ?? 
-                    parseNumeric(waterMat?.chlorides) ?? 150;
+                    parseNumeric(waterMat?.chlorides);
     const waterSO4 = parseNumeric(getMaterialPropValue(waterMat, "sulfates")) ?? 
-                     parseNumeric(waterMat?.sulfates) ?? 120;
+                     parseNumeric(waterMat?.sulfates);
 
     traceItems.push({
       inputName: "Mixing Water Density & Quality",
@@ -673,11 +673,11 @@ export class DreuxInputResolver {
       materialId: waterMat?.id,
       materialName: waterMat?.name,
       value: 1000,
-      formattedValue: "1000 kg/m³ (pH: " + waterPH + ")",
+      formattedValue: waterPH !== undefined ? `1000 kg/m³ (pH: ${waterPH})` : "1000 kg/m³ (pH unrecorded)",
       unit: "kg/m³",
       source: waterMat ? "Material Library" : "Potable Water Standard",
       required: true,
-      validation: waterPH >= 5.5 && waterPH <= 8.5 ? "VALID" : "INVALID",
+      validation: waterPH !== undefined ? (waterPH >= 5.5 && waterPH <= 8.5 ? "VALID" : "INVALID") : "VALID",
       statusMessage: "Complies with EN 1008 mixing water requirements"
     });
 
@@ -700,12 +700,12 @@ export class DreuxInputResolver {
       const red = parseNumeric(getMaterialPropValue(admMat, "waterReduction")) ?? 
                   parseNumeric(admMat?.waterReduction) ?? 
                   inputs.selectedAdmixtureWaterReduction ?? 
-                  (inputs.dosageSuper > 0 ? 20 : 0);
+                  0;
       let admDens = parseNumeric(getMaterialPropValue(admMat, "density")) ?? 
                     parseNumeric(admMat?.density) ?? 
-                    inputs.selectedAdmixtureDensity ?? 1100;
-      if (admDens < 10) admDens *= 1000;
-      const dosage = inputs.dosageSuper > 0 ? inputs.dosageSuper : 1.0;
+                    inputs.selectedAdmixtureDensity ?? 0;
+      if (admDens < 10 && admDens > 0) admDens *= 1000;
+      const dosage = inputs.dosageSuper !== undefined ? inputs.dosageSuper : 0;
 
       traceItems.push({
         inputName: "Chemical Admixture (Superplasticizer)",
@@ -737,10 +737,10 @@ export class DreuxInputResolver {
     let resolvedScm: ResolvedScm | undefined = undefined;
     if (scmMat || inputs.selectedScmId) {
       let scmDens = parseNumeric(getMaterialPropValue(scmMat, "density")) ?? 
-                    parseNumeric(scmMat?.density) ?? 2200;
-      if (scmDens < 10) scmDens *= 1000;
+                    parseNumeric(scmMat?.density) ?? 0;
+      if (scmDens < 10 && scmDens > 0) scmDens *= 1000;
       const wdf = parseNumeric(getMaterialPropValue(scmMat, "waterDemandFactor")) ?? 1.0;
-      const pozz = parseNumeric(getMaterialPropValue(scmMat, "pozzolanicIndex")) ?? 95;
+      const pozz = parseNumeric(getMaterialPropValue(scmMat, "pozzolanicIndex")) ?? 0;
       const dosage = (inputs.dosageSilicaFume || 0) + (inputs.dosageFlyAsh || 0) + (inputs.dosageSlag || 0);
 
       resolvedScm = {

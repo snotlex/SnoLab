@@ -64,8 +64,12 @@ export function evaluateMaterialCompatibility(
     : (context.concreteType as any)?.code || (context.concreteType as any)?.concreteType || "NSC";
   const concreteType = String(rawConcreteType || "NSC").toUpperCase();
   const method = String(context.mixDesignMethod || "dreux").toLowerCase();
-  const fck = Number(context.targetStrength) || 25;
-  const dMax = Number(context.maxAggregateSize) || 20;
+  const fck = typeof context.targetStrength === "number" && !isNaN(context.targetStrength)
+    ? context.targetStrength
+    : undefined;
+  const dMax = typeof context.maxAggregateSize === "number" && !isNaN(context.maxAggregateSize)
+    ? context.maxAggregateSize
+    : undefined;
   const exposure = String(context.exposureClass || "X0").toUpperCase();
   const constraints = roleRequirement.constraints || {};
 
@@ -165,32 +169,37 @@ export function evaluateMaterialCompatibility(
   let perfDetailsFr = "Bonne adéquation avec la performance cible.";
 
   if (role === "cement") {
-    const strengthClass = parseFloat(String(material.strengthClass || material.cementClass || "42.5"));
+    const rawStrength = material.strengthClass !== undefined 
+      ? Number(material.strengthClass) 
+      : (material.cementClass !== undefined ? Number(material.cementClass) : undefined);
+    const strengthClass = rawStrength !== undefined && !isNaN(rawStrength) ? rawStrength : undefined;
     if (concreteType === "UHPC" || concreteType === "BFUP") {
-      if (strengthClass >= 52.5) {
+      if (strengthClass !== undefined && strengthClass >= 52.5) {
         perfScore = 20;
         perfDetailsAr = "إسمنت عالي الرتبة CEM I 52.5 R ملائم تماماً لمتطلبات UHPC الفائقة.";
         keyHighlights.push("CEM I 52.5 R فائق الرتبة");
       } else {
         perfScore = 8;
-        warnings.push("رتبة الإسمنت أقل من 52.5 الموصى بها للخرسانات فائقة الأداء.");
+        warnings.push("رتبة الإسمنت أقل من 52.5 الموصى بها للخرسانات فائقة الأداء أو غير محددة.");
       }
-    } else if (concreteType === "HSC" || concreteType === "HPC" || fck >= 50) {
-      if (strengthClass >= 42.5) {
+    } else if (concreteType === "HSC" || concreteType === "HPC" || (fck !== undefined && fck >= 50)) {
+      if (strengthClass !== undefined && strengthClass >= 42.5) {
         perfScore = 20;
-        perfDetailsAr = `رتبة الإسمنت (${strengthClass}) ممتازة لتحقيق مقاومة ضغط ${fck} MPa.`;
+        perfDetailsAr = `رتبة الإسمنت (${strengthClass}) ممتازة لتحقيق مقاومة ضغط ${fck !== undefined ? fck + " MPa" : "عالية"}.`;
         keyHighlights.push(`رتبة ${strengthClass} MPa`);
       } else {
         perfScore = 10;
-        warnings.push(`رتبة الإسمنت 32.5 قد تتطلب كمية إسمنت مرتفعة جداً لتحقيق ${fck} MPa.`);
+        warnings.push(`رتبة الإسمنت ${strengthClass !== undefined ? strengthClass : "غير المحددة"} قد تتطلب كمية إسمنت مرتفعة جداً لتحقيق ${fck !== undefined ? fck + " MPa" : "المقاومة المطلوبة"}.`);
       }
     } else {
-      perfScore = 20;
-      perfDetailsAr = `رتبة الإسمنت (${strengthClass || 42.5}) ملائمة تماماً للمقاومة المستهدفة (${fck} MPa).`;
+      perfScore = strengthClass !== undefined ? 20 : 15;
+      perfDetailsAr = strengthClass !== undefined 
+        ? `رتبة الإسمنت (${strengthClass}) ملائمة للمقاومة المستهدفة${fck !== undefined ? ` (${fck} MPa)` : ""}.`
+        : "رتبة الإسمنت غير محددة في بيانات المادة.";
     }
   } else if (role === "sand") {
-    const fm = material.finenessModulus || 2.6;
-    const se = material.sandEquivalent || 75;
+    const fm = material.finenessModulus;
+    const se = material.sandEquivalent;
     if (concreteType === "UHPC" || concreteType === "BFUP") {
       if (material.dMax && material.dMax <= 1.5) {
         perfScore = 20;
@@ -200,17 +209,25 @@ export function evaluateMaterialCompatibility(
         perfScore = 8;
         warnings.push("يفضل رمل ميكروي Dmax <= 1 مم لخلطات UHPC.");
       }
-    } else if (fm >= 2.3 && fm <= 3.0 && se >= 70) {
+    } else if (fm !== undefined && fm >= 2.3 && fm <= 3.0 && (se === undefined || se >= 70)) {
       perfScore = 20;
-      perfDetailsAr = `معامل نعومة ممتاز (FM = ${fm}) ومكافئ رملي عالٍ (SE = ${se}%).`;
+      perfDetailsAr = `معامل نعومة ممتاز (FM = ${fm})${se !== undefined ? ` ومكافئ رملي عالٍ (SE = ${se}%)` : ""}.`;
       keyHighlights.push(`معامل نعومة متزن (FM ${fm})`);
-    } else {
+    } else if (fm !== undefined) {
       perfScore = 14;
       perfDetailsAr = `معامل النعومة (FM = ${fm}) يحتاج لضبط نسبة الرمل بالخلطة.`;
+    } else {
+      perfScore = 12;
+      perfDetailsAr = "معامل النعومة للرمل غير مسجل في بيانات المادة.";
+      warnings.push("معامل النعومة للرمل غير مسجل في بطاقة المادة.");
     }
   } else if (role === "gravel") {
-    const matDmax = material.dMax || 20;
-    if (constraints.maxDmax && matDmax > constraints.maxDmax) {
+    const matDmax = material.dMax;
+    if (matDmax === undefined) {
+      perfScore = 12;
+      perfDetailsAr = "المقاس الأقصى للركام Dmax غير مسجل في بطاقة المادة.";
+      warnings.push("المقاس الأقصى Dmax للحصى غير مسجل في بيانات المادة.");
+    } else if (constraints.maxDmax && matDmax > constraints.maxDmax) {
       perfScore = 6;
       warnings.push(`قطر الحصى Dmax = ${matDmax} مم يتجاوز الحد الأقصى (${constraints.maxDmax} مم) لخرسانة ${concreteType}.`);
       perfDetailsAr = `حجم الحصى (${matDmax} مم) أكبر من المسموح به (${constraints.maxDmax} مم).`;
@@ -218,29 +235,31 @@ export function evaluateMaterialCompatibility(
       perfScore = 20;
       perfDetailsAr = `مقاس الحصى (${matDmax} مم) يضمن عدم الانسداد بين أسياخ التسليح.`;
       keyHighlights.push(`Dmax <= 16 مم (مانع للانسداد)`);
-    } else if (Math.abs(matDmax - dMax) <= 5) {
+    } else if (dMax !== undefined && Math.abs(matDmax - dMax) <= 5) {
       perfScore = 20;
       perfDetailsAr = `قطر الحصى Dmax = ${matDmax} مم متوافق تماماً مع مواصفات المشروع (${dMax} مم).`;
       keyHighlights.push(`Dmax = ${matDmax} مم`);
     } else {
       perfScore = 15;
-      perfDetailsAr = `قطر الحصى (${matDmax} مم) يختلف عن مستهدف المشروع (${dMax} مم).`;
+      perfDetailsAr = dMax !== undefined
+        ? `قطر الحصى (${matDmax} مم) يختلف عن مستهدف المشروع (${dMax} مم).`
+        : `قطر الحصى Dmax = ${matDmax} مم.`;
     }
   } else if (role === "admixture") {
     const isPce = material.name.includes("فائق") || material.name.toLowerCase().includes("super") || material.name.toLowerCase().includes("pce");
-    const wr = material.waterReduction || 20;
-    if (concreteType === "UHPC" || concreteType === "BFUP" || concreteType === "SCC" || fck >= 40) {
-      if (isPce || wr >= 25) {
+    const wr = material.waterReduction;
+    if (concreteType === "UHPC" || concreteType === "BFUP" || concreteType === "SCC" || (fck !== undefined && fck >= 40)) {
+      if (isPce || (wr !== undefined && wr >= 25)) {
         perfScore = 20;
-        perfDetailsAr = `ملدن فائق عالي الكفاءة (تخفيض مياه ${wr}%) يضمن السيولة والدمك الذاتي.`;
-        keyHighlights.push(`ملدن فائق PCE (تخفيض ${wr}%)`);
+        perfDetailsAr = `ملدن فائق عالي الكفاءة${wr !== undefined ? ` (تخفيض مياه ${wr}%)` : ""} يضمن السيولة والدمك الذاتي.`;
+        keyHighlights.push(`ملدن فائق PCE${wr !== undefined ? ` (تخفيض ${wr}%)` : ""}`);
       } else {
         perfScore = 10;
         warnings.push("يوصى بملدن فائق PCE بنسبة تخفيض مياه >= 25% لهذا النوع من الخرسانة.");
       }
     } else {
       perfScore = 20;
-      perfDetailsAr = `ملدن فعال بتخفيض مياه ${wr}%.`;
+      perfDetailsAr = wr !== undefined ? `ملدن فعال بتخفيض مياه ${wr}%.` : "ملدن كيميائي معتمد.";
     }
   } else if (role === "scm") {
     const isSilica = material.name.includes("سيليكا") || material.name.toLowerCase().includes("silica");
@@ -279,24 +298,30 @@ export function evaluateMaterialCompatibility(
       perfScore = 18;
     }
   } else if (role === "lightweightAggregate") {
-    const dens = material.density || 1200;
-    if (dens <= 1800) {
+    const dens = material.density;
+    if (dens !== undefined && dens <= 1800) {
       perfScore = 20;
       perfDetailsAr = `ركام خفيف بكثافة منخفضة (${dens} كجم/م³) ملائم للخرسانة الخفيفة.`;
       keyHighlights.push(`كثافة خفيفة (${dens} kg/m³)`);
-    } else {
+    } else if (dens !== undefined) {
       perfScore = 6;
       warnings.push(`كثافة الركام (${dens} kg/m³) مرتفعة عن المستهدف للخرسانة الخفيفة.`);
+    } else {
+      perfScore = 10;
+      warnings.push("كثافة الركام الخفيف غير مسجلة في بيانات المادة.");
     }
   } else if (role === "heavyweightAggregate") {
-    const dens = material.density || 3500;
-    if (dens >= 3000) {
+    const dens = material.density;
+    if (dens !== undefined && dens >= 3000) {
       perfScore = 20;
       perfDetailsAr = `ركام ثقيل عالي الكثافة (${dens} كجم/م³) لضمان التدريع الإشعاعي.`;
       keyHighlights.push(`كثافة عالية للتدريع (${dens} kg/m³)`);
-    } else {
+    } else if (dens !== undefined) {
       perfScore = 6;
       warnings.push(`كثافة الركام (${dens} kg/m³) غير كافية للتدريع الإشعاعي.`);
+    } else {
+      perfScore = 10;
+      warnings.push("كثافة الركام الثقيل غير مسجلة في بيانات المادة.");
     }
   }
 
@@ -390,9 +415,11 @@ export function evaluateMaterialCompatibility(
     grade = "poor";
   }
 
-  const justificationAr = `${material.name} - توافق بنسبة ${totalScore}% مع متطلبات خلطة (${concreteType}) بمقاومة (${fck} MPa). ${perfDetailsAr}`;
-  const justificationEn = `${material.englishName || material.name} - ${totalScore}% compatibility for (${concreteType}) mix with ${fck} MPa strength. ${perfDetailsEn}`;
-  const justificationFr = `${material.name} - Compatibilité de ${totalScore}% pour béton (${concreteType}) résistance ${fck} MPa. ${perfDetailsFr}`;
+  const fckLabel = fck !== undefined ? `${fck} MPa` : "المقاومة المستهدفة";
+  const fckLabelEn = fck !== undefined ? `${fck} MPa` : "specified target";
+  const justificationAr = `${material.name} - توافق بنسبة ${totalScore}% مع متطلبات خلطة (${concreteType}) بمقاومة (${fckLabel}). ${perfDetailsAr}`;
+  const justificationEn = `${material.englishName || material.name} - ${totalScore}% compatibility for (${concreteType}) mix with ${fckLabelEn} strength. ${perfDetailsEn}`;
+  const justificationFr = `${material.name} - Compatibilité de ${totalScore}% pour béton (${concreteType}) résistance ${fckLabelEn}. ${perfDetailsFr}`;
 
   return {
     material,

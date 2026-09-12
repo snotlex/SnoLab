@@ -273,7 +273,7 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
               >
                 {materials.map(m => (
                   <option key={m.id} value={m.id}>
-                    📦 {m.name} ({m.category || "عام"}) - {m.density || 2.65} t/m³
+                    📦 {m.name} ({m.category || "عام"}){m.density !== undefined ? ` - ${m.density} t/m³` : ""}
                   </option>
                 ))}
               </select>

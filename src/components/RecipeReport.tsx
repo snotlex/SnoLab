@@ -645,7 +645,7 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
 
     // 2. Concrete Type & Aggregate Compatibility
     const concreteType = input.concreteType || "NSC";
-    const dMax = input.dMax || 20;
+    const dMax = input.dMax;
     const sandPercent = result.sandPercent || 42;
     const sandDens = resolvedAll.sand?.density || 0;
     const gravelDens = resolvedAll.gravel?.density || 0;
@@ -734,33 +734,35 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
     }
 
     // 4. Cement Strength Class compatibility with specified target strength
-    const fck28 = input.fck28 || 25;
-    const cementClass = input.cementClassStrength || 42.5;
+    const fck28 = input.fck28;
+    const cementClass = input.cementClassStrength;
 
-    if (fck28 >= 40 && cementClass < 42.5) {
-      checks.push({
-        name: "ملائمة رتبة الإسمنت للمقاومة fck28",
-        nameEn: "Cement Strength Class Appropriateness",
-        status: "FAIL",
-        messageAr: `فشل التوافق: لا يمكن تصنيع خرسانة fck28 ≥ 40 MPa بإستعمال إسمنت منخفض الرتبة (${cementClass} MPa). نوصي بالدخول وترقية صنف الإسمنت إلى 42.5R أو 52.5N.`,
-        messageEn: `Failed: specified cement grade (${cementClass} MPa) cannot reliably deliver specified compressive strength fck28 >= 40 MPa.`
-      });
-    } else if (fck28 < 25 && cementClass > 42.5) {
-      checks.push({
-        name: "ملائمة رتبة الإسمنت للمقاومة fck28",
-        nameEn: "Cement Strength Class Appropriateness",
-        status: "WARN",
-        messageAr: "تنبيه اقتصادي: روتينية الصب بسيطة ولا تحتاج إسمنت بورتلاندي عالي الدرجة، يرجى استهلاك إسمنت عادي 32.5 لتوفير التكاليف المالية الإجمالية للمتر المكعب.",
-        messageEn: "Advice: Excessively strong cement class is selected for normal/low performance requirements. Consider regular 32.5 CEM."
-      });
-    } else {
-      checks.push({
-        name: "توافق رتبة الإسمنت مع المقاومة المطلوبة",
-        nameEn: "Cement class compatibility with target strength",
-        status: "PASS",
-        messageAr: `تم التحقق: رتبة الإسمنت الحالية (${cementClass} MPa) متوافقة ولديها الكفاءة العظمى لتأمين إجهاد الضغط fc28 = ${fck28} MPa بأمان.`,
-        messageEn: `Verified: cement strength class appropriately matches target concrete performance criteria.`
-      });
+    if (fck28 !== undefined && cementClass !== undefined) {
+      if (fck28 >= 40 && cementClass < 42.5) {
+        checks.push({
+          name: "ملائمة رتبة الإسمنت للمقاومة fck28",
+          nameEn: "Cement Strength Class Appropriateness",
+          status: "FAIL",
+          messageAr: `فشل التوافق: لا يمكن تصنيع خرسانة fck28 ≥ 40 MPa بإستعمال إسمنت منخفض الرتبة (${cementClass} MPa). نوصي بالدخول وترقية صنف الإسمنت إلى 42.5R أو 52.5N.`,
+          messageEn: `Failed: specified cement grade (${cementClass} MPa) cannot reliably deliver specified compressive strength fck28 >= 40 MPa.`
+        });
+      } else if (fck28 < 25 && cementClass > 42.5) {
+        checks.push({
+          name: "ملائمة رتبة الإسمنت للمقاومة fck28",
+          nameEn: "Cement Strength Class Appropriateness",
+          status: "WARN",
+          messageAr: "تنبيه اقتصادي: روتينية الصب بسيطة ولا تحتاج إسمنت بورتلاندي عالي الدرجة، يرجى استهلاك إسمنت عادي 32.5 لتوفير التكاليف المالية الإجمالية للمتر المكعب.",
+          messageEn: "Advice: Excessively strong cement class is selected for normal/low performance requirements. Consider regular 32.5 CEM."
+        });
+      } else {
+        checks.push({
+          name: "توافق رتبة الإسمنت مع المقاومة المطلوبة",
+          nameEn: "Cement class compatibility with target strength",
+          status: "PASS",
+          messageAr: `تم التحقق: رتبة الإسمنت الحالية (${cementClass} MPa) متوافقة ولديها الكفاءة العظمى لتأمين إجهاد الضغط fc28 = ${fck28} MPa بأمان.`,
+          messageEn: `Verified: cement strength class appropriately matches target concrete performance criteria.`
+        });
+      }
     }
 
     // 5. Total Mass Balance and density (Air content & compacting index check)
@@ -822,7 +824,7 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
               : (reportLanguage === "ar" ? "غير متوفر" : reportLanguage === "fr" ? "Non disponible" : "N/A"), 
             unit: mat.cement.density && mat.cement.density > 0 ? "g/cm³" : "" 
           },
-          { labelAr: "رتبة الضغط الفعالة", labelEn: "Effective Class Strength", value: `${mat.cement.cementStrengthClass || input.cementClassStrength || 42.5}`, unit: "MPa" },
+          { labelAr: "رتبة الضغط الفعالة", labelEn: "Effective Class Strength", value: `${mat.cement.cementStrengthClass ?? input.cementClassStrength ?? "—"}`, unit: (mat.cement.cementStrengthClass ?? input.cementClassStrength) ? "MPa" : "" },
           { labelAr: "الحجم الفعلي بالتناسب", labelEn: "Batch Quantity", value: `${Math.round(result.cementWeight)}`, unit: "kg/m³" },
           { labelAr: "ثاني أكسيد الكربون النوعي", labelEn: "Carbon Footprint (SNO CO2)", value: "320", unit: "kg-CO2/tn" }
         ],
@@ -848,9 +850,9 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
               : (reportLanguage === "ar" ? "غير متوفر" : reportLanguage === "fr" ? "Non disponible" : "N/A"), 
             unit: mat.sand.density && mat.sand.density > 0 ? "g/cm³" : "" 
           },
-          { labelAr: "تصحيح معامل الامتصاص", labelEn: "Absorption coefficient", value: `${mat.sand.absorption || 1.25}`, unit: "%" },
+          { labelAr: "تصحيح معامل الامتصاص", labelEn: "Absorption coefficient", value: `${mat.sand.absorption !== undefined ? mat.sand.absorption : "—"}`, unit: mat.sand.absorption !== undefined ? "%" : "" },
           { labelAr: "الحجم الفعلي بالتناسب", labelEn: "Batch Quantity", value: `${Math.round(result.sandWeightDry)}`, unit: "kg/m³" },
-          { labelAr: "معيار النعومة الكود", labelEn: "Fineness Modulus (FM)", value: `${mat.sand.finenessModulus || 2.65}` }
+          { labelAr: "معيار النعومة الكود", labelEn: "Fineness Modulus (FM)", value: `${mat.sand.finenessModulus !== undefined ? mat.sand.finenessModulus : "—"}` }
         ],
         notesAr: "حب مائل للشكل الكروي المعتمد من المقالع الجزائرية المحلية الخالي من المواد الطميّة الضارة.",
         notesEn: "Washed sub-angular high-durability natural silica matrix with minimal clay silt contamination.",
@@ -875,9 +877,9 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
               : (reportLanguage === "ar" ? "غير متوفر" : reportLanguage === "fr" ? "Non disponible" : "N/A"), 
             unit: mat.gravel.density && mat.gravel.density > 0 ? "g/cm³" : "" 
           },
-          { labelAr: "معامل الامتصاص الحجمي", labelEn: "Absorption coefficient", value: `${mat.gravel.absorption || 1.0}`, unit: "%" },
+          { labelAr: "معامل الامتصاص الحجمي", labelEn: "Absorption coefficient", value: `${mat.gravel.absorption !== undefined ? mat.gravel.absorption : "—"}`, unit: mat.gravel.absorption !== undefined ? "%" : "" },
           { labelAr: "الحجم الفعلي بالتناسب", labelEn: "Batch Quantity", value: `${Math.round(result.gravelWeightDry)}`, unit: "kg/m³" },
-          { labelAr: "القطر الأقصى (Dmax)", labelEn: "Maximum Particle Size", value: `${mat.gravel.dMax || input.dMax || 20}`, unit: "mm" }
+          { labelAr: "القطر الأقصى (Dmax)", labelEn: "Maximum Particle Size", value: `${(mat.gravel.dMax ?? input.dMax) !== undefined ? (mat.gravel.dMax ?? input.dMax) : "—"}`, unit: (mat.gravel.dMax ?? input.dMax) !== undefined ? "mm" : "" }
         ],
         notesAr: "ركام خشن مكسر مغسول ذو متانة عالية ومقاومة ممتازة للتآكل الميكانيكي (صلابة لوس أنجلوس ممتازة).",
         notesEn: "High-grade crushed aggregate with optimized packing index and durable mechanical skeleton.",

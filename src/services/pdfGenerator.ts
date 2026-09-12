@@ -506,8 +506,8 @@ export async function generateMixDesignPdf(
   const batchVol = options.batchVolume || 1.0;
 
   const dateStr = new Date().toISOString().split("T")[0];
-  const fck = Math.round(input.fck28 || 30);
-  const reportRef = `SNO-MIX-C${fck}-${Math.floor(Date.now() / 1000).toString().slice(-6)}`;
+  const fck = input.fck28 ? Math.round(input.fck28) : undefined;
+  const reportRef = `SNO-MIX-${fck ? `C${fck}` : "GEN"}-${Math.floor(Date.now() / 1000).toString().slice(-6)}`;
 
   let currentY = PDF_PAGE_MARGINS.top + 2;
 
@@ -516,36 +516,37 @@ export async function generateMixDesignPdf(
     doc, 
     currentY, 
     "SYNTHÈSE EXÉCUTIVE & INDICATEURS CLÉS DE PERFORMANCE (KPI)",
-    `NORME NF EN 206+A2/CN | CLASSE C${fck}/${Math.round((input.fck28 || 30) * 1.25)}`
+    fck ? `NORME NF EN 206+A2/CN | CLASSE C${fck}/${Math.round(fck * 1.25)}` : `NORME NF EN 206+A2/CN`
   );
 
+  const wcVal = result.wcRatioAdjusted ?? result.wcRatio;
   currentY = drawMetricCards(doc, currentY, [
     {
       label: "Résistance fck,28",
-      value: `${fck}`,
-      unit: "MPa",
+      value: fck !== undefined ? `${fck}` : "N/A",
+      unit: fck !== undefined ? "MPa" : "",
       highlight: "primary",
-      subtext: `Cible fcm = ${(result.fcm28 || fck + 8).toFixed(1)} MPa`
+      subtext: result.fcm28 ? `Cible fcm = ${result.fcm28.toFixed(1)} MPa` : ((result as any).fc28Target ? `Cible fcm = ${(result as any).fc28Target.toFixed(1)} MPa` : (fck !== undefined ? `Cible fcm = ${(fck + 8).toFixed(1)} MPa` : "N/A"))
     },
     {
       label: "Rapport E/C (W/C)",
-      value: `${(result.wcRatioAdjusted || result.wcRatio || 0.48).toFixed(2)}`,
-      highlight: (result.wcRatioAdjusted || result.wcRatio || 0.48) <= 0.55 ? "success" : "warning",
-      subtext: `E/C Initial: ${(result.wcRatio || 0.48).toFixed(2)}`
+      value: wcVal !== undefined ? `${wcVal.toFixed(2)}` : "N/A",
+      highlight: wcVal !== undefined ? (wcVal <= 0.55 ? "success" : "warning") : "primary",
+      subtext: result.wcRatio !== undefined ? `E/C Initial: ${result.wcRatio.toFixed(2)}` : "Non spécifié"
     },
     {
       label: "Dosage en Ciment",
-      value: `${Math.round(result.cementWeight || 350)}`,
-      unit: "kg/m³",
+      value: result.cementWeight !== undefined ? `${Math.round(result.cementWeight)}` : "N/A",
+      unit: result.cementWeight !== undefined ? "kg/m³" : "",
       highlight: "primary",
-      subtext: input.cementType || "CEM II 42.5"
+      subtext: input.cementType || "Non spécifié"
     },
     {
       label: "Ouvrabilité / Affaissement",
-      value: `${input.slump || 7}`,
-      unit: "cm",
+      value: input.slump !== undefined ? `${input.slump}` : "N/A",
+      unit: input.slump !== undefined ? "cm" : "",
       highlight: "primary",
-      subtext: `Classe S${(input.slump || 7) <= 4 ? 1 : (input.slump || 7) <= 9 ? 2 : (input.slump || 7) <= 15 ? 3 : 4}`
+      subtext: input.slump !== undefined ? `Classe S${input.slump <= 4 ? 1 : input.slump <= 9 ? 2 : input.slump <= 15 ? 3 : 4}` : "Non spécifié"
     }
   ]);
 
@@ -565,17 +566,17 @@ export async function generateMixDesignPdf(
       items: [
         { label: "Méthode de Calcul", value: (input.selectedMethod || "dreux").toUpperCase() },
         { label: "Classe d'Exposition", value: input.exposureClass || "XC2" },
-        { label: "Diamètre Max Dmax", value: `${input.dMax || 20} mm` },
-        { label: "Masse Volumique Frais", value: `${Math.round(result.totalFreshDensity || 2380)} kg/m³` }
+        { label: "Diamètre Max Dmax", value: input.dMax ? `${input.dMax} mm` : "N/A" },
+        { label: "Masse Volumique Frais", value: result.totalFreshDensity ? `${Math.round(result.totalFreshDensity)} kg/m³` : "N/A" }
       ]
     },
     {
       title: "PARAMÈTRES DES CONSTITUANTS",
       items: [
-        { label: "Type de Ciment", value: input.cementType || "CEM II/A-L 42.5 N" },
+        { label: "Type de Ciment", value: input.cementType || "Non spécifié" },
         { label: "Type de Granulats", value: input.aggregateType || "Concassé" },
-        { label: "Périmètre Pompage", value: input.hasPumping ? "Oui (Inclus +5-8%)" : "Non" },
-        { label: "Teneur en Air Occlus", value: `${input.airContent || 1.5} %` }
+        { label: "Périmètre Pompage", value: input.hasPumping ? "Oui" : "Non" },
+        { label: "Teneur en Air Occlus", value: input.airContent !== undefined ? `${input.airContent} %` : "N/A" }
       ]
     }
   ]);
@@ -588,14 +589,14 @@ export async function generateMixDesignPdf(
     `VOLUME GÂCHÉE: ${batchVol.toFixed(2)} m³`
   );
 
-  const drySand = Math.round(result.sandWeightDry || 650);
-  const dryGravel = Math.round(result.gravelWeightDry || 1150);
-  const cement = Math.round(result.cementWeight || 350);
-  const dryWater = Math.round(result.waterContentActual || result.waterContentNeeded || 175);
+  const drySand = Math.round(result.sandWeightDry || 0);
+  const dryGravel = Math.round(result.gravelWeightDry || 0);
+  const cement = Math.round(result.cementWeight || 0);
+  const dryWater = Math.round(result.waterContentActual || result.waterContentNeeded || 0);
 
-  const wetSand = Math.round(result.sandWeightWet || drySand * 1.03);
-  const wetGravel = Math.round(result.gravelWeightWet || dryGravel * 1.01);
-  const wetWater = Math.round(result.waterWeightWet || dryWater * 0.85);
+  const wetSand = Math.round(result.sandWeightWet || drySand);
+  const wetGravel = Math.round(result.gravelWeightWet || dryGravel);
+  const wetWater = Math.round(result.waterWeightWet || dryWater);
 
   const batchMultiplier = batchVol;
 

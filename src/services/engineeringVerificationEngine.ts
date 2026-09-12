@@ -72,7 +72,7 @@ export function evaluateEngineeringGate(
     ? inputs.concreteType
     : (inputs?.concreteType as any)?.code || (inputs?.concreteType as any)?.concreteType || "NSC";
   const concreteType = String(rawConcreteType || "NSC").toUpperCase();
-  const dMax = Number(inputs?.dMax) || 20;
+  const dMax = typeof inputs?.dMax === "number" && !isNaN(inputs.dMax) ? inputs.dMax : undefined;
 
   // 1. Determine Dynamic Roles
   const roles: RequiredMaterialRole[] = [];
@@ -111,7 +111,7 @@ export function evaluateEngineeringGate(
 
   // Coarse Aggregate (Gravel) Role
   // Not required for Mortar, Grout, or Dmax <= 4mm
-  const isGravelRequired = concreteType !== "MORTAR" && concreteType !== "GROUT" && concreteType !== "PASTE" && dMax > 4;
+  const isGravelRequired = concreteType !== "MORTAR" && concreteType !== "GROUT" && concreteType !== "PASTE" && (dMax === undefined || dMax > 4);
   if (isGravelRequired || inputs?.selectedGravelId) {
     roles.push({
       role: "gravel",
@@ -121,13 +121,13 @@ export function evaluateEngineeringGate(
       icon: "🪨",
       isRequired: isGravelRequired,
       sourceReasonAr: isGravelRequired 
-        ? `مطلوب لنوع الخرسانة (${concreteType}) والقطر الأقصى (Dmax = ${dMax}mm) لحساب الهيكل الحصوي.`
+        ? (dMax !== undefined ? `مطلوب لنوع الخرسانة (${concreteType}) والقطر الأقصى (Dmax = ${dMax}mm) لحساب الهيكل الحصوي.` : `مطلوب لنوع الخرسانة (${concreteType}) لحساب الهيكل الحصوي.`)
         : `تم اختياره يدوياً في الخلطة الحالية.`,
       sourceReasonEn: isGravelRequired
-        ? `Required for concrete type (${concreteType}) and (Dmax = ${dMax}mm) to establish granular skeleton.`
+        ? (dMax !== undefined ? `Required for concrete type (${concreteType}) and (Dmax = ${dMax}mm) to establish granular skeleton.` : `Required for concrete type (${concreteType}) to establish granular skeleton.`)
         : `Manually selected in current mix.`,
       sourceReasonFr: isGravelRequired
-        ? `Requis pour le type de béton (${concreteType}) et (Dmax = ${dMax}mm).`
+        ? (dMax !== undefined ? `Requis pour le type de béton (${concreteType}) et (Dmax = ${dMax}mm).` : `Requis pour le type de béton (${concreteType}).`)
         : `Sélectionné manuellement dans le mélange actuel.`,
       selectedMaterialId: inputs?.selectedGravelId,
       status: isGravelRequired ? "unselected" : "not_required"

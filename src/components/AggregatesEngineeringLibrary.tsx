@@ -569,10 +569,10 @@ export function AggregatesEngineeringLibrary({
         englishName: s.englishName!,
         category: s.category!,
         type: s.type!,
-        density: s.density || 2600,
-        ssdDensity: s.ssdDensity || 2630,
-        absorption: s.absorption || 1.5,
-        moisture: s.moisture || 0.5,
+        density: s.density,
+        ssdDensity: s.ssdDensity,
+        absorption: s.absorption,
+        moisture: s.moisture,
         finenessModulus: s.finenessModulus,
         dMax: s.dMax,
         provenance: s.provenance || "الجزائر",
@@ -582,10 +582,10 @@ export function AggregatesEngineeringLibrary({
         createdBy: "SnoLab Setup",
         createdDate: s.createdDate || "2026-01-01",
         updatedDate: "2026-07-01",
-        specificGravity: s.specificGravity || 2.60,
+        specificGravity: s.specificGravity,
         particleShape: shape,
-        clayContent: s.clayContent || 0.5,
-        organicContent: s.organicContent || "سليم",
+        clayContent: s.clayContent,
+        organicContent: s.organicContent,
         gradationData: s.gradationData || [],
         MaterialCode: s.MaterialCode || `MAT-AGG-${s.id?.toUpperCase()}`,
         ApprovalStatus: s.ApprovalStatus || "Approved",
@@ -596,10 +596,10 @@ export function AggregatesEngineeringLibrary({
         SandEquivalent: s.SandEquivalent,
         Chlorides: s.Chlorides,
         Sulfates: s.Sulfates,
-        SpecificGravity: s.specificGravity || 2.60,
-        Density: s.density || 2600,
-        Absorption: s.absorption || 1.5,
-        MoistureContent: s.moisture || 0.5,
+        SpecificGravity: s.specificGravity,
+        Density: s.density,
+        Absorption: s.absorption,
+        MoistureContent: s.moisture,
         FinenessModulus: s.finenessModulus,
         quarryName: s.quarryName,
         supplierName: s.supplierName,
@@ -771,15 +771,27 @@ export function AggregatesEngineeringLibrary({
   const handleSaveForm = () => {
     if (!onUpdateMaterials || !formState) return;
 
+    const sgVal = formState.specificGravity !== undefined && formState.specificGravity !== "" ? Number(formState.specificGravity) : (formState.SpecificGravity !== undefined && formState.SpecificGravity !== "" ? Number(formState.SpecificGravity) : undefined);
+    const densVal = formState.density !== undefined && formState.density !== "" ? Number(formState.density) : (formState.Density !== undefined && formState.Density !== "" ? Number(formState.Density) : undefined);
+    const absVal = formState.absorption !== undefined && formState.absorption !== "" ? Number(formState.absorption) : (formState.Absorption !== undefined && formState.Absorption !== "" ? Number(formState.Absorption) : undefined);
+    const moistVal = formState.moisture !== undefined && formState.moisture !== "" ? Number(formState.moisture) : (formState.MoistureContent !== undefined && formState.MoistureContent !== "" ? Number(formState.MoistureContent) : undefined);
+    const fmVal = formState.category === "رمال" ? (formState.finenessModulus !== undefined && formState.finenessModulus !== "" ? Number(formState.finenessModulus) : (formState.FinenessModulus !== undefined && formState.FinenessModulus !== "" ? Number(formState.FinenessModulus) : undefined)) : undefined;
+    const dMaxVal = formState.category === "حصى" ? (formState.dMax !== undefined && formState.dMax !== "" ? Number(formState.dMax) : undefined) : undefined;
+
     // Synchronize redundant uppercase/lowercase properties
     const updatedMat = {
       ...formState,
-      SpecificGravity: Number(formState.specificGravity || formState.SpecificGravity || 2.60),
-      Density: Number(formState.density || formState.Density || 2600),
-      Absorption: Number(formState.absorption || formState.Absorption || 1.5),
-      MoistureContent: Number(formState.moisture || formState.MoistureContent || 0.5),
-      FinenessModulus: formState.category === "رمال" ? Number(formState.finenessModulus || formState.FinenessModulus || 2.5) : undefined,
-      dMax: formState.category === "حصى" ? Number(formState.dMax || 20) : 5,
+      SpecificGravity: sgVal,
+      specificGravity: sgVal,
+      Density: densVal,
+      density: densVal,
+      Absorption: absVal,
+      absorption: absVal,
+      MoistureContent: moistVal,
+      moisture: moistVal,
+      FinenessModulus: fmVal,
+      finenessModulus: fmVal,
+      dMax: dMaxVal,
       updatedDate: new Date().toISOString().split("T")[0],
       ownerId: "user_added",
       source: "lab"

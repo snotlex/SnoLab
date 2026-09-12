@@ -207,7 +207,8 @@ export function CostAnalysisDashboard({
   // This calculates exact theoretical and empirical savings!
   const optimizationAdvisories = useMemo(() => {
     const list = [];
-    const cementWeight = results.cementWeight || 350; // default standard
+    const cementWeight = results.cementWeight ?? results.cementKg;
+    if (!cementWeight) return [];
     
     // Suggestion A: Fly Ash Pozzolanic replacement
     if (inputs.dosageFlyAsh < 15) {

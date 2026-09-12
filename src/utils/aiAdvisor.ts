@@ -116,36 +116,49 @@ export function analyzeMixDesign(
   result: MixDesignResult,
   resolvedMaterials?: any
 ): AdvisorAnalysis {
-  const currentCement = result.cementWeight || 350;
-  const fck = input.fck28 || 25;
-  const wc = result.wcRatioAdjusted || result.wcRatio || 0.50;
-  const slump = input.slump || 7;
-  const dMax = input.dMax || 20;
+  const currentCement = result.cementWeight ?? (result as any).cementKg;
+  const fck = input.fck28;
+  const wc = result.wcRatioAdjusted ?? result.wcRatio;
+  const slump = input.slump;
+  const dMax = input.dMax;
 
   // 1. Cement Efficiency
   // Base ideal cement content is function of strength class: fck * 10 + 100 for optimized aggregate
-  const baseIdealCement = Math.round(fck * 8.5 + 110);
+  const hasCementAndFck = currentCement !== undefined && fck !== undefined;
+  const baseIdealCement = hasCementAndFck ? Math.round(fck * 8.5 + 110) : undefined;
   const isScmUsed = (input.dosageSilicaFume || 0) + (input.dosageFlyAsh || 0) + (input.dosageSlag || 0) > 0;
-  const optimizedCement = isScmUsed ? baseIdealCement - 15 : baseIdealCement;
-  const excessive = currentCement > optimizedCement + 35;
-  const savingPercent = currentCement > optimizedCement ? Math.round(((currentCement - optimizedCement) / currentCement) * 1000) / 10 : 0;
+  const optimizedCement = baseIdealCement !== undefined ? (isScmUsed ? baseIdealCement - 15 : baseIdealCement) : undefined;
+  const excessive = (currentCement !== undefined && optimizedCement !== undefined) ? currentCement > optimizedCement + 35 : false;
+  const savingPercent = (currentCement !== undefined && optimizedCement !== undefined && currentCement > optimizedCement)
+    ? Math.round(((currentCement - optimizedCement) / currentCement) * 1000) / 10
+    : 0;
   const priceCement = input.priceCement || 22; // default pricing
-  const potentialSavingDA = Math.max(0, Math.round((currentCement - optimizedCement) * priceCement));
+  const potentialSavingDA = (currentCement !== undefined && optimizedCement !== undefined)
+    ? Math.max(0, Math.round((currentCement - optimizedCement) * priceCement))
+    : 0;
   
-  const strengthImpactAr = excessive 
-    ? "تقليل كمية الإسمنت بنسبة 5% إلى 8% ورفع فعالية الملدنات المضافة لن يؤثر إطلاقاً على المقاومة التصميمية المستهدفة، بل يسهم في تخفيف حرارة الإماهة وتقليص تشققات التجفيف الانكماشي."
-    : "كمية الإسمنت مطابقة ومثالية لنسبة الفراغات وكثافة الرص الحبيبي، أي تعديل إضافي بالتقليل قد يضر بسرعة نضوج المقاومة المبكرة.";
-  const strengthImpactEn = excessive
-    ? "Optimizing cement content by 5% to 8% while raising superplasticizer efficiency maintains target strength while mitigating hydration heat and shrinkage cracking."
-    : "Cement content is optimal. Further reduction may compromise early-age strength development.";
+  const strengthImpactAr = !hasCementAndFck
+    ? "يرجى تحديد المقاومة التصميمية fck وحساب كمية الإسمنت لتقييم كفاءة الرابط."
+    : (excessive 
+        ? "تقليل كمية الإسمنت بنسبة 5% إلى 8% ورفع فعالية الملدنات المضافة لن يؤثر إطلاقاً على المقاومة التصميمية المستهدفة، بل يسهم في تخفيف حرارة الإماهة وتقليص تشققات التجفيف الانكماشي."
+        : "كمية الإسمنت مطابقة ومثالية لنسبة الفراغات وكثافة الرص الحبيبي، أي تعديل إضافي بالتقليل قد يضر بسرعة نضوج المقاومة المبكرة.");
+  const strengthImpactEn = !hasCementAndFck
+    ? "Please specify target strength fck and calculate cement content to assess binder efficiency."
+    : (excessive
+        ? "Optimizing cement content by 5% to 8% while raising superplasticizer efficiency maintains target strength while mitigating hydration heat and shrinkage cracking."
+        : "Cement content is optimal. Further reduction may compromise early-age strength development.");
 
-  const adviceCementAr = excessive
-    ? `الجرعة الحالية للإسمنت مرتفعة نسبياً (${Math.round(currentCement)} كجم/م³). ينصح المستشار الهندسي بالتقليل إلى ${Math.round(optimizedCement)} كجم/م³ واستبدال الفارق بالرماد المتطاير أو خبث الأفران لزيادة الديمومة وتوفير ما يقارب ${potentialSavingDA} د.ج للخلطة.`
-    : `استهلاك الإسمنت محدد بدقة وعلمي لخلطة القوة المستهدفة بالمرونة الحالية.`;
+  const adviceCementAr = !hasCementAndFck
+    ? "بيانات الإسمنت أو المقاومة غير متوفرة بعد."
+    : (excessive
+        ? `الجرعة الحالية للإسمنت مرتفعة نسبياً (${Math.round(currentCement!)} كجم/م³). ينصح المستشار الهندسي بالتقليل إلى ${Math.round(optimizedCement!)} كجم/م³ واستبدال الفارق بالرماد المتطاير أو خبث الأفران لزيادة الديمومة وتوفير ما يقارب ${potentialSavingDA} د.ج للخلطة.`
+        : `استهلاك الإسمنت محدد بدقة وعلمي لخلطة القوة المستهدفة بالمرونة الحالية.`);
 
-  const adviceCementEn = excessive
-    ? `Current cement content is higher than required (${Math.round(currentCement)} kg/m³). Recommended optimized content: ${Math.round(optimizedCement)} kg/m³. Potential savings: ${savingPercent}%.`
-    : `Cement consumption corresponds scientifically to the targeted compressive strength.`;
+  const adviceCementEn = !hasCementAndFck
+    ? "Cement or strength data not yet available."
+    : (excessive
+        ? `Current cement content is higher than required (${Math.round(currentCement!)} kg/m³). Recommended optimized content: ${Math.round(optimizedCement!)} kg/m³. Potential savings: ${savingPercent}%.`
+        : `Cement consumption corresponds scientifically to the targeted compressive strength.`);
 
   // 2. W/C Ratio Analysis
   let wcRating: "optimal" | "high" | "low" = "optimal";
@@ -154,7 +167,10 @@ export function analyzeMixDesign(
   let durabilityRiskAr = "مخاطر نفاذية وديمومة منعدمة، البنية الإسمنتية متراصة وسميكة.";
   let durabilityRiskEn = "Low porosity and high durability structure verified.";
 
-  if (wc > 0.55) {
+  if (wc === undefined) {
+    durabilityRiskAr = "نسبة الماء إلى الإسمنت غير محسوبة بعد.";
+    durabilityRiskEn = "Water/cement ratio not yet calculated.";
+  } else if (wc > 0.55) {
     wcRating = "high";
     warningsWcAr.push("خلطة غنية بالماء الحر الزائد (نفاذية عالية بعد تبخر الماء).");
     warningsWcAr.push("ارتفاع احتمال انفصال حركي للمكونات أثناء الرص الهزاز.");
@@ -173,7 +189,7 @@ export function analyzeMixDesign(
   }
 
   // Rule verification: إذا Slump > 180 mm -> Superplasticizer Required
-  const isHighSlump = (slump > 18 && slump < 100) || slump > 180;
+  const isHighSlump = slump !== undefined && ((slump > 18 && slump < 100) || slump > 180);
   const hasSuper = (input.dosageSuper || 0) > 0;
   if (isHighSlump && !hasSuper) {
     warningsWcAr.push("مخالفة: قوام الهبوط مستهدف مرتفع (> 180 مم) يتطلب إلزامياً إضافة ملدنات فائقة (Superplasticizer) للوصول للسيولة المطلوبة.");
@@ -181,8 +197,8 @@ export function analyzeMixDesign(
   }
 
   // Rule verification: إذا Temperature > 35°C -> Retarder Suggested
-  const pTemp = (input as any).ambientTemp || (input as any).temperature || (input as any).concreteTemp || (input as any).initialTemp || 20;
-  const temperatureHigh = pTemp > 35;
+  const pTemp = (input as any).ambientTemp ?? (input as any).temperature ?? (input as any).concreteTemp ?? (input as any).initialTemp;
+  const temperatureHigh = pTemp !== undefined && pTemp > 35;
   const hasRetarder = (input.dosageRetarder || 0) > 0;
   if (temperatureHigh) {
     if (!hasRetarder) {
@@ -196,10 +212,12 @@ export function analyzeMixDesign(
 
   // 3. Aggregate Quality Analysis
   const resolvedSand = resolvedMaterials?.sand || {};
-  const sandFM = resolvedSand.finenessModulus || 2.65;
-  let sandRating = "مثالي (Premium Aggregates)";
-  if (sandFM < 2.2) sandRating = "رمل ناعم جداً - يرفع الطلب على الماء والنزيف";
-  else if (sandFM > 3.1) sandRating = "رمل خشن - يحد من جودة الإنهاء والانضغاطية";
+  const sandFM = resolvedSand.finenessModulus;
+  let sandRating = sandFM === undefined ? "غير محدد (معيار النعومة غير متوفر)" : "مثالي (Premium Aggregates)";
+  if (sandFM !== undefined) {
+    if (sandFM < 2.2) sandRating = "رمل ناعم جداً - يرفع الطلب على الماء والنزيف";
+    else if (sandFM > 3.1) sandRating = "رمل خشن - يحد من جودة الإنهاء والانضغاطية";
+  }
 
   const absorptionSand = resolvedSand.absorption || 1.2;
   const absorptionGravel = resolvedMaterials?.gravel?.absorption || 0.8;
@@ -254,11 +272,11 @@ export function analyzeMixDesign(
   const matchingRule = rules[expCode] || Object.values(rules).find(r => expCode.startsWith(r.nameAr)) || rules["X0"];
   const config = matchingRule;
 
-  const actualWc = Number(wc.toFixed(3));
-  const actualCement = Math.round(currentCement);
+  const actualWc = wc !== undefined ? Number(wc.toFixed(3)) : undefined;
+  const actualCement = currentCement !== undefined ? Math.round(currentCement) : undefined;
 
-  const maxWcPass = actualWc <= config.maxWc;
-  const minCementPass = actualCement >= config.minCement;
+  const maxWcPass = actualWc !== undefined ? actualWc <= config.maxWc : false;
+  const minCementPass = actualCement !== undefined ? actualCement >= config.minCement : false;
   const overallPass = maxWcPass && minCementPass;
   if (!overallPass) overallCompliance = false;
 
@@ -267,10 +285,10 @@ export function analyzeMixDesign(
     name: config.nameAr,
     maxWcPass,
     requiredMaxWc: config.maxWc,
-    actualWc,
+    actualWc: actualWc ?? 0,
     minCementPass,
     requiredMinCement: config.minCement,
-    actualCement,
+    actualCement: actualCement ?? 0,
     overallPass,
     details: `فئة التعرض: ${expCode} تتطلب [الحد الأقصى لنسبة الماء/الإسمنت: ${config.maxWc} | الحد الأدنى للإسمنت: ${config.minCement} كجم].`
   });
@@ -287,31 +305,31 @@ export function analyzeMixDesign(
   const structElement = (input as any).structuralElement || "";
   const reinfCongestion = (input as any).reinforcementCongestion || "";
   const isCongestedHigh = reinfCongestion === "High" || reinfCongestion === "high" || /كثيف جداً|كثيف|high|congestion/i.test(structElement) || /high/i.test(reinfCongestion);
-  const isCongested = isCongestedHigh || (structElement ? /جسور|أعمدة|بلاطات مسلحة كثيفة|أعصاب/i.test(structElement) : dMax > 22);
+  const isCongested = isCongestedHigh || (structElement ? /جسور|أعمدة|بلاطات مسلحة كثيفة|أعصاب/i.test(structElement) : (dMax !== undefined && dMax > 22));
   
   // Rule verification: إذا Reinforcement Congestion = High -> Dmax <= 16 mm (Otherwise default Dmax spacing is 20)
   const maxAllowedDmax = isCongestedHigh ? 16 : 20;
-  const dMaxSafetyPass = isCongested ? dMax <= maxAllowedDmax : true;
-  const slumpSafetyPass = isCongested ? slump >= 10 : true;
+  const dMaxSafetyPass = isCongested ? (dMax !== undefined ? dMax <= maxAllowedDmax : true) : true;
+  const slumpSafetyPass = isCongested ? (slump !== undefined ? slump >= 10 : true) : true;
 
   const recommendationAr = isCongested 
     ? (!dMaxSafetyPass 
         ? (isCongestedHigh 
-            ? `مخالفة: التسليح كثيف جداً (Reinforcement Congestion = High) يتطلب ألا يزيد قطر الحصى الأقصى Dmax عن 16 مم (المستعمل حالياً: ${dMax} مم).` 
+            ? `مخالفة: التسليح كثيف جداً (Reinforcement Congestion = High) يتطلب ألا يزيد قطر الحصى الأقصى Dmax عن 16 مم (المستعمل حالياً: ${dMax ?? "غير محدد"} مم).` 
             : "الغطاء الحديدي وضيق حديد التسليح في هذا العنصر يتطلب تصغير قطر الحصى Dmax إلى 16 مم أو أقل لمنع حدوث التمضمض وفراغات الهواء (Honeycombing).")
         : "قطر الحصى متوافق هندسياً مع التسليح الكثيف، يُقترح رفع هبوط الخرسانة بصورة طفيفة باستخدام الملدنات لتحسين الانسياب.")
     : "تفاصيل حديد التسليح قياسية ومتباعدة بما يسمح بصب الحصى بقطره الحالي دون عوائق انسدادية.";
   const recommendationEn = isCongested
     ? (!dMaxSafetyPass 
         ? (isCongestedHigh
-            ? `Non-compliant: High reinforcement congestion demands Dmax <= 16 mm (current Dmax: ${dMax} mm).`
+            ? `Non-compliant: High reinforcement congestion demands Dmax <= 16 mm (current Dmax: ${dMax ?? "unspecified"} mm).`
             : "Narrow spacing in reinforcement demands reducing Dmax to 16mm or less to prevent severe segregation and aggregate shielding (honeycombing).")
         : "Dmax size complies with layout. Ensure high flow slump class via water reducers to maximize compaction.")
     : "Standard spacing of steel reinforcement is perfectly compatible with current aggregate Dmax size.";
   const recommendationFr = isCongested
     ? (!dMaxSafetyPass 
         ? (isCongestedHigh
-            ? `Non-conforme : Densité d'armature élevée exige un Dmax <= 16 mm (Dmax actuel : ${dMax} mm).`
+            ? `Non-conforme : Densité d'armature élevée exige un Dmax <= 16 mm (Dmax actuel : ${dMax ?? "non spécifié"} mm).`
             : "L'espacement étroit des armatures exige de réduire le Dmax à 16 mm ou moins pour éviter la ségrégation et les nids d'abeille (Honeycombing).")
         : "Le diamètre maximal Dmax est conforme à la densité de ferraillage. Il est conseillé de fluidifier avec un plastifiant.")
     : "L'espacement standard des armatures en acier est parfaitement compatible avec le diamètre actuel des granulats.";
@@ -328,12 +346,12 @@ export function analyzeMixDesign(
   let segregationRiskAr = "منخفض جداً";
   let segregationRiskFr = "Très faible";
 
-  const sandRatio = result.sandPercent || 40;
+  const sandRatio = result.sandPercent;
   
   // Rule verification: إذا Pumping = TRUE -> Dmax <= 20 mm
-  const pumpAggregateSizePass = isPumpableInput ? dMax <= 20 : true;
+  const pumpAggregateSizePass = isPumpableInput ? (dMax !== undefined ? dMax <= 20 : true) : true;
 
-  if (slump < 6) {
+  if (slump !== undefined && slump < 6) {
     pumpRating = "Not Pumping Match";
     pumpRatingAr = "غير ملائم للضخ الهيدروليكي الميكانيكي";
     pumpRatingFr = "Incompatible avec le pompage mécanique";
@@ -353,14 +371,14 @@ export function analyzeMixDesign(
     segregationRisk = "Moderate";
     segregationRiskAr = "متوسط";
     segregationRiskFr = "Modéré";
-  } else if (slump >= 14 && sandRatio >= 38 && sandRatio <= 44) {
+  } else if (slump !== undefined && sandRatio !== undefined && slump >= 14 && sandRatio >= 38 && sandRatio <= 44) {
     pumpRating = "Excellent";
     pumpRatingAr = "ممتاز ومثالي لخلاطات الرافعات الهيدروليكية";
     pumpRatingFr = "Excellent, idéal pour les pompes télescopiques";
     blockageRisk = "Negligible" as any;
     blockageRiskAr = "معدوم تماماً بفعل تزييت ركامات الرمل المتزنة";
     blockageRiskFr = "Négligeable grâce à la lubrification sableuse interne";
-  } else if (sandRatio < 35 || sandRatio > 46) {
+  } else if (sandRatio !== undefined && (sandRatio < 35 || sandRatio > 46)) {
     pumpRating = "Moderate Risk";
     pumpRatingAr = "مخاطر انسداد جزئي بالخراطيم الطويلة";
     pumpRatingFr = "Inconfort partiel dans les tuyauteries longues";
@@ -394,20 +412,22 @@ export function analyzeMixDesign(
 
   // 7. Sustainability Analysis
   // Cement: ~0.9 kg CO2 per kg, SCM slag: ~0.08, fly ash: ~0.05, silica: ~0.10, gravel/sand: 0.005
-  const flyAshQty = (input.dosageFlyAsh || 0) / 100 * currentCement;
-  const slagQty = (input.dosageSlag || 0) / 100 * currentCement;
-  const silicaQty = (input.dosageSilicaFume || 0) / 100 * currentCement;
+  const cWeight = currentCement ?? 0;
+  const flyAshQty = (input.dosageFlyAsh || 0) / 100 * cWeight;
+  const slagQty = (input.dosageSlag || 0) / 100 * cWeight;
+  const silicaQty = (input.dosageSilicaFume || 0) / 100 * cWeight;
 
   const co2Intensity = Math.round(
-    (currentCement * 0.92) +
+    (cWeight * 0.92) +
     (silicaQty * 0.15) +
     (flyAshQty * 0.08) +
     (slagQty * 0.07) +
-    (result.sandWeightDry * 0.005) +
-    (result.gravelWeightDry * 0.006)
+    ((result.sandWeightDry || 0) * 0.005) +
+    ((result.gravelWeightDry || 0) * 0.006)
   );
 
-  const scmPercentage = Math.round(((flyAshQty + slagQty + silicaQty) / (currentCement + flyAshQty + slagQty + silicaQty)) * 100);
+  const totalBinder = cWeight + flyAshQty + slagQty + silicaQty;
+  const scmPercentage = totalBinder > 0 ? Math.round(((flyAshQty + slagQty + silicaQty) / totalBinder) * 100) : 0;
   
   let sustainScore: "A" | "B" | "C" | "D" | "E" = "C";
   let sustainColor = "text-amber-500 bg-amber-500/10";
@@ -428,8 +448,8 @@ export function analyzeMixDesign(
     sustainColor = "text-rose-500 bg-rose-500/10 dark:text-rose-400 font-bold";
   }
 
-  const baseLineCo2 = Math.round(fck * 8.5 + 130) * 0.92;
-  const co2SavingPercent = Math.max(0, Math.round(((baseLineCo2 - co2Intensity) / baseLineCo2) * 100));
+  const baseLineCo2 = fck !== undefined ? Math.round(fck * 8.5 + 130) * 0.92 : co2Intensity;
+  const co2SavingPercent = baseLineCo2 > 0 ? Math.max(0, Math.round(((baseLineCo2 - co2Intensity) / baseLineCo2) * 100)) : 0;
 
   const advSustainAr = scmPercentage < 10
     ? `إن البصمة الكربونية للخلطة عالية وتساوي ${co2Intensity} كجم CO₂ لكل متر مكعب خرساني. لرفع تقييم الاستدامة، ننصح باستبدال 15% إلى 25% من الإسمنت بالرماد المتطاير أو الخبث لتقليص الانبعاثات بنسبة تقلل البصمة لأكثر من 20%.`
@@ -446,7 +466,7 @@ export function analyzeMixDesign(
   const pGravel = input.priceGravel || 2.6;
   const pWater = input.priceWater || 1.1;
 
-  const costCement = Math.round(currentCement * priceCement);
+  const costCement = currentCement !== undefined ? Math.round(currentCement * priceCement) : 0;
   const costAggs = Math.round((result.sandWeightDry * pSand) + (result.gravelWeightDry * pGravel));
   
   let costAdmixtures = 0;

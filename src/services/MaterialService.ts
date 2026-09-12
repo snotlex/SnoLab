@@ -339,11 +339,11 @@ export class MaterialService {
       return String(p.value);
     };
 
-    const sg = getNum("PROP-SPECIFIC-GRAVITY") || 2650;
-    const abs = getNum("PROP-ABSORPTION") ?? 1.2;
-    const moist = getNum("PROP-MOISTURE") ?? 0;
-    const fm = getNum("PROP-FM") ?? 2.6;
-    const dmax = getNum("PROP-DMAX") ?? 20;
+    const sg = getNum("PROP-SPECIFIC-GRAVITY");
+    const abs = getNum("PROP-ABSORPTION");
+    const moist = getNum("PROP-MOISTURE");
+    const fm = getNum("PROP-FM");
+    const dmax = getNum("PROP-DMAX");
 
     return {
       id: core.id,
@@ -352,25 +352,25 @@ export class MaterialService {
       category: MaterialService.toLegacyCategoryName(core.category),
       type: core.type,
       density: sg,
-      ssdDensity: getNum("PROP-SSD-DENSITY") || sg,
+      ssdDensity: getNum("PROP-SSD-DENSITY") ?? sg,
       bulkDensity: getNum("PROP-BULK-DENSITY"),
       absorption: abs,
       moisture: moist,
       finenessModulus: fm,
       dMax: dmax,
-      dMin: getNum("PROP-DMIN") || 0,
-      sandEquivalent: getNum("PROP-SAND-EQUIVALENT") || 75,
+      dMin: getNum("PROP-DMIN"),
+      sandEquivalent: getNum("PROP-SAND-EQUIVALENT"),
       methyleneBlue: getNum("PROP-METHYLENE-BLUE"),
-      losAngelesAbrasion: getNum("PROP-LOS-ANGELES") || 25,
+      losAngelesAbrasion: getNum("PROP-LOS-ANGELES"),
       microDeval: getNum("PROP-MICRO-DEVAL"),
       clayContent: getNum("PROP-CLAY-CONTENT"),
       flakinessIndex: getNum("PROP-FLAKINESS-INDEX"),
       elongationIndex: getNum("PROP-ELONGATION-INDEX"),
 
       // Cement
-      cementClass: getStr("PROP-CEM-CLASS") || "CEM II/A",
-      strengthClass: getNum("PROP-CEM-STRENGTH-28D") || 42.5,
-      strength28d: getNum("PROP-CEM-STRENGTH-28D") || 42.5,
+      cementClass: getStr("PROP-CEM-CLASS"),
+      strengthClass: getNum("PROP-CEM-STRENGTH-28D"),
+      strength28d: getNum("PROP-CEM-STRENGTH-28D"),
       strength2d: getNum("PROP-CEM-STRENGTH-2D"),
       strength7d: getNum("PROP-CEM-STRENGTH-7D"),
       blaineFineness: getNum("PROP-CEM-BLAINE"),
@@ -382,9 +382,9 @@ export class MaterialService {
       chlorides: getNum("PROP-CEM-CHLORIDE"),
 
       // Admixtures
-      admixtureType: getStr("PROP-ADM-TYPE") || "superplasticizer",
-      recommendedDosage: getNum("PROP-ADM-DOSAGE") || 1.2,
-      waterReduction: getNum("PROP-ADM-WATER-REDUCTION") || 15,
+      admixtureType: getStr("PROP-ADM-TYPE"),
+      recommendedDosage: getNum("PROP-ADM-DOSAGE"),
+      waterReduction: getNum("PROP-ADM-WATER-REDUCTION"),
       solidContent: getNum("PROP-ADM-SOLID-CONTENT"),
       pH: getNum("PROP-ADM-PH"),
 

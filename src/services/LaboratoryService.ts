@@ -87,7 +87,7 @@ export class LaboratoryService {
         fmSum += (row.cumulativeRetained || 0);
       }
     }
-    const fm = parseFloat((fmSum / 100).toFixed(2)) || 2.65;
+    const fm = parseFloat((fmSum / 100).toFixed(2));
 
     // Interpolate Dx (size at which x% passes)
     const sortedAsc = [...computedTable].sort((a, b) => a.sieve - b.sieve);
@@ -104,7 +104,7 @@ export class LaboratoryService {
           return parseFloat((s1 + ratio * (s2 - s1)).toFixed(3));
         }
       }
-      return targetPassing >= 95 ? sortedAsc[sortedAsc.length - 1].sieve : sortedAsc[0].sieve;
+      return targetPassing >= 95 ? (sortedAsc[sortedAsc.length - 1]?.sieve ?? 0) : (sortedAsc[0]?.sieve ?? 0);
     };
 
     const d10 = interpolateD(10);
@@ -115,7 +115,7 @@ export class LaboratoryService {
     const cc = (d10 > 0 && d60 > 0) ? parseFloat(((d30 * d30) / (d10 * d60)).toFixed(2)) : 1;
 
     // Dmax is the first sieve where passing >= 95%
-    const dMaxCandidate = sortedAsc.find(s => s.passing >= 95)?.sieve || sortedAsc[sortedAsc.length - 1]?.sieve || 20;
+    const dMaxCandidate = sortedAsc.find(s => s.passing >= 95)?.sieve ?? sortedAsc[sortedAsc.length - 1]?.sieve ?? 0;
     const dMinCandidate = sortedAsc.find(s => s.passing > 5)?.sieve || 0;
 
     return {

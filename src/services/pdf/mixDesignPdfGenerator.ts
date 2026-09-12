@@ -114,8 +114,8 @@ export async function generateMixDesignPdf(
       title: "FORMULATION PARAMETERS",
       items: [
         { label: "Design Method", value: "Georges Dreux-Gorisse" },
-        { label: "Max Aggregate (Dmax)", value: `${input.dMax || 20} mm` },
-        { label: "Cement Type", value: input.cementType || "CEM II/A-L 42.5 N" },
+        { label: "Max Aggregate (Dmax)", value: input.dMax ? `${input.dMax} mm` : "N/A" },
+        { label: "Cement Type", value: input.cementType || "Not Specified" },
         { label: "Batch Calculation", value: `${batchVolume} m³` }
       ]
     }
@@ -134,39 +134,39 @@ export async function generateMixDesignPdf(
   const materialsRows = [
     [
       "Cement (Liant)",
-      input.selectedCementId || input.cementType || "CEM II/A-L 42.5 N",
+      input.selectedCementId || input.cementType || "Cement",
       "GICA / Lafarge",
-      `${(input.cementDensity || 3100) / 1000} g/cm³`,
+      input.cementDensity ? `${(input.cementDensity / 1000).toFixed(2)} g/cm³` : "-",
       "-",
       "-",
-      `Class ${input.cementClassStrength || 42.5} MPa`
+      input.cementClassStrength ? `Class ${input.cementClassStrength} MPa` : "-"
     ],
     [
       "Sand (Sable 0/4)",
-      input.selectedSandId || input.sandType || "Crushed/Washed River Sand",
+      input.selectedSandId || input.sandType || "Sand",
       "Local Quarry",
-      `${(input.sandRelativeDensity || 2.65).toFixed(2)} g/cm³`,
-      `${(input.sandAbsorption ?? 1.5).toFixed(1)}%`,
-      `${(input.moistureSand || 0).toFixed(1)}%`,
-      `FM: ${(input.finenessModulus ?? 2.60).toFixed(2)}`
+      input.sandRelativeDensity ? `${input.sandRelativeDensity.toFixed(2)} g/cm³` : "-",
+      input.sandAbsorption !== undefined ? `${input.sandAbsorption.toFixed(1)}%` : "-",
+      input.moistureSand !== undefined ? `${input.moistureSand.toFixed(1)}%` : "-",
+      input.finenessModulus !== undefined ? `FM: ${input.finenessModulus.toFixed(2)}` : "-"
     ],
     [
       "Gravel (Gravier 4/20)",
-      input.selectedGravelId || input.gravelType || "Crushed Limestone",
+      input.selectedGravelId || input.gravelType || "Gravel",
       "Regional Quarry",
-      `${(input.gravelRelativeDensity || 2.68).toFixed(2)} g/cm³`,
-      `${(input.gravelAbsorption ?? 0.8).toFixed(1)}%`,
-      `${(input.moistureGravel || 0).toFixed(1)}%`,
-      `Dmax: ${input.dMax || 20} mm`
+      input.gravelRelativeDensity ? `${input.gravelRelativeDensity.toFixed(2)} g/cm³` : "-",
+      input.gravelAbsorption !== undefined ? `${input.gravelAbsorption.toFixed(1)}%` : "-",
+      input.moistureGravel !== undefined ? `${input.moistureGravel.toFixed(1)}%` : "-",
+      input.dMax ? `Dmax: ${input.dMax} mm` : "-"
     ],
     [
       "Mixing Water (Eau)",
-      input.selectedWaterName || "Potable Mixing Water",
+      input.selectedWaterName || "Mixing Water",
       "Municipal / Well",
       "1.00 g/cm³",
       "-",
       "-",
-      `pH: ${(input.selectedWaterPH ?? 7.2).toFixed(1)} (EN 1008)`
+      input.selectedWaterPH !== undefined ? `pH: ${input.selectedWaterPH.toFixed(1)}` : "-"
     ]
   ];
 
@@ -255,10 +255,22 @@ export async function generateMixDesignPdf(
 
   const totalDryMass = cementDry + waterDry + sandDry + gravelDry + Math.round(totalAdmixDry);
 
+  const cementVolumeL = (result as any).cementVolume !== undefined
+    ? `${(result as any).cementVolume.toFixed(1)} L`
+    : (input.cementDensity ? `${(cementDry / input.cementDensity * 1000).toFixed(1)} L` : "-");
+
+  const sandVolumeL = (result as any).sandVolume !== undefined
+    ? `${(result as any).sandVolume.toFixed(1)} L`
+    : (input.sandRelativeDensity ? `${(sandDry / (input.sandRelativeDensity * 1000) * 1000).toFixed(1)} L` : "-");
+
+  const gravelVolumeL = (result as any).gravelVolume !== undefined
+    ? `${(result as any).gravelVolume.toFixed(1)} L`
+    : (input.gravelRelativeDensity ? `${(gravelDry / (input.gravelRelativeDensity * 1000) * 1000).toFixed(1)} L` : "-");
+
   const dryRows = [
     [
       "Cement (C)",
-      `${(cementDry / (input.cementDensity || 3100) * 1000).toFixed(1)} L`,
+      cementVolumeL,
       `${cementDry} kg`,
       `${(cementDry * batchVolume).toFixed(1)} kg`,
       `${((cementDry / totalDryMass) * 100).toFixed(1)}%`,
@@ -270,23 +282,23 @@ export async function generateMixDesignPdf(
       `${waterDry.toFixed(1)} kg`,
       `${(waterDry * batchVolume).toFixed(1)} kg`,
       `${((waterDry / totalDryMass) * 100).toFixed(1)}%`,
-      `W/C = ${(waterDry / cementDry).toFixed(2)}`
+      cementDry > 0 ? `W/C = ${(waterDry / cementDry).toFixed(2)}` : "-"
     ],
     [
       "Dry Sand (Sable 0/4)",
-      `${(sandDry / ((input.sandRelativeDensity || 2.65) * 1000) * 1000).toFixed(1)} L`,
+      sandVolumeL,
       `${sandDry} kg`,
       `${(sandDry * batchVolume).toFixed(1)} kg`,
       `${((sandDry / totalDryMass) * 100).toFixed(1)}%`,
-      `G/(S+G) = ${(result.sandPercent || 38).toFixed(1)}% Sand`
+      result.sandPercent !== undefined ? `G/(S+G) = ${result.sandPercent.toFixed(1)}% Sand` : "-"
     ],
     [
       "Dry Gravel (Gravier 4/20)",
-      `${(gravelDry / ((input.gravelRelativeDensity || 2.68) * 1000) * 1000).toFixed(1)} L`,
+      gravelVolumeL,
       `${gravelDry} kg`,
       `${(gravelDry * batchVolume).toFixed(1)} kg`,
       `${((gravelDry / totalDryMass) * 100).toFixed(1)}%`,
-      `Dmax = ${input.dMax || 20} mm`
+      input.dMax ? `Dmax = ${input.dMax} mm` : "-"
     ]
   ];
 

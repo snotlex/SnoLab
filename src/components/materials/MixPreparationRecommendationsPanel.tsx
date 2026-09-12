@@ -62,10 +62,10 @@ export const MixPreparationRecommendationsPanel: React.FC<MixPreparationRecommen
     return {
       concreteType: inputs.concreteType || "NORMAL",
       mixDesignMethod: inputs.method || "dreux",
-      targetStrength: inputs.targetStrength28d || 25,
-      exposureClass: inputs.exposureClass || "XC1",
-      workability: inputs.slumpClass || "S3",
-      dMax: inputs.gravelDmax || 20
+      targetStrength: inputs.targetStrength28d,
+      exposureClass: inputs.exposureClass,
+      workability: inputs.slumpClass,
+      dMax: inputs.gravelDmax
     };
   }, [inputs]);
 

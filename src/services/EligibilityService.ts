@@ -155,12 +155,12 @@ export class EligibilityService {
     // Cement specific checks
     if (targetRole === "CEMENT") {
       const strength = getNum("PROP-CEM-STRENGTH-28D");
-      const targetFck = context.targetStrength || 25;
+      const targetFck = context.targetStrength;
 
       if (strength !== undefined) {
         if (context.concreteType === "HPC" && strength < 42.5) {
           incompatibleReasons.push("الخرسانة عالية الأداء (HPC) تتطلب إسمنت برتبة 42.5 أو 52.5 على الأقل");
-        } else if (strength >= 52.5 && targetFck >= 40) {
+        } else if (strength >= 52.5 && targetFck !== undefined && targetFck >= 40) {
           score += 15;
           reasonsAr.push("رتبة مقاومة عالية 52.5 ممتازة للمقاومة العالية المستهدفة");
         } else if (strength >= 42.5) {

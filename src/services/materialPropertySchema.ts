@@ -3352,8 +3352,8 @@ export function applyBatchMaterialProperties(
           { sieveSize: 0.30, percentPassing: 20 },
           { sieveSize: 0.15, percentPassing: 6 }
         ];
-      } else if (role === "gravel") {
-        const dm = copy.dMax || 20;
+      } else if (role === "gravel" && copy.dMax) {
+        const dm = copy.dMax;
         copy.gradationData = [
           { sieveSize: dm * 1.25, percentPassing: 100 },
           { sieveSize: dm, percentPassing: 95 },

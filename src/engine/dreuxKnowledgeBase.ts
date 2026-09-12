@@ -416,7 +416,15 @@ export const DREUX_KNOWLEDGE_BASE: DreuxKnowledgeBase = {
           arabicName: "نسبة الماء إلى الإسمنت W/C",
           requirement: "W/C <= 0.55",
           evaluate: (inputs, results) => {
-            const wc = results.wcRatioAdjusted || results.wcRatio || 0.5;
+            const wc = results.wcRatioAdjusted ?? results.wcRatio;
+            if (wc === undefined) {
+              return {
+                status: "warning",
+                actual: "غير محسوب",
+                note: "نسبة الماء إلى الإسمنت غير محسوبة بعد.",
+                recommendation: "يرجى إكمال مدخلات الخلطة لحساب نسبة W/C."
+              };
+            }
             const ok = wc <= 0.55;
             return {
               status: ok ? "compliant" : "non_compliant",
@@ -530,7 +538,15 @@ export const DREUX_KNOWLEDGE_BASE: DreuxKnowledgeBase = {
           arabicName: "نسبة الماء إلى الإسمنت W/C",
           requirement: "W/C <= 0.38",
           evaluate: (inputs, results) => {
-            const wc = results.wcRatioAdjusted || results.wcRatio || 0.50;
+            const wc = results.wcRatioAdjusted ?? results.wcRatio;
+            if (wc === undefined) {
+              return {
+                status: "warning",
+                actual: "غير محدد",
+                note: "نسبة الماء للإسمنت غير محسوبة بعد.",
+                recommendation: undefined
+              };
+            }
             const ok = wc <= 0.38;
             return {
               status: ok ? "compliant" : "non_compliant",
@@ -685,7 +701,15 @@ export const DREUX_KNOWLEDGE_BASE: DreuxKnowledgeBase = {
           arabicName: "محتوى الإسمنت الأقصى",
           requirement: "Cement <= 300 kg/m³",
           evaluate: (inputs, results) => {
-            const cement = results.cementWeight || results.cementKg || 350;
+            const cement = results.cementWeight ?? results.cementKg;
+            if (cement === undefined) {
+              return {
+                status: "warning",
+                actual: "غير محدد",
+                note: "محتوى الإسمنت غير محسوب بعد.",
+                recommendation: undefined
+              };
+            }
             const ok = cement <= 300;
             return {
               status: ok ? "compliant" : "warning",
@@ -726,7 +750,15 @@ export const DREUX_KNOWLEDGE_BASE: DreuxKnowledgeBase = {
           arabicName: "نسبة W/C للخرسانة البحرية",
           requirement: "W/C <= 0.40",
           evaluate: (inputs, results) => {
-            const wc = results.wcRatioAdjusted || results.wcRatio || 0.5;
+            const wc = results.wcRatioAdjusted ?? results.wcRatio;
+            if (wc === undefined) {
+              return {
+                status: "warning",
+                actual: "غير محسوب",
+                note: "نسبة الماء إلى الإسمنت غير محسوبة بعد.",
+                recommendation: "يرجى إكمال مدخلات الخلطة لحساب نسبة W/C."
+              };
+            }
             const ok = wc <= 0.40;
             return {
               status: ok ? "compliant" : "non_compliant",

@@ -214,7 +214,9 @@ export function SieveGradingCurves({ inputs, results, materialsDatabase, setInpu
   // Sync inputs from core
   useEffect(() => {
     if (inputs) {
-      setDMax(inputs.dMax || 20);
+      if (inputs.dMax !== undefined) {
+        setDMax(inputs.dMax);
+      }
       setIsPumping(inputs.hasPumping || false);
       setAggregateQuality(inputs.aggregateType === "roule" ? "rounded" : "crushed");
     }
@@ -1101,8 +1103,8 @@ export function SieveGradingCurves({ inputs, results, materialsDatabase, setInpu
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[350px] overflow-y-auto pr-1">
                 {availableDbAggregates.map((m) => {
                   const isSelected = selectedAggregateIds.includes(m.id);
-                  const densityVal = m.density || m.specificGravity || 2.65;
-                  const finalDensity = densityVal > 100 ? densityVal : densityVal * 1000;
+                  const densityVal = m.density ?? m.specificGravity;
+                  const finalDensity = densityVal !== undefined ? (densityVal > 100 ? densityVal : densityVal * 1000) : undefined;
                   
                   return (
                     <div 
@@ -1150,11 +1152,11 @@ export function SieveGradingCurves({ inputs, results, materialsDatabase, setInpu
                           </div>
                           <div className="flex justify-between">
                             <span>{isAr ? "الكثافة SSD:" : "SSD Density:"}</span>
-                            <span className="font-semibold text-slate-700 dark:text-slate-300">{finalDensity} kg/m³</span>
+                            <span className="font-semibold text-slate-700 dark:text-slate-300">{finalDensity !== undefined ? `${finalDensity} kg/m³` : "—"}</span>
                           </div>
                           <div className="flex justify-between">
                             <span>{isAr ? "الامتصاص:" : "Absorption:"}</span>
-                            <span className="font-semibold text-slate-700 dark:text-slate-300">{m.absorption ?? 1.2}%</span>
+                            <span className="font-semibold text-slate-700 dark:text-slate-300">{m.absorption !== undefined ? `${m.absorption}%` : "—"}</span>
                           </div>
                         </div>
                       </div>

@@ -26,84 +26,107 @@ export function validateMixDesign(input: any, result: any): MixValidationResult 
   // In the core: input has airContent (%). 1% air = 10 L.
   // Let's compute actual total volume from the result.
   const cementKg = result.cementKg || result.cementWeight || 0;
-  const cementDensity = input.cementDensity || 3105;
-  const cDensityL = cementDensity > 100 ? cementDensity / 1000 : cementDensity;
-  const cementVolL = cementKg / cDensityL;
-
-  // SCM weights - retrieve directly from explicit result fields if available, otherwise calculate using fallback
-  const cleanNum = (val: any) => (typeof val === "number" && isFinite(val) && !isNaN(val) ? val : 0);
-  const flyAshKg = cleanNum(typeof result.flyAshKg === "number" ? result.flyAshKg : 
-                   (input.dosageFlyAsh && (result.cementWeight || result.cementKg) ? ((result.cementWeight || result.cementKg) * (input.dosageFlyAsh / 100)) : 0));
-  const slagKg = cleanNum(typeof result.slagKg === "number" ? result.slagKg : 
-                 (input.dosageSlag && (result.cementWeight || result.cementKg) ? ((result.cementWeight || result.cementKg) * (input.dosageSlag / 100)) : 0));
-  const silicaFumeKg = cleanNum(typeof result.silicaFumeKg === "number" ? result.silicaFumeKg : 
-                       (input.dosageSilicaFume && (result.cementWeight || result.cementKg) ? ((result.cementWeight || result.cementKg) * (input.dosageSilicaFume / 100)) : 0));
-
-  const flyAshVolL = flyAshKg / 2.2;
-  const slagVolL = slagKg / 2.9;
-  const silicaVolL = silicaFumeKg / 2.2;
-
-  const waterVolL = result.waterKg || result.waterContentActual || 0;
-  const airVolL = (input.airContent || 0) * 10;
-
-  const sandKg = result.fineAggregateKg || result.sandWeightDry || 0;
-  const gravelKg = result.coarseAggregateKg || result.gravelWeightDry || 0;
-  const sandDensity = input.sandRelativeDensity || 2.65;
-  const sDensityL = sandDensity > 10 ? sandDensity / 1000 : sandDensity;
-  const gravelDensity = input.gravelRelativeDensity || 2.68;
-  const gDensityL = gravelDensity > 10 ? gravelDensity / 1000 : gravelDensity;
-
-  const sandVolL = sandKg / sDensityL;
-  const gravelVolL = gravelKg / gDensityL;
-
-  // Admixtures volume
-  const admixWeightsTotal = result.admixtureKg || 0;
-  const admixVolL = admixWeightsTotal / 1.15;
-
-  const totalCalculatedVolume = cementVolL + flyAshVolL + slagVolL + silicaVolL + waterVolL + airVolL + sandVolL + gravelVolL + admixVolL;
-  const deviation = totalCalculatedVolume - 1000;
-  const absDeviation = Math.abs(deviation);
+  const cementDensity = input.cementDensity;
+  const sandDensity = input.sandRelativeDensity;
+  const gravelDensity = input.gravelRelativeDensity;
 
   let volStatus: ValidationStatus = "valid";
   const volMsgs: ValidationMessage[] = [];
+  let totalCalculatedVolume = 1000;
 
-  if (absDeviation > 0.5) {
-    volStatus = "invalid";
-    const msg = makeMessage(
-      "VOL_ERR",
-      "error",
-      `الانحراف الحجمي (${absDeviation.toFixed(2)} لتر) تجاوز الهامش المقبول (±0.5 لتر/م³). الحجم الإجمالي المحسوب هو ${totalCalculatedVolume.toFixed(2)} لتر.`,
-      { 
-        value: totalCalculatedVolume.toFixed(1), 
-        limit: "1000 ± 0.5", 
-        unit: "L/m³",
-        messageEn: `Absolute volume closure failed. The calculated component volumes do not close to 1.000 m³ within the configured tolerance (calculated volume is ${totalCalculatedVolume.toFixed(2)} L/m³, deviation of ${deviation.toFixed(2)} L).`,
-        messageFr: `L'écart de fermeture de volume absolu a échoué. Les volumes calculés ne bouclent pas à 1,000 m³ dans la tolérance configurée (volume calculé : ${totalCalculatedVolume.toFixed(2)} L/m³, écart de ${deviation.toFixed(2)} L).`
-      }
-    );
-    volMsgs.push(msg);
-    errors.push(msg);
-  } else if (absDeviation > 0.2) {
+  if (!cementDensity || !sandDensity || !gravelDensity) {
     volStatus = "warning";
+    const missingProps: string[] = [];
+    if (!cementDensity) missingProps.push("كثافة الإسمنت (cementDensity)");
+    if (!sandDensity) missingProps.push("الكثافة النسبية للرمل (sandRelativeDensity)");
+    if (!gravelDensity) missingProps.push("الكثافة النسبية للحصى (gravelRelativeDensity)");
     const msg = makeMessage(
-      "VOL_WAR",
+      "VOL_DATA_MISSING",
       "warning",
-      `انحراف حجمي طفيف (${absDeviation.toFixed(2)} لتر) يرجى التأكد من استقرار القوانين الرياضية لجمع الركامات.`,
-      { 
-        value: totalCalculatedVolume.toFixed(2), 
-        limit: "1000 ± 0.2", 
-        unit: "L/m³",
-        messageEn: `Slight absolute volume closure deviation (${absDeviation.toFixed(2)} L). Please ensure packing curve coordinates are fully stabilized.`,
-        messageFr: `Légère déviation de fermeture volumétrique (${absDeviation.toFixed(2)} L). Veuillez vérifier la stabilité des courbes de mélange.`
+      `لا يمكن التحقق من الإغلاق الحجمي بدقة نظراً لعدم توفر: ${missingProps.join("، ")}. يرجى إدخال قيم الكثافة الحقيقية للركام والإسمنت.`,
+      {
+        messageEn: `Cannot verify absolute volume closure accurately because properties are missing: ${missingProps.join(", ")}. Please supply real density inputs.`,
+        messageFr: `Impossible de vérifier la fermeture volumique absolue car des propriétés manquent : ${missingProps.join(", ")}.`
       }
     );
     volMsgs.push(msg);
     warnings.push(msg);
   } else {
-    volMsgs.push(makeMessage("VOL_OK", "info", `الإغلاق الحجمي ممتاز ومثالي: ${totalCalculatedVolume.toFixed(2)} لتر/م³.`, {
-      messageEn: `Excellent volume closure: ${totalCalculatedVolume.toFixed(2)} L/m³.`,
-      messageFr: `Fermeture volumétrique excellente : ${totalCalculatedVolume.toFixed(2)} L/m³.`
-    }));
+    const cDensityL = cementDensity > 100 ? cementDensity / 1000 : cementDensity;
+    const cementVolL = cementKg / cDensityL;
+
+    // SCM weights - retrieve directly from explicit result fields if available, otherwise calculate using fallback
+    const cleanNum = (val: any) => (typeof val === "number" && isFinite(val) && !isNaN(val) ? val : 0);
+    const flyAshKg = cleanNum(typeof result.flyAshKg === "number" ? result.flyAshKg : 
+                     (input.dosageFlyAsh && (result.cementWeight || result.cementKg) ? ((result.cementWeight || result.cementKg) * (input.dosageFlyAsh / 100)) : 0));
+    const slagKg = cleanNum(typeof result.slagKg === "number" ? result.slagKg : 
+                   (input.dosageSlag && (result.cementWeight || result.cementKg) ? ((result.cementWeight || result.cementKg) * (input.dosageSlag / 100)) : 0));
+    const silicaFumeKg = cleanNum(typeof result.silicaFumeKg === "number" ? result.silicaFumeKg : 
+                         (input.dosageSilicaFume && (result.cementWeight || result.cementKg) ? ((result.cementWeight || result.cementKg) * (input.dosageSilicaFume / 100)) : 0));
+
+    const scmDens = input.selectedScmDensity ? (input.selectedScmDensity > 100 ? input.selectedScmDensity / 1000 : input.selectedScmDensity) : 2.2;
+    const flyAshVolL = flyAshKg / scmDens;
+    const slagVolL = slagKg / 2.9;
+    const silicaVolL = silicaFumeKg / scmDens;
+
+    const waterVolL = result.waterKg || result.waterContentActual || 0;
+    const airVolL = (input.airContent || 0) * 10;
+
+    const sandKg = result.fineAggregateKg || result.sandWeightDry || 0;
+    const gravelKg = result.coarseAggregateKg || result.gravelWeightDry || 0;
+    const sDensityL = sandDensity > 10 ? sandDensity / 1000 : sandDensity;
+    const gDensityL = gravelDensity > 10 ? gravelDensity / 1000 : gravelDensity;
+
+    const sandVolL = sandKg / sDensityL;
+    const gravelVolL = gravelKg / gDensityL;
+
+    // Admixtures volume
+    const admixWeightsTotal = result.admixtureKg || 0;
+    const admixDensity = input.selectedAdmixtureDensity ? (input.selectedAdmixtureDensity > 10 ? input.selectedAdmixtureDensity / 1000 : input.selectedAdmixtureDensity) : 1.15;
+    const admixVolL = admixWeightsTotal / admixDensity;
+
+    totalCalculatedVolume = cementVolL + flyAshVolL + slagVolL + silicaVolL + waterVolL + airVolL + sandVolL + gravelVolL + admixVolL;
+    const deviation = totalCalculatedVolume - 1000;
+    const absDeviation = Math.abs(deviation);
+
+    if (absDeviation > 0.5) {
+      volStatus = "invalid";
+      const msg = makeMessage(
+        "VOL_ERR",
+        "error",
+        `الانحراف الحجمي (${absDeviation.toFixed(2)} لتر) تجاوز الهامش المقبول (±0.5 لتر/م³). الحجم الإجمالي المحسوب هو ${totalCalculatedVolume.toFixed(2)} لتر.`,
+        { 
+          value: totalCalculatedVolume.toFixed(1), 
+          limit: "1000 ± 0.5", 
+          unit: "L/m³",
+          messageEn: `Absolute volume closure failed. The calculated component volumes do not close to 1.000 m³ within the configured tolerance (calculated volume is ${totalCalculatedVolume.toFixed(2)} L/m³, deviation of ${deviation.toFixed(2)} L).`,
+          messageFr: `L'écart de fermeture de volume absolu a échoué. Les volumes calculés ne bouclent pas à 1,000 m³ dans la tolérance configurée (volume calculé : ${totalCalculatedVolume.toFixed(2)} L/m³, écart de ${deviation.toFixed(2)} L).`
+        }
+      );
+      volMsgs.push(msg);
+      errors.push(msg);
+    } else if (absDeviation > 0.2) {
+      volStatus = "warning";
+      const msg = makeMessage(
+        "VOL_WAR",
+        "warning",
+        `انحراف حجمي طفيف (${absDeviation.toFixed(2)} لتر) يرجى التأكد من استقرار القوانين الرياضية لجمع الركامات.`,
+        { 
+          value: totalCalculatedVolume.toFixed(2), 
+          limit: "1000 ± 0.2", 
+          unit: "L/m³",
+          messageEn: `Slight absolute volume closure deviation (${absDeviation.toFixed(2)} L). Please ensure packing curve coordinates are fully stabilized.`,
+          messageFr: `Légère déviation de fermeture volumétrique (${absDeviation.toFixed(2)} L). Veuillez vérifier la stabilité des courbes de mélange.`
+        }
+      );
+      volMsgs.push(msg);
+      warnings.push(msg);
+    } else {
+      volMsgs.push(makeMessage("VOL_OK", "info", `الإغلاق الحجمي ممتاز ومثالي: ${totalCalculatedVolume.toFixed(2)} لتر/م³.`, {
+        messageEn: `Excellent volume closure: ${totalCalculatedVolume.toFixed(2)} L/m³.`,
+        messageFr: `Fermeture volumétrique excellente : ${totalCalculatedVolume.toFixed(2)} L/m³.`
+      }));
+    }
   }
   statuses.push(volStatus);
   const volumeClosureCheck = makeCheckResult("volumeClosure", "الإغلاق الحجمي (Volume Closure)", volStatus, volMsgs, {
@@ -284,6 +307,10 @@ export function validateMixDesign(input: any, result: any): MixValidationResult 
   const absSand = input.sandAbsorption !== undefined ? input.sandAbsorption : 1.5;
   const absGravel = input.gravelAbsorption !== undefined ? input.gravelAbsorption : 0.8;
   const correctedWater = result.waterWeightWet !== undefined ? result.waterWeightWet : result.waterContentActual;
+
+  const sandKg = (result as any).fineAggregateKg ?? (result as any).sandKg ?? result.sandWeightDry ?? 0;
+  const gravelKg = (result as any).coarseAggregateKg ?? (result as any).gravelKg ?? result.gravelWeightDry ?? 0;
+  const waterVolL = (result as any).waterKg ?? result.waterContentActual ?? 0;
 
   let moistStatus: ValidationStatus = "valid";
   const moistMsgs: ValidationMessage[] = [];

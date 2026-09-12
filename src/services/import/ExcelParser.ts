@@ -103,7 +103,7 @@ export class ExcelParser {
               column: header,
               rawHeader: header,
               extractionMethod: "EXCEL",
-              confidence: (match?.confidenceScore || 50) / 100
+              confidence: (match?.confidenceScore ?? 0) / 100
             };
 
             if (val === null || val === undefined || String(val).trim() === "") {

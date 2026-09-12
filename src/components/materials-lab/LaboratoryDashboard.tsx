@@ -322,11 +322,11 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
                   <div className="grid grid-cols-2 gap-2 mt-3 text-[11px] bg-slate-50 dark:bg-slate-800/40 p-2 rounded-xl border border-slate-150 dark:border-slate-800">
                     <div>
                       <span className="text-slate-400 block text-[9px]">الكثافة المقاسة:</span>
-                      <span className="font-mono font-black text-slate-800 dark:text-slate-200">{mat.density || 2.65} t/m³</span>
+                      <span className="font-mono font-black text-slate-800 dark:text-slate-200">{mat.density !== undefined ? `${mat.density} t/m³` : "—"}</span>
                     </div>
                     <div>
                       <span className="text-slate-400 block text-[9px]">الامتصاص المائي:</span>
-                      <span className="font-mono font-black text-slate-800 dark:text-slate-200">{mat.absorption || 0}%</span>
+                      <span className="font-mono font-black text-slate-800 dark:text-slate-200">{mat.absorption !== undefined ? `${mat.absorption}%` : "—"}</span>
                     </div>
                   </div>
                 </div>

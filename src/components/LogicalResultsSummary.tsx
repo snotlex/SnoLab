@@ -702,7 +702,7 @@ export const LogicalResultsSummary: React.FC<LogicalResultsSummaryProps> = ({
   const currentLang = language;
   
   // Safe helper to extract values
-  const cement = Math.round(results.cementWeight || 350);
+  const cement = results.cementWeight !== undefined ? Math.round(results.cementWeight) : (results.cementKg !== undefined ? Math.round(results.cementKg) : 0);
   const silica = inputs.dosageSilicaFume && inputs.dosageSilicaFume > 0 
     ? Math.round(cement * (inputs.dosageSilicaFume / 100)) 
     : 0;
@@ -715,18 +715,18 @@ export const LogicalResultsSummary: React.FC<LogicalResultsSummaryProps> = ({
   
   const totalBind = cement + silica + flyAsh + slag;
 
-  const sandDry = Math.round(results.sandWeightDry || 800);
-  const gravelDry = Math.round(results.gravelWeightDry || 1100);
+  const sandDry = results.sandWeightDry !== undefined ? Math.round(results.sandWeightDry) : 0;
+  const gravelDry = results.gravelWeightDry !== undefined ? Math.round(results.gravelWeightDry) : 0;
   const totalAggDry = sandDry + gravelDry;
 
-  const sandWet = Math.round(results.sandWeightWet || sandDry);
-  const gravelWet = Math.round(results.gravelWeightWet || gravelDry);
+  const sandWet = results.sandWeightWet !== undefined ? Math.round(results.sandWeightWet) : sandDry;
+  const gravelWet = results.gravelWeightWet !== undefined ? Math.round(results.gravelWeightWet) : gravelDry;
 
-  const waterDesign = Math.round(results.waterContentActual || 175);
+  const waterDesign = results.waterContentActual !== undefined ? Math.round(results.waterContentActual) : 0;
   const waterToAdd = Math.round(results.waterWeightWet !== undefined ? results.waterWeightWet : waterDesign);
 
   const freshDensity = Math.round(results.totalFreshDensity || (cement + totalAggDry + waterDesign));
-  const absVolL = results.absoluteVolumeCheck?.totalAbsVolumeL || 1000;
+  const absVolL = results.absoluteVolumeCheck?.totalAbsVolumeL ?? 0;
 
   const renderTraceDetails = (stepNum: number) => {
     if (activeTrace !== stepNum) return null;
@@ -748,14 +748,14 @@ export const LogicalResultsSummary: React.FC<LogicalResultsSummaryProps> = ({
         ? "جدول معاملات بولومي (A) بناءً على جودة الركام ونوع الإسمنت." 
         : "Bolomey Aggregate Quality Coefficient Table (A & A').";
       propertiesUsed = isAr
-        ? `رتبة قوة الإسمنت (f_ce): ${inputs.cementStrength || 42.5} MPa، جودة الركام: ${inputs.aggregateQuality || "Standard"}`
-        : `Cement Strength Class (f_ce): ${inputs.cementStrength || 42.5} MPa, Aggregate Quality: ${inputs.aggregateQuality || "Standard"}`;
+        ? `رتبة قوة الإسمنت (f_ce): ${inputs.cementStrength !== undefined ? `${inputs.cementStrength} MPa` : "غير محدد"}، جودة الركام: ${inputs.aggregateQuality || "Standard"}`
+        : `Cement Strength Class (f_ce): ${inputs.cementStrength !== undefined ? `${inputs.cementStrength} MPa` : "Not specified"}, Aggregate Quality: ${inputs.aggregateQuality || "Standard"}`;
       inputValues = isAr
-        ? `المقاومة المحددة (f_ck28): ${inputs.fck28} MPa`
-        : `Characteristic Strength (fck28): ${inputs.fck28} MPa`;
+        ? `المقاومة المحددة (f_ck28): ${inputs.fck28 !== undefined ? `${inputs.fck28} MPa` : "غير محدد"}`
+        : `Characteristic Strength (fck28): ${inputs.fck28 !== undefined ? `${inputs.fck28} MPa` : "Not specified"}`;
       intermediates = isAr
-        ? `1. المقاومة المستهدفة (f_cm28) = ${results.fcm28 ? results.fcm28.toFixed(1) : (inputs.fck28 + 8).toFixed(1)} MPa\n2. النسبة النظرية (C/W) = ${results.cwRatio ? results.cwRatio.toFixed(2) : (results.wcRatio ? (1 / results.wcRatio).toFixed(2) : "2.10")}\n3. نسبة الماء/الإسمنت الفعلية (W/C) = ${(results.wcRatioAdjusted || results.wcRatio || 0.45).toFixed(2)}`
-        : `1. Target Mean Strength (f_cm28) = ${results.fcm28 ? results.fcm28.toFixed(1) : (inputs.fck28 + 8).toFixed(1)} MPa\n2. Bolomey C/W Ratio = ${results.cwRatio ? results.cwRatio.toFixed(2) : (results.wcRatio ? (1 / results.wcRatio).toFixed(2) : "2.10")}\n3. Final W/C Ratio = ${(results.wcRatioAdjusted || results.wcRatio || 0.45).toFixed(2)}`;
+        ? `1. المقاومة المستهدفة (f_cm28) = ${results.fcm28 ? results.fcm28.toFixed(1) : (inputs.fck28 !== undefined ? (inputs.fck28 + 8).toFixed(1) : "—")} MPa\n2. النسبة النظرية (C/W) = ${results.cwRatio ? results.cwRatio.toFixed(2) : (results.wcRatio ? (1 / results.wcRatio).toFixed(2) : "—")}\n3. نسبة الماء/الإسمنت الفعلية (W/C) = ${results.wcRatioAdjusted ? results.wcRatioAdjusted.toFixed(2) : (results.wcRatio ? results.wcRatio.toFixed(2) : "—")}`
+        : `1. Target Mean Strength (f_cm28) = ${results.fcm28 ? results.fcm28.toFixed(1) : (inputs.fck28 !== undefined ? (inputs.fck28 + 8).toFixed(1) : "—")} MPa\n2. Bolomey C/W Ratio = ${results.cwRatio ? results.cwRatio.toFixed(2) : (results.wcRatio ? (1 / results.wcRatio).toFixed(2) : "—")}\n3. Final W/C Ratio = ${results.wcRatioAdjusted ? results.wcRatioAdjusted.toFixed(2) : (results.wcRatio ? results.wcRatio.toFixed(2) : "—")}`;
       explanation = isAr
         ? "تحدد نسبة الماء إلى الإسمنت المسامية المجهرية للخرسانة المتصلدة. تؤخذ المقاومة المستهدفة كمتوسط حسابي يضمن هامش أمان إحصائي (عادةً 8 ميجاباسكال) لتجاوز تقلبات جودة المواد وموقع العمل."
         : "The water-cement ratio dictates the porosity of the hardened cement paste. The target compressive strength is designed with a statistical safety margin (usually +8 MPa) to ensure less than 5% probability of falling below f_ck28.";
@@ -768,14 +768,14 @@ export const LogicalResultsSummary: React.FC<LogicalResultsSummaryProps> = ({
         ? "جدول الحد الأدنى لمحتوى الإسمنت حسب فئات التعرض البيئي (NF EN 206-1)." 
         : "NF EN 206-1 Minimum Cement Requirements by Environmental Exposure Class.";
       propertiesUsed = isAr
-        ? `القطر الأقصى للركام (D_max): ${inputs.dMax} ملم، فئة التعرض: ${inputs.exposureClass || "X0"}`
-        : `Max Aggregate Size (D_max): ${inputs.dMax} mm, Exposure Class: ${inputs.exposureClass || "X0"}`;
+        ? `القطر الأقصى للركام (D_max): ${inputs.dMax !== undefined ? `${inputs.dMax} ملم` : "غير محدد"}، فئة التعرض: ${inputs.exposureClass || "X0"}`
+        : `Max Aggregate Size (D_max): ${inputs.dMax !== undefined ? `${inputs.dMax} mm` : "Not specified"}, Exposure Class: ${inputs.exposureClass || "X0"}`;
       inputValues = isAr
-        ? `الهبوط المستهدف: ${inputs.targetSlump || 7} سم، محتوى المواد البوزولانية المضافة: ${inputs.dosageSilicaFume || 0}% غبار السيليكا`
-        : `Target Slump: ${inputs.targetSlump || 7} cm, Pozzolanic Additions: ${inputs.dosageSilicaFume || 0}% Silica Fume`;
+        ? `الهبوط المستهدف: ${inputs.targetSlump !== undefined ? `${inputs.targetSlump} سم` : "غير محدد"}، محتوى المواد البوزولانية المضافة: ${inputs.dosageSilicaFume || 0}% غبار السيليكا`
+        : `Target Slump: ${inputs.targetSlump !== undefined ? `${inputs.targetSlump} cm` : "Not specified"}, Pozzolanic Additions: ${inputs.dosageSilicaFume || 0}% Silica Fume`;
       intermediates = isAr
-        ? `1. محتوى الإسمنت الأولي (C_raw) = ${Math.round(results.cementWeight || 350)} kg/m³\n2. الحد الأدنى للمتانة (C_min) = ${Math.round(375 * Math.pow(inputs.dMax || 20, 0.2))} kg/m³\n3. محتوى الرابط الكلي المعتمد = ${totalBind} kg/m³`
-        : `1. Calculated Raw Cement = ${Math.round(results.cementWeight || 350)} kg/m³\n2. Durability Minimum (C_min) = ${Math.round(375 * Math.pow(inputs.dMax || 20, 0.2))} kg/m³\n3. Approved Total Binder = ${totalBind} kg/m³`;
+        ? `1. محتوى الإسمنت الأولي (C_raw) = ${results.cementWeight !== undefined ? `${Math.round(results.cementWeight)} kg/m³` : "—"}\n2. الحد الأدنى للمتانة (C_min) = ${inputs.dMax !== undefined ? `${Math.round(375 * Math.pow(inputs.dMax, 0.2))} kg/m³` : "—"}\n3. محتوى الرابط الكلي المعتمد = ${totalBind} kg/m³`
+        : `1. Calculated Raw Cement = ${results.cementWeight !== undefined ? `${Math.round(results.cementWeight)} kg/m³` : "—"}\n2. Durability Minimum (C_min) = ${inputs.dMax !== undefined ? `${Math.round(375 * Math.pow(inputs.dMax, 0.2))} kg/m³` : "—"}\n3. Approved Total Binder = ${totalBind} kg/m³`;
       explanation = isAr
         ? "يتطلب الركام الأكبر مساحة سطحية أقل للترطيب، وبالتالي يحتاج كمية إسمنت أقل لملء الفراغات وتوفير نفس المقاومة. تُطبق شروط الحد الأدنى للإسمنت لحماية حديد التسليح من الكربنة واختراق الكلوريدات."
         : "Larger aggregate particles have smaller specific surface areas, reducing the volume of cement paste needed to coat them. Durability limits (C_min) protect reinforcement from carbonation and aggressive environmental ions.";
@@ -788,14 +788,14 @@ export const LogicalResultsSummary: React.FC<LogicalResultsSummaryProps> = ({
         ? "منحنى التدرج المرجعي لدروكس-غوريس ونقاط الانعطاف الحبيبية (S)." 
         : "Dreux-Gorisse Reference Grading Envelope Chart & S-curve Intersection (S).";
       propertiesUsed = isAr
-        ? `الوزن النوعي للرمل: ${inputs.selectedSandId ? "من مستودع المواد" : "2.65"}، الوزن النوعي للحصى: ${inputs.selectedGravelId ? "من مستودع المواد" : "2.68"}`
-        : `Sand Specific Gravity: ${inputs.selectedSandId ? "From material database" : "2.65"}, Gravel Specific Gravity: ${inputs.selectedGravelId ? "From material database" : "2.68"}`;
+        ? `الوزن النوعي للرمل: ${inputs.selectedSandId ? "من مستودع المواد" : (inputs.sandSpecificGravity !== undefined ? inputs.sandSpecificGravity : "غير محدد")}، الوزن النوعي للحصى: ${inputs.selectedGravelId ? "من مستودع المواد" : (inputs.gravelSpecificGravity !== undefined ? inputs.gravelSpecificGravity : "غير محدد")}`
+        : `Sand Specific Gravity: ${inputs.selectedSandId ? "From material database" : (inputs.sandSpecificGravity !== undefined ? inputs.sandSpecificGravity : "Not specified")}, Gravel Specific Gravity: ${inputs.selectedGravelId ? "From material database" : (inputs.gravelSpecificGravity !== undefined ? inputs.gravelSpecificGravity : "Not specified")}`;
       inputValues = isAr
-        ? `قيمة معامل التدرج (K): ${results.kValue ? results.kValue.toFixed(2) : "0.0"}، حجم الهواء المقدر: ${results.airVolumeEstimate || 10} لتر`
-        : `Grading Shift coefficient (K): ${results.kValue ? results.kValue.toFixed(2) : "0.0"}, Estimated Air Voids: ${results.airVolumeEstimate || 10} L`;
+        ? `قيمة معامل التدرج (K): ${results.kValue !== undefined ? results.kValue.toFixed(2) : "—"}، حجم الهواء المقدر: ${results.airVolumeEstimate !== undefined ? `${results.airVolumeEstimate} لتر` : "غير محدد"}`
+        : `Grading Shift coefficient (K): ${results.kValue !== undefined ? results.kValue.toFixed(2) : "—"}, Estimated Air Voids: ${results.airVolumeEstimate !== undefined ? `${results.airVolumeEstimate} L` : "Not specified"}`;
       intermediates = isAr
-        ? `1. نسبة الرمل الحجمية = ${Math.round(results.sandPercent || 40)}%\n2. وزن الرمل الجاف الكلي = ${sandDry} kg/m³\n3. وزن الحصى الجاف الكلي = ${gravelDry} kg/m³`
-        : `1. Sand Volumetric Ratio = ${Math.round(results.sandPercent || 40)}%\n2. Dry Sand Weight = ${sandDry} kg/m³\n3. Dry Gravel Weight = ${gravelDry} kg/m³`;
+        ? `1. نسبة الرمل الحجمية = ${results.sandPercent !== undefined ? `${Math.round(results.sandPercent)}%` : "—"}\n2. وزن الرمل الجاف الكلي = ${sandDry > 0 ? `${sandDry} kg/m³` : "—"}\n3. وزن الحصى الجاف الكلي = ${gravelDry > 0 ? `${gravelDry} kg/m³` : "—"}`
+        : `1. Sand Volumetric Ratio = ${results.sandPercent !== undefined ? `${Math.round(results.sandPercent)}%` : "—"}\n2. Dry Sand Weight = ${sandDry > 0 ? `${sandDry} kg/m³` : "—"}\n3. Dry Gravel Weight = ${gravelDry > 0 ? `${gravelDry} kg/m³` : "—"}`;
       explanation = isAr
         ? "تضمن معادلة الحجم المطلق خلو الخلطة من الفراغات الهوائية غير المقدرة، حيث تتكامل حجوم الرمل والحصى والإسمنت والماء والإضافات لتشكل بالضبط 1 متر مكعب (1000 لتر)."
         : "The absolute volume equation ensures the mix has zero voids by matching the total volume of constituent materials exactly to 1 cubic meter (1000 liters) including estimated air voids.";
@@ -814,8 +814,8 @@ export const LogicalResultsSummary: React.FC<LogicalResultsSummaryProps> = ({
         ? `شكل الركام: ${inputs.gravelShape || "Crushed"}، غبار السيليكا المضاف: ${inputs.dosageSilicaFume || 0}%`
         : `Aggregate shape: ${inputs.gravelShape || "Crushed"}, Silica Fume addition: ${inputs.dosageSilicaFume || 0}%`;
       intermediates = isAr
-        ? `1. كمية المياه الأساسية (W0) = ${results.waterBeforeAdmixtures || results.waterContentActual || 180} L/m³\n2. كمية المياه الصافية المطلوبة (W) = ${waterDesign} L/m³\n3. وزن المضافات الكيميائية للخلطة = ${(results.admixtureWeights && results.admixtureWeights[0] ? results.admixtureWeights[0].weight.toFixed(2) : "0.00")} kg/m³`
-        : `1. Base Water Requirement (W0) = ${results.waterBeforeAdmixtures || results.waterContentActual || 180} L/m³\n2. Net Water Required (W) = ${waterDesign} L/m³\n3. Chemical Admixture Dosage = ${(results.admixtureWeights && results.admixtureWeights[0] ? results.admixtureWeights[0].weight.toFixed(2) : "0.00")} kg/m³`;
+        ? `1. كمية المياه الأساسية (W0) = ${results.waterBeforeAdmixtures !== undefined ? `${results.waterBeforeAdmixtures} L/m³` : (results.waterContentActual !== undefined ? `${results.waterContentActual} L/m³` : "—")}\n2. كمية المياه الصافية المطلوبة (W) = ${waterDesign > 0 ? `${waterDesign} L/m³` : "—"}\n3. وزن المضافات الكيميائية للخلطة = ${(results.admixtureWeights && results.admixtureWeights[0] ? results.admixtureWeights[0].weight.toFixed(2) : "0.00")} kg/m³`
+        : `1. Base Water Requirement (W0) = ${results.waterBeforeAdmixtures !== undefined ? `${results.waterBeforeAdmixtures} L/m³` : (results.waterContentActual !== undefined ? `${results.waterContentActual} L/m³` : "—")}\n2. Net Water Required (W) = ${waterDesign > 0 ? `${waterDesign} L/m³` : "—"}\n3. Chemical Admixture Dosage = ${(results.admixtureWeights && results.admixtureWeights[0] ? results.admixtureWeights[0].weight.toFixed(2) : "0.00")} kg/m³`;
       explanation = isAr
         ? "يتم تحديد الاحتياج الأساسي للماء بناءً على قابلية التشغيل المطلوبة (الهبوط). وتسمح الملدنات الفائقة بتقليص كمية الماء الحر بنسبة كبيرة مع الحفاظ على القابلية للحركة، مما يساهم في رفع كثافة ومقاومة الخرسانة."
         : "Base water demand is determined by workability (slump). Superplasticizers enable substantial reductions in free mixing water while maintaining flowable workability, resulting in a significantly denser microstructure.";
