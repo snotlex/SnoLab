@@ -1494,7 +1494,7 @@ export function MaterialEngineeringDatabase({
 
     if (concreteCode === "SCC") {
       if (cat === "حصى") {
-        const dmaxVal = mat.dMax || 20;
+        const dmaxVal = mat.dMax !== undefined ? mat.dMax : 0;
         if (dmaxVal > 16) {
           return {
             reasonAr: `القطر الأقصى للحصى الحالي (${dmaxVal} مم) أكبر من الحد الأقصى المسموح به للخرسانة ذاتية الرص (16 مم) لمنع الانسداد بين قضبان التسليح.`,
@@ -8364,13 +8364,21 @@ export function MaterialEngineeringDatabase({
 
                   // Evaluate diagnostic criteria to generate real-time AI warnings & advice
                   if (activeMaterial.category === "رمال") {
-                    const se = activeMaterial.SandEquivalent !== undefined ? activeMaterial.SandEquivalent : 82;
-                    const fm = activeMaterial.finenessModulus || 2.6;
-                    if (se < 75) {
+                    const se = activeMaterial.SandEquivalent;
+                    const fm = activeMaterial.finenessModulus;
+                    if (se !== undefined && se < 75) {
                       suggestions.push(
                         language === "ar" ? "⚠️ المكافئ الرملي (SE) منخفض بشكل نسبي. خطر من زيادة الشوائب الطينية الدقيقة، ننصح بإجراء الغسل لتفادي ضعف قوة التماسك." :
                         language === "fr" ? "⚠️ L'équivalent de sable (SE) est relativement bas. Risque d'impuretés argileuses, un lavage est conseillé pour éviter la perte d'adhérence." :
                         "⚠️ Sand Equivalent (SE) is relatively low. Risk of clay impurities, washing is advised to prevent bond reduction."
+                      );
+                      warningStyle = true;
+                    }
+                    if (fm !== undefined && (fm < 2.2 || fm > 3.2)) {
+                      suggestions.push(
+                        language === "ar" ? "⚠️ معامل النعومة (FM) خارج النطاق القياسي الموصى به (2.2 - 3.2)." :
+                        language === "fr" ? "⚠️ Le module de finesse (FM) est hors de la plage recommandée (2.2 - 3.2)." :
+                        "⚠️ Fineness modulus (FM) is outside recommended range (2.2 - 3.2)."
                       );
                       warningStyle = true;
                     }

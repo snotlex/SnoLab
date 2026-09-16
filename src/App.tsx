@@ -2565,7 +2565,7 @@ export default function App() {
     }
     if (property === "dMax") {
       const mat = materialsDatabase.find(m => m.id === inputs.selectedGravelId);
-      return mat?.dMax || 20;
+      return mat?.dMax !== undefined ? mat.dMax : 0;
     }
     return 0;
   };
@@ -2643,11 +2643,11 @@ export default function App() {
 
   // Automatically calculate design parameters in Normal Mode
   useEffect(() => {
-    if (designerMode === "normal") {
+    if (designerMode === "normal" && inputs.fck28) {
       const recs = getRecommendedCoefficients(
         inputs.concreteType || "NSC",
         inputs.selectedMethod || "dreux",
-        inputs.fck28 || 25,
+        inputs.fck28,
         inputs.aggregateType || "roule"
       );
 
@@ -2712,9 +2712,9 @@ export default function App() {
   const handleGravelPreset = (name: string, density: number) => {
     const matched = materialsDatabase.find(m => m.name === name || m.id === name || m.englishName === name);
     if (matched) {
-      const absorption = matched.absorption !== undefined ? matched.absorption : 0.8;
+      const absorption = matched.absorption !== undefined ? matched.absorption : 0;
       const moisture = matched.moisture !== undefined ? matched.moisture : 0;
-      const maxS = matched.dMax || 20;
+      const maxS = matched.dMax !== undefined ? matched.dMax : inputs.dMax;
       const shape = (matched.particleShape === "مكسر" || matched.particleShape === "زاوي") ? AggregateType.CONCASSE : AggregateType.ROULE;
       
       let qualityVal = AggregateQuality.STANDARD;
@@ -3011,8 +3011,8 @@ export default function App() {
         if (mat) {
           copy.selectedLightweightAggregateId = mat.id;
           copy.selectedLightweightAggregateName = mat.name;
-          copy.lightweightAggregateDensity = mat.density || 1200;
-          copy.lightweightAggregateAbsorption = mat.absorption || 12;
+          copy.lightweightAggregateDensity = mat.density || 0;
+          copy.lightweightAggregateAbsorption = mat.absorption || 0;
         }
       }
 
@@ -3022,8 +3022,8 @@ export default function App() {
         if (mat) {
           copy.selectedHeavyweightAggregateId = mat.id;
           copy.selectedHeavyweightAggregateName = mat.name;
-          copy.heavyweightAggregateDensity = mat.density || 3500;
-          copy.heavyweightAggregateAbsorption = mat.absorption || 0.5;
+          copy.heavyweightAggregateDensity = mat.density || 0;
+          copy.heavyweightAggregateAbsorption = mat.absorption || 0;
         }
       }
 
@@ -3034,7 +3034,7 @@ export default function App() {
       {
         id: Math.random().toString(36).substring(2, 9),
         timestamp: new Date(),
-        descriptionAr: `🤖 مساعد المواد الذكي: تم اختيار وتطبيق المواد المقترحة تلقائياً للخرسانة (${inputs.concreteType || "NSC"}) ومقاومة (${inputs.fck28 || 25} MPa)`,
+        descriptionAr: `🤖 مساعد المواد الذكي: تم اختيار وتطبيق المواد المقترحة تلقائياً للخرسانة (${inputs.concreteType || "NSC"})${inputs.fck28 ? ` ومقاومة (${inputs.fck28} MPa)` : ""}`,
         descriptionFr: `🤖 Assistant intelligent : Sélection et application automatiques des matériaux pour le béton (${inputs.concreteType || "NSC"})`,
         descriptionEn: `🤖 Smart Materials Assistant: Automatically selected and applied matched materials for concrete (${inputs.concreteType || "NSC"})`,
         type: "success"
@@ -3841,12 +3841,12 @@ export default function App() {
     const admixturesCount = results.admixtureWeights?.length || 0;
     const hasPumping = inputs.hasPumping;
     const exposureClass = inputs.exposureClass || "X0";
-    const sandAbsorption = activeResolvedMats.sand?.absorption ?? 0;
-    const gravelAbsorption = activeResolvedMats.gravel?.absorption ?? 0;
-    const sandFineness = activeResolvedMats.sand?.finenessModulus ?? 2.6;
+    const sandAbsorption = activeResolvedMats.sand?.absorption;
+    const gravelAbsorption = activeResolvedMats.gravel?.absorption;
+    const sandFineness = activeResolvedMats.sand?.finenessModulus;
     const admixtureRatio = inputs.dosageSuper || 0;
     const codeCompliance = results.standardsCompliance?.every(item => item.status === "compliant") ?? true;
-    const finalDensity = results.totalFreshDensity || 2400;
+    const finalDensity = results.totalFreshDensity;
 
     // 1. W/C Ratio (max 15 pt)
     if (wcRatio >= 0.40 && wcRatio <= 0.48) {
@@ -3886,28 +3886,34 @@ export default function App() {
     }
 
     // 5. Sand Absorption (max 8 pt)
-    if (sandAbsorption <= 1.2) {
-      score += 8;
-    } else if (sandAbsorption <= 2.2) {
-      score += 5;
-    } else {
-      score += 1;
+    if (sandAbsorption !== undefined) {
+      if (sandAbsorption <= 1.2) {
+        score += 8;
+      } else if (sandAbsorption <= 2.2) {
+        score += 5;
+      } else {
+        score += 1;
+      }
     }
 
     // 6. Gravel Absorption (max 7 pt)
-    if (gravelAbsorption <= 0.8) {
-      score += 7;
-    } else if (gravelAbsorption <= 1.5) {
-      score += 4;
-    } else {
-      score += 0;
+    if (gravelAbsorption !== undefined) {
+      if (gravelAbsorption <= 0.8) {
+        score += 7;
+      } else if (gravelAbsorption <= 1.5) {
+        score += 4;
+      } else {
+        score += 0;
+      }
     }
 
     // 7. Sand Fineness Modulus (max 10 pt)
-    if (sandFineness >= 2.4 && sandFineness <= 2.9) {
-      score += 10;
-    } else {
-      score += 5;
+    if (sandFineness !== undefined) {
+      if (sandFineness >= 2.4 && sandFineness <= 2.9) {
+        score += 10;
+      } else {
+        score += 5;
+      }
     }
 
     // 8. Admixture Optimization (max 10 pt)
@@ -3927,12 +3933,14 @@ export default function App() {
     }
 
     // 10. Density (max 10 pt)
-    if (finalDensity >= 2380) {
-      score += 10;
-    } else if (finalDensity >= 2300) {
-      score += 7;
-    } else {
-      score += 3;
+    if (finalDensity !== undefined) {
+      if (finalDensity >= 2380) {
+        score += 10;
+      } else if (finalDensity >= 2300) {
+        score += 7;
+      } else {
+        score += 3;
+      }
     }
 
     return Math.max(10, Math.min(100, score));
@@ -5854,7 +5862,7 @@ export default function App() {
                         </div>
                         <div className="mt-4 text-right">
                           <strong className="text-2xl font-black block font-mono text-slate-900 dark:text-white leading-none">
-                            {(results.wcRatioAdjusted || results.wcRatio || 0.50).toFixed(2)}
+                            {(results.wcRatioAdjusted || results.wcRatio) !== undefined ? (results.wcRatioAdjusted || results.wcRatio)!.toFixed(2) : "---"}
                           </strong>
                           <span className="text-[10px] text-slate-500 block mt-1">
                             {language === "ar" ? "النسبة المصححة للخلط" : language === "fr" ? "Rapport corrigé" : "Corrected mixing ratio"}
@@ -6800,7 +6808,7 @@ export default function App() {
                                       next.priceGravel = compatibleGravel.price || 3.5;
                                       next.gravelAbsorption = compatibleGravel.absorption || 0;
                                       next.moistureGravel = compatibleGravel.moisture || 0;
-                                      next.dMax = compatibleGravel.dMax || 20;
+                                      next.dMax = compatibleGravel.dMax !== undefined ? compatibleGravel.dMax : next.dMax;
                                     }
                                   }
                                   if (cat === "ماء" && !next.selectedWaterId) {
@@ -7132,8 +7140,8 @@ export default function App() {
                       concreteType={inputs.concreteType || "NSC"}
                       mixDesignMethod={inputs.selectedMethod || "dreux"}
                       activeProject={activeProject?.id || activeProjectId || "default"}
-                      fck28={inputs.fck28 || 25}
-                      dMax={inputs.dMax || 20}
+                      fck28={inputs.fck28 ?? 0}
+                      dMax={inputs.dMax}
                       exposureClass={inputs.exposureClass || "X0"}
                       hasPumping={inputs.hasPumping || false}
                       materialsDatabase={materialsDatabase}
@@ -7475,7 +7483,7 @@ export default function App() {
                                       const price = matchedMat?.price || 2.8;
                                       const abs = matchedMat ? (matchedMat.absorption !== undefined ? matchedMat.absorption : 0) : 0;
                                       const moist = matchedMat ? (matchedMat.moisture !== undefined ? matchedMat.moisture : 0) : 0;
-                                      const maxS = matchedMat?.dMax || inputs.dMax || 20;
+                                      const maxS = matchedMat?.dMax !== undefined ? matchedMat.dMax : inputs.dMax;
                                       const shape = matchedMat?.particleShape === "مكسر" || matchedMat?.particleShape === "زاوي" ? AggregateType.CONCASSE : AggregateType.ROULE;
                                       
                                       let qualityVal = AggregateQuality.STANDARD;

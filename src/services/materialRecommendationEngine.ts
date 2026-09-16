@@ -367,11 +367,11 @@ export function checkProjectDataSufficiency(inputs: ProjectRequirementsInput): P
 
   const dMax = Number(inputs.maxAggregateSize);
   if (!dMax || dMax <= 0) {
-    warnings.push("لم يتم تحديد القطر الأقصى للبحص Dmax بدقة، سيتم افتراض 20 مم افتراضياً.");
+    warnings.push("لم يتم تحديد القطر الأقصى للبحص Dmax بدقة.");
   }
 
   if (inputs.slumpCm === undefined || inputs.slumpCm === null) {
-    warnings.push("لم يتم إدخال الهبوط المطلوب بدقة، سيتم تطبيق هبوط قياسي للمنشآت العامة.");
+    warnings.push("لم يتم إدخال الهبوط المطلوب بدقة.");
   }
 
   return {

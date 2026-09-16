@@ -280,10 +280,10 @@ export const MixVersioningPanel: React.FC<MixVersioningPanelProps> = ({
                 <tr>
                   <td className="p-3 font-bold text-slate-800 dark:text-slate-300 text-right">مقدار الإسمنت للمتر المكعب (كغ)</td>
                   {comparedItems.map((v) => {
-                    const cWeight = v.results?.cementWeight || 400;
+                    const cWeight = v.results?.cementWeight;
                     return (
                       <td key={v.id} className="p-3 text-center font-mono font-black text-blue-600 border-r border-slate-200 dark:border-slate-800">
-                        {Math.round(cWeight)} كغ/م³
+                        {cWeight !== undefined ? `${Math.round(cWeight)} كغ/م³` : "---"}
                       </td>
                     );
                   })}
@@ -293,10 +293,10 @@ export const MixVersioningPanel: React.FC<MixVersioningPanelProps> = ({
                 <tr>
                   <td className="p-3 font-bold text-slate-800 dark:text-slate-300 text-right">نسبة المياه لكيميائيات الإسمنت (W/C)</td>
                   {comparedItems.map((v) => {
-                    const wc = v.results?.wcRatioActual || 0.45;
+                    const wc = v.results?.wcRatioActual;
                     return (
                       <td key={v.id} className="p-3 text-center font-mono font-extrabold text-[#6366F1] border-r border-slate-200 dark:border-slate-800">
-                        {wc.toFixed(2)}
+                        {wc !== undefined ? wc.toFixed(2) : "---"}
                       </td>
                     );
                   })}

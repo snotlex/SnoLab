@@ -834,10 +834,33 @@ export function executeLaboratoryTest(
     }
 
     case "AGG_BULK_DENSITY": {
-      const vol = inputs.containerVolumeLiters || 10.0;
-      const empty = inputs.containerEmptyWeightKg || 3.25;
-      const looseFilled = inputs.looseFilledWeightKg || 18.25;
-      const compacted = inputs.compactedWeightKg || 19.85;
+      const vol = inputs.containerVolumeLiters;
+      const empty = inputs.containerEmptyWeightKg;
+      const looseFilled = inputs.looseFilledWeightKg;
+      const compacted = inputs.compactedWeightKg;
+
+      if (
+        vol === undefined || vol === null || isNaN(vol) || vol <= 0 ||
+        empty === undefined || empty === null || isNaN(empty) ||
+        looseFilled === undefined || looseFilled === null || isNaN(looseFilled) ||
+        compacted === undefined || compacted === null || isNaN(compacted) ||
+        looseFilled <= empty || compacted <= empty
+      ) {
+        return {
+          results: {},
+          status: "FAIL",
+          score: 0,
+          interpretation: "بيانات الاختبار غير مكتملة أو مفقودة. يجب إدخال سعة الوعاء وأوزان العينة السائبة والمدموكة بشكل صحيح.",
+          complianceDetails: [{
+            parameter: "الكثافة الظاهرية السائبة (Loose Bulk Density)",
+            measured: "غير متوفر / مفقود",
+            limit: "1350 - 1750 kg/m³ (NF EN 1097-3)",
+            status: "FAIL",
+            note: "المدخلات المعملية مفقودة أو غير صالحة."
+          }],
+          syncedProperties: {}
+        };
+      }
 
       const looseMass = looseFilled - empty;
       const compactedMass = compacted - empty;
@@ -892,21 +915,43 @@ export function executeLaboratoryTest(
     }
 
     case "AGG_SPECIFIC_GRAVITY": {
-      const M4 = inputs.ovenDryMassG || 495.2;
-      const M1 = inputs.ssdMassG || 504.8;
-      const M2 = inputs.pycnometerSampleWaterMassG || 1782.4;
-      const M3 = inputs.pycnometerWaterMassG || 1471.2;
+      const M4 = inputs.ovenDryMassG;
+      const M1 = inputs.ssdMassG;
+      const M2 = inputs.pycnometerSampleWaterMassG;
+      const M3 = inputs.pycnometerWaterMassG;
+
+      const volDisplaced = (M4 !== undefined && M3 !== undefined && M2 !== undefined) ? (M4 + M3) - M2 : 0;
+      const volSsd = (M1 !== undefined && M3 !== undefined && M2 !== undefined) ? (M1 + M3) - M2 : 0;
+
+      if (
+        M4 === undefined || M1 === undefined || M2 === undefined || M3 === undefined ||
+        isNaN(M4) || isNaN(M1) || isNaN(M2) || isNaN(M3) ||
+        M4 <= 0 || M1 <= 0 || volDisplaced <= 0 || volSsd <= 0
+      ) {
+        return {
+          results: {},
+          status: "FAIL",
+          score: 0,
+          interpretation: "بيانات الاختبار غير مكتملة أو مفقودة. يجب إدخال كتل العينة المجففة والمشبعة المشبعة وأوزان البيكنومتر.",
+          complianceDetails: [{
+            parameter: "الكثافة الحقيقية المطلقة (Absolute Density)",
+            measured: "غير متوفر / مفقود",
+            limit: "2.50 - 2.75 g/cm³ (NF EN 1097-6)",
+            status: "FAIL",
+            note: "المدخلات المعملية مفقودة أو غير صالحة."
+          }],
+          syncedProperties: {}
+        };
+      }
 
       // Absolute density = M4 / (M4 + M3 - M2)
-      const volDisplaced = (M4 + M3) - M2;
-      const absoluteDensity = volDisplaced > 0 ? parseFloat((M4 / volDisplaced).toFixed(3)) : 2.65; // g/cm³ or t/m³
+      const absoluteDensity = parseFloat((M4 / volDisplaced).toFixed(3)); // g/cm³ or t/m³
 
       // SSD density = M1 / (M1 + M3 - M2)
-      const volSsd = (M1 + M3) - M2;
-      const ssdDensity = volSsd > 0 ? parseFloat((M1 / volSsd).toFixed(3)) : 2.68;
+      const ssdDensity = parseFloat((M1 / volSsd).toFixed(3));
 
       // Water absorption % WA24 = ((M1 - M4) / M4) * 100
-      const waterAbsorption = M4 > 0 ? parseFloat((((M1 - M4) / M4) * 100).toFixed(2)) : 1.94;
+      const waterAbsorption = parseFloat((((M1 - M4) / M4) * 100).toFixed(2));
 
       const isAbsGood = waterAbsorption <= 2.5;
       const isAbsWarn = waterAbsorption > 2.5 && waterAbsorption <= 4.0;
@@ -948,13 +993,34 @@ export function executeLaboratoryTest(
     }
 
     case "AGG_MOISTURE_CONTENT": {
-      const wet = inputs.wetMassG || 1052.4;
-      const dry = inputs.dryMassG || 1008.0;
-      const tare = inputs.tareMassG || 120.0;
+      const wet = inputs.wetMassG;
+      const dry = inputs.dryMassG;
+      const tare = inputs.tareMassG;
+
+      if (
+        wet === undefined || dry === undefined || tare === undefined ||
+        isNaN(wet) || isNaN(dry) || isNaN(tare) ||
+        dry <= tare || wet < dry
+      ) {
+        return {
+          results: {},
+          status: "FAIL",
+          score: 0,
+          interpretation: "بيانات الاختبار غير مكتملة أو مفقودة. يجب إدخال كتلة الوعاء فارغاً والكتلة الرطبة والمجففة بشكل صحيح.",
+          complianceDetails: [{
+            parameter: "المحتوى المائي الرطوبي (Moisture Content w%)",
+            measured: "غير متوفر / مفقود",
+            limit: "0.0% - 8.0%",
+            status: "FAIL",
+            note: "المدخلات المعملية مفقودة أو غير صالحة."
+          }],
+          syncedProperties: {}
+        };
+      }
 
       const netWet = wet - tare;
       const netDry = dry - tare;
-      const moisturePercent = netDry > 0 ? parseFloat((((netWet - netDry) / netDry) * 100).toFixed(2)) : 4.4;
+      const moisturePercent = parseFloat((((netWet - netDry) / netDry) * 100).toFixed(2));
 
       const status: TestStatus = "PASS";
       const compliance: ComplianceDetail[] = [
@@ -983,11 +1049,32 @@ export function executeLaboratoryTest(
     }
 
     case "AGG_SAND_EQUIVALENT": {
-      const h1 = inputs.h1TotalHeightMm || 112.5;
-      const h2 = inputs.h2SandHeightMm || 86.0;
+      const h1 = inputs.h1TotalHeightMm;
+      const h2 = inputs.h2SandHeightMm;
       const method = inputs.testMethod || "piston";
 
-      const sandEquivalent = h1 > 0 ? parseFloat(((h2 / h1) * 100).toFixed(1)) : 76.4;
+      if (
+        h1 === undefined || h2 === undefined ||
+        isNaN(h1) || isNaN(h2) ||
+        h1 <= 0 || h2 < 0 || h2 > h1
+      ) {
+        return {
+          results: {},
+          status: "FAIL",
+          score: 0,
+          interpretation: "بيانات الاختبار غير مكتملة أو مفقودة. يجب إدخال ارتفاع الطمي الكلي h1 وارتفاع الرمل h2 بشكل صحيح.",
+          complianceDetails: [{
+            parameter: `المكافئ الرملي (${method === 'piston' ? 'بالمكبس ES' : 'بالعين المجردة ESV'})`,
+            measured: "غير متوفر / مفقود",
+            limit: "≥ 75% (خرسانة مسلحة وعالية الجودة) / ≥ 70% (مقبول)",
+            status: "FAIL",
+            note: "المدخلات المعملية مفقودة أو غير صالحة."
+          }],
+          syncedProperties: {}
+        };
+      }
+
+      const sandEquivalent = parseFloat(((h2 / h1) * 100).toFixed(1));
 
       const isClean = sandEquivalent >= 75;
       const isAcceptable = sandEquivalent >= 70 && sandEquivalent < 75;
@@ -1021,19 +1108,28 @@ export function executeLaboratoryTest(
     }
 
     case "AGG_BULKING_SAND": {
-      const dryVol = inputs.dryVolumeCm3 || 1000;
-      const steps = inputs.moistureSteps || [
-        { moisturePercent: 0, volumeCm3: 1000 },
-        { moisturePercent: 2, volumeCm3: 1140 },
-        { moisturePercent: 4, volumeCm3: 1260 },
-        { moisturePercent: 6, volumeCm3: 1280 },
-        { moisturePercent: 8, volumeCm3: 1220 },
-        { moisturePercent: 10, volumeCm3: 1110 },
-        { moisturePercent: 15, volumeCm3: 1010 }
-      ];
+      const dryVol = inputs.dryVolumeCm3;
+      const steps = inputs.moistureSteps;
+
+      if (!dryVol || isNaN(dryVol) || dryVol <= 0 || !Array.isArray(steps) || steps.length === 0) {
+        return {
+          results: {},
+          status: "FAIL",
+          score: 0,
+          interpretation: "بيانات انتفاخ الرمل غير مكتملة أو مفقودة. يجب إدخال الحجم الجاف وخطوات الرطوبة والحجم المقابل.",
+          complianceDetails: [{
+            parameter: "أقصى نسبة انتفاخ حجمي (Max Bulking Expansion)",
+            measured: "غير متوفر / مفقود",
+            limit: "15% - 35%",
+            status: "FAIL",
+            note: "المدخلات المعملية مفقودة أو غير صالحة."
+          }],
+          syncedProperties: {}
+        };
+      }
 
       let maxExpansionPct = 0;
-      let peakMoisture = 5;
+      let peakMoisture = 0;
       const chart = steps.map((s: any) => {
         const expansionPct = dryVol > 0 ? parseFloat((((s.volumeCm3 - dryVol) / dryVol) * 100).toFixed(1)) : 0;
         if (expansionPct > maxExpansionPct) {
@@ -1076,9 +1172,31 @@ export function executeLaboratoryTest(
     }
 
     case "AGG_LOS_ANGELES": {
-      const m0 = inputs.initialMassG || 5000;
-      const mRet = inputs.retainedMassOn1_6mmG || 3880;
-      const laCoeff = m0 > 0 ? parseFloat((((m0 - mRet) / m0) * 100).toFixed(1)) : 22.4;
+      const m0 = inputs.initialMassG;
+      const mRet = inputs.retainedMassOn1_6mmG;
+
+      if (
+        m0 === undefined || mRet === undefined ||
+        isNaN(m0) || isNaN(mRet) ||
+        m0 <= 0 || mRet < 0 || mRet > m0
+      ) {
+        return {
+          results: {},
+          status: "FAIL",
+          score: 0,
+          interpretation: "بيانات الاختبار غير مكتملة أو مفقودة. يجب إدخال الكتلة الابتدائية والكتلة المتبقية على منخل 1.6 مم.",
+          complianceDetails: [{
+            parameter: "معامل لوس أنجلوس للتفتت (Los Angeles LA%)",
+            measured: "غير متوفر / مفقود",
+            limit: "≤ 25% (خرسانة عالية الأداء ورصف) / ≤ 30% (إنشائي قياسي)",
+            status: "FAIL",
+            note: "المدخلات المعملية مفقودة أو غير صالحة."
+          }],
+          syncedProperties: {}
+        };
+      }
+
+      const laCoeff = parseFloat((((m0 - mRet) / m0) * 100).toFixed(1));
 
       const isLaExceptional = laCoeff <= 20;
       const isLaGood = laCoeff > 20 && laCoeff <= 30;
@@ -1111,9 +1229,31 @@ export function executeLaboratoryTest(
     }
 
     case "AGG_MICRO_DEVAL": {
-      const m0 = inputs.initialMassG || 500;
-      const mRet = inputs.retainedMassOn1_6mmG || 432;
-      const mde = m0 > 0 ? parseFloat((((m0 - mRet) / m0) * 100).toFixed(1)) : 13.6;
+      const m0 = inputs.initialMassG;
+      const mRet = inputs.retainedMassOn1_6mmG;
+
+      if (
+        m0 === undefined || mRet === undefined ||
+        isNaN(m0) || isNaN(mRet) ||
+        m0 <= 0 || mRet < 0 || mRet > m0
+      ) {
+        return {
+          results: {},
+          status: "FAIL",
+          score: 0,
+          interpretation: "بيانات الاختبار غير مكتملة أو مفقودة. يجب إدخال الكتلة الابتدائية والكتلة المتبقية على منخل 1.6 مم بعد التدوير المائي.",
+          complianceDetails: [{
+            parameter: "معامل ميكرو-ديفال في وجود الماء (Micro-Deval MDE%)",
+            measured: "غير متوفر / مفقود",
+            limit: "≤ 15% (HPC & Pavement) / ≤ 25% (Standard Structural)",
+            status: "FAIL",
+            note: "المدخلات المعملية مفقودة أو غير صالحة."
+          }],
+          syncedProperties: {}
+        };
+      }
+
+      const mde = parseFloat((((m0 - mRet) / m0) * 100).toFixed(1));
 
       const isMdeGreat = mde <= 15;
       const isMdeGood = mde > 15 && mde <= 25;
@@ -1144,9 +1284,31 @@ export function executeLaboratoryTest(
     }
 
     case "AGG_SHAPE_FLAKINESS": {
-      const total = inputs.totalSampleMassG || 2500;
-      const passingBars = inputs.passingBarSievesMassG || 345;
-      const flakinessIndex = total > 0 ? parseFloat(((passingBars / total) * 100).toFixed(1)) : 13.8;
+      const total = inputs.totalSampleMassG;
+      const passingBars = inputs.passingBarSievesMassG;
+
+      if (
+        total === undefined || passingBars === undefined ||
+        isNaN(total) || isNaN(passingBars) ||
+        total <= 0 || passingBars < 0 || passingBars > total
+      ) {
+        return {
+          results: {},
+          status: "FAIL",
+          score: 0,
+          interpretation: "بيانات الاختبار غير مكتملة أو مفقودة. يجب إدخال كتلة العينة الكلية وكتلة الحبيبات المارة عبر مناخل القضبان الفلزية.",
+          complianceDetails: [{
+            parameter: "معامل التفرطح (Flakiness Index FI%)",
+            measured: "غير متوفر / مفقود",
+            limit: "≤ 20% (حصى مكعب ممتاز) / ≤ 30% (مقبول)",
+            status: "FAIL",
+            note: "المدخلات المعملية مفقودة أو غير صالحة."
+          }],
+          syncedProperties: {}
+        };
+      }
+
+      const flakinessIndex = parseFloat(((passingBars / total) * 100).toFixed(1));
 
       const isFlakyGood = flakinessIndex <= 20;
       const status: TestStatus = isFlakyGood ? "PASS" : flakinessIndex <= 30 ? "WARNING" : "FAIL";
@@ -1176,12 +1338,33 @@ export function executeLaboratoryTest(
     }
 
     case "AGG_METHYLENE_BLUE": {
-      const mass = inputs.fraction0_2MassG || 200;
-      const volMl = inputs.dyeSolutionInjectedMl || 18.0;
-      const conc = inputs.dyeConcentrationGPerL || 10.0;
+      const mass = inputs.fraction0_2MassG;
+      const volMl = inputs.dyeSolutionInjectedMl;
+      const conc = inputs.dyeConcentrationGPerL;
+
+      if (
+        mass === undefined || volMl === undefined || conc === undefined ||
+        isNaN(mass) || isNaN(volMl) || isNaN(conc) ||
+        mass <= 0 || volMl < 0 || conc <= 0
+      ) {
+        return {
+          results: {},
+          status: "FAIL",
+          score: 0,
+          interpretation: "بيانات الاختبار غير مكتملة أو مفقودة. يجب إدخال كتلة العينة وحجم المحلول المحقون وتركيز محلول أزرق الميثيلين.",
+          complianceDetails: [{
+            parameter: "قيمة أزرق الميثيلين (Methylene Blue Value MB)",
+            measured: "غير متوفر / مفقود",
+            limit: "≤ 1.00 g/kg (رمل نظيف جداً) / ≤ 1.50 g/kg (مقبول)",
+            status: "FAIL",
+            note: "المدخلات المعملية مفقودة أو غير صالحة."
+          }],
+          syncedProperties: {}
+        };
+      }
 
       // MB = (volMl / mass) * (conc / 10) in g/kg
-      const mbValue = mass > 0 ? parseFloat(((volMl / mass) * (conc / 10) * 10).toFixed(2)) : 0.90;
+      const mbValue = parseFloat(((volMl / mass) * (conc / 10) * 10).toFixed(2));
 
       const isMbClean = mbValue <= 1.0;
       const isMbWarn = mbValue > 1.0 && mbValue <= 1.5;
@@ -1215,12 +1398,33 @@ export function executeLaboratoryTest(
     // CEMENT
     // ------------------------------------------------------------------------
     case "CEM_SPECIFIC_GRAVITY": {
-      const mass = inputs.cementMassG || 64.0;
-      const v1 = inputs.initialVolumeMl || 0.8;
-      const v2 = inputs.finalVolumeMl || 21.2;
+      const mass = inputs.cementMassG;
+      const v1 = inputs.initialVolumeMl;
+      const v2 = inputs.finalVolumeMl;
+
+      if (
+        mass === undefined || v1 === undefined || v2 === undefined ||
+        isNaN(mass) || isNaN(v1) || isNaN(v2) ||
+        mass <= 0 || v2 <= v1
+      ) {
+        return {
+          results: {},
+          status: "FAIL",
+          score: 0,
+          interpretation: "بيانات الاختبار غير مكتملة أو مفقودة. يجب إدخال كتلة الإسمنت والقراءة الحجمية الابتدائية والنهائية لدورق لو شاتولييه بدقة.",
+          complianceDetails: [{
+            parameter: "الكثافة الحقيقية للإسمنت (Cement Specific Gravity)",
+            measured: "غير متوفر / مفقود",
+            limit: "3.05 - 3.25 g/cm³ (NF EN 196-6 / ASTM C188)",
+            status: "FAIL",
+            note: "المدخلات المعملية مفقودة أو غير صالحة."
+          }],
+          syncedProperties: {}
+        };
+      }
 
       const deltaV = v2 - v1;
-      const density = deltaV > 0 ? parseFloat((mass / deltaV).toFixed(3)) : 3.14; // g/cm³
+      const density = parseFloat((mass / deltaV).toFixed(3)); // g/cm³
 
       const isDensityGood = density >= 3.05 && density <= 3.25;
       const status: TestStatus = isDensityGood ? "PASS" : "WARNING";
@@ -1252,15 +1456,36 @@ export function executeLaboratoryTest(
     }
 
     case "CEM_FINENESS_BLAINE": {
-      const t = inputs.airFlowTimeSeconds || 58.4;
-      const K = inputs.apparatusConstantK || 523.5;
-      const e = inputs.bedPorosityE || 0.500;
-      const rho = inputs.cementDensityGPerCm3 || 3.15;
-      const eta = inputs.airViscosityMicroPaS || 18.2;
+      const t = inputs.airFlowTimeSeconds;
+      const K = inputs.apparatusConstantK;
+      const e = inputs.bedPorosityE;
+      const rho = inputs.cementDensityGPerCm3;
+      const eta = inputs.airViscosityMicroPaS;
+
+      if (
+        t === undefined || K === undefined || e === undefined || rho === undefined || eta === undefined ||
+        isNaN(t) || isNaN(K) || isNaN(e) || isNaN(rho) || isNaN(eta) ||
+        t <= 0 || K <= 0 || e <= 0 || e >= 1 || rho <= 0 || eta <= 0
+      ) {
+        return {
+          results: {},
+          status: "FAIL",
+          score: 0,
+          interpretation: "بيانات الاختبار غير مكتملة أو مفقودة. يرجى إدخال زمن نفاذية الهواء، ثابت جهاز بلين، مسامية طبقة الإسمنت، كثافة الإسمنت، ولزوجة الهواء.",
+          complianceDetails: [{
+            parameter: "المساحة السطحية النوعية بلين (Blaine SSB)",
+            measured: "غير متوفر / مفقود",
+            limit: "≥ 2800 cm²/g (CEM I / CEM II) - NF EN 196-6",
+            status: "FAIL",
+            note: "المدخلات المعملية مفقودة أو غير صالحة."
+          }],
+          syncedProperties: {}
+        };
+      }
 
       // Blaine SSB = K * (sqrt(e^3) / (rho * (1-e))) * (sqrt(t) / sqrt(0.1*eta))
       const blaineCm2G = Math.round((K * (Math.sqrt(Math.pow(e, 3)) / (rho * (1 - e))) * (Math.sqrt(t) / Math.sqrt(0.1 * eta))) * 1.02);
-      const blaine = blaineCm2G > 0 ? blaineCm2G : 3650;
+      const blaine = blaineCm2G;
 
       const isBlaineGood = blaine >= 2800 && blaine <= 5000;
       const status: TestStatus = isBlaineGood ? "PASS" : "WARNING";
@@ -1291,11 +1516,34 @@ export function executeLaboratoryTest(
     }
 
     case "CEM_NORMAL_CONSISTENCY": {
-      const mass = inputs.cementMassG || 500;
-      const waterMl = inputs.waterVolumeMl || 138;
-      const pen = inputs.plungerPenetrationMm || 6.0;
+      const mass = inputs.cementMassG;
+      const waterMl = inputs.waterVolumeMl;
+      const pen = inputs.plungerPenetrationMm;
 
-      const waterPct = mass > 0 ? parseFloat(((waterMl / mass) * 100).toFixed(1)) : 27.6;
+      if (
+        mass === undefined || waterMl === undefined || pen === undefined ||
+        isNaN(mass) || isNaN(waterMl) || isNaN(pen) ||
+        mass <= 0 || waterMl <= 0 || pen < 0
+      ) {
+        return {
+          results: {},
+          status: "FAIL",
+          score: 0,
+          interpretation: "بيانات الاختبار غير مكتملة أو مفقودة. يجب إدخال كتلة الإسمنت، حجم ماء الخلط، وعمق انغراس مسبار فيكات بدقة.",
+          complianceDetails: [
+            {
+              parameter: "انغراس مسبار فيكات من الصفيحة القاعدية (Vicat Distance)",
+              measured: "غير متوفر / مفقود",
+              limit: "6 ± 1 mm (NF EN 196-3)",
+              status: "FAIL",
+              note: "المدخلات المعملية مفقودة أو غير صالحة."
+            }
+          ],
+          syncedProperties: {}
+        };
+      }
+
+      const waterPct = parseFloat(((waterMl / mass) * 100).toFixed(1));
       const isConGood = pen >= 5 && pen <= 7;
       const status: TestStatus = isConGood ? "PASS" : "WARNING";
 
@@ -1332,28 +1580,56 @@ export function executeLaboratoryTest(
     }
 
     case "CEM_SETTING_TIME": {
-      const readings = inputs.timeReadings || [
-        { timeMinutes: 30, penetrationMm: 40 },
-        { timeMinutes: 60, penetrationMm: 40 },
-        { timeMinutes: 90, penetrationMm: 38 },
-        { timeMinutes: 120, penetrationMm: 32 },
-        { timeMinutes: 150, penetrationMm: 22 },
-        { timeMinutes: 180, penetrationMm: 11 },
-        { timeMinutes: 200, penetrationMm: 4 },
-        { timeMinutes: 240, penetrationMm: 1 },
-        { timeMinutes: 280, penetrationMm: 0.5 }
-      ];
+      const readings = inputs.timeReadings;
+
+      if (!Array.isArray(readings) || readings.length === 0) {
+        return {
+          results: {},
+          status: "FAIL",
+          score: 0,
+          interpretation: "بيانات الاختبار غير مكتملة أو مفقودة. يجب إدخال جدول قراءات انغراس إبرة فيكات مع الزمن.",
+          complianceDetails: [
+            {
+              parameter: "زمن بداية الشك الابتدائي (Initial Setting Time)",
+              measured: "غير متوفر / مفقود",
+              limit: "≥ 60 دقيقة (NF EN 196-3 / ASTM C191)",
+              status: "FAIL",
+              note: "المدخلات المعملية مفقودة أو غير صالحة."
+            }
+          ],
+          syncedProperties: {}
+        };
+      }
 
       // Initial set = time when penetration is 4±1 mm
-      const initRow = readings.find((r: any) => r.penetrationMm <= 5) || { timeMinutes: 195 };
-      const initialSettingMinutes = initRow.timeMinutes;
+      const initRow = readings.find((r: any) => typeof r.penetrationMm === "number" && r.penetrationMm <= 5);
+      const initialSettingMinutes = initRow ? initRow.timeMinutes : undefined;
 
       // Final set = time when penetration is <= 0.5 mm
-      const finalRow = readings.find((r: any) => r.penetrationMm <= 0.5) || { timeMinutes: 280 };
-      const finalSettingMinutes = finalRow.timeMinutes;
+      const finalRow = readings.find((r: any) => typeof r.penetrationMm === "number" && r.penetrationMm <= 0.5);
+      const finalSettingMinutes = finalRow ? finalRow.timeMinutes : undefined;
+
+      if (initialSettingMinutes === undefined) {
+        return {
+          results: {},
+          status: "WARNING",
+          score: 50,
+          interpretation: "لم يتم بلوغ زمن بداية الشك بعد (عمق الانغراس لم يصل إلى 4±1 مم ضمن القراءات المدخلة).",
+          complianceDetails: [
+            {
+              parameter: "زمن بداية الشك الابتدائي (Initial Setting Time)",
+              measured: "قيد المراقبة / لم يبلغ الحد",
+              limit: "≥ 60 دقيقة (NF EN 196-3 / ASTM C191)",
+              status: "WARNING",
+              note: "يلزم مواصلة القراءات حتى بلوغ 4±1 مم من القاعدة"
+            }
+          ],
+          syncedProperties: {}
+        };
+      }
 
       const isInitGood = initialSettingMinutes >= 60 && initialSettingMinutes <= 300;
-      const isFinalGood = finalSettingMinutes <= 600;
+      const isFinalGood = finalSettingMinutes !== undefined ? finalSettingMinutes <= 600 : true;
       const status: TestStatus = (isInitGood && isFinalGood) ? "PASS" : "WARNING";
 
       const compliance: ComplianceDetail[] = [
@@ -1363,15 +1639,18 @@ export function executeLaboratoryTest(
           limit: "≥ 60 دقيقة (NF EN 196-3 / ASTM C191)",
           status: isInitGood ? "PASS" : "FAIL",
           note: isInitGood ? "يسمح بفترة زمنية كافية لخلط ونقل وصب ودمك الخرسانة" : "شك مبكر قد يؤدي لتصلب الخرسانة في المضخة"
-        },
-        {
+        }
+      ];
+
+      if (finalSettingMinutes !== undefined) {
+        compliance.push({
           parameter: "زمن نهاية الشك النهائي (Final Setting Time)",
           measured: `${finalSettingMinutes} دقيقة (${(finalSettingMinutes / 60).toFixed(1)} ساعة)`,
           limit: "≤ 10 ساعات (≤ 600 دقيقة)",
           status: isFinalGood ? "PASS" : "WARNING",
           note: "تصلب كامل يسمح بفك القوالب وبداية المعالجة المائية"
-        }
-      ];
+        });
+      }
 
       const chart = readings.map((r: any) => ({
         time: `${r.timeMinutes} min`,
@@ -1385,11 +1664,11 @@ export function executeLaboratoryTest(
           initialSettingMinutes,
           finalSettingMinutes,
           initialSettingHours: parseFloat((initialSettingMinutes / 60).toFixed(2)),
-          finalSettingHours: parseFloat((finalSettingMinutes / 60).toFixed(2))
+          finalSettingHours: finalSettingMinutes !== undefined ? parseFloat((finalSettingMinutes / 60).toFixed(2)) : undefined
         },
         status,
         score: status === "PASS" ? 97 : 70,
-        interpretation: `زمن الشك الابتدائي = ${initialSettingMinutes} دقيقة، وزمن الشك النهائي = ${finalSettingMinutes} دقيقة. يمنح نافذة تشغيلية ممتازة للخرسانة الجاهزة.`,
+        interpretation: `زمن الشك الابتدائي = ${initialSettingMinutes} دقيقة${finalSettingMinutes !== undefined ? `، وزمن الشك النهائي = ${finalSettingMinutes} دقيقة.` : '.'}`,
         complianceDetails: compliance,
         chartData: chart,
         syncedProperties: {
@@ -1400,8 +1679,32 @@ export function executeLaboratoryTest(
     }
 
     case "CEM_SOUNDNESS": {
-      const a = inputs.pointerDistanceBeforeBoilingA || 12.5;
-      const b = inputs.pointerDistanceAfterBoilingB || 14.0;
+      const a = inputs.pointerDistanceBeforeBoilingA;
+      const b = inputs.pointerDistanceAfterBoilingB;
+
+      if (
+        a === undefined || b === undefined ||
+        isNaN(a) || isNaN(b) ||
+        a <= 0 || b < a
+      ) {
+        return {
+          results: {},
+          status: "FAIL",
+          score: 0,
+          interpretation: "بيانات الاختبار غير مكتملة أو مفقودة. يجب إدخال مسافة مؤشري قالب لو شاتولييه قبل الغليان وبعده بدقة.",
+          complianceDetails: [
+            {
+              parameter: "التمدد الحراري لوشاتولييه (Le Chatelier Expansion)",
+              measured: "غير متوفر / مفقود",
+              limit: "≤ 10.0 mm (NF EN 196-3)",
+              status: "FAIL",
+              note: "المدخلات المعملية مفقودة أو غير صالحة."
+            }
+          ],
+          syncedProperties: {}
+        };
+      }
+
       const expansion = parseFloat((b - a).toFixed(1));
 
       const isSound = expansion <= 10.0;
@@ -1432,9 +1735,32 @@ export function executeLaboratoryTest(
     }
 
     case "CEM_COMPRESSIVE_STRENGTH": {
-      const p2d: number[] = inputs.strength2dPrismsKn || [28.5, 29.2, 28.8, 29.0, 28.6, 29.1];
-      const p7d: number[] = inputs.strength7dPrismsKn || [51.2, 52.0, 50.8, 51.5, 52.2, 51.8];
-      const p28d: number[] = inputs.strength28dPrismsKn || [76.5, 77.2, 75.8, 76.0, 77.5, 76.8];
+      const p2d: number[] = inputs.strength2dPrismsKn;
+      const p7d: number[] = inputs.strength7dPrismsKn;
+      const p28d: number[] = inputs.strength28dPrismsKn;
+
+      if (
+        !Array.isArray(p2d) || p2d.length === 0 ||
+        !Array.isArray(p7d) || p7d.length === 0 ||
+        !Array.isArray(p28d) || p28d.length === 0
+      ) {
+        return {
+          results: {},
+          status: "FAIL",
+          score: 0,
+          interpretation: "بيانات الاختبار غير مكتملة أو مفقودة. يجب إدخال مصفوفات قوى كسر الموشورات (kN) للأعمار 2، 7، و28 يوماً.",
+          complianceDetails: [
+            {
+              parameter: "مقاومة الضغط القياسية عند 28 يوماً (28-day Strength fce)",
+              measured: "غير متوفر / مفقود",
+              limit: "42.5 - 62.5 MPa (رتبة الإسمنت 42.5)",
+              status: "FAIL",
+              note: "المدخلات المعملية مفقودة أو غير صالحة."
+            }
+          ],
+          syncedProperties: {}
+        };
+      }
 
       // Area = 40x40 mm = 1600 mm² -> Strength (MPa) = (Force in N) / 1600 = (Kn * 1000) / 1600 = Kn / 1.6
       const avg2dKn = p2d.reduce((a, b) => a + b, 0) / p2d.length;
@@ -1502,7 +1828,27 @@ export function executeLaboratoryTest(
     // WATER
     // ------------------------------------------------------------------------
     case "WATER_PH": {
-      const ph = inputs.measuredPh !== undefined ? inputs.measuredPh : 7.4;
+      const ph = inputs.measuredPh;
+
+      if (ph === undefined || isNaN(ph) || ph < 0 || ph > 14) {
+        return {
+          results: {},
+          status: "FAIL",
+          score: 0,
+          interpretation: "بيانات الاختبار غير مكتملة أو مفقودة. يجب إدخال قيمة درجة الحموضة (pH) المقاسة لماء الخلط.",
+          complianceDetails: [
+            {
+              parameter: "درجة حموضة ماء الخلط (pH)",
+              measured: "غير متوفر / مفقود",
+              limit: "≥ 5.0 (NF EN 1008 / ISO 10523)",
+              status: "FAIL",
+              note: "المدخلات المعملية مفقودة أو غير صالحة."
+            }
+          ],
+          syncedProperties: {}
+        };
+      }
+
       const isPhGood = ph >= 5.0 && ph <= 8.5;
       const status: TestStatus = isPhGood ? "PASS" : (ph >= 4.5 && ph <= 9.5) ? "WARNING" : "FAIL";
 
@@ -1532,9 +1878,28 @@ export function executeLaboratoryTest(
     }
 
     case "WATER_CHLORIDES": {
-      const cl = inputs.chloridesMgPerL || 210.0;
+      const cl = inputs.chloridesMgPerL;
       const app = inputs.concreteApplication || "reinforced";
       const limit = app === "prestressed" ? 500 : app === "reinforced" ? 1000 : 4500;
+
+      if (cl === undefined || isNaN(cl) || cl < 0) {
+        return {
+          results: {},
+          status: "FAIL",
+          score: 0,
+          interpretation: "بيانات الاختبار غير مكتملة أو مفقودة. يجب إدخال تركيز أيونات الكلوريد (mg/L).",
+          complianceDetails: [
+            {
+              parameter: "تركيز أيونات الكلوريد (Cl- Concentration)",
+              measured: "غير متوفر / مفقود",
+              limit: `≤ ${limit} mg/L`,
+              status: "FAIL",
+              note: "المدخلات المعملية مفقودة أو غير صالحة."
+            }
+          ],
+          syncedProperties: {}
+        };
+      }
 
       const isClGood = cl <= limit;
       const status: TestStatus = isClGood ? "PASS" : "FAIL";
@@ -1565,8 +1930,28 @@ export function executeLaboratoryTest(
     }
 
     case "WATER_SULFATES": {
-      const so4 = inputs.sulfatesMgPerL || 420.0;
+      const so4 = inputs.sulfatesMgPerL;
       const limit = 2000.0;
+
+      if (so4 === undefined || isNaN(so4) || so4 < 0) {
+        return {
+          results: {},
+          status: "FAIL",
+          score: 0,
+          interpretation: "بيانات الاختبار غير مكتملة أو مفقودة. يجب إدخال تركيز أيونات الكبريتات (mg/L).",
+          complianceDetails: [
+            {
+              parameter: "تركيز أيونات الكبريتات (SO4 2-)",
+              measured: "غير متوفر / مفقود",
+              limit: "≤ 2000 mg/L (NF EN 1008)",
+              status: "FAIL",
+              note: "المدخلات المعملية مفقودة أو غير صالحة."
+            }
+          ],
+          syncedProperties: {}
+        };
+      }
+
       const isSo4Good = so4 <= limit;
       const status: TestStatus = isSo4Good ? "PASS" : "FAIL";
 
@@ -1595,8 +1980,27 @@ export function executeLaboratoryTest(
     }
 
     case "WATER_TDS_IMPURITIES": {
-      const tds = inputs.totalDissolvedSolidsMgPerL || 850.0;
-      const tss = inputs.suspendedSolidsMgPerL || 120.0;
+      const tds = inputs.totalDissolvedSolidsMgPerL;
+      const tss = inputs.suspendedSolidsMgPerL;
+
+      if (tds === undefined || tss === undefined || isNaN(tds) || isNaN(tss) || tds < 0 || tss < 0) {
+        return {
+          results: {},
+          status: "FAIL",
+          score: 0,
+          interpretation: "بيانات الاختبار غير مكتملة أو مفقودة. يجب إدخال قيم المواد الصلبة المنحلة (TDS) والعالقة (TSS) بـ mg/L.",
+          complianceDetails: [
+            {
+              parameter: "المواد الصلبة المنحلة الكلية (TDS)",
+              measured: "غير متوفر / مفقود",
+              limit: "≤ 2000 mg/L (NF EN 1008)",
+              status: "FAIL",
+              note: "المدخلات المعملية مفقودة أو غير صالحة."
+            }
+          ],
+          syncedProperties: {}
+        };
+      }
 
       const isTdsGood = tds <= 2000.0;
       const isTssGood = tss <= 2000.0;
@@ -1638,9 +2042,29 @@ export function executeLaboratoryTest(
     // CHEMICAL ADMIXTURES
     // ------------------------------------------------------------------------
     case "ADM_DENSITY": {
-      const mass = inputs.admixtureMassG || 108.5;
-      const vol = inputs.admixtureVolumeMl || 100.0;
-      const density = vol > 0 ? parseFloat((mass / vol).toFixed(3)) : 1.085;
+      const mass = inputs.admixtureMassG;
+      const vol = inputs.admixtureVolumeMl;
+
+      if (mass === undefined || vol === undefined || isNaN(mass) || isNaN(vol) || mass <= 0 || vol <= 0) {
+        return {
+          results: {},
+          status: "FAIL",
+          score: 0,
+          interpretation: "بيانات الاختبار غير مكتملة أو مفقودة. يجب إدخال كتلة وحجم عينة الملدن بدقة.",
+          complianceDetails: [
+            {
+              parameter: "الكثافة النسبية للملدن عند 20°م",
+              measured: "غير متوفر / مفقود",
+              limit: "حسب البطاقة التقنية للمصنع ± 0.03 g/cm³ (NF EN 934-2)",
+              status: "FAIL",
+              note: "المدخلات المعملية مفقودة أو غير صالحة."
+            }
+          ],
+          syncedProperties: {}
+        };
+      }
+
+      const density = parseFloat((mass / vol).toFixed(3));
 
       const status: TestStatus = "PASS";
       const compliance: ComplianceDetail[] = [
@@ -1668,13 +2092,36 @@ export function executeLaboratoryTest(
     }
 
     case "ADM_SOLID_CONTENT": {
-      const m0 = inputs.emptyDishMassG ?? testDef.defaultInputs?.emptyDishMassG ?? 0;
-      const m1 = inputs.dishPlusWetAdmixtureMassG ?? testDef.defaultInputs?.dishPlusWetAdmixtureMassG ?? 0;
-      const m2 = inputs.dishPlusDryResidueMassG ?? testDef.defaultInputs?.dishPlusDryResidueMassG ?? 0;
+      const m0 = inputs.emptyDishMassG;
+      const m1 = inputs.dishPlusWetAdmixtureMassG;
+      const m2 = inputs.dishPlusDryResidueMassG;
+
+      if (
+        m0 === undefined || m1 === undefined || m2 === undefined ||
+        isNaN(m0) || isNaN(m1) || isNaN(m2) ||
+        m0 <= 0 || m1 <= m0 || m2 < m0
+      ) {
+        return {
+          results: {},
+          status: "FAIL",
+          score: 0,
+          interpretation: "بيانات الاختبار غير مكتملة أو مفقودة. يجب إدخال كتلة الصحن الفارغ، كتلته مع الملدن الرطب، وكتلته بعد التجفيف في الفرن.",
+          complianceDetails: [
+            {
+              parameter: "الخلاصة الجافة للملدن (Dry Extract %)",
+              measured: "غير متوفر / مفقود",
+              limit: "30.0% - 45.0% (حسب مواصفة المصنع EN 480-8)",
+              status: "FAIL",
+              note: "المدخلات المعملية مفقودة أو غير صالحة."
+            }
+          ],
+          syncedProperties: {}
+        };
+      }
 
       const wetSample = m1 - m0;
       const dryResidue = m2 - m0;
-      const dryExtract = wetSample > 0 ? parseFloat(((dryResidue / wetSample) * 100).toFixed(2)) : 35.0;
+      const dryExtract = parseFloat(((dryResidue / wetSample) * 100).toFixed(2));
 
       const status: TestStatus = "PASS";
       const compliance: ComplianceDetail[] = [
@@ -1704,9 +2151,29 @@ export function executeLaboratoryTest(
     }
 
     case "ADM_WATER_REDUCTION": {
-      const w0 = inputs.controlMixWaterL || 195.0;
-      const w1 = inputs.admixedMixWaterL || 152.0;
-      const redRate = w0 > 0 ? parseFloat((((w0 - w1) / w0) * 100).toFixed(1)) : 22.1;
+      const w0 = inputs.controlMixWaterL;
+      const w1 = inputs.admixedMixWaterL;
+
+      if (w0 === undefined || w1 === undefined || isNaN(w0) || isNaN(w1) || w0 <= 0 || w1 <= 0 || w1 >= w0) {
+        return {
+          results: {},
+          status: "FAIL",
+          score: 0,
+          interpretation: "بيانات الاختبار غير مكتملة أو مفقودة. يجب إدخال كمية ماء خلطة الشاهد وماء الخلطة المحتوية على الملدن.",
+          complianceDetails: [
+            {
+              parameter: "نسبة تخفيض ماء الخلط (Water Reduction Rate)",
+              measured: "غير متوفر / مفقود",
+              limit: "≥ 20.0% (ملدن فائق عالي الكفاءة High Range) / ≥ 12.0% (ملدن قياسي)",
+              status: "FAIL",
+              note: "المدخلات المعملية مفقودة أو غير صالحة."
+            }
+          ],
+          syncedProperties: {}
+        };
+      }
+
+      const redRate = parseFloat((((w0 - w1) / w0) * 100).toFixed(1));
 
       const isHighRange = redRate >= 20.0;
       const status: TestStatus = isHighRange ? "PASS" : redRate >= 12.0 ? "PASS" : "WARNING";
@@ -1740,9 +2207,29 @@ export function executeLaboratoryTest(
     // MINERAL ADDITIVES (SCM)
     // ------------------------------------------------------------------------
     case "SCM_SPECIFIC_GRAVITY": {
-      const mass = inputs.sampleMassG ?? testDef.defaultInputs?.sampleMassG ?? 0;
-      const vol = inputs.displacedVolumeMl ?? testDef.defaultInputs?.displacedVolumeMl ?? 0;
-      const density = vol > 0 ? parseFloat((mass / vol).toFixed(3)) : 0;
+      const mass = inputs.sampleMassG;
+      const vol = inputs.displacedVolumeMl;
+
+      if (mass === undefined || vol === undefined || isNaN(mass) || isNaN(vol) || mass <= 0 || vol <= 0) {
+        return {
+          results: {},
+          status: "FAIL",
+          score: 0,
+          interpretation: "بيانات الاختبار غير مكتملة أو مفقودة. يجب إدخال كتلة عينة الإضافة المعدنية والحجم المزاح.",
+          complianceDetails: [
+            {
+              parameter: "الكثافة الحقيقية للإضافة المعدنية",
+              measured: "غير متوفر / مفقود",
+              limit: "2.10 - 2.95 g/cm³ (حسب نوع المادة)",
+              status: "FAIL",
+              note: "المدخلات المعملية مفقودة أو غير صالحة."
+            }
+          ],
+          syncedProperties: {}
+        };
+      }
+
+      const density = parseFloat((mass / vol).toFixed(3));
 
       const status: TestStatus = "PASS";
       const compliance: ComplianceDetail[] = [
@@ -1770,11 +2257,29 @@ export function executeLaboratoryTest(
     }
 
     case "SCM_ACTIVITY_INDEX": {
-      const fControl = inputs.controlPrism28dStrengthMpa ?? testDef.defaultInputs?.controlPrism28dStrengthMpa ?? 0;
-      const fScm = inputs.scmBlendedPrism28dStrengthMpa ?? testDef.defaultInputs?.scmBlendedPrism28dStrengthMpa ?? 0;
-      const rep = inputs.replacementRatePercent ?? testDef.defaultInputs?.replacementRatePercent ?? 0;
+      const fControl = inputs.controlPrism28dStrengthMpa;
+      const fScm = inputs.scmBlendedPrism28dStrengthMpa;
 
-      const iap = fControl > 0 ? parseFloat(((fScm / fControl) * 100).toFixed(1)) : 93.3;
+      if (fControl === undefined || fScm === undefined || isNaN(fControl) || isNaN(fScm) || fControl <= 0 || fScm < 0) {
+        return {
+          results: {},
+          status: "FAIL",
+          score: 0,
+          interpretation: "بيانات الاختبار غير مكتملة أو مفقودة. يجب إدخال مقاومة ضغط موشور الشاهد ومقاومة موشور الإضافة المعدنية عند 28 يوماً.",
+          complianceDetails: [
+            {
+              parameter: "معامل النشاط البوزولاني عند 28 يوماً (IAP%)",
+              measured: "غير متوفر / مفقود",
+              limit: "≥ 75.0% (NF EN 450-1 / ASTM C311)",
+              status: "FAIL",
+              note: "المدخلات المعملية مفقودة أو غير صالحة."
+            }
+          ],
+          syncedProperties: {}
+        };
+      }
+
+      const iap = parseFloat(((fScm / fControl) * 100).toFixed(1));
       const isIapGood = iap >= 75.0;
       const status: TestStatus = isIapGood ? "PASS" : "FAIL";
 
@@ -1805,9 +2310,29 @@ export function executeLaboratoryTest(
     }
 
     case "SCM_LOSS_ON_IGNITION": {
-      const mDry = inputs.drySampleMassG || 2.000;
-      const mCalc = inputs.calcinedSampleMassG || 1.942;
-      const loi = mDry > 0 ? parseFloat((((mDry - mCalc) / mDry) * 100).toFixed(2)) : 2.90;
+      const mDry = inputs.drySampleMassG;
+      const mCalc = inputs.calcinedSampleMassG;
+
+      if (mDry === undefined || mCalc === undefined || isNaN(mDry) || isNaN(mCalc) || mDry <= 0 || mCalc < 0 || mCalc > mDry) {
+        return {
+          results: {},
+          status: "FAIL",
+          score: 0,
+          interpretation: "بيانات الاختبار غير مكتملة أو مفقودة. يجب إدخال كتلة العينة الجافة وكتلتها بعد الحرق عند 950°م.",
+          complianceDetails: [
+            {
+              parameter: "الفاقد بالاشتعال والحرق عند 950°م (LOI%)",
+              measured: "غير متوفر / مفقود",
+              limit: "≤ 5.0% (NF EN 450-1 Class A) / ≤ 4.0% (Silica Fume)",
+              status: "FAIL",
+              note: "المدخلات المعملية مفقودة أو غير صالحة."
+            }
+          ],
+          syncedProperties: {}
+        };
+      }
+
+      const loi = parseFloat((((mDry - mCalc) / mDry) * 100).toFixed(2));
 
       const isLoiGood = loi <= 5.0;
       const status: TestStatus = isLoiGood ? "PASS" : "WARNING";
@@ -1840,10 +2365,30 @@ export function executeLaboratoryTest(
     // FIBERS
     // ------------------------------------------------------------------------
     case "FIBER_GEOMETRY": {
-      const len = inputs.lengthMm ?? testDef.defaultInputs?.lengthMm ?? 0;
-      const dia = inputs.diameterMm ?? testDef.defaultInputs?.diameterMm ?? 0;
-      const tensile = inputs.tensileStrengthMpa ?? testDef.defaultInputs?.tensileStrengthMpa ?? 0;
-      const aspectRatio = dia > 0 ? parseFloat((len / dia).toFixed(1)) : 0;
+      const len = inputs.lengthMm;
+      const dia = inputs.diameterMm;
+      const tensile = inputs.tensileStrengthMpa;
+
+      if (len === undefined || dia === undefined || tensile === undefined || isNaN(len) || isNaN(dia) || isNaN(tensile) || len <= 0 || dia <= 0 || tensile <= 0) {
+        return {
+          results: {},
+          status: "FAIL",
+          score: 0,
+          interpretation: "بيانات الاختبار غير مكتملة أو مفقودة. يجب إدخال طول الألياف، قطرها، ومقاومة الشد.",
+          complianceDetails: [
+            {
+              parameter: "نسبة النحافة الهندسية (Aspect Ratio L/d)",
+              measured: "غير متوفر / مفقود",
+              limit: "40 - 90 (NF EN 14889-1 / ACI 544)",
+              status: "FAIL",
+              note: "المدخلات المعملية مفقودة أو غير صالحة."
+            }
+          ],
+          syncedProperties: {}
+        };
+      }
+
+      const aspectRatio = parseFloat((len / dia).toFixed(1));
 
       const isRatioGood = aspectRatio >= 40 && aspectRatio <= 90;
       const status: TestStatus = isRatioGood ? "PASS" : "WARNING";
@@ -1886,20 +2431,43 @@ export function executeLaboratoryTest(
     }
 
     case "FIBER_DOSAGE_OPTIMIZATION": {
-      const dosage = inputs.fiberDosageKgPerM3 ?? testDef.defaultInputs?.fiberDosageKgPerM3 ?? 0;
-      const rho = inputs.fiberDensityGPerCm3 ?? testDef.defaultInputs?.fiberDensityGPerCm3 ?? 0;
-      const len = inputs.fiberLengthMm ?? testDef.defaultInputs?.fiberLengthMm ?? 0;
-      const dia = inputs.fiberDiameterMm ?? testDef.defaultInputs?.fiberDiameterMm ?? 0;
+      const dosage = inputs.fiberDosageKgPerM3;
+      const rho = inputs.fiberDensityGPerCm3;
+      const len = inputs.fiberLengthMm;
+      const dia = inputs.fiberDiameterMm;
+
+      if (
+        dosage === undefined || rho === undefined || len === undefined || dia === undefined ||
+        isNaN(dosage) || isNaN(rho) || isNaN(len) || isNaN(dia) ||
+        dosage <= 0 || rho <= 0 || len <= 0 || dia <= 0
+      ) {
+        return {
+          results: {},
+          status: "FAIL",
+          score: 0,
+          interpretation: "بيانات الاختبار غير مكتملة أو مفقودة. يجب إدخال جرعة الألياف (kg/m³)، كثافة المادة، طول وقطر الليفة.",
+          complianceDetails: [
+            {
+              parameter: "الكسر الحجمي للألياف (Volume Fraction Vf)",
+              measured: "غير متوفر / مفقود",
+              limit: "0.20% - 1.00% (خرسانة مسلحة بالألياف FRC)",
+              status: "FAIL",
+              note: "المدخلات المعملية مفقودة أو غير صالحة."
+            }
+          ],
+          syncedProperties: {}
+        };
+      }
 
       // Volume fraction Vf % = (dosage in kg / (rho * 1000)) * 100
-      const vfPct = rho > 0 ? parseFloat(((dosage / (rho * 1000)) * 100).toFixed(2)) : 0;
+      const vfPct = parseFloat(((dosage / (rho * 1000)) * 100).toFixed(2));
 
       // Single fiber volume in mm³ = pi * (d/2)^2 * L
       const singleVolMm3 = Math.PI * Math.pow(dia / 2, 2) * len;
       // Single fiber mass in g = singleVolMm3 * 1e-3 * rho
       const singleMassG = singleVolMm3 * 0.001 * rho;
       // Fiber count per m³ = (dosage in g) / singleMassG
-      const fibersPerM3 = singleMassG > 0 ? Math.round((dosage * 1000) / singleMassG) : 110000;
+      const fibersPerM3 = Math.round((dosage * 1000) / singleMassG);
 
       const compliance: ComplianceDetail[] = [
         {

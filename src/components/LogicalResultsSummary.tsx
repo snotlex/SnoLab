@@ -999,14 +999,14 @@ export const LogicalResultsSummary: React.FC<LogicalResultsSummaryProps> = ({
             <div className="bg-rose-500/5 p-3 rounded-lg border border-rose-500/10 text-center">
               <span className="text-[10px] text-slate-500 block font-sans mb-1">{isRtl ? "المقاومة fcm28" : "fcm28 Target"}</span>
               <span className="text-lg md:text-xl font-black text-rose-600 dark:text-rose-400 font-mono">
-                {results.fcm28 ? results.fcm28.toFixed(1) : (inputs.fck28 + 8).toFixed(1)}
+                {results.fcm28 ? results.fcm28.toFixed(1) : (inputs.fck28 !== undefined ? (inputs.fck28 + 8).toFixed(1) : "---")}
               </span>
               <span className="text-[9px] text-slate-400 block mt-0.5 font-sans">{t.fcmValueDesc[currentLang]}</span>
             </div>
             <div className="bg-blue-500/5 p-3 rounded-lg border border-blue-500/10 text-center">
               <span className="text-[10px] text-slate-500 block font-sans mb-1">{isRtl ? "نسبة الماء/الرابط الكلية" : "W/B Total Ratio"}</span>
               <span className="text-lg md:text-xl font-black text-blue-600 dark:text-blue-400 font-mono">
-                {(results.wcRatioAdjusted || results.wcRatio || 0.45).toFixed(2)}
+                {(results.wcRatioAdjusted || results.wcRatio) !== undefined ? (results.wcRatioAdjusted || results.wcRatio)!.toFixed(2) : "---"}
               </span>
               <span className="text-[9px] text-slate-400 block mt-0.5 font-sans">E/C {isRtl ? "الفعلي" : "Effective"}</span>
             </div>

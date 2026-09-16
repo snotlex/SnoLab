@@ -365,8 +365,11 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
                     </label>
                     <input
                       type="number"
-                      value={inputsState.totalWeight || 1000}
-                      onChange={(e) => setInputsState(prev => ({ ...prev, totalWeight: parseFloat(e.target.value) || 1000 }))}
+                      value={inputsState.totalWeight ?? ""}
+                      onChange={(e) => {
+                        const val = e.target.value === "" ? undefined : parseFloat(e.target.value);
+                        setInputsState(prev => ({ ...prev, totalWeight: val }));
+                      }}
                       className="w-28 px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono font-bold"
                     />
                   </div>
@@ -452,8 +455,11 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
                   <input
                     type="number"
                     step={0.1}
-                    value={inputsState.containerVolumeLiters}
-                    onChange={(e) => setInputsState(p => ({ ...p, containerVolumeLiters: parseFloat(e.target.value) || 10 }))}
+                    value={inputsState.containerVolumeLiters ?? ""}
+                    onChange={(e) => {
+                      const val = e.target.value === "" ? undefined : parseFloat(e.target.value);
+                      setInputsState(p => ({ ...p, containerVolumeLiters: val }));
+                    }}
                     className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono font-bold"
                   />
                 </div>
@@ -462,8 +468,11 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
                   <input
                     type="number"
                     step={0.01}
-                    value={inputsState.containerEmptyWeightKg}
-                    onChange={(e) => setInputsState(p => ({ ...p, containerEmptyWeightKg: parseFloat(e.target.value) || 3.25 }))}
+                    value={inputsState.containerEmptyWeightKg ?? ""}
+                    onChange={(e) => {
+                      const val = e.target.value === "" ? undefined : parseFloat(e.target.value);
+                      setInputsState(p => ({ ...p, containerEmptyWeightKg: val }));
+                    }}
                     className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono font-bold"
                   />
                 </div>
@@ -472,8 +481,11 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
                   <input
                     type="number"
                     step={0.01}
-                    value={inputsState.looseFilledWeightKg}
-                    onChange={(e) => setInputsState(p => ({ ...p, looseFilledWeightKg: parseFloat(e.target.value) || 18.25 }))}
+                    value={inputsState.looseFilledWeightKg ?? ""}
+                    onChange={(e) => {
+                      const val = e.target.value === "" ? undefined : parseFloat(e.target.value);
+                      setInputsState(p => ({ ...p, looseFilledWeightKg: val }));
+                    }}
                     className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono font-bold"
                   />
                 </div>
@@ -482,8 +494,11 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
                   <input
                     type="number"
                     step={0.01}
-                    value={inputsState.compactedWeightKg}
-                    onChange={(e) => setInputsState(p => ({ ...p, compactedWeightKg: parseFloat(e.target.value) || 19.85 }))}
+                    value={inputsState.compactedWeightKg ?? ""}
+                    onChange={(e) => {
+                      const val = e.target.value === "" ? undefined : parseFloat(e.target.value);
+                      setInputsState(p => ({ ...p, compactedWeightKg: val }));
+                    }}
                     className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono font-bold"
                   />
                 </div>
@@ -497,8 +512,11 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
                   <input
                     type="number"
                     step={0.1}
-                    value={inputsState.ovenDryMassG}
-                    onChange={(e) => setInputsState(p => ({ ...p, ovenDryMassG: parseFloat(e.target.value) || 495 }))}
+                    value={inputsState.ovenDryMassG ?? ""}
+                    onChange={(e) => {
+                      const val = e.target.value === "" ? undefined : parseFloat(e.target.value);
+                      setInputsState(p => ({ ...p, ovenDryMassG: val }));
+                    }}
                     className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono font-bold"
                   />
                 </div>
@@ -507,8 +525,11 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
                   <input
                     type="number"
                     step={0.1}
-                    value={inputsState.ssdMassG}
-                    onChange={(e) => setInputsState(p => ({ ...p, ssdMassG: parseFloat(e.target.value) || 504 }))}
+                    value={inputsState.ssdMassG ?? ""}
+                    onChange={(e) => {
+                      const val = e.target.value === "" ? undefined : parseFloat(e.target.value);
+                      setInputsState(p => ({ ...p, ssdMassG: val }));
+                    }}
                     className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono font-bold"
                   />
                 </div>
@@ -517,8 +538,11 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
                   <input
                     type="number"
                     step={0.1}
-                    value={inputsState.pycnometerSampleWaterMassG}
-                    onChange={(e) => setInputsState(p => ({ ...p, pycnometerSampleWaterMassG: parseFloat(e.target.value) || 1782 }))}
+                    value={inputsState.pycnometerSampleWaterMassG ?? ""}
+                    onChange={(e) => {
+                      const val = e.target.value === "" ? undefined : parseFloat(e.target.value);
+                      setInputsState(p => ({ ...p, pycnometerSampleWaterMassG: val }));
+                    }}
                     className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono font-bold"
                   />
                 </div>
@@ -527,8 +551,11 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
                   <input
                     type="number"
                     step={0.1}
-                    value={inputsState.pycnometerWaterMassG}
-                    onChange={(e) => setInputsState(p => ({ ...p, pycnometerWaterMassG: parseFloat(e.target.value) || 1471 }))}
+                    value={inputsState.pycnometerWaterMassG ?? ""}
+                    onChange={(e) => {
+                      const val = e.target.value === "" ? undefined : parseFloat(e.target.value);
+                      setInputsState(p => ({ ...p, pycnometerWaterMassG: val }));
+                    }}
                     className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono font-bold"
                   />
                 </div>
@@ -543,8 +570,11 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
                     <input
                       type="number"
                       step={0.1}
-                      value={inputsState.waterPercent || 27.5}
-                      onChange={(e) => setInputsState(p => ({ ...p, waterPercent: parseFloat(e.target.value) || 27.5 }))}
+                      value={inputsState.waterPercent ?? ""}
+                      onChange={(e) => {
+                        const val = e.target.value === "" ? undefined : parseFloat(e.target.value);
+                        setInputsState(p => ({ ...p, waterPercent: val }));
+                      }}
                       className="w-20 px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-mono font-bold"
                     />
                   </div>
@@ -553,8 +583,11 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
                     <input
                       type="number"
                       step={0.5}
-                      value={inputsState.roomTempC || 20}
-                      onChange={(e) => setInputsState(p => ({ ...p, roomTempC: parseFloat(e.target.value) || 20 }))}
+                      value={inputsState.roomTempC ?? ""}
+                      onChange={(e) => {
+                        const val = e.target.value === "" ? undefined : parseFloat(e.target.value);
+                        setInputsState(p => ({ ...p, roomTempC: val }));
+                      }}
                       className="w-20 px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-mono font-bold"
                     />
                   </div>
@@ -569,9 +602,9 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
                         min={0}
                         max={40}
                         step={0.5}
-                        value={r.penetrationMm}
+                        value={r.penetrationMm ?? ""}
                         onChange={(e) => {
-                          const val = parseFloat(e.target.value) || 0;
+                          const val = e.target.value === "" ? undefined : parseFloat(e.target.value);
                           const newReadings = [...inputsState.timeReadings];
                           newReadings[idx] = { ...newReadings[idx], penetrationMm: val };
                           setInputsState(prev => ({ ...prev, timeReadings: newReadings }));
@@ -596,9 +629,12 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
                     <input
                       type={typeof inputsState[key] === "number" ? "number" : "text"}
                       step="any"
-                      value={inputsState[key]}
+                      value={inputsState[key] ?? ""}
                       onChange={(e) => {
-                        const val = typeof inputsState[key] === "number" ? parseFloat(e.target.value) || 0 : e.target.value;
+                        const raw = e.target.value;
+                        const val = typeof inputsState[key] === "number" || typeof inputsState[key] === "undefined"
+                          ? (raw === "" ? undefined : isNaN(parseFloat(raw)) ? undefined : parseFloat(raw))
+                          : raw;
                         setInputsState(prev => ({ ...prev, [key]: val }));
                       }}
                       className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold font-mono"

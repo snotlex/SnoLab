@@ -27,8 +27,8 @@ export async function downloadMixDesignPdf(
 ): Promise<void> {
   const doc = await generateMixDesignPdf(result, input, options);
   const lang = (options.language || "fr").toUpperCase();
-  const fck = Math.round(input.fck28 || 30);
-  const fileName = `SnoLab_Mix_Design_Report_C${fck}_${lang}.pdf`;
+  const fckPart = input.fck28 ? `C${Math.round(input.fck28)}` : "Report";
+  const fileName = `SnoLab_Mix_Design_${fckPart}_${lang}.pdf`;
   doc.save(fileName);
 }
 

@@ -138,7 +138,7 @@ export function validateCalculationLogic(
 
   const isGpc = inputs && inputs.concreteType === "GPC";
   const activeBinder = isGpc 
-    ? (results.totalBinder ?? (results.cementitiousMaterials ? (results.cementitiousMaterials.flyAsh + results.cementitiousMaterials.slag) : 0) ?? 350)
+    ? (results.totalBinder ?? (results.cementitiousMaterials ? (results.cementitiousMaterials.flyAsh + results.cementitiousMaterials.slag) : undefined))
     : cement;
 
   const missingInputs = 
@@ -241,8 +241,8 @@ export function validateCalculationLogic(
   // 9. Moisture and Absorption limits
   const moistureSand = inputs.moistureSand ?? 0;
   const moistureGravel = inputs.moistureGravel ?? 0;
-  const sandAbsorption = inputs.sandAbsorption ?? 1.5;
-  let gravelAbsorption = inputs.gravelAbsorption ?? 0.8;
+  const sandAbsorption = inputs.sandAbsorption ?? 0;
+  let gravelAbsorption = inputs.gravelAbsorption ?? 0;
   if (inputs.selectedLightweightAggregateId && inputs.lightweightAggregateAbsorption !== undefined) {
     gravelAbsorption = inputs.lightweightAggregateAbsorption;
   } else if (inputs.selectedHeavyweightAggregateId && inputs.heavyweightAggregateAbsorption !== undefined) {

@@ -395,11 +395,11 @@ export class DreuxInputResolver {
 
     const resolvedCement: ResolvedCement = {
       materialId: cementMat?.id || inputs.selectedCementId || "",
-      name: cementMat?.name || inputs.cementType || "Standard Portland Cement",
+      name: cementMat?.name || inputs.cementType || "غير محدد",
       density: cementDensity || 0,
       specificGravity: cementSG || 0,
       strengthClass: cementStrengthClass || 0,
-      cementType: cementMat?.category || inputs.cementType || "CEM I",
+      cementType: cementMat?.category || inputs.cementType || "غير محدد",
       source: cementMat?.source || (cementMat?.isSystem ? "System Library" : "Project Repository")
     };
 

@@ -41,20 +41,20 @@ export const EngineeringInsights: React.FC<EngineeringInsightsProps> = ({ inputs
   };
 
   // 1. Why This Mix Calculations Explanations
-  const fck = inputs.fck28;
-  const fcm = result?.fcm28 ?? 35;
+  const fck = inputs.fck28 ?? 0;
+  const fcm = result?.fcm28 ?? (inputs.fck28 !== undefined ? (inputs.fck28 + (inputs.controlClass === "high" ? 6 : inputs.controlClass === "low" ? 12 : 8)) : 0);
   const marginStrength = fcm - fck;
-  const cement = Math.round(result?.cementWeight ?? 350);
-  const dMax = inputs.dMax;
-  const slump = inputs.slump;
-  const waterTheory = Math.round(result?.waterContentNeeded ?? 180);
-  const waterActual = Math.round(result?.waterContentActual ?? 180);
+  const cement = result?.cementWeight !== undefined ? Math.round(result.cementWeight) : 0;
+  const dMax = inputs.dMax ?? 0;
+  const slump = inputs.slump ?? 0;
+  const waterTheory = result?.waterContentNeeded !== undefined ? Math.round(result.waterContentNeeded) : 0;
+  const waterActual = result?.waterContentActual !== undefined ? Math.round(result.waterContentActual) : 0;
   const waterSaving = Math.max(0, waterTheory - waterActual);
-  const sandPercent = Math.round(result?.sandPercent ?? 40);
-  const gravelPercent = Math.round(result?.gravelPercent ?? 60);
-  const gamma = (result?.compactorGamma ?? 0.82).toFixed(3);
-  const wcRatio = (result?.wcRatioAdjusted ?? 0.45).toFixed(2);
-  const pivotSize = result?.pivotPoint ? (result.pivotPoint.x ?? 2.5).toFixed(2) : "2.00";
+  const sandPercent = result?.sandPercent !== undefined ? Math.round(result.sandPercent) : 0;
+  const gravelPercent = result?.gravelPercent !== undefined ? Math.round(result.gravelPercent) : 0;
+  const gamma = result?.compactorGamma !== undefined ? result.compactorGamma.toFixed(3) : "0.000";
+  const wcRatio = result?.wcRatioAdjusted !== undefined ? result.wcRatioAdjusted.toFixed(2) : "0.00";
+  const pivotSize = result?.pivotPoint ? (result.pivotPoint.x !== undefined ? result.pivotPoint.x.toFixed(2) : "0.00") : "0.00";
   const aggregateShape = inputs.aggregateType === AggregateType.CONCASSE 
     ? (lang === "ar" ? "زاوي مكسر (Concassé)" : lang === "fr" ? "Concassé (Angulaire)" : "Crushed (Angular)")
     : (lang === "ar" ? "مستدير وديان (Roulé)" : lang === "fr" ? "Roulé (Alluvionnaire)" : "Rounded (Alluvial)");

@@ -794,12 +794,28 @@ function generateProceduralConcreteSVG(
 app.post("/api/concrete-visualize", async (req, res) => {
   try {
     const { 
-      slump = 7, 
-      waterContent = 185, 
-      cementContent = 350, 
+      slump, 
+      waterContent, 
+      cementContent, 
       aggregateType = "concasse",
-      airContent = 2,
+      airContent,
     } = req.body;
+
+    if (
+      slump === undefined || slump === null ||
+      waterContent === undefined || waterContent === null ||
+      cementContent === undefined || cementContent === null
+    ) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing required engineering inputs: slump, waterContent, and cementContent must be provided.",
+        missingInputs: [
+          ...(slump === undefined || slump === null ? ["slump"] : []),
+          ...(waterContent === undefined || waterContent === null ? ["waterContent"] : []),
+          ...(cementContent === undefined || cementContent === null ? ["cementContent"] : [])
+        ]
+      });
+    }
 
     const apiKey = process.env.GEMINI_API_KEY;
     const aggregateDesc = aggregateType === 'roule' ? 'rounded alluvial gravel and river sand' : 'crushed angular limestone gravel and sharp quarry sand';

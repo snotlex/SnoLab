@@ -149,8 +149,8 @@ const mapMaterialToAggregateProps = (m: EngineeringMaterial): AggregateProps => 
     nameFr: m.englishName || m.name,
     realDensity,
     apparentDensity: m.ssdDensity || Math.round(realDensity * 0.95),
-    absorption: m.absorption ?? 1.2,
-    moisture: m.moisture ?? 0.5,
+    absorption: m.absorption ?? 0,
+    moisture: m.moisture ?? 0,
     se: m.clayContent ? Math.round(80 - m.clayContent * 10) : undefined,
     la: m.losAngelesAbrasion,
     quarry: m.provenance || m.sourceQuarry || "المحجر الافتراضي",
@@ -810,11 +810,11 @@ export function SieveGradingCurves({ inputs, results, materialsDatabase, setInpu
     // 2. Calculate Bulk Density, SSD Density, Specific Gravity dynamically based on ratios
     const averageRealDensity = aggregates.reduce((sum, agg) => {
       const prop = ratios[agg.id] || 0;
-      return sum + (prop / 100) * (agg.realDensity || 2650);
+      return sum + (prop / 100) * (agg.realDensity || 0);
     }, 0);
     const averageAbsorption = aggregates.reduce((sum, agg) => {
       const prop = ratios[agg.id] || 0;
-      return sum + (prop / 100) * (agg.absorption || 1);
+      return sum + (prop / 100) * (agg.absorption || 0);
     }, 0);
     const averageMoisture = aggregates.reduce((sum, agg) => {
       const prop = ratios[agg.id] || 0;

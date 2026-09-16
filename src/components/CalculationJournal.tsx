@@ -39,22 +39,22 @@ export const CalculationJournal: React.FC<CalculationJournalProps> = ({ inputs, 
   const isRtl = lang === "ar";
 
   // Core values derived from inputs & calculations
-  const fck = inputs.fck28;
-  const fcm = result?.fcm28 ?? 30;
-  const cement = Math.round(result?.cementWeight ?? 350);
-  const dMax = inputs.dMax;
-  const slump = inputs.slump;
-  const wcAdjusted = parseFloat((result?.wcRatioAdjusted ?? 0.45).toFixed(2));
-  const waterTheory = Math.round(result?.waterContentNeeded ?? 180);
-  const waterActual = Math.round(result?.waterContentActual ?? 180);
-  const sandPercent = Math.round(result?.sandPercent ?? 40);
-  const gravelPercent = Math.round(result?.gravelPercent ?? 60);
-  const gamma = parseFloat((result?.compactorGamma ?? 0.82).toFixed(3));
-  const sandDry = Math.round(result?.sandWeightDry ?? 800);
-  const gravelDry = Math.round(result?.gravelWeightDry ?? 1000);
-  const sandWet = Math.round(result?.sandWeightWet ?? 810);
-  const gravelWet = Math.round(result?.gravelWeightWet ?? 1020);
-  const waterWet = Math.round(result?.waterWeightWet ?? 170);
+  const fck = inputs.fck28 ?? 0;
+  const fcm = result?.fcm28 ?? (inputs.fck28 !== undefined ? (inputs.fck28 + (inputs.controlClass === "high" ? 6 : inputs.controlClass === "low" ? 12 : 8)) : 0);
+  const cement = result?.cementWeight !== undefined ? Math.round(result.cementWeight) : 0;
+  const dMax = inputs.dMax ?? 0;
+  const slump = inputs.slump ?? 0;
+  const wcAdjusted = result?.wcRatioAdjusted !== undefined ? parseFloat(result.wcRatioAdjusted.toFixed(2)) : 0;
+  const waterTheory = result?.waterContentNeeded !== undefined ? Math.round(result.waterContentNeeded) : 0;
+  const waterActual = result?.waterContentActual !== undefined ? Math.round(result.waterContentActual) : 0;
+  const sandPercent = result?.sandPercent !== undefined ? Math.round(result.sandPercent) : 0;
+  const gravelPercent = result?.gravelPercent !== undefined ? Math.round(result.gravelPercent) : 0;
+  const gamma = result?.compactorGamma !== undefined ? parseFloat(result.compactorGamma.toFixed(3)) : 0;
+  const sandDry = result?.sandWeightDry !== undefined ? Math.round(result.sandWeightDry) : 0;
+  const gravelDry = result?.gravelWeightDry !== undefined ? Math.round(result.gravelWeightDry) : 0;
+  const sandWet = result?.sandWeightWet !== undefined ? Math.round(result.sandWeightWet) : 0;
+  const gravelWet = result?.gravelWeightWet !== undefined ? Math.round(result.gravelWeightWet) : 0;
+  const waterWet = result?.waterWeightWet !== undefined ? Math.round(result.waterWeightWet) : 0;
 
   // Margin calculation based on site control quality
   const marginStrength = fcm - fck;

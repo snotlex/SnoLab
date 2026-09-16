@@ -32,7 +32,7 @@ export async function generateMixDesignPdf(
   const lang = options.language || "fr";
 
   const dateStr = new Date().toISOString().split("T")[0];
-  const reportRef = `MIX-${input.cementType || "CEM"}-${Math.round(input.fck28 || 30)}-${Math.floor(Date.now() / 1000).toString().slice(-6)}`;
+  const reportRef = `MIX-${input.cementType || "CEM"}-${input.fck28 ? Math.round(input.fck28) : "NA"}-${Math.floor(Date.now() / 1000).toString().slice(-6)}`;
   const reportTitle = lang === "ar" 
     ? "شهادة دراسة وتركيب الخلطة الخرسانية"
     : lang === "en"
@@ -51,40 +51,40 @@ export async function generateMixDesignPdf(
     "NF EN 206+A2 / DREUX-GORISSE"
   );
 
-  const fck = input.fck28 || 30;
-  const fcm = result.fcm28 || (fck + (input.controlClass === "high" ? 6 : input.controlClass === "low" ? 12 : 8));
-  const wcRatio = result.wcRatioAdjusted || result.wcRatio || 0.45;
-  const slumpVal = input.slump || 7;
-  const freshDensity = Math.round(result.totalFreshDensity || 2400);
+  const fck = input.fck28;
+  const fcm = result.fcm28 !== undefined ? result.fcm28 : (fck !== undefined ? (fck + (input.controlClass === "high" ? 6 : input.controlClass === "low" ? 12 : 8)) : undefined);
+  const wcRatio = result.wcRatioAdjusted || result.wcRatio;
+  const slumpVal = input.slump;
+  const freshDensity = result.totalFreshDensity ? Math.round(result.totalFreshDensity) : undefined;
 
   currentY = drawMetricCards(doc, currentY, [
     {
       label: "fck,28 (Characteristic)",
-      value: `${fck}`,
-      unit: "MPa",
+      value: fck !== undefined ? `${fck}` : "N/A",
+      unit: fck !== undefined ? "MPa" : "",
       highlight: "primary",
-      subtext: `Target fcm: ${fcm.toFixed(1)} MPa`
+      subtext: fcm !== undefined ? `Target fcm: ${fcm.toFixed(1)} MPa` : "Target fcm: N/A"
     },
     {
       label: "Water / Binder (W/C)",
-      value: `${wcRatio.toFixed(2)}`,
+      value: wcRatio !== undefined ? `${wcRatio.toFixed(2)}` : "N/A",
       unit: "",
-      highlight: wcRatio <= 0.48 ? "success" : "warning",
-      subtext: `Dreux G: ${(result.dreuxAggregateFactor || 0.55).toFixed(2)}`
+      highlight: wcRatio !== undefined ? (wcRatio <= 0.48 ? "success" : "warning") : "primary",
+      subtext: result.dreuxAggregateFactor !== undefined ? `Dreux G: ${result.dreuxAggregateFactor.toFixed(2)}` : "Dreux G: N/A"
     },
     {
       label: "Target Slump",
-      value: `${slumpVal}`,
-      unit: "cm",
+      value: slumpVal !== undefined ? `${slumpVal}` : "N/A",
+      unit: slumpVal !== undefined ? "cm" : "",
       highlight: "primary",
-      subtext: `Class S${slumpVal <= 4 ? "1" : slumpVal <= 9 ? "2" : slumpVal <= 15 ? "3" : slumpVal <= 21 ? "4" : "5"}`
+      subtext: slumpVal !== undefined ? `Class S${slumpVal <= 4 ? "1" : slumpVal <= 9 ? "2" : slumpVal <= 15 ? "3" : slumpVal <= 21 ? "4" : "5"}` : "Class: N/A"
     },
     {
       label: "Fresh Density",
-      value: `${freshDensity}`,
-      unit: "kg/m³",
+      value: freshDensity !== undefined ? `${freshDensity}` : "N/A",
+      unit: freshDensity !== undefined ? "kg/m³" : "",
       highlight: "primary",
-      subtext: `Air: ${(input.airContent || 1.5).toFixed(1)}%`
+      subtext: input.airContent !== undefined ? `Air: ${input.airContent.toFixed(1)}%` : "Air: N/A"
     }
   ]);
 
@@ -104,8 +104,8 @@ export async function generateMixDesignPdf(
     {
       title: "CONCRETE CLASS & ENVIRONMENT",
       items: [
-        { label: "Standard Class", value: `C${fck}/${Math.round(fck * 1.25)} (EN 206)` },
-        { label: "Exposure Class", value: input.exposureClass || "XC2 (Carbonation)" },
+        { label: "Standard Class", value: fck !== undefined ? `C${fck}/${Math.round(fck * 1.25)} (EN 206)` : "Not Specified" },
+        { label: "Exposure Class", value: input.exposureClass || "Not Specified" },
         { label: "Control Class", value: (input.controlClass || "normal").toUpperCase() },
         { label: "Placement Method", value: input.hasPumping ? "Concrete Pump" : "Crane / Bucket" }
       ]
@@ -177,24 +177,25 @@ export async function generateMixDesignPdf(
         "Admixture (Adjuvant)",
         adm.name || "Superplasticizer",
         "Sika / MasterGlenium",
-        `${(input.selectedAdmixtureDensity || 1.08).toFixed(2)} g/cm³`,
+        input.selectedAdmixtureDensity !== undefined ? `${input.selectedAdmixtureDensity.toFixed(2)} g/cm³` : "-",
         "-",
         "-",
-        `Dosage: ${(input.dosageSuper || 1.2).toFixed(1)}%`
+        `Dosage: ${input.dosageSuper !== undefined ? `${input.dosageSuper.toFixed(1)}%` : "-"}`
       ]);
     });
   }
 
   // Optional SCM
   if (input.selectedScmName || (input.dosageSilicaFume || 0) > 0 || (input.dosageFlyAsh || 0) > 0) {
+    const scmDosage = input.selectedScmReplacementPercent !== undefined ? input.selectedScmReplacementPercent : (input.dosageSilicaFume !== undefined ? input.dosageSilicaFume : input.dosageFlyAsh);
     materialsRows.push([
       "Mineral Addition (SCM)",
       input.selectedScmName || "Silica Fume / Fly Ash",
       "Industrial Mineral",
-      `${(input.selectedScmDensity || 2.20).toFixed(2)} g/cm³`,
+      input.selectedScmDensity !== undefined ? `${input.selectedScmDensity.toFixed(2)} g/cm³` : "-",
       "-",
       "-",
-      `Sub: ${(input.selectedScmReplacementPercent || input.dosageSilicaFume || 5).toFixed(1)}%`
+      `Sub: ${scmDosage !== undefined ? `${scmDosage.toFixed(1)}%` : "-"}`
     ]);
   }
 
@@ -204,10 +205,10 @@ export async function generateMixDesignPdf(
       "Fibers (Fibres)",
       input.selectedFiberName || "Polypropylene / Steel Fibers",
       "Specialty Fiber",
-      `${(input.fiberDensity || 0.91).toFixed(2)} g/cm³`,
+      input.fiberDensity !== undefined ? `${input.fiberDensity.toFixed(2)} g/cm³` : "-",
       "-",
       "-",
-      `Dosage: ${(input.fiberDosageKgM3 || 1.0).toFixed(1)} kg/m³`
+      `Dosage: ${input.fiberDosageKgM3 !== undefined ? `${input.fiberDosageKgM3.toFixed(1)} kg/m³` : "-"}`
     ]);
   }
 
@@ -326,7 +327,7 @@ export async function generateMixDesignPdf(
       `${totalDryMass} kg/m³`,
       `${(totalDryMass * batchVolume).toFixed(1)} kg`,
       "100.0%",
-      `Compaction Gamma: ${(result.compactorGamma || 0.83).toFixed(2)}`
+      `Compaction Gamma: ${result.compactorGamma !== undefined ? result.compactorGamma.toFixed(2) : "-"}`
     ]],
     columnStyles: {
       0: { cellWidth: 42, fontStyle: "bold" },
@@ -355,16 +356,16 @@ export async function generateMixDesignPdf(
     "WATER & AGGREGATE ADJUSTMENT"
   );
 
-  const sandWet = Math.round(result.sandWeightWet || sandDry * (1 + (input.moistureSand || 0) / 100));
-  const gravelWet = Math.round(result.gravelWeightWet || gravelDry * (1 + (input.moistureGravel || 0) / 100));
-  const waterWet = Math.round(result.waterWeightWet || (waterDry - (sandWet - sandDry) - (gravelWet - gravelDry)));
+  const sandWet = result.sandWeightWet !== undefined ? Math.round(result.sandWeightWet) : (input.moistureSand !== undefined ? Math.round(sandDry * (1 + input.moistureSand / 100)) : sandDry);
+  const gravelWet = result.gravelWeightWet !== undefined ? Math.round(result.gravelWeightWet) : (input.moistureGravel !== undefined ? Math.round(gravelDry * (1 + input.moistureGravel / 100)) : gravelDry);
+  const waterWet = result.waterWeightWet !== undefined ? Math.round(result.waterWeightWet) : (waterDry !== undefined ? Math.round(waterDry - (sandWet - sandDry) - (gravelWet - gravelDry)) : 0);
   const waterDiff = waterWet - waterDry;
 
   const moistureRows = [
     [
       "Sand Scale Weight (Sable)",
       `${sandDry} kg`,
-      `${(input.moistureSand || 0).toFixed(1)}%`,
+      input.moistureSand !== undefined ? `${input.moistureSand.toFixed(1)}%` : "0.0%",
       `+${sandWet - sandDry} kg`,
       `${sandWet} kg/m³`,
       `${(sandWet * batchVolume).toFixed(1)} kg`
@@ -372,7 +373,7 @@ export async function generateMixDesignPdf(
     [
       "Gravel Scale Weight (Gravier)",
       `${gravelDry} kg`,
-      `${(input.moistureGravel || 0).toFixed(1)}%`,
+      input.moistureGravel !== undefined ? `${input.moistureGravel.toFixed(1)}%` : "0.0%",
       `+${gravelWet - gravelDry} kg`,
       `${gravelWet} kg/m³`,
       `${(gravelWet * batchVolume).toFixed(1)} kg`
@@ -428,62 +429,62 @@ export async function generateMixDesignPdf(
   );
 
   // Theoretical strength calculations
-  const fc2 = (fcm * 0.45).toFixed(1);
-  const fc7 = (fcm * 0.70).toFixed(1);
-  const fc28 = fcm.toFixed(1);
-  const fc90 = (fcm * 1.15).toFixed(1);
-  const fctm = (0.30 * Math.pow(fck, 2/3)).toFixed(2);
-  const Ecm = (22 * Math.pow(fcm / 10, 0.3)).toFixed(1);
+  const fc2 = fcm !== undefined ? (fcm * 0.45).toFixed(1) : "-";
+  const fc7 = fcm !== undefined ? (fcm * 0.70).toFixed(1) : "-";
+  const fc28 = fcm !== undefined ? fcm.toFixed(1) : "-";
+  const fc90 = fcm !== undefined ? (fcm * 1.15).toFixed(1) : "-";
+  const fctm = fck !== undefined ? (0.30 * Math.pow(fck, 2/3)).toFixed(2) : "-";
+  const Ecm = fcm !== undefined ? (22 * Math.pow(fcm / 10, 0.3)).toFixed(1) : "-";
 
   const complianceRows = [
     [
       "Characteristic Compressive Strength (fck,28)",
-      `${fck} MPa`,
-      `Target fcm: ${fc28} MPa (Margin +${(fcm - fck).toFixed(1)})`,
+      fck !== undefined ? `${fck} MPa` : "N/A",
+      fcm !== undefined && fck !== undefined ? `Target fcm: ${fc28} MPa (Margin +${(fcm - fck).toFixed(1)})` : "Target fcm: N/A",
       "fcm >= fck + 1.64 sigma",
-      "CONFORMING"
+      fck !== undefined ? "CONFORMING" : "NOT SPECIFIED"
     ],
     [
       "Water / Binder Ratio (E/C)",
-      `${wcRatio.toFixed(2)}`,
-      `Limit: <= ${input.exposureClass === "X0" ? "0.65" : "0.50"} (${input.exposureClass || "XC2"})`,
+      wcRatio !== undefined ? `${wcRatio.toFixed(2)}` : "N/A",
+      input.exposureClass ? `Limit: <= ${input.exposureClass === "X0" ? "0.65" : "0.50"} (${input.exposureClass})` : "Limit: N/A (Exposure class not specified)",
       "NF EN 206 Table F.1",
-      wcRatio <= 0.50 ? "CONFORMING" : "WARNING"
+      wcRatio !== undefined ? (wcRatio <= 0.50 ? "CONFORMING" : "WARNING") : "N/A"
     ],
     [
       "Minimum Binder Content (kg/m³)",
       `${cementDry} kg/m³`,
-      `Limit: >= ${input.exposureClass === "X0" ? "260" : "300"} kg/m³`,
+      input.exposureClass ? `Limit: >= ${input.exposureClass === "X0" ? "260" : "300"} kg/m³` : "Limit: N/A (Exposure class not specified)",
       "NF EN 206 Table F.1",
-      cementDry >= 300 ? "CONFORMING" : "WARNING"
+      cementDry > 0 ? (cementDry >= 300 ? "CONFORMING" : "WARNING") : "N/A"
     ],
     [
       "Early Strength at 2 Days (fcm,2d)",
       `${fc2} MPa`,
       "For formwork stripping & safety",
       "Hydration model class N/R",
-      "VERIFIED"
+      fcm !== undefined ? "VERIFIED" : "N/A"
     ],
     [
       "Strength at 7 Days (fcm,7d)",
       `${fc7} MPa`,
       "~70% of 28d design target",
       "Standard curing 20°C",
-      "VERIFIED"
+      fcm !== undefined ? "VERIFIED" : "N/A"
     ],
     [
       "Flexural Tensile Strength (fctm)",
       `${fctm} MPa`,
       "fctm = 0.30 * fck^(2/3)",
       "Eurocode 2 Eq. 3.1",
-      "THEORETICAL"
+      fck !== undefined ? "THEORETICAL" : "N/A"
     ],
     [
       "Secant Modulus of Elasticity (Ecm)",
       `${Ecm} GPa`,
       "Ecm = 22 * (fcm/10)^0.3",
       "Eurocode 2 Table 3.1",
-      "THEORETICAL"
+      fcm !== undefined ? "THEORETICAL" : "N/A"
     ]
   ];
 
@@ -519,7 +520,7 @@ export async function generateMixDesignPdf(
   // =========================================================================
   finalizeReportPages(doc, {
     reportTitle: "CERTIFICAT DE FORMULATION DE BÉTON",
-    reportSubtitle: `C${fck}/${Math.round(fck * 1.25)} - ${input.exposureClass || "XC2"}`,
+    reportSubtitle: `${fck !== undefined ? `C${fck}/${Math.round(fck * 1.25)}` : "Concrete Formulation"}${input.exposureClass ? ` - ${input.exposureClass}` : ""}`,
     reportRef: reportRef,
     date: dateStr,
     labProfile: lab

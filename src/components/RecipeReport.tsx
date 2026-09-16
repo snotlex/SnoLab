@@ -271,12 +271,12 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
     const aggregateQuality = input.aggregateQuality;
     const admixturesCount = result.admixtureWeights?.length || 0;
     const exposureClass = input.exposureClass || "X0";
-    const sandAbsorption = resolvedAll.sand?.absorption ?? 1.5;
-    const gravelAbsorption = resolvedAll.gravel?.absorption ?? 0.8;
-    const sandFineness = resolvedAll.sand?.finenessModulus ?? 2.6;
+    const sandAbsorption = resolvedAll.sand?.absorption;
+    const gravelAbsorption = resolvedAll.gravel?.absorption;
+    const sandFineness = resolvedAll.sand?.finenessModulus;
     const admixtureRatio = input.dosageSuper || 0;
     const codeCompliance = result.standardsCompliance?.every(item => item.status === "compliant") ?? true;
-    const finalDensity = result.totalFreshDensity || 2400;
+    const finalDensity = result.totalFreshDensity;
 
     // 1. W/C Ratio (max 15 pt)
     if (wcRatio >= 0.40 && wcRatio <= 0.48) {
@@ -316,28 +316,34 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
     }
 
     // 5. Sand Absorption (max 8 pt)
-    if (sandAbsorption <= 1.2) {
-      score += 8;
-    } else if (sandAbsorption <= 2.2) {
-      score += 5;
-    } else {
-      score += 1;
+    if (sandAbsorption !== undefined) {
+      if (sandAbsorption <= 1.2) {
+        score += 8;
+      } else if (sandAbsorption <= 2.2) {
+        score += 5;
+      } else {
+        score += 1;
+      }
     }
 
     // 6. Gravel Absorption (max 7 pt)
-    if (gravelAbsorption <= 0.8) {
-      score += 7;
-    } else if (gravelAbsorption <= 1.5) {
-      score += 4;
-    } else {
-      score += 0;
+    if (gravelAbsorption !== undefined) {
+      if (gravelAbsorption <= 0.8) {
+        score += 7;
+      } else if (gravelAbsorption <= 1.5) {
+        score += 4;
+      } else {
+        score += 0;
+      }
     }
 
     // 7. Sand Fineness Modulus (max 10 pt)
-    if (sandFineness >= 2.4 && sandFineness <= 2.9) {
-      score += 10;
-    } else {
-      score += 5;
+    if (sandFineness !== undefined) {
+      if (sandFineness >= 2.4 && sandFineness <= 2.9) {
+        score += 10;
+      } else {
+        score += 5;
+      }
     }
 
     // 8. Admixture Optimization (max 10 pt)
@@ -357,12 +363,14 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
     }
 
     // 10. Density (max 10 pt)
-    if (finalDensity >= 2380) {
-      score += 10;
-    } else if (finalDensity >= 2300) {
-      score += 7;
-    } else {
-      score += 3;
+    if (finalDensity !== undefined) {
+      if (finalDensity >= 2380) {
+        score += 10;
+      } else if (finalDensity >= 2300) {
+        score += 7;
+      } else {
+        score += 3;
+      }
     }
 
     return Math.max(10, Math.min(100, score));

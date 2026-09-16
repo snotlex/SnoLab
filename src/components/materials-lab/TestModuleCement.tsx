@@ -83,7 +83,7 @@ export const TestModuleCement: React.FC<TestModuleCementProps> = ({
       chartData,
       syncedProps: {
         strengthClass,
-        cementClass: material.cementClass || "CEM II/A-L",
+        cementClass: material.cementClass || material.cementType || undefined,
         specificGravity: specificGravity,
         density: Math.round(specificGravity * 1000)
       }
