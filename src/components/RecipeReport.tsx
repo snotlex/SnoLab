@@ -1743,8 +1743,8 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
                     labRef: "SNO-LWC-LAB-01",
                     testDate: "2026-06-15",
                     decisionLog: reportLanguage === "ar"
-                      ? `ركام خفيف الوزن بكثافة ${input.lightweightAggregateDensity || 1400} كجم/م³ وبنية مسامية مستهدفة لإنتاج خرسانة خفيفة الوزن ذات كفاءة عزل حراري ممتازة.`
-                      : `Selected lightweight aggregate with density ${input.lightweightAggregateDensity || 1400} kg/m³ to produce certified high performance lightweight concrete.`
+                      ? `ركام خفيف الوزن${input.lightweightAggregateDensity ? ` بكثافة ${input.lightweightAggregateDensity} كجم/م³` : ""} وبنية مسامية مستهدفة لإنتاج خرسانة خفيفة الوزن ذات كفاءة عزل حراري ممتازة.`
+                      : `Selected lightweight aggregate${input.lightweightAggregateDensity ? ` with density ${input.lightweightAggregateDensity} kg/m³` : ""} to produce certified high performance lightweight concrete.`
                   });
                 }
 
@@ -1767,8 +1767,8 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
                     labRef: "SNO-HWC-LAB-RADIATION",
                     testDate: "2026-06-16",
                     decisionLog: reportLanguage === "ar"
-                      ? `تم اختيار ركام ثقيل (${input.heavyweightType || "خام الحديد"}) بكثافة ${input.heavyweightAggregateDensity || 3800} كجم/م³ لإنتاج خرسانة ثقيلة الوزن لامتصاص الإشعاعات وحماية المفاعلات.`
-                      : `Heavyweight aggregate (${input.heavyweightType || "magnetite/barite"}) selected with density ${input.heavyweightAggregateDensity || 3800} kg/m³ for extreme shielding or structural counterweights.`
+                      ? `تم اختيار ركام ثقيل (${input.heavyweightType || "خام الحديد"})${input.heavyweightAggregateDensity ? ` بكثافة ${input.heavyweightAggregateDensity} كجم/م³` : ""} لإنتاج خرسانة ثقيلة الوزن لامتصاص الإشعاعات وحماية المفاعلات.`
+                      : `Heavyweight aggregate (${input.heavyweightType || "magnetite/barite"})${input.heavyweightAggregateDensity ? ` selected with density ${input.heavyweightAggregateDensity} kg/m³` : ""} for extreme shielding or structural counterweights.`
                   });
                 }
 
@@ -2189,7 +2189,7 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
                 <div className="border-t border-slate-200 pt-2 text-right">
                   <span className="text-indigo-650 font-extrabold block">3. VOLUMETRIC FRACTION DESIGN BALANCE THEORY:</span>
                   <span>sum V_solids = C / rho_c + S / rho_s + G / rho_g = 1000 × gamma</span><br/>
-                  <span className="font-bold text-slate-800">Compactor packing index (gamma) = {(result.compactorGamma ?? 0.82).toFixed(3)}</span>
+                  <span className="font-bold text-slate-800">Compactor packing index (gamma) = {result.compactorGamma !== undefined ? result.compactorGamma.toFixed(3) : "—"}</span>
                 </div>
               </div>
 

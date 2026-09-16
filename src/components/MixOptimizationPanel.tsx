@@ -157,10 +157,10 @@ export const MixOptimizationPanel: React.FC<MixOptimizationPanelProps> = ({
 
   // Helper metrics calculator
   const calculateMixMetrics = (inp: MixDesignInput, res: MixDesignResult) => {
-    const cement = res.cementWeight || 350;
-    const sand = res.sandWeightDry || 750;
-    const gravel = res.gravelWeightDry || 1100;
-    const water = res.waterContentActual || 180;
+    const cement = res.cementWeight || 0;
+    const sand = res.sandWeightDry || 0;
+    const gravel = res.gravelWeightDry || 0;
+    const water = res.waterContentActual || 0;
     
     const silica = ((inp.dosageSilicaFume || 0) / 100) * cement;
     const flyAsh = ((inp.dosageFlyAsh || 0) / 100) * cement;
@@ -182,17 +182,17 @@ export const MixOptimizationPanel: React.FC<MixOptimizationPanelProps> = ({
 
     // Cost in local currency scale (prices are stored in index DZD but converted inside app)
     const cost = 
-      cement * inp.priceCement +
-      sand * inp.priceSand +
-      gravel * inp.priceGravel +
-      water * inp.priceWater +
-      silica * inp.priceSilicaFume +
-      flyAsh * inp.priceFlyAsh +
-      slag * inp.priceSlag +
-      superplasticizer * inp.priceSuper +
-      airEntraining * inp.priceAir +
-      retarder * inp.priceRetarder +
-      accelerator * inp.priceAccelerator;
+      cement * (inp.priceCement || 0) +
+      sand * (inp.priceSand || 0) +
+      gravel * (inp.priceGravel || 0) +
+      water * (inp.priceWater || 0) +
+      silica * (inp.priceSilicaFume || 0) +
+      flyAsh * (inp.priceFlyAsh || 0) +
+      slag * (inp.priceSlag || 0) +
+      superplasticizer * (inp.priceSuper || 0) +
+      airEntraining * (inp.priceAir || 0) +
+      retarder * (inp.priceRetarder || 0) +
+      accelerator * (inp.priceAccelerator || 0);
 
     // CO2 estimation (kg/m³)
     const co2 = Math.round(
@@ -204,7 +204,7 @@ export const MixOptimizationPanel: React.FC<MixOptimizationPanelProps> = ({
     );
 
     // Calculated strength fcm of base formula
-    const strength = res.fcm28 || inp.fck28 * 1.35;
+    const strength = res.fcm28 || 0;
 
     // Slump
     const slump = inp.slump;

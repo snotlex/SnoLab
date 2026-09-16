@@ -317,8 +317,8 @@ export class GranularEngine {
     
     // Derived values
     const fm = materialsState.resolvedProperties.finenessModulus !== undefined ? materialsState.resolvedProperties.finenessModulus : 0;
-    const voidRatio = isReady ? (inputs.packingFactor ? (1 - inputs.packingFactor) * 0.45 : 0.35) : 0;
-    const packingDensity = inputs.packingFactor || 0.85;
+    const voidRatio = isReady && inputs.packingFactor ? (1 - inputs.packingFactor) * 0.45 : 0;
+    const packingDensity = inputs.packingFactor || 0;
     
     // Compute a pseudo-RMSE if we have actual vs target
     let sumSqrDiff = 0;
@@ -329,8 +329,8 @@ export class GranularEngine {
         count++;
       }
     });
-    const rmse = count > 0 ? parseFloat(Math.sqrt(sumSqrDiff / count).toFixed(2)) : 1.8;
-    const optimizationScore = count > 0 ? Math.max(0, Math.min(100, Math.round(100 - rmse * 5))) : 85;
+    const rmse = count > 0 ? parseFloat(Math.sqrt(sumSqrDiff / count).toFixed(2)) : 0;
+    const optimizationScore = count > 0 ? Math.max(0, Math.min(100, Math.round(100 - rmse * 5))) : 0;
 
     return {
       sieveAnalysisComplete: isReady,
@@ -339,7 +339,7 @@ export class GranularEngine {
       packingDensity,
       optimizationScore,
       rmse,
-      approvedRatios: inputs.isGranularOptimizedApproved ? (inputs.approvedRatios || { sand: 40, gravel: 60 }) : undefined,
+      approvedRatios: inputs.isGranularOptimizedApproved && inputs.approvedRatios ? inputs.approvedRatios : undefined,
       gradingCurve,
     };
   }

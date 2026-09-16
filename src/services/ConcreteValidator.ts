@@ -354,7 +354,7 @@ export class LightweightConcreteRule implements ConcreteTypeRule {
 
     const sandDens = inputs.sandRelativeDensity || 0;
     const gravelDens = inputs.gravelRelativeDensity || 0;
-    const freshDensity = result.totalFreshDensity || 2400;
+    const freshDensity = result.totalFreshDensity;
 
     const lowDens = sandDens < 2000 || gravelDens < 2050;
     assessments.push({
@@ -366,15 +366,15 @@ export class LightweightConcreteRule implements ConcreteTypeRule {
       note: lowDens ? "سليمة، تم اختيار كثافة منخفضة تناسب مواد الركام الخفيفة (مثل الطين المصنّع، البيرلايت، الحجر الخفاف الطائر)." : "مستوى الكثافة المحددة يعبر عن ركام تقليدي كثيف وثقيل، مما يتعارض تقنياً مع الخرسانة خفيفة الوزن."
     });
 
-    const dryDens = freshDensity - 150; // Approximating dry density
-    const densOk = dryDens <= 1800;
+    const dryDens = freshDensity !== undefined && freshDensity > 0 ? freshDensity - 150 : undefined;
+    const densOk = dryDens !== undefined ? dryDens <= 1800 : false;
     assessments.push({
       paramName: "lwc_concrete_density",
       arabicName: "الكثافة الجافة التقديرية للخرسانة",
       status: densOk ? "compliant" : "warning",
       requirement: "Density <= 1800 kg/m³",
-      actual: `${Math.round(dryDens)} kg/m³`,
-      note: densOk ? "ممتازة، تصنيف الخرسانة خفيفة الوزن محقق بنجاح." : "الكثافة الكلية مرتفعة نسبياً للخرسانة الخفيفة العازلة."
+      actual: dryDens !== undefined ? `${Math.round(dryDens)} kg/m³` : "غير متوفر",
+      note: densOk ? "الكثافة خفيفة ومثالية للعزل الهيكلي والحراري وتخفيف الأحمال الذاتية للمنشأة." : "الكثافة الكلية مرتفعة تفوق متطلبات الخرسانة خفيفة الوزن."
     });
 
     if (!lowDens) {
@@ -402,7 +402,7 @@ export class HeavyweightConcreteRule implements ConcreteTypeRule {
 
     const sandDens = inputs.sandRelativeDensity || 0;
     const gravelDens = inputs.gravelRelativeDensity || 0;
-    const freshDensity = result.totalFreshDensity || 2400;
+    const freshDensity = result.totalFreshDensity;
 
     const highDens = sandDens >= 3000 && gravelDens >= 3100;
     assessments.push({
@@ -414,13 +414,13 @@ export class HeavyweightConcreteRule implements ConcreteTypeRule {
       note: highDens ? "متوافقة هندسياً مع مواصفات ركامات الحماية الإشعاعية الثقيلة." : "غير متطابقة، لإنتاج الخرسانة الثقيلة يجب استبدال الركام العادي بركامات تعدينية ثقيلة (Baryte, Hematite, Magnetite) ذات كثافة نوعية كبيرة."
     });
 
-    const totalDensOk = freshDensity >= 2800;
+    const totalDensOk = freshDensity !== undefined && freshDensity >= 2800;
     assessments.push({
       paramName: "hwc_total_density",
       arabicName: "الكثافة الرطبة التقريبية للبيتون",
       status: totalDensOk ? "compliant" : "warning",
       requirement: "Fresh Density >= 2900 kg/m³",
-      actual: `${Math.round(freshDensity)} kg/m³`,
+      actual: freshDensity !== undefined && freshDensity > 0 ? `${Math.round(freshDensity)} kg/m³` : "غير متوفر",
       note: totalDensOk ? "رائعة، تؤمن الفعالية التامة لامتصاص وحجب وتشتيت الإشعاعات." : "غير كافية، الكثافة الإجمالية المحسوبة تقل عن المعين التقني للخرسانات الثقيلة."
     });
 
@@ -658,17 +658,19 @@ export class PerviousConcreteRule implements ConcreteTypeRule {
     const recommendations: string[] = [];
     const optimizationSuggestions: string[] = [];
 
-    const sandPct = result.sandPercent || 40;
+    const sandPct = result.sandPercent;
     const slump = inputs.slump || 0;
 
-    const lowSand = sandPct <= 15;
+    const lowSand = sandPct !== undefined ? sandPct <= 15 : false;
     assessments.push({
       paramName: "pervious_sand_ratio",
       arabicName: "نسبة مساهمة الرمل الناعم (Sand Percent)",
-      status: lowSand ? "compliant" : "non_compliant",
+      status: sandPct !== undefined ? (lowSand ? "compliant" : "non_compliant") : "warning",
       requirement: "Sand Percent <= 15% (خلطة مسامية خشنة)",
-      actual: `${sandPct.toFixed(1)}%`,
-      note: lowSand ? "ممتازة، ندرة الرمل تسمح بإنشاء الفراغات والقنوات المسامية المطلوبة لتصريف وتغلغل المياه." : "فشل، نسبة الرمل مرتفعة جداً وتملأ الفراغات الحبيبية، مما يلغي نفاذية المياه ويحولها لخرسانة مصمتة عادية."
+      actual: sandPct !== undefined ? `${sandPct.toFixed(1)}%` : "غير متوفر",
+      note: sandPct !== undefined 
+        ? (lowSand ? "ممتازة، ندرة الرمل تسمح بإنشاء الفراغات والقنوات المسامية المطلوبة لتصريف وتغلغل المياه." : "فشل، نسبة الرمل مرتفعة جداً وتملأ الفراغات الحبيبية، مما يلغي نفاذية المياه ويحولها لخرسانة مصمتة عادية.")
+        : "نسبة الرمل غير محددة لعدم اكتمال حسابات الخلطة."
     });
 
     const slumpOk = slump <= 3;

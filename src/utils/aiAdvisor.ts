@@ -219,16 +219,16 @@ export function analyzeMixDesign(
     else if (sandFM > 3.1) sandRating = "رمل خشن - يحد من جودة الإنهاء والانضغاطية";
   }
 
-  const absorptionSand = resolvedSand.absorption || 1.2;
-  const absorptionGravel = resolvedMaterials?.gravel?.absorption || 0.8;
+  const absorptionSand = resolvedSand.absorption;
+  const absorptionGravel = resolvedMaterials?.gravel?.absorption;
   const absorptionWarningsAr: string[] = [];
   const absorptionWarningsEn: string[] = [];
 
-  if (absorptionSand > 2.0) {
+  if (absorptionSand !== undefined && absorptionSand > 2.0) {
     absorptionWarningsAr.push("امتصاص الرمل للرطوبة مرتفع (>2%). يتطلب المراقبة والجرعة الدورية لتصحيح ماء الخلط.");
     absorptionWarningsEn.push("High sand water-absorption. Critical moisture monitoring needed.");
   }
-  if (absorptionGravel > 1.5) {
+  if (absorptionGravel !== undefined && absorptionGravel > 1.5) {
     absorptionWarningsAr.push("حصى ذو مسامية عالية نسيباً ينقص من قوة الالتصاق والقص الهيكلي للخرسانة.");
     absorptionWarningsEn.push("Aggregates with high porosity reduces concrete shear strength.");
   }

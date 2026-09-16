@@ -660,7 +660,15 @@ export const DREUX_KNOWLEDGE_BASE: DreuxKnowledgeBase = {
           arabicName: "قوام الهبوط للضخ",
           requirement: "12 - 18 cm",
           evaluate: (inputs, results) => {
-            const slump = inputs.slump || 8;
+            const slump = inputs.slump;
+            if (slump === undefined || slump === null) {
+              return {
+                status: "warning",
+                actual: "غير محدد",
+                note: "الهبوط المستهدف غير محدد.",
+                recommendation: "يرجى تحديد الهبوط المستهدف."
+              };
+            }
             const ok = slump >= 12 && slump <= 18;
             return {
               status: ok ? "compliant" : "warning",
@@ -1212,7 +1220,15 @@ export const DREUX_KNOWLEDGE_BASE: DreuxKnowledgeBase = {
           arabicName: "نسبة مساهمة الرمل",
           requirement: "Sand Percent <= 15%",
           evaluate: (inputs, results) => {
-            const sandPct = results.sandPercent || 40;
+            const sandPct = results.sandPercent;
+            if (sandPct === undefined || sandPct === null) {
+              return {
+                status: "warning",
+                actual: "غير محدد",
+                note: "نسبة مساهمة الرمل غير محددة.",
+                recommendation: "يرجى اكتمال حسابات الخلطة لتحديد نسبة الرمل."
+              };
+            }
             const ok = sandPct <= 15;
             return {
               status: ok ? "compliant" : "non_compliant",
@@ -1228,7 +1244,15 @@ export const DREUX_KNOWLEDGE_BASE: DreuxKnowledgeBase = {
           arabicName: "قوام الهبوط المطلوب",
           requirement: "Slump <= 3 cm",
           evaluate: (inputs, results) => {
-            const slump = inputs.slump || 8;
+            const slump = inputs.slump;
+            if (slump === undefined || slump === null) {
+              return {
+                status: "warning",
+                actual: "غير محدد",
+                note: "الهبوط المستهدف غير محدد.",
+                recommendation: "يرجى تحديد الهبوط المستهدف."
+              };
+            }
             const ok = slump <= 3;
             return {
               status: ok ? "compliant" : "warning",

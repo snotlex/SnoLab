@@ -565,7 +565,7 @@ export async function generateMixDesignPdf(
       title: "SPÉCIFICATIONS D'INGÉNIERIE",
       items: [
         { label: "Méthode de Calcul", value: (input.selectedMethod || "dreux").toUpperCase() },
-        { label: "Classe d'Exposition", value: input.exposureClass || "XC2" },
+        { label: "Classe d'Exposition", value: input.exposureClass || "Non spécifiée" },
         { label: "Diamètre Max Dmax", value: input.dMax ? `${input.dMax} mm` : "N/A" },
         { label: "Masse Volumique Frais", value: result.totalFreshDensity ? `${Math.round(result.totalFreshDensity)} kg/m³` : "N/A" }
       ]
@@ -574,7 +574,7 @@ export async function generateMixDesignPdf(
       title: "PARAMÈTRES DES CONSTITUANTS",
       items: [
         { label: "Type de Ciment", value: input.cementType || "Non spécifié" },
-        { label: "Type de Granulats", value: input.aggregateType || "Concassé" },
+        { label: "Type de Granulats", value: input.aggregateType || "Non spécifié" },
         { label: "Périmètre Pompage", value: input.hasPumping ? "Oui" : "Non" },
         { label: "Teneur en Air Occlus", value: input.airContent !== undefined ? `${input.airContent} %` : "N/A" }
       ]
@@ -617,7 +617,7 @@ export async function generateMixDesignPdf(
 
   const recipeRows: Array<[string, string, string, string, string, string]> = [
     [
-      `Ciment (${input.cementType || "CEM II 42.5"})`,
+      `Ciment (${input.cementType || "Non spécifié"})`,
       "Liant Hydraulique",
       `${cement} kg`,
       `${cement} kg`,
@@ -1197,8 +1197,8 @@ export async function downloadMixDesignPdf(
 ): Promise<void> {
   const doc = await generateMixDesignPdf(result, input, options);
   const lang = (options.language || "fr").toUpperCase();
-  const fck = Math.round(input.fck28 || 30);
-  const fileName = `SnoLab_Mix_Design_Report_C${fck}_${lang}.pdf`;
+  const fckStr = input.fck28 ? `_C${Math.round(input.fck28)}` : "";
+  const fileName = `SnoLab_Mix_Design_Report${fckStr}_${lang}.pdf`;
   doc.save(fileName);
 }
 

@@ -67,7 +67,9 @@ export function calculate(inputs: any): MixDesignResult {
       admixtureKgOrLPerM3: Math.round(refResult.admixtureWeights?.reduce((sum, item) => sum + item.weight, 0) || refResult.admixtureKg || 0)
     },
     ratios: {
-      waterCementRatio: refResult.wcRatio || parseFloat((refResult.waterContentActual / (refResult.cementWeight || 1)).toFixed(2)),
+      waterCementRatio: refResult.wcRatio !== undefined && refResult.wcRatio > 0 
+        ? refResult.wcRatio 
+        : (refResult.cementWeight > 0 ? parseFloat((refResult.waterContentActual / refResult.cementWeight).toFixed(2)) : 0),
       sandAggregateRatio: refResult.sandPercent !== undefined ? parseFloat((refResult.sandPercent / 100).toFixed(2)) : undefined
     },
     grading: {
