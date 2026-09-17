@@ -194,6 +194,17 @@ export const TestModuleAggregates: React.FC<TestModuleAggregatesProps> = ({
       }
       case "AGG_SIEVE": {
         const res = calculateSieveAnalysis(sieveTotalWeight, sieveRows, isSand ? "sand" : "gravel");
+        const sieveSyncedProps: Record<string, any> = {};
+        if (isSand && res.finenessModulus !== undefined) {
+          sieveSyncedProps.finenessModulus = res.finenessModulus;
+        }
+        if (res.dMax !== undefined) {
+          sieveSyncedProps.dMax = res.dMax;
+        }
+        if (res.finesContent !== undefined) {
+          sieveSyncedProps.finesContent = res.finesContent;
+        }
+
         return {
           titleAr: "التحليل الحبيبي بالغربلة (Sieve Analysis)",
           titleFr: "Analyse granulométrique par tamisage",
@@ -204,11 +215,7 @@ export const TestModuleAggregates: React.FC<TestModuleAggregatesProps> = ({
           score: res.status === "PASS" ? 98 : res.status === "WARNING" ? 82 : 55,
           interpretation: res.interpretation,
           compliance: res.compliance,
-          syncedProps: {
-            finenessModulus: isSand ? res.finenessModulus : material.finenessModulus,
-            dMax: res.dMax,
-            finesContent: res.finesContent
-          }
+          syncedProps: sieveSyncedProps
         };
       }
       case "AGG_BULK_DENSITY": {
@@ -230,6 +237,17 @@ export const TestModuleAggregates: React.FC<TestModuleAggregatesProps> = ({
       }
       case "AGG_SPECIFIC_GRAVITY": {
         const res = calculateSpecificGravityAndAbsorption(ovenDryG, ssdG, apparentInWaterG);
+        const sgSyncedProps: Record<string, any> = {};
+        if (res.realDensityKgM3 !== undefined) {
+          sgSyncedProps.density = res.realDensityKgM3;
+        }
+        if (res.ssdDensityKgM3 !== undefined) {
+          sgSyncedProps.ssdDensity = res.ssdDensityKgM3;
+        }
+        if (res.waterAbsorptionPercent !== undefined) {
+          sgSyncedProps.absorption = res.waterAbsorptionPercent;
+        }
+
         return {
           titleAr: "الكثافة الحقيقية والامتصاصية (Specific Gravity & Absorption)",
           titleFr: "Densité relative et absorption d'eau",
@@ -240,11 +258,7 @@ export const TestModuleAggregates: React.FC<TestModuleAggregatesProps> = ({
           score: res.status === "PASS" ? 98 : 80,
           interpretation: res.interpretation,
           compliance: res.compliance,
-          syncedProps: {
-            density: res.realDensityKgM3,
-            ssdDensity: res.ssdDensityKgM3,
-            absorption: res.waterAbsorptionPercent
-          }
+          syncedProps: sgSyncedProps
         };
       }
       case "AGG_MOISTURE_CONTENT": {
@@ -331,7 +345,27 @@ export const TestModuleAggregates: React.FC<TestModuleAggregatesProps> = ({
         };
       }
       case "AGG_METHYLENE_BLUE": {
-        const mbv = mbSampleWeightG > 0 ? parseFloat(((mbTotalMlAdded * 0.01 / mbSampleWeightG) * 1000).toFixed(2)) : 0.8;
+        if (mbSampleWeightG <= 0 || mbTotalMlAdded < 0) {
+          return {
+            titleAr: "اختبار أزرق الميثيلين ونسبة الطين (Methylene Blue Test)",
+            titleFr: "Valeur au bleu de méthylène (MBV)",
+            titleEn: "Methylene Blue Test for Fines",
+            standard: "NF EN 933-9",
+            results: { mbv: undefined },
+            status: "FAIL" as any,
+            score: 40,
+            interpretation: "كتلة العينة أو حجم محلول أزرق الميثيلين غير صالح (NF EN 933-9).",
+            compliance: [{
+              parameter: "قيمة أزرق الميثيلين (MBV)",
+              measured: "غير متوفر (بيانات غير صالحة)",
+              limit: "≤ 1.5 g/kg (NF EN 933-9)",
+              status: "FAIL" as any,
+              note: "الكتل أو الحجوم المدخلة غير صالحة"
+            }],
+            syncedProps: {}
+          };
+        }
+        const mbv = parseFloat(((mbTotalMlAdded * 0.01 / mbSampleWeightG) * 1000).toFixed(2));
         const isPass = mbv <= 1.5;
         return {
           titleAr: "اختبار أزرق الميثيلين ونسبة الطين (Methylene Blue Test)",

@@ -11,15 +11,90 @@ export interface SieveRow {
   passing: number; // %
 }
 
+export interface SieveAnalysisResult {
+  finenessModulus?: number;
+  dMax?: number;
+  finesContent?: number;
+  processedRows: SieveRow[];
+  status: TestStatus;
+  interpretation: string;
+  compliance: ComplianceDetail[];
+  dataState?: "missing" | "invalid" | "valid";
+}
+
 export function calculateSieveAnalysis(
   totalWeight: number,
   sieves: { sieve: number; retained: number }[],
   materialType: "sand" | "gravel" = "sand"
-) {
+): SieveAnalysisResult {
+  // 1. Missing measurements: No sieve rows provided
+  if (!sieves || sieves.length === 0) {
+    const missingCompliance: ComplianceDetail[] = [
+      {
+        parameter: "القطر الأقصى للحبيبات (Dmax)",
+        measured: "غير متوفر (بيانات مفقودة)",
+        limit: "حسب المخطط والمواصفة الإنشائية",
+        status: "FAIL",
+        note: "لم يتم تقديم بيانات مناخل"
+      },
+      {
+        parameter: "نسبة المواد الناعمة (<0.063 مم)",
+        measured: "غير متوفر (بيانات مفقودة)",
+        limit: "≤ 3.0% (رمل مغسول) / ≤ 5.0% (رمل مكسر)",
+        status: "FAIL",
+        note: "لم يتم تقديم بيانات مناخل"
+      }
+    ];
+
+    if (materialType === "sand") {
+      missingCompliance.unshift({
+        parameter: "معامل النعومة (FM)",
+        measured: "غير متوفر (بيانات مفقودة)",
+        limit: "2.20 - 3.10 (NF EN 12620 / ASTM C33)",
+        status: "FAIL",
+        note: "لم يتم تقديم بيانات مناخل"
+      });
+    }
+
+    return {
+      finenessModulus: undefined,
+      dMax: undefined,
+      finesContent: undefined,
+      processedRows: [],
+      status: "FAIL",
+      interpretation: "لا توجد بيانات غربلة مدخلة لإجراء التحليل الحبيبي (NF EN 933-1).",
+      compliance: missingCompliance,
+      dataState: "missing"
+    };
+  }
+
+  // 2. Invalid measurements: Negative weights or zero total
+  const sumRetained = sieves.reduce((acc, s) => acc + (s.retained || 0), 0);
+  const hasNegativeRetained = sieves.some(s => s.retained < 0);
+  const actualTotal = totalWeight > 0 ? totalWeight : sumRetained;
+
+  if (totalWeight < 0 || hasNegativeRetained || actualTotal <= 0) {
+    return {
+      finenessModulus: undefined,
+      dMax: undefined,
+      finesContent: undefined,
+      processedRows: [],
+      status: "FAIL",
+      interpretation: "بيانات الكتل المدخلة لاختبار الغربلة غير صالحة فيزيائياً (NF EN 933-1).",
+      compliance: [{
+        parameter: "كتلة العينة والمناخل",
+        measured: "غير صالح فيزيائياً",
+        limit: "كتل موجبة (NF EN 933-1)",
+        status: "FAIL",
+        note: "الكتل المدخلة سالبة أو غير منطقية"
+      }],
+      dataState: "invalid"
+    };
+  }
+
+  // 3. Valid calculation
   let cumRetWeight = 0;
   const processedRows: SieveRow[] = [];
-
-  const actualTotal = totalWeight > 0 ? totalWeight : sieves.reduce((acc, s) => acc + s.retained, 0);
 
   sieves.forEach(s => {
     cumRetWeight += s.retained;
@@ -34,42 +109,74 @@ export function calculateSieveAnalysis(
   });
 
   // Calculate Fineness Modulus (standard sieves: 0.125, 0.25, 0.5, 1.0, 2.0, 4.0)
-  const standardFMSieves = [0.125, 0.25, 0.5, 1.0, 2.0, 4.0];
-  let sumCumRet = 0;
-  standardFMSieves.forEach(sz => {
-    const row = processedRows.find(r => Math.abs(r.sieve - sz) < 0.01);
-    if (row) {
-      sumCumRet += (100 - row.passing);
-    }
-  });
-  const finenessModulus = parseFloat((sumCumRet / 100).toFixed(2));
+  let finenessModulus: number | undefined = undefined;
+  if (materialType === "sand") {
+    const standardFMSieves = [0.125, 0.25, 0.5, 1.0, 2.0, 4.0];
+    const matchedRows = standardFMSieves
+      .map(sz => processedRows.find(r => Math.abs(r.sieve - sz) < 0.02))
+      .filter((r): r is SieveRow => r !== undefined);
 
-  // Determine Dmax (smallest sieve with >= 95% passing or 100%)
+    // Standard FM calculation requires adequate sieve coverage (at least 4 standard fractions)
+    if (matchedRows.length >= 4) {
+      let sumCumRet = 0;
+      matchedRows.forEach(row => {
+        sumCumRet += (100 - row.passing);
+      });
+      finenessModulus = parseFloat((sumCumRet / 100).toFixed(2));
+    } else {
+      finenessModulus = undefined; // Insufficient sieve coverage: do not fabricate 0
+    }
+  } else {
+    finenessModulus = undefined; // Not applicable for coarse aggregates
+  }
+
+  // Determine Dmax (smallest sieve aperture with >= 95% passing)
   const sorted = [...processedRows].sort((a, b) => b.sieve - a.sieve);
   const dmaxRow = sorted.find(r => r.passing >= 95);
-  const dMax = dmaxRow ? dmaxRow.sieve : (sorted[0]?.sieve || 0);
+  const dMax = dmaxRow ? dmaxRow.sieve : undefined; // Undetermined if no sieve has >= 95% passing
 
-  // Fines content (< 0.063 mm)
+  // Fines content (< 0.063 mm / 0.08 mm)
   const finesRow = processedRows.find(r => r.sieve <= 0.08);
-  const finesContent = finesRow ? (100 - (finesRow.cumRetained || 0)) : 0;
+  const finesContent = finesRow !== undefined
+    ? parseFloat((100 - (finesRow.cumRetained ?? 0)).toFixed(2))
+    : undefined; // Undetermined if fines sieve was not tested
 
   let status: TestStatus = "PASS";
   let interpretation = "";
   const compliance: ComplianceDetail[] = [];
 
   if (materialType === "sand") {
-    const isFmGood = finenessModulus >= 2.2 && finenessModulus <= 3.1;
-    const isFmWarn = (finenessModulus >= 2.0 && finenessModulus < 2.2) || (finenessModulus > 3.1 && finenessModulus <= 3.4);
-    
-    compliance.push({
-      parameter: "معامل النعومة (FM)",
-      measured: finenessModulus,
-      limit: "2.20 - 3.10 (NF EN 12620 / ASTM C33)",
-      status: isFmGood ? "PASS" : isFmWarn ? "WARNING" : "FAIL",
-      note: isFmGood ? "معامل نعومة مثالي لتشغيلية ومقاومة الخرسانة" : isFmWarn ? "رمل ناعم جداً أو خشن نسبياً" : "رمل خارج الحدود القياسية المعتمدة"
-    });
+    if (finenessModulus !== undefined) {
+      const isFmGood = finenessModulus >= 2.2 && finenessModulus <= 3.1;
+      const isFmWarn = (finenessModulus >= 2.0 && finenessModulus < 2.2) || (finenessModulus > 3.1 && finenessModulus <= 3.4);
+      
+      compliance.push({
+        parameter: "معامل النعومة (FM)",
+        measured: finenessModulus,
+        limit: "2.20 - 3.10 (NF EN 12620 / ASTM C33)",
+        status: isFmGood ? "PASS" : isFmWarn ? "WARNING" : "FAIL",
+        note: isFmGood ? "معامل نعومة مثالي لتشغيلية ومقاومة الخرسانة" : isFmWarn ? "رمل ناعم جداً أو خشن نسبياً" : "رمل خارج الحدود القياسية المعتمدة"
+      });
 
-    if (finesRow) {
+      if (!isFmGood) status = isFmWarn ? "WARNING" : "FAIL";
+      interpretation = isFmGood 
+        ? `رمل مطابق للمواصفات القياسية (NF EN 933-1). معامل النعومة ${finenessModulus} يمنح تجانساً عالياً وقابلية ضخ وتشغيلية ممتازة.`
+        : isFmWarn 
+        ? `رمل مقبول مع تنبيه (FM = ${finenessModulus}). يُوصى بتعديل نسبة الركام الخشن لتفادي استهلاك إسمنت إضافي.`
+        : `رمل غير مطابق للمواصفات (FM = ${finenessModulus}). يتطلب خلطه برمل تصحيحي لتعديل منحنى التدرج الحبيبي.`;
+    } else {
+      compliance.push({
+        parameter: "معامل النعومة (FM)",
+        measured: "غير متوفر (تغطية مناخل غير كافية)",
+        limit: "2.20 - 3.10 (NF EN 12620 / ASTM C33)",
+        status: "WARNING",
+        note: "يتطلب حساب معامل النعومة تغطية كافية لمناخل الرمل القياسية (0.125 - 4.0 مم)"
+      });
+      if (status === "PASS") status = "WARNING";
+      interpretation = "تحليل حبيبي للرمل ببيانات مناخل غير مكتملة؛ لم يتم تحديد معامل النعومة لعدم كفاية تغطية المناخل القياسية (NF EN 933-1).";
+    }
+
+    if (finesContent !== undefined) {
       compliance.push({
         parameter: "نسبة المواد الناعمة (<0.063 مم)",
         measured: `${finesContent.toFixed(1)}%`,
@@ -77,41 +184,78 @@ export function calculateSieveAnalysis(
         status: finesContent <= 3.0 ? "PASS" : finesContent <= 5.0 ? "WARNING" : "FAIL",
         note: finesContent <= 3.0 ? "مطابق للخرسانات الإنشائية عالية الأداء" : "يتطلب مراقبة ماء الخلط والمكافئ الرملي"
       });
+      if (finesContent > 5.0) status = "FAIL";
+      else if (finesContent > 3.0 && status === "PASS") status = "WARNING";
     } else {
       compliance.push({
         parameter: "نسبة المواد الناعمة (<0.063 مم)",
-        measured: "غير متوفر",
+        measured: "غير متوفر (لم يتم فحص منخل المواد الناعمة)",
         limit: "≤ 3.0% (رمل مغسول) / ≤ 5.0% (رمل مكسر)",
         status: "WARNING",
         note: "لم يتم فحص منخل المواد الناعمة (0.08 مم أو 0.063 مم)"
       });
     }
 
-    if (!isFmGood) status = isFmWarn ? "WARNING" : "FAIL";
-    interpretation = isFmGood 
-      ? `رمل مطابق للمواصفات القياسية (NF EN 933-1). معامل النعومة ${finenessModulus} يمنح تجانساً عالياً وقابلية ضخ وتشغيلية ممتازة.`
-      : isFmWarn 
-      ? `رمل مقبول مع تنبيه (FM = ${finenessModulus}). يُوصى بتعديل نسبة الركام الخشن لتفادي استهلاك إسمنت إضافي.`
-      : `رمل غير مطابق للمواصفات (FM = ${finenessModulus}). يتطلب خلطه برمل تصحيحي لتعديل منحنى التدرج الحبيبي.`;
+    if (dMax !== undefined) {
+      compliance.push({
+        parameter: "القطر الأقصى للحبيبات (Dmax)",
+        measured: `${dMax} mm`,
+        limit: "حسب المخطط والمواصفة الإنشائية",
+        status: "PASS",
+        note: "مطابق لمتطلبات الغطاء الخرساني وتباعد حديد التسليح"
+      });
+    } else {
+      compliance.push({
+        parameter: "القطر الأقصى للحبيبات (Dmax)",
+        measured: "غير محدد (لا يوجد منخل بنسبة مارة ≥ 95%)",
+        limit: "حسب المخطط والمواصفة الإنشائية",
+        status: "WARNING",
+        note: "الركام المحبوس على أكبر منخل لا يحقق شرط Dmax (المارة ≥ 95%)"
+      });
+    }
   } else {
-    compliance.push({
-      parameter: "القطر الأقصى للحبيبات (Dmax)",
-      measured: `${dMax} mm`,
-      limit: "حسب المخطط والمواصفة الإنشائية",
-      status: "PASS",
-      note: "مطابق لمتطلبات الغطاء الخرساني وتباعد حديد التسليح"
-    });
-    interpretation = `تدرج حبيبي متوازن للركام الخشن Dmax = ${dMax} mm متوافق مع متطلبات NF EN 933-1.`;
+    // Gravel
+    if (dMax !== undefined) {
+      compliance.push({
+        parameter: "القطر الأقصى للحبيبات (Dmax)",
+        measured: `${dMax} mm`,
+        limit: "حسب المخطط والمواصفة الإنشائية",
+        status: "PASS",
+        note: "مطابق لمتطلبات الغطاء الخرساني وتباعد حديد التسليح"
+      });
+      interpretation = `تدرج حبيبي متوازن للركام الخشن Dmax = ${dMax} mm متوافق مع متطلبات NF EN 933-1.`;
+    } else {
+      compliance.push({
+        parameter: "القطر الأقصى للحبيبات (Dmax)",
+        measured: "غير محدد (لا يوجد منخل بنسبة مارة ≥ 95%)",
+        limit: "حسب المخطط والمواصفة الإنشائية",
+        status: "WARNING",
+        note: "لا يوجد منخل مفحوص يحقق نسبة مارة ≥ 95% لتحديد Dmax"
+      });
+      if (status === "PASS") status = "WARNING";
+      interpretation = "لم يتم تحديد القطر الأقصى Dmax لعدم وجود منخل يحقق نسبة مارة ≥ 95% أو لغياب بيانات المناخل (NF EN 933-1).";
+    }
+
+    if (finesContent !== undefined) {
+      compliance.push({
+        parameter: "نسبة المواد الناعمة (<0.063 مم)",
+        measured: `${finesContent.toFixed(1)}%`,
+        limit: "≤ 1.5% (حصى خشن مغسول)",
+        status: finesContent <= 1.5 ? "PASS" : "WARNING",
+        note: finesContent <= 1.5 ? "حصى خشن نقي ونظيف" : "نسبة غبار مرتفعة تتطلب غسل الحصى"
+      });
+    }
   }
 
   return {
     finenessModulus,
     dMax,
-    finesContent: parseFloat(finesContent.toFixed(2)),
+    finesContent,
     processedRows,
     status,
     interpretation,
-    compliance
+    compliance,
+    dataState: "valid"
   };
 }
 
@@ -121,10 +265,28 @@ export function calculateBulkDensity(
   filledContainerWeightKg: number, // M1 in kg
   isCompacted: boolean = false
 ) {
-  const netWeightKg = Math.max(0, filledContainerWeightKg - emptyContainerWeightKg);
+  const netWeightKg = filledContainerWeightKg - emptyContainerWeightKg;
   const volumeM3 = containerVolumeLiters / 1000;
-  const bulkDensityKgM3 = volumeM3 > 0 ? Math.round(netWeightKg / volumeM3) : 0;
 
+  if (containerVolumeLiters <= 0 || emptyContainerWeightKg < 0 || filledContainerWeightKg <= emptyContainerWeightKg || volumeM3 <= 0) {
+    return {
+      netWeightKg: undefined,
+      bulkDensityKgM3: undefined,
+      status: "FAIL" as TestStatus,
+      interpretation: "بيانات وعاء القياس أو الكتل غير صالحة لحساب الكتلة الحجمية الظاهرية (NF EN 1097-3).",
+      compliance: [{
+        parameter: isCompacted ? "الكتلة الحجمية الظاهرية المرصوصة" : "الكتلة الحجمية الظاهرية السائبة",
+        measured: "غير متوفر (بيانات غير صالحة)",
+        unit: "kg/m³",
+        limit: isCompacted ? "1450 - 1750 kg/m³" : "1300 - 1600 kg/m³",
+        status: "FAIL",
+        note: "كتلة العينة الصافية أو حجم الوعاء غير موجب"
+      }],
+      dataState: "invalid" as const
+    };
+  }
+
+  const bulkDensityKgM3 = Math.round(netWeightKg / volumeM3);
   const standardLimit = isCompacted ? "1450 - 1750 kg/m³" : "1300 - 1600 kg/m³";
   const isValid = bulkDensityKgM3 >= 1200 && bulkDensityKgM3 <= 1850;
 
@@ -142,59 +304,140 @@ export function calculateBulkDensity(
     bulkDensityKgM3,
     status: (isValid ? "PASS" : "WARNING") as TestStatus,
     interpretation: `الكتلة الحجمية الظاهرية المحسوبة هي ${bulkDensityKgM3} kg/m³ وفق المواصفة NF EN 1097-3. النتيجة ملائمة لحساب الفراغات وتخزين الصوامع.`,
-    compliance
+    compliance,
+    dataState: "valid" as const
   };
+}
+
+export interface SpecificGravityResult {
+  ovenDryRelativeDensity?: number;
+  ssdRelativeDensity?: number;
+  realDensityKgM3?: number;
+  ssdDensityKgM3?: number;
+  waterAbsorptionPercent?: number;
+  status: TestStatus;
+  interpretation: string;
+  compliance: ComplianceDetail[];
+  dataState?: "missing" | "invalid" | "valid";
 }
 
 export function calculateSpecificGravityAndAbsorption(
   ovenDryWeightG: number, // M1
   ssdWeightG: number, // M2
   apparentWeightInWaterG: number // M3 (سلة الغمر في الماء)
-) {
-  const volumeG = ssdWeightG - apparentWeightInWaterG; // (M2 - M3)
-  if (volumeG <= 0 || ovenDryWeightG <= 0) {
+): SpecificGravityResult {
+  const isMissing = !ovenDryWeightG || !ssdWeightG || !apparentWeightInWaterG || ovenDryWeightG <= 0 || ssdWeightG <= 0 || apparentWeightInWaterG <= 0;
+  if (isMissing) {
     return {
-      ovenDryRelativeDensity: 0,
-      ssdRelativeDensity: 0,
-      realDensityKgM3: 0,
-      ssdDensityKgM3: 0,
-      waterAbsorptionPercent: 0,
-      status: "FAIL" as TestStatus,
-      interpretation: "بيانات الكتل غير صالحة أو مفقودة لحساب الكثافة والامتصاص (NF EN 1097-6).",
-      compliance: []
+      ovenDryRelativeDensity: undefined,
+      ssdRelativeDensity: undefined,
+      realDensityKgM3: undefined,
+      ssdDensityKgM3: undefined,
+      waterAbsorptionPercent: undefined,
+      status: "FAIL",
+      interpretation: "بيانات الكتل مفقودة لإجراء اختبار الكثافة والامتصاص (NF EN 1097-6). يرجى إدخال قيم موجبة للكتل M1 و M2 و M3.",
+      compliance: [
+        {
+          parameter: "الكثافة الحقيقية الجافة (Specific Gravity)",
+          measured: "غير متوفر (بيانات مفقودة)",
+          limit: "2.50 - 2.80",
+          status: "FAIL",
+          note: "كتل العينة غير مدخلة"
+        },
+        {
+          parameter: "كثافة السطح المشبع الجاف (SSD Density)",
+          measured: "غير متوفر (بيانات مفقودة)",
+          limit: "2550 - 2850 kg/m³",
+          status: "FAIL",
+          note: "كتل العينة غير مدخلة"
+        },
+        {
+          parameter: "نسبة الامتصاصية WA24 (%)",
+          measured: "غير متوفر (بيانات مفقودة)",
+          limit: "≤ 2.5%",
+          status: "FAIL",
+          note: "كتل العينة غير مدخلة"
+        }
+      ],
+      dataState: "missing"
     };
   }
+
+  const volumeG = ssdWeightG - apparentWeightInWaterG; // (M2 - M3)
+  const isInvalid = volumeG <= 0 || ssdWeightG < ovenDryWeightG;
+
+  if (isInvalid) {
+    const reason = volumeG <= 0
+      ? "كتلة الغمر في الماء أكبر من أو تساوي كتلة العينة المشبعة (حجم مائي غير موجب)"
+      : "كتلة السطح المشبع (M2) أقل من كتلة العينة المجففة (M1)";
+    return {
+      ovenDryRelativeDensity: undefined,
+      ssdRelativeDensity: undefined,
+      realDensityKgM3: undefined,
+      ssdDensityKgM3: undefined,
+      waterAbsorptionPercent: undefined,
+      status: "FAIL",
+      interpretation: `قياسات غير صالحة فيزيائياً: ${reason} (NF EN 1097-6).`,
+      compliance: [
+        {
+          parameter: "الكثافة الحقيقية الجافة (Specific Gravity)",
+          measured: "غير صالح فيزيائياً",
+          limit: "2.50 - 2.80",
+          status: "FAIL",
+          note: reason
+        },
+        {
+          parameter: "كثافة السطح المشبع الجاف (SSD Density)",
+          measured: "غير صالح فيزيائياً",
+          limit: "2550 - 2850 kg/m³",
+          status: "FAIL",
+          note: reason
+        },
+        {
+          parameter: "نسبة الامتصاصية WA24 (%)",
+          measured: "غير صالح فيزيائياً",
+          limit: "≤ 2.5%",
+          status: "FAIL",
+          note: reason
+        }
+      ],
+      dataState: "invalid"
+    };
+  }
+
   const ovenDryRelativeDensity = parseFloat((ovenDryWeightG / volumeG).toFixed(3));
   const ssdRelativeDensity = parseFloat((ssdWeightG / volumeG).toFixed(3));
   const realDensityKgM3 = Math.round(ovenDryRelativeDensity * 1000);
   const ssdDensityKgM3 = Math.round(ssdRelativeDensity * 1000);
 
+  // Preserve valid measured zero if ssdWeightG === ovenDryWeightG (completely non-porous aggregate)
   const waterAbsorptionPercent = parseFloat((((ssdWeightG - ovenDryWeightG) / ovenDryWeightG) * 100).toFixed(2));
 
   const isAbsGood = waterAbsorptionPercent <= 2.5;
   const isAbsWarn = waterAbsorptionPercent > 2.5 && waterAbsorptionPercent <= 4.0;
-  const status: TestStatus = isAbsGood ? "PASS" : isAbsWarn ? "WARNING" : "FAIL";
+  const isDensityGood = ovenDryRelativeDensity >= 2.40 && ovenDryRelativeDensity <= 3.00;
+  const status: TestStatus = (!isDensityGood || waterAbsorptionPercent > 4.0) ? "FAIL" : (!isAbsGood) ? "WARNING" : "PASS";
 
   const compliance: ComplianceDetail[] = [
     {
       parameter: "الكثافة الحقيقية الجافة (Specific Gravity)",
       measured: ovenDryRelativeDensity,
       limit: "2.50 - 2.80",
-      status: "PASS",
-      note: "كثافة حقيقية مطابقة للركام الكلسي والسيليسي"
+      status: isDensityGood ? "PASS" : "FAIL",
+      note: isDensityGood ? "كثافة حقيقية مطابقة للركام الكلسي والسيليسي" : "كثافة خارج النطاق القياسي المعتمد"
     },
     {
       parameter: "كثافة السطح المشبع الجاف (SSD Density)",
       measured: `${ssdDensityKgM3} kg/m³`,
       limit: "2550 - 2850 kg/m³",
-      status: "PASS",
+      status: isDensityGood ? "PASS" : "FAIL",
       note: "تُستخدم مباشرة في الحسابات الحجمية للخلطة"
     },
     {
       parameter: "نسبة الامتصاصية WA24 (%)",
       measured: `${waterAbsorptionPercent}%`,
       limit: "≤ 2.5% (خرسانات عادية) / ≤ 1.5% (خرسانات عالية الأداء)",
-      status,
+      status: isAbsGood ? "PASS" : isAbsWarn ? "WARNING" : "FAIL",
       note: isAbsGood ? "امتصاصية منخفضة ممتازة" : isAbsWarn ? "امتصاصية متوسطة تتطلب تصحيح ماء الخلط" : "ركام عالي الامتصاص (مسامي)"
     }
   ];
@@ -207,7 +450,8 @@ export function calculateSpecificGravityAndAbsorption(
     waterAbsorptionPercent,
     status,
     interpretation: `الكثافة الحقيقية ${ovenDryRelativeDensity} (${realDensityKgM3} kg/m³) ونسبة الامتصاص WA24 = ${waterAbsorptionPercent}% وفق NF EN 1097-6. يتم تغذية هذه القيم مباشرة لمحرك حساب الخلطة وتصحيح المياه.`,
-    compliance
+    compliance,
+    dataState: "valid"
   };
 }
 
@@ -218,9 +462,27 @@ export function calculateMoistureContent(
 ) {
   const wetNet = wetSampleWeightG - tareWeightG;
   const dryNet = drySampleWeightG - tareWeightG;
-  const moisturePercent = dryNet > 0 
-    ? parseFloat((((wetNet - dryNet) / dryNet) * 100).toFixed(2))
-    : 0;
+
+  if (dryNet <= 0 || wetNet < dryNet) {
+    return {
+      moisturePercent: undefined,
+      status: "FAIL" as TestStatus,
+      interpretation: dryNet <= 0
+        ? "كتلة العينة الجافة مفقودة أو غير موجبة لحساب نسبة الرطوبة (NF EN 1097-5)."
+        : "كتلة العينة الرطبة أقل من كتلة العينة الجافة (قياس غير صالح فيزيائياً).",
+      compliance: [{
+        parameter: "نسبة الرطوبة الطبيعية (w %)",
+        measured: "غير متوفر (بيانات غير صالحة)",
+        limit: "0 - 8%",
+        status: "FAIL",
+        note: "الكتل المدخلة سالبة أو غير متناسقة"
+      }],
+      dataState: "invalid" as const
+    };
+  }
+
+  // If wetNet === dryNet, moisturePercent is 0.00 (valid measured zero!)
+  const moisturePercent = parseFloat((((wetNet - dryNet) / dryNet) * 100).toFixed(2));
 
   const compliance: ComplianceDetail[] = [{
     parameter: "نسبة الرطوبة الطبيعية (w %)",
@@ -234,7 +496,8 @@ export function calculateMoistureContent(
     moisturePercent,
     status: (moisturePercent <= 6.0 ? "PASS" : "WARNING") as TestStatus,
     interpretation: `نسبة الرطوبة الطبيعية المقاسة هي ${moisturePercent}% (NF EN 1097-5). يجب خصم هذه الكمية من ماء الخلط وإضافتها لوزن الركام الرطب في محطة الخلط.`,
-    compliance
+    compliance,
+    dataState: "valid" as const
   };
 }
 
@@ -243,8 +506,28 @@ export function calculateSandEquivalent(
   h2SandMm: number, // Sand sediment height
   h2PistonMm?: number // Sand height with piston
 ) {
-  const esVisual = h1VisualMm > 0 ? parseFloat(((h2SandMm / h1VisualMm) * 100).toFixed(1)) : 80;
-  const esPiston = (h2PistonMm && h1VisualMm > 0) ? parseFloat(((h2PistonMm / h1VisualMm) * 100).toFixed(1)) : (esVisual - 4);
+  if (h1VisualMm <= 0 || h2SandMm < 0 || h2SandMm > h1VisualMm) {
+    return {
+      esVisual: undefined,
+      esPiston: undefined,
+      sandCategory: "غير محدد",
+      status: "FAIL" as TestStatus,
+      interpretation: "ارتفاعات أنبوب المكافئ الرملي غير صالحة فيزيائياً (NF EN 933-8).",
+      compliance: [{
+        parameter: "المكافئ الرملي بالمكبس (ES Piston)",
+        measured: "غير متوفر (بيانات غير صالحة)",
+        limit: "≥ 75% (NF EN 933-8 / NF P 18-598)",
+        status: "FAIL",
+        note: "الارتفاعات المدخلة سالبة أو غير منطقية"
+      }],
+      dataState: "invalid" as const
+    };
+  }
+
+  const esVisual = parseFloat(((h2SandMm / h1VisualMm) * 100).toFixed(1));
+  const esPiston = (h2PistonMm !== undefined && h2PistonMm >= 0 && h2PistonMm <= h1VisualMm)
+    ? parseFloat(((h2PistonMm / h1VisualMm) * 100).toFixed(1))
+    : parseFloat(Math.max(0, esVisual - 4).toFixed(1));
 
   const isPass = esPiston >= 75;
   const isWarn = esPiston >= 65 && esPiston < 75;
@@ -279,7 +562,8 @@ export function calculateSandEquivalent(
     sandCategory,
     status,
     interpretation: `المكافئ الرملي بالمكبس ${esPiston}% (${sandCategory}) وفق NF EN 933-8. النتيجة ${isPass ? "تضمن نقاء الرمل من الطين وعدم امتصاص الإسمنت والماء بصورة مفرطة." : "تتطلب غسل الرمل أو خلطه برمل سيليسي نقي."}`,
-    compliance
+    compliance,
+    dataState: "valid" as const
   };
 }
 
@@ -287,6 +571,24 @@ export function calculateSandBulking(
   dryVolumeCm3: number,
   wetVolumes: { moisturePercent: number; wetVolumeCm3: number }[]
 ) {
+  if (dryVolumeCm3 <= 0 || !wetVolumes || wetVolumes.length === 0) {
+    return {
+      curvePoints: [],
+      maxBulkingPercent: undefined,
+      criticalMoisture: undefined,
+      status: "FAIL" as TestStatus,
+      interpretation: "بيانات اختبار انتفاخ الرمل مفقودة أو غير صالحة (NF P 18-596).",
+      compliance: [{
+        parameter: "أقصى انتفاخ حجمي للرمل (Max Bulking)",
+        measured: "غير متوفر (بيانات مفقودة)",
+        limit: "15% - 35%",
+        status: "FAIL",
+        note: "الحجم الجاف أو نقاط الانتفاخ غير مدخلة"
+      }],
+      dataState: "missing" as const
+    };
+  }
+
   const curvePoints = wetVolumes.map(pt => {
     const bulkingFactor = dryVolumeCm3 > 0 
       ? parseFloat((((pt.wetVolumeCm3 - dryVolumeCm3) / dryVolumeCm3) * 100).toFixed(1))
@@ -298,11 +600,11 @@ export function calculateSandBulking(
     };
   });
 
-  const maxBulkingPoint = curvePoints.length > 0 ? curvePoints.reduce((max, curr) => curr.bulkingPercent > max.bulkingPercent ? curr : max, curvePoints[0]) : undefined;
+  const maxBulkingPoint = curvePoints.reduce((max, curr) => curr.bulkingPercent > max.bulkingPercent ? curr : max, curvePoints[0]);
 
   const compliance: ComplianceDetail[] = [{
     parameter: "أقصى انتفاخ حجمي للرمل (Max Bulking)",
-    measured: maxBulkingPoint ? `+${maxBulkingPoint.bulkingPercent}% عند رطوبة ${maxBulkingPoint.moisture}%` : "غير متوفر",
+    measured: `+${maxBulkingPoint.bulkingPercent}% عند رطوبة ${maxBulkingPoint.moisture}%`,
     limit: "15% - 35% (ظاهرة طبيعية في الرمال الرطبة)",
     status: "PASS",
     note: "يؤكد ضرورة الكيل بالوزن في محطات الخلط وتجنب الكيل بالحجم"
@@ -310,13 +612,12 @@ export function calculateSandBulking(
 
   return {
     curvePoints,
-    maxBulkingPercent: maxBulkingPoint?.bulkingPercent ?? 0,
-    criticalMoisture: maxBulkingPoint?.moisture ?? 0,
+    maxBulkingPercent: maxBulkingPoint.bulkingPercent,
+    criticalMoisture: maxBulkingPoint.moisture,
     status: "PASS" as TestStatus,
-    interpretation: maxBulkingPoint
-      ? `يصل انتفاخ الرمل الرطب إلى ذروته (+${maxBulkingPoint.bulkingPercent}%) عند رطوبة ${maxBulkingPoint.moisture}%. يُثبت هذا الاختبار علمياً خطورة الكيل الحجمي للخرسانة ويبرهن حتمية الكيل بالوزن مع تصحيح الرطوبة.`
-      : "لم يتم تقديم نقاط منحنى كافية لتحديد ذروة الانتفاخ الحجمي.",
-    compliance
+    interpretation: `يصل انتفاخ الرمل الرطب إلى ذروته (+${maxBulkingPoint.bulkingPercent}%) عند رطوبة ${maxBulkingPoint.moisture}%. يُثبت هذا الاختبار علمياً خطورة الكيل الحجمي للخرسانة ويبرهن حتمية الكيل بالوزن مع تصحيح الرطوبة.`,
+    compliance,
+    dataState: "valid" as const
   };
 }
 
@@ -324,13 +625,29 @@ export function calculateLosAngeles(
   initialWeightG: number, // M (typically 5000g)
   retainedOn1_6mmG: number // m (retained on 1.6mm sieve after 500 revolutions)
 ) {
+  if (initialWeightG <= 0 || retainedOn1_6mmG < 0 || retainedOn1_6mmG > initialWeightG) {
+    return {
+      laPercent: undefined,
+      laClass: "غير محدد",
+      status: "FAIL" as TestStatus,
+      interpretation: "كتل اختبار لوس أنجلوس غير صالحة فيزيائياً (NF EN 1097-2).",
+      compliance: [{
+        parameter: "معامل لوس أنجلوس للتفتت (LA %)",
+        measured: "غير متوفر (بيانات غير صالحة)",
+        limit: "≤ 25% (NF EN 1097-2 / NF P 18-573)",
+        status: "FAIL",
+        note: "الكتل المدخلة سالبة أو غير متناسقة"
+      }],
+      dataState: "invalid" as const
+    };
+  }
+
   const passingG = initialWeightG - retainedOn1_6mmG;
-  const laPercent = initialWeightG > 0 ? parseFloat(((passingG / initialWeightG) * 100).toFixed(1)) : 22;
+  const laPercent = parseFloat(((passingG / initialWeightG) * 100).toFixed(1));
 
   const isLA20 = laPercent <= 20;
   const isLA25 = laPercent <= 25;
   const isLA30 = laPercent <= 30;
-  const isPass = laPercent <= 30;
   const status: TestStatus = isLA25 ? "PASS" : isLA30 ? "WARNING" : "FAIL";
 
   const laClass = isLA20 ? "LA20 (ممتاز جداً للخرسانات عالية المقاومة والأرضيات الصناعية)"
@@ -351,7 +668,8 @@ export function calculateLosAngeles(
     laClass,
     status,
     interpretation: `معامل لوس أنجلوس المحسوب ${laPercent}% يمنح الركام تصنيف [${laClass}] بموجب المواصفة NF EN 1097-2. الركام يتمتع بصلابة ومقاومة ممتازة للصدم والتفتت الميكانيكي.`,
-    compliance
+    compliance,
+    dataState: "valid" as const
   };
 }
 
@@ -359,8 +677,25 @@ export function calculateMicroDeval(
   initialWeightG: number, // M (typically 500g)
   retainedOn1_6mmG: number // m (retained on 1.6mm after 2 hours rotation in water)
 ) {
+  if (initialWeightG <= 0 || retainedOn1_6mmG < 0 || retainedOn1_6mmG > initialWeightG) {
+    return {
+      mdePercent: undefined,
+      mdeClass: "غير محدد",
+      status: "FAIL" as TestStatus,
+      interpretation: "كتل اختبار ميكرو-ديفال غير صالحة فيزيائياً (NF EN 1097-1).",
+      compliance: [{
+        parameter: "معامل ميكرو-ديفال بالماء (MDE %)",
+        measured: "غير متوفر (بيانات غير صالحة)",
+        limit: "≤ 20% (NF EN 1097-1)",
+        status: "FAIL",
+        note: "الكتل المدخلة سالبة أو غير متناسقة"
+      }],
+      dataState: "invalid" as const
+    };
+  }
+
   const passingG = initialWeightG - retainedOn1_6mmG;
-  const mdePercent = initialWeightG > 0 ? parseFloat(((passingG / initialWeightG) * 100).toFixed(1)) : 15;
+  const mdePercent = parseFloat(((passingG / initialWeightG) * 100).toFixed(1));
 
   const isMDE15 = mdePercent <= 15;
   const isMDE20 = mdePercent <= 20;
@@ -385,7 +720,8 @@ export function calculateMicroDeval(
     mdeClass,
     status,
     interpretation: `معامل ميكرو-ديفال الرطب ${mdePercent}% (${mdeClass}) وفق NF EN 1097-1، ما يضمن متانة الركام عند التعرض للتآكل المائي والبيئات الرطبة.`,
-    compliance
+    compliance,
+    dataState: "valid" as const
   };
 }
 
@@ -393,9 +729,23 @@ export function calculateVoidContent(
   bulkDensityKgM3: number,
   specificGravityRealKgM3: number
 ) {
-  const voidPercent = specificGravityRealKgM3 > 0
-    ? parseFloat(((1 - (bulkDensityKgM3 / specificGravityRealKgM3)) * 100).toFixed(1))
-    : 40;
+  if (bulkDensityKgM3 <= 0 || specificGravityRealKgM3 <= 0 || bulkDensityKgM3 >= specificGravityRealKgM3) {
+    return {
+      voidPercent: undefined,
+      status: "FAIL" as TestStatus,
+      interpretation: "الكثافة الظاهرية أو الحقيقية غير صالحة لحساب الفراغات البينية (يجب أن تكون الكثافة الحقيقية أكبر من الظاهرية).",
+      compliance: [{
+        parameter: "نسبة الفراغات البينية (Void Content V%)",
+        measured: "غير متوفر (بيانات غير صالحة)",
+        limit: "32% - 46% (NF EN 1097-3)",
+        status: "FAIL",
+        note: "الكثافات غير منطقية لحساب الفراغات"
+      }],
+      dataState: "invalid" as const
+    };
+  }
+
+  const voidPercent = parseFloat(((1 - (bulkDensityKgM3 / specificGravityRealKgM3)) * 100).toFixed(1));
 
   const isGood = voidPercent >= 30 && voidPercent <= 48;
   const status: TestStatus = isGood ? "PASS" : "WARNING";
@@ -412,7 +762,8 @@ export function calculateVoidContent(
     voidPercent,
     status,
     interpretation: `نسبة الفراغات البينية بين الحبيبات هي ${voidPercent}% محسوبة من الكثافة الظاهرية (${bulkDensityKgM3} kg/m³) والحقيقية (${specificGravityRealKgM3} kg/m³) وفق NF EN 1097-3.`,
-    compliance
+    compliance,
+    dataState: "valid" as const
   };
 }
 
@@ -421,13 +772,34 @@ export function calculateParticleShapeAndFlakiness(
   passingBarSievesWeightG: number, // Poids passant aux grilles à fentes (Flakiness FI)
   nonCubicalParticlesWeightG: number // Poids particules non cubiques L/E > 3 (Shape Index SI)
 ) {
-  const flakinessIndexFI = totalWeightG > 0
-    ? parseFloat(((passingBarSievesWeightG / totalWeightG) * 100).toFixed(1))
-    : 12;
+  if (totalWeightG <= 0 || passingBarSievesWeightG < 0 || nonCubicalParticlesWeightG < 0) {
+    return {
+      flakinessIndexFI: undefined,
+      shapeIndexSI: undefined,
+      status: "FAIL" as TestStatus,
+      interpretation: "كتلة العينة الإجمالية أو كتل الغربلة غير صالحة لاختبار معامل التفرطح والشكل (NF EN 933-3/4).",
+      compliance: [
+        {
+          parameter: "معامل التفرطح / الرقاقة (Flakiness Index FI %)",
+          measured: "غير متوفر (بيانات غير صالحة)",
+          limit: "≤ 20%",
+          status: "FAIL",
+          note: "الكتل المدخلة غير صالحة"
+        },
+        {
+          parameter: "معامل الاستطالة وشكل الحبيبات (Shape Index SI %)",
+          measured: "غير متوفر (بيانات غير صالحة)",
+          limit: "≤ 20%",
+          status: "FAIL",
+          note: "الكتل المدخلة غير صالحة"
+        }
+      ],
+      dataState: "invalid" as const
+    };
+  }
 
-  const shapeIndexSI = totalWeightG > 0
-    ? parseFloat(((nonCubicalParticlesWeightG / totalWeightG) * 100).toFixed(1))
-    : 15;
+  const flakinessIndexFI = parseFloat(((passingBarSievesWeightG / totalWeightG) * 100).toFixed(1));
+  const shapeIndexSI = parseFloat(((nonCubicalParticlesWeightG / totalWeightG) * 100).toFixed(1));
 
   const isFlakinessPass = flakinessIndexFI <= 20; // FI20 / FI15
   const isShapePass = shapeIndexSI <= 20; // SI20
@@ -456,7 +828,8 @@ export function calculateParticleShapeAndFlakiness(
     shapeIndexSI,
     status,
     interpretation: `معامل التفرطح FI = ${flakinessIndexFI}% ومعامل الشكل SI = ${shapeIndexSI}% بموجب المواصفتين NF EN 933-3 و NF EN 933-4. الحبيبات مكعبة وشديدة التماسك مع مصفوفة الإسمنت.`,
-    compliance
+    compliance,
+    dataState: "valid" as const
   };
 }
 

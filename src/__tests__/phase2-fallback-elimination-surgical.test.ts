@@ -12,15 +12,30 @@ import { EngineeringMaterial, MixDesignInput, MixDesignResult } from "../types";
 
 describe("Phase 2 Final Surgical Closure: Zero Unauthorized Fallbacks Regression Suite", () => {
   describe("Material Testing Calculators", () => {
-    it("calculateSpecificGravityAndAbsorption: rejects missing or zero volume without fabricating 2.65, 2.68, or 1.5", () => {
-      // Missing or zero volume: ovenDry = 0, ssd = 100, water = 100 (volume = 0)
-      const res = calculateSpecificGravityAndAbsorption(0, 100, 100);
-      expect(res.status).toBe("FAIL");
-      expect(res.ovenDryRelativeDensity).toBe(0);
-      expect(res.ssdRelativeDensity).toBe(0);
-      expect(res.waterAbsorptionPercent).toBe(0);
-      expect(res.realDensityKgM3).toBe(0);
-      expect(res.ssdDensityKgM3).toBe(0);
+    it("calculateSpecificGravityAndAbsorption: returns undefined for missing or zero volume without fabricating zeros or defaults", () => {
+      // Missing inputs (ovenDry = 0)
+      const resMissing = calculateSpecificGravityAndAbsorption(0, 100, 100);
+      expect(resMissing.status).toBe("FAIL");
+      expect(resMissing.dataState).toBe("missing");
+      expect(resMissing.ovenDryRelativeDensity).toBeUndefined();
+      expect(resMissing.ssdRelativeDensity).toBeUndefined();
+      expect(resMissing.waterAbsorptionPercent).toBeUndefined();
+      expect(resMissing.realDensityKgM3).toBeUndefined();
+      expect(resMissing.ssdDensityKgM3).toBeUndefined();
+
+      // Physically invalid inputs (apparent weight in water >= ssd weight)
+      const resInvalid = calculateSpecificGravityAndAbsorption(100, 100, 110);
+      expect(resInvalid.status).toBe("FAIL");
+      expect(resInvalid.dataState).toBe("invalid");
+      expect(resInvalid.ovenDryRelativeDensity).toBeUndefined();
+      expect(resInvalid.waterAbsorptionPercent).toBeUndefined();
+
+      // Valid non-porous aggregate: preserves valid measured zero for water absorption
+      const resValidZero = calculateSpecificGravityAndAbsorption(1000, 1000, 600);
+      expect(resValidZero.status).toBe("PASS");
+      expect(resValidZero.dataState).toBe("valid");
+      expect(resValidZero.waterAbsorptionPercent).toBe(0); // Valid measured zero
+      expect(resValidZero.realDensityKgM3).toBe(2500);
     });
 
     it("calculateFiberProperties: does not fabricate aspect ratio 50 when diameter is zero or negative", () => {
@@ -29,17 +44,55 @@ describe("Phase 2 Final Surgical Closure: Zero Unauthorized Fallbacks Regression
       expect(aspectDetail?.measured).toBe("0");
     });
 
-    it("calculateSieveAnalysis: does not fabricate dMax (5.0 / 20.0) or fines content (1.5) when not tested", () => {
+    it("calculateSieveAnalysis: does not fabricate dMax or fines content when data is absent or incomplete", () => {
+      // Missing sieve rows
+      const emptyRes = calculateSieveAnalysis(0, [], "sand");
+      expect(emptyRes.status).toBe("FAIL");
+      expect(emptyRes.dataState).toBe("missing");
+      expect(emptyRes.dMax).toBeUndefined();
+      expect(emptyRes.finesContent).toBeUndefined();
+      expect(emptyRes.finenessModulus).toBeUndefined();
+
       // Sieve rows without fines sieve (<0.08) and without sieve with >=95% passing
       const sieveData = [
         { sieve: 10, retained: 20 },
         { sieve: 8, retained: 30 }
       ];
       const res = calculateSieveAnalysis(50, sieveData, "sand");
-      expect(res.finesContent).toBe(0);
+      expect(res.dataState).toBe("valid");
+      expect(res.finesContent).toBeUndefined(); // fines sieve was not tested
+      expect(res.dMax).toBeUndefined(); // no sieve has >=95% passing
+      expect(res.finenessModulus).toBeUndefined(); // sand sieve coverage insufficient
+      
       const finesCompliance = res.compliance.find(c => c.parameter.includes("المواد الناعمة"));
-      expect(finesCompliance?.measured).toBe("غير متوفر");
+      expect(finesCompliance?.measured).toContain("غير متوفر");
       expect(finesCompliance?.status).toBe("WARNING");
+
+      const dMaxCompliance = res.compliance.find(c => c.parameter.includes("Dmax"));
+      expect(dMaxCompliance?.measured).toContain("غير محدد");
+
+      const fmCompliance = res.compliance.find(c => c.parameter.includes("FM"));
+      expect(fmCompliance?.measured).toContain("غير متوفر");
+    });
+
+    it("calculateSieveAnalysis: correctly computes valid results and preserves measured zeros", () => {
+      // Complete sand sieve test with valid data and 0% fines
+      const completeSand = [
+        { sieve: 4.0, retained: 5 },    // 95% passing -> Dmax = 4.0
+        { sieve: 2.0, retained: 10 },
+        { sieve: 1.0, retained: 15 },
+        { sieve: 0.5, retained: 20 },
+        { sieve: 0.25, retained: 30 },
+        { sieve: 0.125, retained: 20 },
+        { sieve: 0.063, retained: 0 }   // 0% passing 0.063 (100% retained before pan)
+      ];
+      const res = calculateSieveAnalysis(100, completeSand, "sand");
+      expect(res.status).toBe("PASS");
+      expect(res.dataState).toBe("valid");
+      expect(res.dMax).toBe(4.0);
+      expect(res.finesContent).toBe(0); // Valid measured zero
+      expect(typeof res.finenessModulus).toBe("number");
+      expect(res.finenessModulus).toBeGreaterThan(0);
     });
   });
 
