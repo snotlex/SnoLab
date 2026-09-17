@@ -337,16 +337,20 @@ export function validateLabResults(
   const flowMetric = evaluateField("slumpFlow", "تدفق هبوط الخرسانة", "Slump Flow Test", input.slump >= 18 ? 550 : 0, labInputs.slumpFlow, false, 50, "slump");
   if (flowMetric && labInputs.slumpFlow > 0) metrics.push(flowMetric);
 
-  const theoreticalDensity = result.totalFreshDensity || 2400;
-  const densityMetric = evaluateField("freshDensity", "الكثافة الرطبة للخلطة", "Fresh Wet Density", theoreticalDensity, labInputs.freshDensity, false, 50, "density");
-  if (densityMetric) metrics.push(densityMetric);
+  const theoreticalDensity = result.totalFreshDensity;
+  if (theoreticalDensity && theoreticalDensity > 0) {
+    const densityMetric = evaluateField("freshDensity", "الكثافة الرطبة للخلطة", "Fresh Wet Density", theoreticalDensity, labInputs.freshDensity, false, 50, "density");
+    if (densityMetric) metrics.push(densityMetric);
 
-  const unitWeightMetric = evaluateField("unitWeight", "الوزن الحجمي للخرسانة", "Fresh Unit Weight", theoreticalDensity, labInputs.unitWeight || 0, false, 50, "density");
-  if (unitWeightMetric && (labInputs.unitWeight || 0) > 0) metrics.push(unitWeightMetric);
+    const unitWeightMetric = evaluateField("unitWeight", "الوزن الحجمي للخرسانة", "Fresh Unit Weight", theoreticalDensity, labInputs.unitWeight || 0, false, 50, "density");
+    if (unitWeightMetric && (labInputs.unitWeight || 0) > 0) metrics.push(unitWeightMetric);
+  }
 
-  const theoreticalAir = input.airContent || 1.5;
-  const airMetric = evaluateField("airContent", "نسبة الهواء المحبوز الفعلي", "Fresh Air Content", theoreticalAir, labInputs.airContent, false, 1, "air");
-  if (airMetric) metrics.push(airMetric);
+  const theoreticalAir = input.airContent;
+  if (theoreticalAir !== undefined && theoreticalAir >= 0) {
+    const airMetric = evaluateField("airContent", "نسبة الهواء المحبوز الفعلي", "Fresh Air Content", theoreticalAir, labInputs.airContent, false, 1, "air");
+    if (airMetric) metrics.push(airMetric);
+  }
 
   const concreteTempMetric = evaluateField("concreteTemp", "درجة حرارة الصب بالموقع", "Concrete Temperature", 23, labInputs.concreteTemp, false, 5, "density");
   if (concreteTempMetric && labInputs.concreteTemp > 0) metrics.push(concreteTempMetric);

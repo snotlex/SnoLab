@@ -183,9 +183,9 @@ export function CostAnalysisDashboard({
   // 4. Historical pricing timeline simulated datasets (replaces any mock feel with real concrete market fluctuations)
   const historicalTrends = useMemo(() => {
     // Generate simulated indices for the past 12 months with currency adjustments
-    const baseC = inputs.priceCement || 15;
-    const baseS = inputs.priceSand || 3;
-    const baseG = inputs.priceGravel || 3.5;
+    const baseC = inputs.priceCement || 0;
+    const baseS = inputs.priceSand || 0;
+    const baseG = inputs.priceGravel || 0;
 
     return [
       { date: "Jul 25", cement: Math.round(baseC * 0.92 * 10) / 10, sand: Math.round(baseS * 0.95 * 10)/10, gravel: Math.round(baseG * 0.97 * 10)/10 },
@@ -276,7 +276,7 @@ export function CostAnalysisDashboard({
     // Suggestion C: Superplasticizer optimization
     if (inputs.dosageSuper < 1.2) {
       // Opt superplasticizer to reduce water and cement simultaneously
-      const currentWater = results.waterContentActual || 180;
+      const currentWater = results.waterContentActual ?? results.waterContentNeeded;
       // High water reduction
       const cementSavedNum = cementWeight * 0.08; // 8% cement deduction safely
       const savingsPerM3 = cementSavedNum * inputs.priceCement - (cementWeight * 0.012 - cementWeight * (inputs.dosageSuper/100)) * inputs.priceSuper;

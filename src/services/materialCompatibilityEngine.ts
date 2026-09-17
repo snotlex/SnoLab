@@ -70,7 +70,7 @@ export function evaluateMaterialCompatibility(
   const dMax = typeof context.maxAggregateSize === "number" && !isNaN(context.maxAggregateSize)
     ? context.maxAggregateSize
     : undefined;
-  const exposure = String(context.exposureClass || "X0").toUpperCase();
+  const exposure = context.exposureClass ? String(context.exposureClass).toUpperCase() : undefined;
   const constraints = roleRequirement.constraints || {};
 
   // 1. Run basic eligibility gate
@@ -341,11 +341,11 @@ export function evaluateMaterialCompatibility(
   // Factor 5: Durability & Exposure Environment Fit (Max 10 pts)
   // =========================================================================
   let durScore = 10;
-  let durDetailsAr = "متوافقة مع شروط ديمومة البيئة.";
-  let durDetailsEn = "Compliant with environment durability rules.";
-  let durDetailsFr = "Conforme aux exigences de durabilité.";
+  let durDetailsAr = exposure ? "متوافقة مع شروط ديمومة البيئة." : "فئة التعرض البيئي غير محددة.";
+  let durDetailsEn = exposure ? "Compliant with environment durability rules." : "Exposure class not specified.";
+  let durDetailsFr = exposure ? "Conforme aux exigences de durabilité." : "Classe d'exposition non spécifiée.";
 
-  if (exposure.startsWith("XA") || exposure.startsWith("XS")) {
+  if (exposure && (exposure.startsWith("XA") || exposure.startsWith("XS"))) {
     if (role === "cement") {
       const isSr = material.name.includes("SR") || material.name.includes("مقاوم") || (material.sulfateContent && material.sulfateContent < 3.0);
       if (isSr) {

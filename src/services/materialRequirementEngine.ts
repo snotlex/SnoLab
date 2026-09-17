@@ -105,7 +105,7 @@ export function determineMaterialRequirements(inputs: ProjectRequirementsInput):
   const dMax = typeof inputs.maxAggregateSize === "number" && !isNaN(inputs.maxAggregateSize)
     ? inputs.maxAggregateSize
     : undefined;
-  const exposure = (inputs.exposureClass || "X0").toUpperCase();
+  const exposure = inputs.exposureClass ? inputs.exposureClass.toUpperCase() : undefined;
   const slump = typeof inputs.slumpCm === "number" && !isNaN(inputs.slumpCm)
     ? inputs.slumpCm
     : undefined;
@@ -121,7 +121,7 @@ export function determineMaterialRequirements(inputs: ProjectRequirementsInput):
   const isUhpcOrBfup = concreteType === "UHPC" || concreteType === "BFUP";
   const isHsc = concreteType === "HSC" || (fck !== undefined && fck >= 50);
   const isHpc = concreteType === "HPC";
-  const isSulfateAttack = exposure.startsWith("XA") || special.sulfateResistance || special.marineEnvironment || exposure.startsWith("XS");
+  const isSulfateAttack = (exposure && (exposure.startsWith("XA") || exposure.startsWith("XS"))) || special.sulfateResistance || special.marineEnvironment;
   const isLowHeat = special.lowHeatOfHydration || concreteType === "RCC";
 
   let cementReqType: RoleRequirementType = isGpc ? "forbidden" : "mandatory";
@@ -326,7 +326,7 @@ export function determineMaterialRequirements(inputs: ProjectRequirementsInput):
     admixReasonAr = "إلزامي: مسرع شك فوري لتثبيت طبقات الخرسانة المرشوشة بالأسطح الرأسية والأسقف.";
     admixReasonEn = "Mandatory: Set accelerator to ensure immediate adhesion of sprayed concrete to vertical surfaces.";
     admixReasonFr = "Obligatoire : Accélérateur de prise pour garantir l'adhérence instantanée sur parois verticales.";
-  } else if (exposure.startsWith("XF")) {
+  } else if (exposure && exposure.startsWith("XF")) {
     admixReqType = "conditional";
     admixConstraint = { preferredAdmixtureType: "air_entraining" };
     admixReasonAr = `مشروط: حابس هواء (Air-Entraining) لحماية الخرسانة من دورات الانجماد والذوبان (${exposure}).`;

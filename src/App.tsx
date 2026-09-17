@@ -2904,8 +2904,8 @@ export default function App() {
             copy.sandRelativeDensity = densNum;
           }
           copy.priceSand = mat.price !== undefined ? mat.price : 2.5;
-          copy.sandAbsorption = mat.absorption !== undefined ? mat.absorption : 1.5;
-          copy.moistureSand = mat.moisture !== undefined ? mat.moisture : 0;
+          if (mat.absorption !== undefined) copy.sandAbsorption = mat.absorption;
+          if (mat.moisture !== undefined) copy.moistureSand = mat.moisture;
           if (mat.finenessModulus) {
             copy.finenessModulus = mat.finenessModulus;
           }
@@ -2925,8 +2925,8 @@ export default function App() {
             copy.gravelRelativeDensity = densNum;
           }
           copy.priceGravel = mat.price !== undefined ? mat.price : 8.0;
-          copy.gravelAbsorption = mat.absorption !== undefined ? mat.absorption : 0.8;
-          copy.moistureGravel = mat.moisture !== undefined ? mat.moisture : 0;
+          if (mat.absorption !== undefined) copy.gravelAbsorption = mat.absorption;
+          if (mat.moisture !== undefined) copy.moistureGravel = mat.moisture;
           copy.aggregateType = mat.particleShape === "مكسر" || mat.particleShape === "زاوي" ? AggregateType.CONCASSE : AggregateType.ROULE;
           if (mat.dMax) {
             copy.dMax = mat.dMax;
@@ -2951,8 +2951,8 @@ export default function App() {
           copy.selectedAdmixtureId = mat.id;
           copy.selectedAdmixtureName = mat.name;
           copy.priceSuper = mat.price !== undefined ? mat.price : 180;
-          copy.selectedAdmixtureDensity = mat.density || 1.15;
-          copy.selectedAdmixtureWaterReduction = mat.waterReduction || 20;
+          if (mat.density) copy.selectedAdmixtureDensity = mat.density;
+          if (mat.waterReduction !== undefined) copy.selectedAdmixtureWaterReduction = mat.waterReduction;
           
           if (copy.concreteType === "UHPC" || copy.concreteType === "BFUP") {
             copy.dosageSuper = 2.5;
@@ -2970,7 +2970,7 @@ export default function App() {
         if (mat) {
           copy.selectedScmId = mat.id;
           copy.selectedScmName = mat.name;
-          copy.selectedScmDensity = mat.density || 2200;
+          if (mat.density) copy.selectedScmDensity = mat.density;
           copy.priceSilicaFume = mat.price !== undefined ? mat.price : 90;
           
           if (copy.concreteType === "UHPC" || copy.concreteType === "BFUP" || copy.concreteType === "HSC" || copy.concreteType === "HPC") {
@@ -2987,7 +2987,7 @@ export default function App() {
         if (mat) {
           copy.selectedFiberId = mat.id;
           copy.selectedFiberName = mat.name;
-          copy.fiberDensity = mat.density || 7850;
+          if (mat.density) copy.fiberDensity = mat.density;
           copy.priceFiber = mat.price !== undefined ? mat.price : 250;
           copy.fiberDosageKgM3 = 45;
         }
@@ -2999,7 +2999,7 @@ export default function App() {
         if (mat) {
           copy.selectedSpecialBinderId = mat.id;
           copy.selectedSpecialBinderName = mat.name;
-          copy.specialBinderDensity = mat.density || 2900;
+          if (mat.density) copy.specialBinderDensity = mat.density;
           copy.priceSpecialBinder = mat.price !== undefined ? mat.price : 45;
           copy.specialBinderReplacementPercent = 100;
         }
@@ -3835,12 +3835,12 @@ export default function App() {
 
   const mixQualityScoreVal = useMemo(() => {
     let score = 50;
-    const wcRatio = results.wcRatioAdjusted || 0.45;
+    const wcRatio = results.wcRatioAdjusted ?? results.wcRatio;
     const controlClass = inputs.controlClass;
     const aggregateQuality = inputs.aggregateQuality;
     const admixturesCount = results.admixtureWeights?.length || 0;
     const hasPumping = inputs.hasPumping;
-    const exposureClass = inputs.exposureClass || "X0";
+    const exposureClass = inputs.exposureClass;
     const sandAbsorption = activeResolvedMats.sand?.absorption;
     const gravelAbsorption = activeResolvedMats.gravel?.absorption;
     const sandFineness = activeResolvedMats.sand?.finenessModulus;
@@ -3849,12 +3849,14 @@ export default function App() {
     const finalDensity = results.totalFreshDensity;
 
     // 1. W/C Ratio (max 15 pt)
-    if (wcRatio >= 0.40 && wcRatio <= 0.48) {
-      score += 15;
-    } else if (wcRatio > 0.48 && wcRatio <= 0.55) {
-      score += 8;
-    } else {
-      score -= 5;
+    if (wcRatio !== undefined) {
+      if (wcRatio >= 0.40 && wcRatio <= 0.48) {
+        score += 15;
+      } else if (wcRatio > 0.48 && wcRatio <= 0.55) {
+        score += 8;
+      } else {
+        score -= 5;
+      }
     }
 
     // 2. Compressive strength limits (max 10 pt)
@@ -3867,13 +3869,15 @@ export default function App() {
     }
 
     // 3. Exposure class compatibility (max 10 pt)
-    const isAggressiveExp = ["XD1", "XD2", "XD3", "XS1", "XS2", "XS3", "XA1", "XA2", "XA3"].includes(exposureClass);
-    if (isAggressiveExp && wcRatio <= 0.45) {
-      score += 10;
-    } else if (!isAggressiveExp) {
-      score += 8;
-    } else {
-      score -= 3;
+    const isAggressiveExp = exposureClass ? ["XD1", "XD2", "XD3", "XS1", "XS2", "XS3", "XA1", "XA2", "XA3"].includes(exposureClass) : false;
+    if (exposureClass) {
+      if (isAggressiveExp && wcRatio !== undefined && wcRatio <= 0.45) {
+        score += 10;
+      } else if (!isAggressiveExp) {
+        score += 8;
+      } else {
+        score -= 3;
+      }
     }
 
     // 4. Aggregate quality (max 10 pt)

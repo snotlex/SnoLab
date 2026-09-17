@@ -761,10 +761,10 @@ export const handleExportExcel = (
   ]);
 
   // Cement (Row 20 in Excel, index 19)
-  const cementDens = input.cementDensity && input.cementDensity > 0 ? (input.cementDensity / 1000) : 3.15;
+  const cementDens = input.cementDensity && input.cementDensity > 0 ? (input.cementDensity / 1000) : undefined;
   rows.push([
     str(t.cementDry || "Cement"), 
-    num(Number(cementDens.toFixed(2))), 
+    cementDens !== undefined ? num(Number(cementDens.toFixed(2))) : str("-"), 
     num(Math.round(result.cementWeight)), 
     str("=E16"), 
     num(Math.round(result.cementWeight * batchVolume), "C20*D20")
@@ -780,20 +780,20 @@ export const handleExportExcel = (
   ]);
 
   // Sand (Row 22 in Excel, index 21)
-  const sandDens = input.sandRelativeDensity && input.sandRelativeDensity > 0 ? input.sandRelativeDensity : 2.65;
+  const sandDens = input.sandRelativeDensity && input.sandRelativeDensity > 0 ? input.sandRelativeDensity : undefined;
   rows.push([
     str(t.drySand || "Fine Sand"), 
-    num(Number(sandDens.toFixed(2))), 
+    sandDens !== undefined ? num(Number(sandDens.toFixed(2))) : str("-"), 
     num(Math.round(result.sandWeightDry)), 
     str("=E16"), 
     num(Math.round(result.sandWeightDry * batchVolume), "C22*D22")
   ]);
 
   // Gravel (Row 23 in Excel, index 22)
-  const gravelDens = input.gravelRelativeDensity && input.gravelRelativeDensity > 0 ? input.gravelRelativeDensity : 2.68;
+  const gravelDens = input.gravelRelativeDensity && input.gravelRelativeDensity > 0 ? input.gravelRelativeDensity : undefined;
   rows.push([
     str(t.dryGravel || "Coarse Gravel"), 
-    num(Number(gravelDens.toFixed(2))), 
+    gravelDens !== undefined ? num(Number(gravelDens.toFixed(2))) : str("-"), 
     num(Math.round(result.gravelWeightDry)), 
     str("=E16"), 
     num(Math.round(result.gravelWeightDry * batchVolume), "C23*D23")

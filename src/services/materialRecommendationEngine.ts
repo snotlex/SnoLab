@@ -690,8 +690,8 @@ export function applyRecommendedMaterialToInputs(
   const updated: MixDesignInput = { ...prevInputs };
   const dens = material.density || material.specificGravity || 0;
   const price = material.price || 0;
-  const abs = material.absorption !== undefined ? material.absorption : 0;
-  const moist = material.moisture !== undefined ? material.moisture : 0;
+  const abs = material.absorption !== undefined ? material.absorption : undefined;
+  const moist = material.moisture !== undefined ? material.moisture : undefined;
 
   switch (role) {
     case "cement": {

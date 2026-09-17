@@ -132,8 +132,8 @@ export function analyzeMixDesign(
   const savingPercent = (currentCement !== undefined && optimizedCement !== undefined && currentCement > optimizedCement)
     ? Math.round(((currentCement - optimizedCement) / currentCement) * 1000) / 10
     : 0;
-  const priceCement = input.priceCement || 22; // default pricing
-  const potentialSavingDA = (currentCement !== undefined && optimizedCement !== undefined)
+  const priceCement = input.priceCement || 0;
+  const potentialSavingDA = (currentCement !== undefined && optimizedCement !== undefined && priceCement > 0)
     ? Math.max(0, Math.round((currentCement - optimizedCement) * priceCement))
     : 0;
   
@@ -462,9 +462,9 @@ export function analyzeMixDesign(
     : `Excellent bilan carbone grâce à l'incorporation d'ajouts minéraux actifs (SCM) limitant le clinker.`;
 
   // 8. Economic Analysis
-  const pSand = input.priceSand || 2.4;
-  const pGravel = input.priceGravel || 2.6;
-  const pWater = input.priceWater || 1.1;
+  const pSand = input.priceSand || 0;
+  const pGravel = input.priceGravel || 0;
+  const pWater = input.priceWater || 0;
 
   const costCement = currentCement !== undefined ? Math.round(currentCement * priceCement) : 0;
   const costAggs = Math.round((result.sandWeightDry * pSand) + (result.gravelWeightDry * pGravel));
@@ -472,15 +472,15 @@ export function analyzeMixDesign(
   let costAdmixtures = 0;
   if (result.admixtureWeights && result.admixtureWeights.length > 0) {
     result.admixtureWeights.forEach(a => {
-      let unitPrice = 120; // fallback in Algerian Dinar
+      let unitPrice = 0;
       if (a.name.includes("ملدن") || a.name.includes("Super")) {
-        unitPrice = input.priceSuper || 135;
+        unitPrice = input.priceSuper || 0;
       } else if (a.name.includes("هواء") || a.name.includes("Air")) {
-        unitPrice = input.priceAir || 110;
+        unitPrice = input.priceAir || 0;
       } else if (a.name.includes("مؤخر") || a.name.includes("Retarder")) {
-        unitPrice = input.priceRetarder || 115;
+        unitPrice = input.priceRetarder || 0;
       } else {
-        unitPrice = input.priceAccelerator || 125;
+        unitPrice = input.priceAccelerator || 0;
       }
       costAdmixtures += a.weight * unitPrice;
     });
@@ -488,15 +488,15 @@ export function analyzeMixDesign(
   
   // Scm pricing
   const costScm = Math.round(
-    (silicaQty * (input.priceSilicaFume || 90)) +
-    (flyAshQty * (input.priceFlyAsh || 45)) +
-    (slagQty * (input.priceSlag || 38))
+    (silicaQty * (input.priceSilicaFume || 0)) +
+    (flyAshQty * (input.priceFlyAsh || 0)) +
+    (slagQty * (input.priceSlag || 0))
   );
 
   const costWaterTotal = Math.round(result.waterContentActual * pWater);
-  const totalCost = Math.round(costCement + costAggs + costAdmixtures + costScm + costWaterTotal + (input.priceLabor || 180));
+  const totalCost = Math.round(costCement + costAggs + costAdmixtures + costScm + costWaterTotal + (input.priceLabor || 0));
 
-  const costSavingPercent = Math.round((potentialSavingDA / totalCost) * 1000) / 10;
+  const costSavingPercent = totalCost > 0 ? Math.round((potentialSavingDA / totalCost) * 1000) / 10 : 0;
   const economicAdvAr = potentialSavingDA > 250
     ? `بإجراء هندسي للحد الأمثل للإسمنت وتكامل الرص الحبيبي، يمكن توفير نحو ${potentialSavingDA} د.ج لكل متر مكعب من التكلفة المالية للمركبات، مما يمثل نسبة وفورات اقتصادية قدرها ${costSavingPercent}% للمشروع الإجمالي.`
     : `الكلفة المالية متوازنة ومضغوطة لدرجات الاستغلال القصوى.`;

@@ -86,10 +86,9 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
   // Selected Material
   const currentMaterial = useMemo(() => {
     return materials.find(m => m.id === selectedMaterialId) || materials[0] || {
-      id: "mat-default",
-      name: "مادة تجريبية",
-      category: "رمال",
-      density: 2.65
+      id: "mat-unspecified",
+      name: "مادة غير محددة",
+      category: "عام"
     } as EngineeringMaterial;
   }, [materials, selectedMaterialId]);
 

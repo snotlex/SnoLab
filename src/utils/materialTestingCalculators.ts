@@ -47,11 +47,11 @@ export function calculateSieveAnalysis(
   // Determine Dmax (smallest sieve with >= 95% passing or 100%)
   const sorted = [...processedRows].sort((a, b) => b.sieve - a.sieve);
   const dmaxRow = sorted.find(r => r.passing >= 95);
-  const dMax = dmaxRow ? dmaxRow.sieve : (materialType === "sand" ? 5.0 : 20.0);
+  const dMax = dmaxRow ? dmaxRow.sieve : (sorted[0]?.sieve || 0);
 
   // Fines content (< 0.063 mm)
   const finesRow = processedRows.find(r => r.sieve <= 0.08);
-  const finesContent = finesRow ? (100 - (finesRow.cumRetained || 0)) : 1.5;
+  const finesContent = finesRow ? (100 - (finesRow.cumRetained || 0)) : 0;
 
   let status: TestStatus = "PASS";
   let interpretation = "";
@@ -69,13 +69,23 @@ export function calculateSieveAnalysis(
       note: isFmGood ? "معامل نعومة مثالي لتشغيلية ومقاومة الخرسانة" : isFmWarn ? "رمل ناعم جداً أو خشن نسبياً" : "رمل خارج الحدود القياسية المعتمدة"
     });
 
-    compliance.push({
-      parameter: "نسبة المواد الناعمة (<0.063 مم)",
-      measured: `${finesContent.toFixed(1)}%`,
-      limit: "≤ 3.0% (رمل مغسول) / ≤ 5.0% (رمل مكسر)",
-      status: finesContent <= 3.0 ? "PASS" : finesContent <= 5.0 ? "WARNING" : "FAIL",
-      note: finesContent <= 3.0 ? "مطابق للخرسانات الإنشائية عالية الأداء" : "يتطلب مراقبة ماء الخلط والمكافئ الرملي"
-    });
+    if (finesRow) {
+      compliance.push({
+        parameter: "نسبة المواد الناعمة (<0.063 مم)",
+        measured: `${finesContent.toFixed(1)}%`,
+        limit: "≤ 3.0% (رمل مغسول) / ≤ 5.0% (رمل مكسر)",
+        status: finesContent <= 3.0 ? "PASS" : finesContent <= 5.0 ? "WARNING" : "FAIL",
+        note: finesContent <= 3.0 ? "مطابق للخرسانات الإنشائية عالية الأداء" : "يتطلب مراقبة ماء الخلط والمكافئ الرملي"
+      });
+    } else {
+      compliance.push({
+        parameter: "نسبة المواد الناعمة (<0.063 مم)",
+        measured: "غير متوفر",
+        limit: "≤ 3.0% (رمل مغسول) / ≤ 5.0% (رمل مكسر)",
+        status: "WARNING",
+        note: "لم يتم فحص منخل المواد الناعمة (0.08 مم أو 0.063 مم)"
+      });
+    }
 
     if (!isFmGood) status = isFmWarn ? "WARNING" : "FAIL";
     interpretation = isFmGood 
@@ -142,14 +152,24 @@ export function calculateSpecificGravityAndAbsorption(
   apparentWeightInWaterG: number // M3 (سلة الغمر في الماء)
 ) {
   const volumeG = ssdWeightG - apparentWeightInWaterG; // (M2 - M3)
-  const ovenDryRelativeDensity = volumeG > 0 ? parseFloat((ovenDryWeightG / volumeG).toFixed(3)) : 2.65;
-  const ssdRelativeDensity = volumeG > 0 ? parseFloat((ssdWeightG / volumeG).toFixed(3)) : 2.68;
+  if (volumeG <= 0 || ovenDryWeightG <= 0) {
+    return {
+      ovenDryRelativeDensity: 0,
+      ssdRelativeDensity: 0,
+      realDensityKgM3: 0,
+      ssdDensityKgM3: 0,
+      waterAbsorptionPercent: 0,
+      status: "FAIL" as TestStatus,
+      interpretation: "بيانات الكتل غير صالحة أو مفقودة لحساب الكثافة والامتصاص (NF EN 1097-6).",
+      compliance: []
+    };
+  }
+  const ovenDryRelativeDensity = parseFloat((ovenDryWeightG / volumeG).toFixed(3));
+  const ssdRelativeDensity = parseFloat((ssdWeightG / volumeG).toFixed(3));
   const realDensityKgM3 = Math.round(ovenDryRelativeDensity * 1000);
   const ssdDensityKgM3 = Math.round(ssdRelativeDensity * 1000);
 
-  const waterAbsorptionPercent = ovenDryWeightG > 0 
-    ? parseFloat((((ssdWeightG - ovenDryWeightG) / ovenDryWeightG) * 100).toFixed(2))
-    : 1.5;
+  const waterAbsorptionPercent = parseFloat((((ssdWeightG - ovenDryWeightG) / ovenDryWeightG) * 100).toFixed(2));
 
   const isAbsGood = waterAbsorptionPercent <= 2.5;
   const isAbsWarn = waterAbsorptionPercent > 2.5 && waterAbsorptionPercent <= 4.0;
@@ -743,7 +763,7 @@ export function calculateFiberProperties(
   densityGPerCm3: number,
   recommendedDosageKgM3: number
 ) {
-  const aspectRatio = diameterMm > 0 ? parseFloat((lengthMm / diameterMm).toFixed(1)) : 50;
+  const aspectRatio = diameterMm > 0 ? parseFloat((lengthMm / diameterMm).toFixed(1)) : 0;
   const isTensileGood = tensileStrengthMpa >= 500;
 
   const status: TestStatus = isTensileGood ? "PASS" : "WARNING";

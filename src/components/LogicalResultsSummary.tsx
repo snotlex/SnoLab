@@ -221,15 +221,15 @@ export const LogicalResultsSummary: React.FC<LogicalResultsSummaryProps> = ({
   const selectedGravel = inputs.selectedGravelId ? allMaterials.find(m => m.id === inputs.selectedGravelId) : undefined;
   const selectedCement = inputs.selectedCementId ? allMaterials.find(m => m.id === inputs.selectedCementId) : undefined;
 
-  const effectiveCementDensity = inputs.cementDensity || (selectedCement ? (getMaterialPropValue(selectedCement, 'density') || 3100) : 3100);
-  const effectiveSandDensity = inputs.sandRelativeDensity || (selectedSand ? (getMaterialPropValue(selectedSand, 'relativeDensity') || (getMaterialPropValue(selectedSand, 'density') ? +(getMaterialPropValue(selectedSand, 'density') / 1000).toFixed(2) : 2.65)) : 2.65);
-  const effectiveGravelDensity = inputs.gravelRelativeDensity || (selectedGravel ? (getMaterialPropValue(selectedGravel, 'relativeDensity') || (getMaterialPropValue(selectedGravel, 'density') ? +(getMaterialPropValue(selectedGravel, 'density') / 1000).toFixed(2) : 2.68)) : 2.68);
+  const effectiveCementDensity = inputs.cementDensity || (selectedCement ? getMaterialPropValue(selectedCement, 'density') : undefined);
+  const effectiveSandDensity = inputs.sandRelativeDensity || (selectedSand ? (getMaterialPropValue(selectedSand, 'relativeDensity') || (getMaterialPropValue(selectedSand, 'density') ? +(getMaterialPropValue(selectedSand, 'density') / 1000).toFixed(2) : undefined)) : undefined);
+  const effectiveGravelDensity = inputs.gravelRelativeDensity || (selectedGravel ? (getMaterialPropValue(selectedGravel, 'relativeDensity') || (getMaterialPropValue(selectedGravel, 'density') ? +(getMaterialPropValue(selectedGravel, 'density') / 1000).toFixed(2) : undefined)) : undefined);
 
   if (!effectiveCementDensity || effectiveCementDensity <= 0) {
     engineeringErrors.push({
       id: "missing_general_cement_density",
       message: isAr ? "كثافة الإسمنت المطلقة غير معرفة أو صفرية." : "Cement absolute density is undefined or zero.",
-      recommendation: isAr ? "يرجى التحقق من كثافة الإسمنت في مستودع المواد أو إدخال قيمة صالحة (مثال: 3.10 g/cm³)." : "Please specify a valid cement density in properties (e.g. 3.10 g/cm³)."
+      recommendation: isAr ? "يرجى التحقق من كثافة الإسمنت في مستودع المواد أو إدخال قيمة صالحة (مثال: 3100 kg/m³)." : "Please specify a valid cement density in properties (e.g. 3100 kg/m³)."
     });
   }
 
@@ -237,7 +237,7 @@ export const LogicalResultsSummary: React.FC<LogicalResultsSummaryProps> = ({
     engineeringErrors.push({
       id: "missing_general_sand_density",
       message: isAr ? "كثافة الركام الناعم (الرمل) غير معرفة أو مساوية للصفر." : "Sand relative density is undefined or zero.",
-      recommendation: isAr ? "يرجى تحديد الكثافة النوعية للرمل (الافتراضية: 2.65) لتصحيح حجم الفراغات." : "Please define a valid relative density for sand (default: 2.65)."
+      recommendation: isAr ? "يرجى تحديد الكثافة النوعية للرمل لتصحيح حجم الفراغات." : "Please define a valid relative density for sand."
     });
   }
 
@@ -245,7 +245,7 @@ export const LogicalResultsSummary: React.FC<LogicalResultsSummaryProps> = ({
     engineeringErrors.push({
       id: "missing_general_gravel_density",
       message: isAr ? "كثافة الركام الخشن (الحصى) غير معرفة أو مساوية للصفر." : "Gravel relative density is undefined or zero.",
-      recommendation: isAr ? "يرجى تحديد الكثافة النوعية للحصى (الافتراضية: 2.68) لتسهيل حسابات درو-غوريس الحجمية." : "Please define a valid relative density for gravel (default: 2.68)."
+      recommendation: isAr ? "يرجى تحديد الكثافة النوعية للحصى لتسهيل حسابات درو-غوريس الحجمية." : "Please define a valid relative density for gravel."
     });
   }
 

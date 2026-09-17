@@ -266,11 +266,11 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
   const calculatedScore = React.useMemo(() => {
     let score = 50;
     const resolvedAll = resolveMaterials(input, activeProject?.materialSnapshots, materialsDatabase);
-    const wcRatio = result.wcRatioAdjusted || 0.45;
+    const wcRatio = result.wcRatioAdjusted ?? result.wcRatio;
     const controlClass = input.controlClass;
     const aggregateQuality = input.aggregateQuality;
     const admixturesCount = result.admixtureWeights?.length || 0;
-    const exposureClass = input.exposureClass || "X0";
+    const exposureClass = input.exposureClass;
     const sandAbsorption = resolvedAll.sand?.absorption;
     const gravelAbsorption = resolvedAll.gravel?.absorption;
     const sandFineness = resolvedAll.sand?.finenessModulus;
@@ -279,12 +279,14 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
     const finalDensity = result.totalFreshDensity;
 
     // 1. W/C Ratio (max 15 pt)
-    if (wcRatio >= 0.40 && wcRatio <= 0.48) {
-      score += 15;
-    } else if (wcRatio > 0.48 && wcRatio <= 0.55) {
-      score += 8;
-    } else {
-      score -= 5;
+    if (wcRatio !== undefined) {
+      if (wcRatio >= 0.40 && wcRatio <= 0.48) {
+        score += 15;
+      } else if (wcRatio > 0.48 && wcRatio <= 0.55) {
+        score += 8;
+      } else {
+        score -= 5;
+      }
     }
 
     // 2. Compressive strength limits (max 10 pt)
@@ -297,13 +299,15 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
     }
 
     // 3. Exposure class compatibility (max 10 pt)
-    const isAggressiveExp = ["XD1", "XD2", "XD3", "XS1", "XS2", "XS3", "XA1", "XA2", "XA3"].includes(exposureClass);
-    if (isAggressiveExp && wcRatio <= 0.45) {
-      score += 10;
-    } else if (!isAggressiveExp) {
-      score += 8;
-    } else {
-      score -= 3;
+    const isAggressiveExp = exposureClass ? ["XD1", "XD2", "XD3", "XS1", "XS2", "XS3", "XA1", "XA2", "XA3"].includes(exposureClass) : false;
+    if (exposureClass) {
+      if (isAggressiveExp && wcRatio !== undefined && wcRatio <= 0.45) {
+        score += 10;
+      } else if (!isAggressiveExp) {
+        score += 8;
+      } else {
+        score -= 3;
+      }
     }
 
     // 4. Aggregate quality (max 10 pt)
@@ -711,11 +715,11 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
     }
 
     // 3. W/C compliance with Code (Exposure rules)
-    const exposureClass = input.exposureClass || "X0";
-    const wcRatio = result.wcRatioAdjusted || 0.45;
-    const isAggressiveExp = ["XD1", "XD2", "XD3", "XS1", "XS2", "XS3", "XA1", "XA2", "XA3"].includes(exposureClass);
+    const exposureClass = input.exposureClass;
+    const wcRatio = result.wcRatioAdjusted ?? result.wcRatio;
+    const isAggressiveExp = exposureClass ? ["XD1", "XD2", "XD3", "XS1", "XS2", "XS3", "XA1", "XA2", "XA3"].includes(exposureClass) : false;
 
-    if (isAggressiveExp && wcRatio > 0.45) {
+    if (exposureClass && isAggressiveExp && wcRatio !== undefined && wcRatio > 0.45) {
       checks.push({
         name: "مطابقة نسبة الماء (W/C) لرمز التعرض",
         nameEn: "Water-Cement Ratio Durability Check",
@@ -723,7 +727,7 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
         messageAr: `مخالف للكود: الفئة البيئية النشطة (${exposureClass}) تفيد بخطر ملوحة مرتفع وتتطلب نفاذية منخفضة جداً (W/C ≤ 0.45). النسبة الحالية هي ${wcRatio.toFixed(2)}.`,
         messageEn: `Failed: Exposure class '${exposureClass}' prohibits W/C ratio > 0.45. Secured limits exceeded.`
       });
-    } else if (wcRatio > 0.60) {
+    } else if (wcRatio !== undefined && wcRatio > 0.60) {
       checks.push({
         name: "مطابقة نسبة الماء لرمز التعرض الكود",
         nameEn: "Water-Cement Ratio Limit Check",
@@ -731,7 +735,7 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
         messageAr: `تنبيه: نسبة مياه الخلط مرتفعة (W/C = ${wcRatio.toFixed(2)}). خطر حدوث شقوق حرارية وتفتت سطحي مبكر.`,
         messageEn: `Warning: High W/C ratio (${wcRatio.toFixed(2)}) is prone to increased shrinkage cracking risks.`
       });
-    } else {
+    } else if (wcRatio !== undefined) {
       checks.push({
         name: "معامل مطابقت الماء/الإسمنت W/C",
         nameEn: "W/C Durability Criteria Compliance",
