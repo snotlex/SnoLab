@@ -1,4 +1,5 @@
 import { EngineeringMaterial } from '../types';
+import { ADDITIONAL_APPROVED_MATERIALS } from './additionalApprovedMaterials';
 
 export const SEEDED_MATERIALS: EngineeringMaterial[] = [
   {
@@ -17040,7 +17041,8 @@ export const SEEDED_MATERIALS: EngineeringMaterial[] = [
       }
     },
     "specificGravity": 1.25
-  }
+  },
+  ...ADDITIONAL_APPROVED_MATERIALS
 ];
 
 // Ensure all 53 SEEDED_MATERIALS are VALIDATED, COMPLETE, READY, and USABLE IN MIX DESIGN
@@ -17079,4 +17081,3 @@ for (const mat of SEEDED_MATERIALS) {
   if (mat.dMax !== undefined) (mat as any).Dmax = mat.dMax;
   if (mat.dMin !== undefined) (mat as any).Dmin = mat.dMin;
 }
-
