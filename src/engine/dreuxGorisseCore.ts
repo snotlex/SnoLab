@@ -171,7 +171,11 @@ export function calculateDreuxGorisseCore(input: MixDesignInput | DreuxGorisseIn
 
   const fck28 = input.fck28;
   const controlClass = input.controlClass;
-  const cementClassStrength = input.cementClassStrength;
+  const rawConcreteCode = typeof input.concreteType === "string" ? input.concreteType : (input.concreteType as any)?.code || "";
+  const isCementless = String(rawConcreteCode || "").toUpperCase() === "GPC";
+  const cementClassStrength = isCementless
+    ? (Number(input.specialBinderStrengthClass) || 42.5)
+    : input.cementClassStrength;
   const dMax = input.dMax;
   const slump = input.slump;
   const aggregateType = input.aggregateType;
@@ -203,7 +207,7 @@ export function calculateDreuxGorisseCore(input: MixDesignInput | DreuxGorisseIn
   }
 
   // Explicit density normalization (rejects ambiguous values, converts SI and Relative safely)
-  const cNorm = normalizeDensity(cementDensity, "الإسمنت");
+  const cNorm = normalizeDensity(isCementless ? 3100 : cementDensity, "الإسمنت");
   const sNorm = normalizeDensity(sandRelativeDensity, "الرمل");
   const gNorm = normalizeDensity(gravelRelativeDensity, "الحصى");
 
@@ -383,7 +387,7 @@ export function calculateDreuxGorisseCore(input: MixDesignInput | DreuxGorisseIn
   let weightSlag = 0;
   let activeCementWeight = 0;
 
-  if (input.concreteType === "GPC") {
+  if (isCementless) {
     // Geopolymer Cementless Concrete: 100% cementless, relies entirely on alternative binders
     cementWeight = 0;
     activeCementWeight = 0;

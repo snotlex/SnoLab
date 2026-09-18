@@ -130,6 +130,8 @@ const translateList = (arr: string[], lang: "ar" | "fr" | "en") => {
 export function validateMixInputs(input: any, language: "ar" | "fr" | "en" = "ar"): InputValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
+  const concreteCode = String(typeof input.concreteType === "string" ? input.concreteType : input.concreteType?.code || "").toUpperCase();
+  const isCementless = concreteCode === "GPC";
 
   // 1. Concrete volume (if specified, e.g. batchVolume)
   if (input.batchVolume !== undefined && input.batchVolume <= 0) {
@@ -150,11 +152,13 @@ export function validateMixInputs(input: any, language: "ar" | "fr" | "en" = "ar
     errors.push("حجم الركام الأقصى Dmax غير مقبول هندسياً (يجب أن يكون بين 2 و 150 مم).");
   }
 
-  // 2c. Cement strength class
-  if (input.cementClassStrength === undefined || input.cementClassStrength === null || input.cementClassStrength <= 0) {
-    errors.push("رتبة مقاومة الإسمنت (Cement Strength Class) مطلوبة لحساب نسبة الماء إلى الإسمنت.");
-  } else if (input.cementClassStrength < 20 || input.cementClassStrength > 80) {
-    errors.push("رتبة مقاومة الإسمنت (Cement Strength Class) يجب أن تكون بين 20 و 80 ميجاباسكال.");
+  // 2c. Cement strength class is not a prerequisite for cementless GPC.
+  if (!isCementless) {
+    if (input.cementClassStrength === undefined || input.cementClassStrength === null || input.cementClassStrength <= 0) {
+      errors.push("رتبة مقاومة الإسمنت (Cement Strength Class) مطلوبة لحساب نسبة الماء إلى الإسمنت.");
+    } else if (input.cementClassStrength < 20 || input.cementClassStrength > 80) {
+      errors.push("رتبة مقاومة الإسمنت (Cement Strength Class) يجب أن تكون بين 20 و 80 ميجاباسكال.");
+    }
   }
 
   // 3. Slump
@@ -195,12 +199,14 @@ export function validateMixInputs(input: any, language: "ar" | "fr" | "en" = "ar
 
   // 6. Cement Density
   const cementDens = input.cementDensity;
-  if (cementDens === undefined || cementDens === null || cementDens <= 0) {
-    errors.push("الكثافة المطلقة للإسمنت (Cement Density) مطلوبة لحساب الحجم المطلق.");
-  } else {
-    const normalizedCementSG = cementDens > 10 ? cementDens / 1000 : cementDens;
-    if (normalizedCementSG <= 2.5 || normalizedCementSG > 3.5) {
-      errors.push("الكثافة المطلقة للإسمنت (Cement Specific Gravity) غير منطقية (يجب أن تقع بين 2.5 و 3.5، أي 2500 - 3500 كجم/م³).");
+  if (!isCementless) {
+    if (cementDens === undefined || cementDens === null || cementDens <= 0) {
+      errors.push("الكثافة المطلقة للإسمنت (Cement Density) مطلوبة لحساب الحجم المطلق.");
+    } else {
+      const normalizedCementSG = cementDens > 10 ? cementDens / 1000 : cementDens;
+      if (normalizedCementSG <= 2.5 || normalizedCementSG > 3.5) {
+        errors.push("الكثافة المطلقة للإسمنت (Cement Specific Gravity) غير منطقية (يجب أن تقع بين 2.5 و 3.5، أي 2500 - 3500 كجم/م³).");
+      }
     }
   }
 
@@ -238,12 +244,13 @@ export function validateMixInputs(input: any, language: "ar" | "fr" | "en" = "ar
   const sl = input.dosageSlag !== undefined ? input.dosageSlag : 0;
   const totalSCMPercent = sf + fa + sl;
   
-  if (totalSCMPercent > 80) {
+  const scmLimit = isCementless ? 100 : 80;
+  if (totalSCMPercent > scmLimit) {
     errors.push("نسبة الإضافات المعدنية SCM الإجمالية تجاوزت الحد الأقصى المنطقي (80٪ من وزن الإسمنت).");
   }
 
   // 11. Special Binder warning
-  if (input.selectedSpecialBinderId && (input.specialBinderReplacementPercent === undefined || input.specialBinderReplacementPercent === null || input.specialBinderReplacementPercent <= 0)) {
+  if (!isCementless && input.selectedSpecialBinderId && (input.specialBinderReplacementPercent === undefined || input.specialBinderReplacementPercent === null || input.specialBinderReplacementPercent <= 0)) {
     warnings.push("هذا الرابط الخاص لن يغيّر الحسابات رقمياً حتى يتم تحديد نسبة الاستبدال.");
   }
 

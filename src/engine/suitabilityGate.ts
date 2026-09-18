@@ -174,6 +174,9 @@ export function checkMaterialSuitability(
   }
 
   const concreteType = (input.concreteType || "").toLowerCase();
+  const rawConcrete = typeof input.concreteType === "string" ? input.concreteType : (input.concreteType as any)?.code || "";
+  const concreteCode = String(rawConcrete || "").toUpperCase();
+  const isCementless = concreteCode === "GPC";
 
   // 1. Basic lookup for required materials: cement, sand, gravel, water
   const cement = materialsDatabase.find(m => m.id === input.selectedCementId) as any;
@@ -182,7 +185,7 @@ export function checkMaterialSuitability(
   const water = materialsDatabase.find(m => m.id === input.selectedWaterId) as any;
 
   // Check if any required basic material is missing from DB
-  if (!input.selectedCementId || !cement) missingMaterials.push("cement");
+  if (!isCementless && (!input.selectedCementId || !cement)) missingMaterials.push("cement");
   if (!input.selectedSandId || !sand) missingMaterials.push("sand");
   if (!input.selectedGravelId || !gravel) missingMaterials.push("gravel");
   if (!input.selectedWaterId || !water) missingMaterials.push("water");
@@ -202,7 +205,7 @@ export function checkMaterialSuitability(
 
   // 2. Check if selected materials are actually user-entered materials (or system materials present in materialsDatabase)
   const materialsToCheck = [
-    { mat: cement, name: "cement" },
+    ...(!isCementless ? [{ mat: cement, name: "cement" }] : []),
     { mat: sand, name: "sand" },
     { mat: gravel, name: "gravel" },
     { mat: water, name: "water" }
@@ -333,7 +336,7 @@ export function checkMaterialSuitability(
   }
 
   // 5. Technical property validation for basic materials
-  if (cement) {
+  if (cement && !isCementless) {
     const density = cement.density || cement.Density;
     const strengthClass = cement.strengthClass || cement.cementClassStrength || cement.strength28d || cement.cementClass;
     if (!density) {
@@ -376,9 +379,6 @@ export function checkMaterialSuitability(
   }
 
   // 6. Concrete-Type compatibility validations based on CONCRETE_TYPES_CATALOG codes
-  const rawConcrete = typeof input.concreteType === "string" ? input.concreteType : (input.concreteType as any)?.code || "";
-  const concreteCode = String(rawConcrete || "").toUpperCase();
-
   // --- 1. GPC: Geopolymer Concrete (Cement-free, alternative binders) ---
   if (concreteCode === "GPC") {
     // Prohibit traditional cement

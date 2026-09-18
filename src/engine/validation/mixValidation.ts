@@ -190,11 +190,15 @@ export function validateMixDesign(input: any, result: any): MixValidationResult 
   // C. Cement Content Check
   // ---------------------------------------------------------------------------
   // EN 206 uses cumulative binder for replacement in many cases, but let's check cementWeight
+  const isCementless = String(typeof input.concreteType === "string" ? input.concreteType : input.concreteType?.code || "").toUpperCase() === "GPC";
   const cementVal = result.cementKg || result.cementWeight || 0;
+  const binderVal = result.totalBinder || result.totalCementitiousKg || cementVal;
   let cemStatus: ValidationStatus = "valid";
   const cemMsgs: ValidationMessage[] = [];
 
-  if (cementVal < 200) {
+  if (isCementless) {
+    cemMsgs.push(makeMessage("BINDER_OK_GPC", "info", `محتوى الرابط البديل في GPC هو ${binderVal.toFixed(1)} كجم/م³؛ لا ينطبق حد الإسمنت البورتلاندي على هذه الخلطة الخالية من الإسمنت.`));
+  } else if (cementVal < 200) {
     cemStatus = "invalid";
     const msg = makeMessage("CEM_ERR_L", "error", `كمية الإسمنت (${cementVal.toFixed(1)} كجم/م³) منخفضة للغاية وغير مقبولة لهيكل خرساني مسلح (الحد الأدني المطلق 200 كجم/م³).`, { value: cementVal, limit: 200, unit: "kg/m³" });
     cemMsgs.push(msg);
@@ -508,7 +512,7 @@ export function validateMixDesign(input: any, result: any): MixValidationResult 
 
     // Check minimum Cement or Binder content
     const limitMinCem = expRule.minCementKgM3;
-    if (limitMinCem !== undefined) {
+    if (limitMinCem !== undefined && !isCementless) {
       if (cementVal < limitMinCem) {
         // EN 206 rule is fatal
         expStatus = "invalid";
