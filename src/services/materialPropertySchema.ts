@@ -245,7 +245,7 @@ export function normalizeMaterialRole(materialOrCategory: any): SupportedMateria
   if (combined.includes("ركام ثقيل") || combined.includes("heavyweight") || combined.includes("lourd") || combined.includes("باريت") || combined.includes("ماغنتيت") || combined.includes("مغنتيت")) {
     return "heavyweightAggregate";
   }
-  if (combined.includes("معاد تدوير") || combined.includes("recycled") || combined.includes("recyclé") || combined.includes("rca")) {
+  if (combined.includes("معاد تدوير") || combined.includes("معاد التدوير") || combined.includes("recycled") || combined.includes("recyclé") || combined.includes("rca")) {
     return "recycledAggregate";
   }
   if (combined.includes("ماء") || combined.includes("مياه") || combined.includes("water") || combined.includes("eau")) {
@@ -1559,13 +1559,16 @@ export const MATERIAL_PROPERTY_SCHEMAS: Record<SupportedMaterialRole, MaterialPr
       categoryGroup: "rheology",
       requirementLevel: "required",
       testStandard: "EN 934-2",
-      min: 3,
+      min: 0,
       max: 45,
       defaultVal: 22,
       placeholder: "22",
       categoryKey: "admixture",
-      isRequired: () => true,
-      validate: (val) => validateNumericRange(val, 3, 45, "نسبة تخفيض ماء الخلط الفعالة", "Pouvoir Réducteur d'Eau", "Water Reduction Capability", "%", false)
+      isRequired: (material) => {
+        const type = String(material?.admixtureType || material?.type || "").toLowerCase();
+        return type === "superplasticizer" || type === "retarder";
+      },
+      validate: (val) => validateNumericRange(val, 0, 45, "نسبة تخفيض ماء الخلط الفعالة", "Pouvoir Réducteur d'Eau", "Water Reduction Capability", "%", true)
     },
     {
       key: "density",
@@ -1775,7 +1778,10 @@ export const MATERIAL_PROPERTY_SCHEMAS: Record<SupportedMaterialRole, MaterialPr
       defaultVal: 95,
       placeholder: "95",
       categoryKey: "scm",
-      isRequired: () => true,
+      isRequired: (material) => {
+        const type = String(material?.admixtureType || material?.type || "").toLowerCase();
+        return type !== "slag" && !type.includes("ggbs");
+      },
       validate: (val) => validateNumericRange(val, 60, 150, "معامل الفعالية البوزولانية (28 يوم)", "Indice d'Activité Pouzzolanique (IAP)", "Pozzolanic Activity Index (28d)", "%", false)
     },
     {
@@ -3025,6 +3031,7 @@ export function getMaterialPropValue(m: any, propKey: string): any {
     waterReduction: ["waterReductionPercent", "water_reduction", "reductionRatio", "water_reduction_ratio"],
     pozzolanicIndex: ["PozzolanicIndex", "pozzolanic_index", "activityIndex", "indicePouzzolanique"],
     fiberType: ["type", "fiber_type", "typeDeFibres"],
+    fiberLength: ["fiberLengthMm", "lengthMm", "fiber_length", "longueurFibre"],
     tensileStrength: ["fiberTensileStrength", "resistanceTraction", "tensile_strength"],
     ph: ["pH", "PH", "waterPH", "valeurPH"],
     chlorides: ["Chlorides", "chlorideContent", "teneurChlorures"],
@@ -3915,4 +3922,3 @@ export function categorizeMixMaterialDeficiencies(
 
   return breakdowns;
 }
-

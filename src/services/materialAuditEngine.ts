@@ -98,12 +98,14 @@ export function auditMaterial(
   mixMethod: string = "dreux",
   concreteType: string = "standard"
 ): MaterialAuditResult {
-  const role = normalizeMaterialRole(material.category || material.type);
+  const role = normalizeMaterialRole(material);
   const schemas = MATERIAL_PROPERTY_SCHEMAS[role] || [];
 
   const isSystem = 
     material.source === "system" || 
     (material as any).sourceType === "system_demo" || 
+    (material as any).isSystem === true ||
+    material.id.startsWith("SYS-") ||
     material.id.startsWith("preset-") || 
     material.id.startsWith("standard-");
 
@@ -430,7 +432,7 @@ export function auditMaterialLibrary(
 export function safeNormalizeMaterial(material: EngineeringMaterial): EngineeringMaterial {
   if (!material) return material;
 
-  const role = normalizeMaterialRole(material.category || material.type);
+  const role = normalizeMaterialRole(material);
   const schemas = MATERIAL_PROPERTY_SCHEMAS[role] || [];
   const isSystem = 
     material.source === "system" || 
@@ -952,4 +954,3 @@ export function runSystemMaterialsPreflight(materials: EngineeringMaterial[]): S
     items
   };
 }
-

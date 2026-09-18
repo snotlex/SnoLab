@@ -1,0 +1,100 @@
+{
+  "count": 67,
+  "duplicates": [],
+  "roles": {
+    "cement": 9,
+    "sand": 7,
+    "gravel": 7,
+    "water": 3,
+    "admixture": 9,
+    "scm": 8,
+    "fiber": 4,
+    "filler": 1,
+    "lightweightAggregate": 3,
+    "heavyweightAggregate": 3,
+    "recycledAggregate": 2,
+    "specialBinder": 1,
+    "airContent": 1,
+    "soil": 2,
+    "bituminous": 4,
+    "masonry": 3
+  },
+  "health": 91,
+  "ready": 61,
+  "incomplete": 6,
+  "needsReview": 0,
+  "topMissing": [
+    {
+      "propertyKey": "pozzolanicIndex",
+      "propertyId": "PROP_SCM_ACTIVITY",
+      "labelAr": "معامل الفعالية البوزولانية (28 يوم)",
+      "labelFr": "Indice d'Activité Pouzzolanique (IAP)",
+      "labelEn": "Pozzolanic Activity Index (28d)",
+      "role": "scm",
+      "missingCount": 2,
+      "isRequired": true
+    },
+    {
+      "propertyKey": "tensileStrength",
+      "propertyId": "PROP_FBR_TENSILE",
+      "labelAr": "مقاومة الشد المحورية للألياف",
+      "labelFr": "Résistance à la Traction des Fibres",
+      "labelEn": "Tensile Strength of Fibers",
+      "role": "fiber",
+      "missingCount": 1,
+      "isRequired": true
+    },
+    {
+      "propertyKey": "bulkDensity",
+      "propertyId": "PROP_LWA_BULK_DENSITY",
+      "labelAr": "الكثافة الظاهرية المعبأة (الحر)",
+      "labelFr": "Masse Volumique en Vrac",
+      "labelEn": "Loose Bulk Density",
+      "role": "lightweightAggregate",
+      "missingCount": 1,
+      "isRequired": true
+    },
+    {
+      "propertyKey": "bulkDensity",
+      "propertyId": "PROP_HWA_BULK_DENSITY",
+      "labelAr": "الكثافة الظاهرية للصب الحر",
+      "labelFr": "Masse Volumique Apparente",
+      "labelEn": "Bulk Density (Loose)",
+      "role": "heavyweightAggregate",
+      "missingCount": 1,
+      "isRequired": true
+    },
+    {
+      "propertyKey": "bariumSulfate",
+      "propertyId": "PROP_HWA_BASO4",
+      "labelAr": "محتوى كبريتات الباريوم (BaSO4)",
+      "labelFr": "Teneur en Sulfate de Baryum",
+      "labelEn": "Barium Sulfate Content",
+      "role": "heavyweightAggregate",
+      "missingCount": 1,
+      "isRequired": true
+    },
+    {
+      "propertyKey": "bulkDensity",
+      "propertyId": "PROP_RCA_BULK_DENSITY",
+      "labelAr": "الكثافة الظاهرية في الحالة السائبة",
+      "labelFr": "Masse Volumique Apparente",
+      "labelEn": "Loose Bulk Density",
+      "role": "recycledAggregate",
+      "missingCount": 1,
+      "isRequired": true
+    },
+    {
+      "propertyKey": "masonryContent",
+      "propertyId": "PROP_RCA_MASONRY",
+      "labelAr": "نسبة بقايا الطوب والبناء (Rb)",
+      "labelFr": "Teneur en Éléments de Maçonnerie (Rb)",
+      "labelEn": "Masonry Debris Content (Rb)",
+      "role": "recycledAggregate",
+      "missingCount": 1,
+      "isRequired": true
+    }
+  ],
+  "invalidMaterials": [],
+  "allIdsUnique": true
+}

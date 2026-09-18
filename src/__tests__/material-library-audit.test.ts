@@ -125,4 +125,15 @@ describe("Material Property Schema & Completeness System", () => {
     // Should preserve user provenance
     expect(normalized.propertySources?.finenessModulus?.source).toBe("user_entered");
   });
+
+  it("should classify recycled aggregate from its combined category and type", () => {
+    expect(normalizeMaterialRole({ category: "ركام معاد التدوير", type: "recycled_aggregate" })).toBe("recycledAggregate");
+  });
+
+  it("should accept zero water reduction for an accelerator while requiring it for a superplasticizer", () => {
+    const admixtureSchema = MATERIAL_PROPERTY_SCHEMAS.admixture.find(p => p.key === "waterReduction")!;
+    expect(admixtureSchema.validate(0).isValid).toBe(true);
+    expect(admixtureSchema.isRequired({ admixtureType: "accelerator" } as EngineeringMaterial)).toBe(false);
+    expect(admixtureSchema.isRequired({ admixtureType: "superplasticizer" } as EngineeringMaterial)).toBe(true);
+  });
 });
