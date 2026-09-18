@@ -42,6 +42,7 @@ export interface ValidationResult {
 export interface ApplicabilityResult {
   level: "applicable" | "limited" | "not_applicable";
   reasons: string[];
+  recommendations?: string[];
 }
 
 export interface MaterialQuantity {

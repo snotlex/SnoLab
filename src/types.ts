@@ -353,6 +353,97 @@ export interface MixDesignResult {
   calculationNotes?: string[];
   validationSummary?: string;
   materialSuitability?: MaterialSuitability;
+
+  // New Structured Levels per Audit Specification
+  designSSD?: DesignSSDOutput;
+  batchCorrection?: BatchCorrectionOutput;
+  batchQuantities?: BatchQuantitiesOutput;
+  calculationTrace?: CalculationTraceStep[];
+  engineStatus?: EngineStatusGate;
+  confidenceLevel?: "high" | "medium" | "low" | "preliminary";
+}
+
+export type EngineStatusGate = "valid" | "valid_with_warnings" | "needs_data" | "needs_trial_mix" | "blocked";
+
+export interface CalculationTraceStep {
+  stepNumber: number;
+  name: string;
+  formula: string;
+  inputs: Record<string, any>;
+  result: any;
+  unit?: string;
+  note?: string;
+}
+
+export interface DesignSSDOutput {
+  cementKg: number;
+  flyAshKg: number;
+  slagKg: number;
+  silicaFumeKg: number;
+  specialBinderKg: number;
+  totalCementitiousKg: number;
+  effectiveWaterKg: number; // enters into w/c or w/cm
+  admixtureKg: number;
+  admixtures: Array<{
+    id: string;
+    name: string;
+    weight: number;
+    densityKgM3: number;
+    waterContentKg?: number;
+  }>;
+  fiberKg: number;
+  fineAggregateSSDKg: number;
+  coarseAggregateSSDKg: number;
+  airContentPercent: number;
+  airVolumeL: number;
+  waterCementRatio: number;
+  waterCementitiousRatio: number;
+}
+
+export interface AggregateBatchCorrection {
+  fractionName: string;
+  ovenDryKg: number;
+  ssdKg: number;
+  absorptionPercent: number;
+  totalMoisturePercent: number;
+  moistureState: "dryOfSSD" | "SSD" | "wetOfSSD";
+  asBatchedKg: number;
+  freeSurfaceWaterKg: number;
+  absorptionDeficitKg: number;
+}
+
+export interface BatchCorrectionOutput {
+  aggregates: AggregateBatchCorrection[];
+  fineAggregate: AggregateBatchCorrection;
+  coarseAggregate: AggregateBatchCorrection;
+  totalFreeSurfaceWaterKg: number;
+  totalAbsorptionDeficitKg: number;
+  rawWaterToAddKg: number;
+  waterToAddKg: number;
+  moistureState: "dryOfSSD" | "SSD" | "wetOfSSD";
+  moistureWarning?: string | null;
+}
+
+export interface BatchQuantitiesOutput {
+  batchVolumeM3: number;
+  cementKg: number;
+  flyAshKg: number;
+  slagKg: number;
+  silicaFumeKg: number;
+  specialBinderKg: number;
+  totalCementitiousKg: number;
+  fineAggregateWetKg: number;
+  coarseAggregateWetKg: number;
+  effectiveWaterKg: number;
+  waterToAddKg: number;
+  aggregateFreeWaterKg: number;
+  admixtures: Array<{
+    id: string;
+    name: string;
+    weight: number;
+  }>;
+  fiberKg: number;
+  totalBatchWeightKg: number;
 }
 
 export interface MaterialSuitability {

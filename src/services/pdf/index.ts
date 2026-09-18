@@ -9,13 +9,15 @@ export * from "./pdfCore";
 export * from "./mixDesignPdfGenerator";
 export * from "./labTestPdfGenerator";
 export * from "./projectAuditPdfGenerator";
+export * from "./materialDossierPdfGenerator";
 
-import { MixDesignInput, MixDesignResult } from "../../types";
+import { MixDesignInput, MixDesignResult, EngineeringMaterial } from "../../types";
 import { MaterialTestRecord } from "../../types/laboratoryTypes";
-import { MixDesignPdfOptions, LabTestPdfOptions } from "./types";
+import { MixDesignPdfOptions, LabTestPdfOptions, MaterialDossierPdfOptions } from "./types";
 import { generateMixDesignPdf } from "./mixDesignPdfGenerator";
 import { generateLabTestPdf } from "./labTestPdfGenerator";
 import { generateProjectAuditPdf, ProjectAuditPdfOptions } from "./projectAuditPdfGenerator";
+import { generateMaterialDossierPdf } from "./materialDossierPdfGenerator";
 
 /**
  * High-level helper to generate and immediately trigger download of a Concrete Mix Design PDF.
@@ -54,5 +56,19 @@ export async function downloadProjectAuditPdf(
   const doc = await generateProjectAuditPdf(options);
   const projName = (options.project.name || "Project").replace(/[^a-zA-Z0-9-_]/g, "_");
   const fileName = `SnoLab_Project_Audit_${projName}.pdf`;
+  doc.save(fileName);
+}
+
+/**
+ * High-level helper to generate and immediately trigger download of a Comprehensive Material Dossier PDF.
+ */
+export async function downloadMaterialDossierPdf(
+  material: EngineeringMaterial,
+  tests: MaterialTestRecord[] = [],
+  options: MaterialDossierPdfOptions = {}
+): Promise<void> {
+  const doc = await generateMaterialDossierPdf(material, tests, options);
+  const safeName = (material.name || "Material").replace(/[^a-zA-Z0-9-_]/g, "_");
+  const fileName = `SnoLab_Material_Dossier_${safeName}.pdf`;
   doc.save(fileName);
 }

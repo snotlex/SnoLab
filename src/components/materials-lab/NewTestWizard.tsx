@@ -17,7 +17,9 @@ import {
   Calendar,
   User,
   Building2,
-  Bookmark
+  Bookmark,
+  Search,
+  Check
 } from "lucide-react";
 import { 
   ResponsiveContainer, 
@@ -66,9 +68,12 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
   language = "ar"
 }) => {
   // Wizard State
-  const [selectedCategory, setSelectedCategory] = useState<LabCategory>(initialCategory);
+  const [selectedCategory, setSelectedCategory] = useState<LabCategory | "all">(initialCategory);
   const [selectedTestDefId, setSelectedTestDefId] = useState<string>(initialTestId || "AGG_SIEVE");
   const [selectedMaterialId, setSelectedMaterialId] = useState<string>(initialMaterialId || (materials[0]?.id || ""));
+  const [matSearchQuery, setMatSearchQuery] = useState<string>("");
+  const [matCategoryFilter, setMatCategoryFilter] = useState<string>("all");
+  const [testSearchQuery, setTestSearchQuery] = useState<string>("");
   
   // Test Metadata
   const [sampleId, setSampleId] = useState<string>(() => `SMP-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`);
@@ -83,7 +88,7 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
     return MASTER_TEST_CATALOG.find(t => t.id === selectedTestDefId) || MASTER_TEST_CATALOG[0];
   }, [selectedTestDefId]);
 
-  // Selected Material
+  // Selected Material (Any material from the library)
   const currentMaterial = useMemo(() => {
     return materials.find(m => m.id === selectedMaterialId) || materials[0] || {
       id: "mat-unspecified",
@@ -104,10 +109,34 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
     setInputsState(JSON.parse(JSON.stringify(testDef.defaultInputs)));
   };
 
-  // Filter tests by category
+  // Filter tests by category and search
   const filteredTests = useMemo(() => {
-    return MASTER_TEST_CATALOG.filter(t => t.category === selectedCategory);
-  }, [selectedCategory]);
+    return MASTER_TEST_CATALOG.filter(t => {
+      if (selectedCategory !== "all" && t.category !== selectedCategory) return false;
+      if (testSearchQuery.trim()) {
+        const q = testSearchQuery.toLowerCase();
+        const matchAr = t.titleAr.toLowerCase().includes(q);
+        const matchEn = t.titleEn.toLowerCase().includes(q);
+        const matchStd = t.standard.toLowerCase().includes(q);
+        if (!matchAr && !matchEn && !matchStd) return false;
+      }
+      return true;
+    });
+  }, [selectedCategory, testSearchQuery]);
+
+  // Filter materials for picker
+  const filteredMaterials = useMemo(() => {
+    return materials.filter(m => {
+      if (matCategoryFilter !== "all" && m.category !== matCategoryFilter) return false;
+      if (matSearchQuery.trim()) {
+        const q = matSearchQuery.toLowerCase();
+        const matchName = m.name?.toLowerCase().includes(q);
+        const matchCat = m.category?.toLowerCase().includes(q);
+        if (!matchName && !matchCat) return false;
+      }
+      return true;
+    });
+  }, [materials, matCategoryFilter, matSearchQuery]);
 
   // Execute Calculation Real-time
   const calculationResult: TestExecutionResult = useMemo(() => {
@@ -196,14 +225,27 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
             <div className="flex items-center justify-between">
               <label className="text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
                 <Layers className="w-4 h-4 text-blue-500" />
-                {language === "ar" ? "1. تصنيف مادة التجربة" : "1. Material Category"}
+                {language === "ar" ? "1. تصنيف مادة التجربة ومجال الفحص" : "1. Material Category"}
               </label>
               <span className="text-[11px] text-slate-400">
-                {language === "ar" ? "اختر تصنيف المادة لعرض الاختبارات المعيارية" : "Select category to view standard tests"}
+                {language === "ar" ? "اختر تصنيفاً أو اعرض جميع الاختبارات (28 فحصاً معيارياً)" : "Select category or view all 28 tests"}
               </span>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+              <button
+                type="button"
+                onClick={() => setSelectedCategory("all")}
+                className={`flex items-center justify-center gap-1.5 p-2.5 rounded-2xl border text-center transition-all cursor-pointer ${
+                  selectedCategory === "all"
+                    ? "bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-500/20 font-black"
+                    : "bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700"
+                }`}
+              >
+                <span className="text-lg">🧪</span>
+                <span className="text-xs font-bold truncate">جميع الاختبارات (28)</span>
+              </button>
+
               {(Object.keys(LAB_CATEGORIES_INFO) as LabCategory[]).map(catKey => {
                 const info = LAB_CATEGORIES_INFO[catKey];
                 const isSelected = selectedCategory === catKey;
@@ -218,13 +260,13 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
                         handleSelectTest(firstTestInCat);
                       }
                     }}
-                    className={`flex items-center gap-2 p-2.5 rounded-2xl border text-right transition-all cursor-pointer ${
+                    className={`flex items-center gap-1.5 p-2.5 rounded-2xl border text-right transition-all cursor-pointer ${
                       isSelected
                         ? "bg-blue-50 dark:bg-blue-950/40 border-blue-500 text-blue-700 dark:text-blue-300 shadow-sm ring-2 ring-blue-500/20 font-black"
                         : "bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700"
                     }`}
                   >
-                    <span className="text-xl">{info.icon}</span>
+                    <span className="text-lg">{info.icon}</span>
                     <span className="text-xs font-bold truncate">
                       {language === "ar" ? info.nameAr : info.nameEn}
                     </span>
@@ -235,12 +277,30 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
           </div>
 
           {/* 2. Target Material & Specific Test Picker */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 dark:bg-slate-800/30 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 bg-slate-50 dark:bg-slate-800/30 p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-slate-800">
             {/* Pick Test */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                {language === "ar" ? "الاختبار المعياري المطلوب:" : "Standard Laboratory Test:"}
-              </label>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                  <FlaskConical className="w-3.5 h-3.5 text-blue-600" />
+                  <span>{language === "ar" ? "الاختبار المعياري المطلوب:" : "Standard Laboratory Test:"}</span>
+                </label>
+                <span className="text-[10px] text-slate-400 font-mono">
+                  {filteredTests.length} فحص متاح
+                </span>
+              </div>
+
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 absolute right-3 top-2.5 text-slate-400" />
+                <input
+                  type="text"
+                  value={testSearchQuery}
+                  onChange={(e) => setTestSearchQuery(e.target.value)}
+                  placeholder="بحث في اسم الاختبار أو المواصفة..."
+                  className="w-full pl-3 pr-8 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                />
+              </div>
+
               <select
                 value={selectedTestDefId}
                 onChange={(e) => {
@@ -255,27 +315,86 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
                   </option>
                 ))}
               </select>
+
+              <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-[11px] text-slate-500 space-y-1">
+                <div className="flex justify-between items-center">
+                  <span className="font-bold text-slate-700 dark:text-slate-300">{currentTestDef.titleAr}</span>
+                  <span className="px-2 py-0.5 rounded-md bg-blue-100 dark:bg-blue-950 font-mono font-bold text-blue-700 dark:text-blue-300 text-[10px]">
+                    {currentTestDef.standard}
+                  </span>
+                </div>
+                <div className="text-[10px] text-slate-400">
+                  مزامنة تلقائية مع: <strong className="text-blue-600 dark:text-blue-400 font-mono">{currentTestDef.syncedPropertyKeys.join(", ")}</strong>
+                </div>
+              </div>
             </div>
 
-            {/* Pick Material to Update */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center justify-between">
-                <span>{language === "ar" ? "المادة المراد اختبارها وتحديث خواصها:" : "Material to Test & Sync:"}</span>
-                <span className="text-[10px] text-blue-600 dark:text-blue-400 font-bold">
-                  {language === "ar" ? "مزامنة آلية للمستودع" : "Auto-Sync Ready"}
+            {/* Pick Material to Test */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center justify-between">
+                  <span>{language === "ar" ? "المادة المراد اختبارها من المكتبة:" : "Material to Test & Sync:"}</span>
+                </label>
+                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
+                  <Check className="w-3 h-3" />
+                  <span>تحديث آلي للمكتبة</span>
                 </span>
-              </label>
+              </div>
+
+              {/* Material Search & Category filter */}
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <Search className="w-3.5 h-3.5 absolute right-3 top-2.5 text-slate-400" />
+                  <input
+                    type="text"
+                    value={matSearchQuery}
+                    onChange={(e) => setMatSearchQuery(e.target.value)}
+                    placeholder="بحث عن أي مادة في المكتبة..."
+                    className="w-full pl-3 pr-8 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                </div>
+                <select
+                  value={matCategoryFilter}
+                  onChange={(e) => setMatCategoryFilter(e.target.value)}
+                  className="px-2 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-300"
+                >
+                  <option value="all">كل المواد ({materials.length})</option>
+                  <option value="رمال">رمال</option>
+                  <option value="حصى">حصى</option>
+                  <option value="إسمنت">إسمنت</option>
+                  <option value="ماء">ماء</option>
+                  <option value="إضافات وملدنات">إضافات</option>
+                </select>
+              </div>
+
               <select
                 value={selectedMaterialId}
                 onChange={(e) => setSelectedMaterialId(e.target.value)}
                 className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-blue-500 focus:outline-none"
               >
-                {materials.map(m => (
+                {filteredMaterials.map(m => (
                   <option key={m.id} value={m.id}>
-                    📦 {m.name} ({m.category || "عام"}){m.density !== undefined ? ` - ${m.density} t/m³` : ""}
+                    📦 {m.name} ({m.category || "عام"}){m.density !== undefined ? ` • ${m.density} t/m³` : ""}
                   </option>
                 ))}
               </select>
+
+              {/* Selected Material Preview Card */}
+              <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-[11px] space-y-1">
+                <div className="flex justify-between items-center">
+                  <span className="font-bold text-slate-900 dark:text-white truncate max-w-[200px]">
+                    {currentMaterial.name}
+                  </span>
+                  <span className="px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950 font-bold text-emerald-600 dark:text-emerald-400 text-[10px]">
+                    {currentMaterial.category || "مادة معتمدة"}
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-2 text-[10px] text-slate-500 font-mono">
+                  <span>الكثافة: <strong>{currentMaterial.density ?? "—"} t/m³</strong></span>
+                  <span>• الامتصاص: <strong>{currentMaterial.absorption ?? "—"}%</strong></span>
+                  <span>• المعرف: <strong>{currentMaterial.id}</strong></span>
+                </div>
+              </div>
             </div>
           </div>
 

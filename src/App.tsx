@@ -774,7 +774,7 @@ export default function App() {
     return () => window.removeEventListener("switch-sidebar-tab", handleSwitch);
   }, []);
 
-  const handleSaveTestRecord = (testRecord: MaterialTestRecord, syncedProps: Record<string, any>) => {
+  const handleSaveTestRecord = (testRecord: MaterialTestRecord, _syncedProps?: Record<string, any>) => {
     setMaterialTestRecords(prev => {
       const existingIndex = prev.findIndex(t => t.id === testRecord.id);
       if (existingIndex >= 0) {
@@ -785,19 +785,9 @@ export default function App() {
       return [testRecord, ...prev];
     });
 
-    if (testRecord.materialId && syncedProps && Object.keys(syncedProps).length > 0) {
-      setMaterialsDatabase(prev => prev.map(mat => {
-        if (mat.id === testRecord.materialId) {
-          return {
-            ...mat,
-            ...syncedProps,
-            ApprovalStatus: "معتمد" as const,
-            updatedAt: new Date().toISOString()
-          };
-        }
-        return mat;
-      }));
-    }
+    // Note: Laboratory test records are preserved exclusively in the lab archive/history
+    // and do NOT mutate materialsDatabase or mix formulation inputs, ensuring they
+    // do not interfere with calculation results.
   };
 
   const handleDeleteTestRecord = (testId: string) => {
@@ -5036,7 +5026,7 @@ export default function App() {
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] text-blue-600 dark:text-blue-400 font-mono font-bold bg-blue-50 dark:bg-blue-950/60 px-3 py-1 rounded-full border border-blue-200 dark:border-blue-900/40">
-                    STAGE {activeStep} / 6 • {t(workflow.activeStageInfo.nameKey)}
+                    STAGE {activeStep} / 5 • {t(workflow.activeStageInfo.nameKey)}
                   </span>
                   {workflow.projectIsOpen && (
                     <button
@@ -5056,14 +5046,13 @@ export default function App() {
               </div>
 
               {/* Horizontal steps deck */}
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
                 {[
                   { num: 1, label: t("workflow.step1.label"), desc: t("workflow.step1.desc"), icon: Folder, tab: "saved_projects" },
                   { num: 2, label: t("workflow.step2.label"), desc: t("workflow.step2.desc"), icon: Database, tab: "materials_library" },
                   { num: 3, label: t("workflow.step3.label"), desc: t("workflow.step3.desc"), icon: Calculator, tab: "calculator" },
-                  { num: 4, label: t("workflow.step4.label"), desc: t("workflow.step4.desc"), icon: FlaskConical, tab: "materials_lab" },
-                  { num: 5, label: t("workflow.step5.label"), desc: t("workflow.step5.desc"), icon: TrendingUp, tab: "cost" },
-                  { num: 6, label: t("workflow.step6.label"), desc: t("workflow.step6.desc"), icon: FileText, tab: "reports" },
+                  { num: 4, label: t("workflow.step5.label"), desc: t("workflow.step5.desc"), icon: TrendingUp, tab: "cost" },
+                  { num: 5, label: t("workflow.step6.label"), desc: t("workflow.step6.desc"), icon: FileText, tab: "reports" },
                 ].map((st) => {
                   const IconComp = st.icon;
                   const isDone = st.num < activeStep;
@@ -5133,13 +5122,13 @@ export default function App() {
 
                 <button
                   type="button"
-                  disabled={activeStep >= 6}
+                  disabled={activeStep >= 5}
                   onClick={() => {
                     const next = (activeStep + 1) as ProjectStageNumber;
                     handleStepClick(next);
                   }}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs transition cursor-pointer ${
-                    activeStep >= 6
+                    activeStep >= 5
                       ? "opacity-30 cursor-not-allowed text-slate-400"
                       : "bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/60"
                   }`}
@@ -5317,9 +5306,8 @@ export default function App() {
                           {activeStep === 1 && (language === "ar" ? "سجل المشاريع الهندسي" : "Project specifications processor")}
                           {activeStep === 2 && (language === "ar" ? "تصفية وفرز قاعدة الخامات والمواد" : "Materials DB live querying")}
                           {activeStep === 3 && (language === "ar" ? "صياغة وتحضير الخلطة الخرسانية" : "Mix Proportioning & Formulation Engine")}
-                          {activeStep === 4 && (language === "ar" ? "معايرة الخلطة وضبط الخلطات التجريبية" : "Mix Calibration & Trial Batches")}
-                          {activeStep === 5 && (language === "ar" ? "تحليل النفقات والميزانية والجدوى الكلفية" : "Expense & Budget Analysis Engine")}
-                          {activeStep === 6 && (language === "ar" ? "توليد التقرير النهائي ووثيقة الاعتماد PDF" : "Certified PDF Compiler")}
+                          {activeStep === 4 && (language === "ar" ? "تحليل النفقات والميزانية والجدوى الكلفية" : "Expense & Budget Analysis Engine")}
+                          {activeStep === 5 && (language === "ar" ? "توليد التقرير النهائي ووثيقة الاعتماد PDF" : "Certified PDF Compiler")}
                         </div>
                       </div>
 

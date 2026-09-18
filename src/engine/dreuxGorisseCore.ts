@@ -1,16 +1,33 @@
-import { MixDesignInput, MixDesignResult, SievePoint, AggregateType, AggregateQuality } from "../types";
+import { 
+  MixDesignInput, 
+  MixDesignResult, 
+  SievePoint, 
+  AggregateType, 
+  AggregateQuality,
+  DesignSSDOutput,
+  BatchCorrectionOutput,
+  BatchQuantitiesOutput,
+  CalculationTraceStep,
+  EngineStatusGate
+} from "../types";
 import { LIMITS } from "./constants";
 import { validateMixInputs } from "./validateInputs";
 import { calculateCosting } from "./costing";
 import { validateMixDesign } from "./validation/mixValidation";
 import { checkMaterialSuitability } from "./suitabilityGate";
 import { DREUX_KNOWLEDGE_BASE } from "./dreuxKnowledgeBase";
+import { normalizeDensity } from "./densityNormalization";
+import { applyMoistureCorrection } from "./moistureCorrection";
+import { calculateAbsoluteVolume } from "./absoluteVolume";
+import { getEN206ExposureLimits } from "./en206Compliance";
+
+export type DreuxGorisseInput = Partial<MixDesignInput> & Record<string, any>;
 
 /**
  * Highly polished, professional single source of truth for the Georges Dreux-Gorisse method.
  * Conforms entirely to EN 206 limits, absolute volume stability, and moisture physics.
  */
-export function calculateDreuxGorisseCore(input: MixDesignInput, language: "ar" | "fr" | "en" = "ar"): MixDesignResult & { 
+export function calculateDreuxGorisseCore(input: MixDesignInput | DreuxGorisseInput, language: "ar" | "fr" | "en" = "ar"): MixDesignResult & { 
   valid: boolean; 
   isValid: boolean; 
   errors: string[]; 
@@ -31,6 +48,11 @@ export function calculateDreuxGorisseCore(input: MixDesignInput, language: "ar" 
     silicaFume: number;
   };
   totalBinder: number;
+  designSSD?: DesignSSDOutput;
+  batchCorrection?: BatchCorrectionOutput;
+  batchQuantities?: BatchQuantitiesOutput;
+  calculationTrace?: CalculationTraceStep[];
+  engineStatus?: EngineStatusGate;
 } {
   const steps: string[] = [];
   const localWarnings: string[] = [];
@@ -38,7 +60,7 @@ export function calculateDreuxGorisseCore(input: MixDesignInput, language: "ar" 
   let specialBinderVolume = 0;
 
   // --- Active Materials & Concrete-Type Suitability Gate ---
-  const suitability = checkMaterialSuitability(input, input.materialsDatabase || []);
+  const suitability = checkMaterialSuitability(input as MixDesignInput, input.materialsDatabase || []);
   if (suitability.status === "diagnostic_only") {
     suitability.status = "blocked";
   }
@@ -179,6 +201,65 @@ export function calculateDreuxGorisseCore(input: MixDesignInput, language: "ar" 
       moistureGravel = input.heavyweightAggregateMoisture;
     }
   }
+
+  // Explicit density normalization (rejects ambiguous values, converts SI and Relative safely)
+  const cNorm = normalizeDensity(cementDensity, "الإسمنت");
+  const sNorm = normalizeDensity(sandRelativeDensity, "الرمل");
+  const gNorm = normalizeDensity(gravelRelativeDensity, "الحصى");
+
+  if (!cNorm.isValid || !sNorm.isValid || !gNorm.isValid) {
+    const densityErrors = [cNorm.error, sNorm.error, gNorm.error].filter(Boolean) as string[];
+    return {
+      valid: false,
+      isValid: false,
+      engineStatus: "blocked",
+      errors: densityErrors,
+      warnings: [],
+      fcm28: 0,
+      stdDev: 0,
+      wcRatio: 0,
+      wcRatioAdjusted: 0,
+      dreuxAggregateFactor: 0,
+      compactorGamma: 0,
+      cementWeight: 0,
+      waterContentNeeded: 0,
+      waterContentActual: 0,
+      sandPercent: 0,
+      gravelPercent: 0,
+      sandWeightDry: 0,
+      gravelWeightDry: 0,
+      admixtureWeights: [],
+      sandWeightWet: 0,
+      gravelWeightWet: 0,
+      waterWeightWet: 0,
+      totalFreshDensity: 0,
+      waterBeforeCorrection: 0,
+      waterAfterDmax: 0,
+      waterFromAdmixtures: 0,
+      totalAggregateVolume: 0,
+      pivotPoint: { x: 0, y: 0 },
+      gradingCurve: [],
+      detailedSteps: densityErrors.map(e => `خطأ في الكثافة: ${e}`),
+      strengthEvolution: [],
+      standardsCompliance: [],
+      designWater: 0,
+      effectiveWater: 0,
+      aggregateFreeWater: 0,
+      batchWaterToAdd: 0,
+      waterCementRatio: 0,
+      waterBinderRatio: 0,
+      calculationMode: input.internalWcOverride ? "manualWBR" : "strengthBased",
+      costBreakdown: [],
+      totalCost: 0,
+      cementitiousMaterials: { cement: 0, flyAsh: 0, slag: 0, silicaFume: 0 },
+      totalBinder: 0,
+      notes: []
+    };
+  }
+
+  const cDensityL = cNorm.densityKgL;
+  const sDensityL = sNorm.densityKgL;
+  const gDensityL = gNorm.densityKgL;
 
   if (input.selectedAirPercentage !== undefined && input.selectedAirPercentage > 0) {
     airContent = input.selectedAirPercentage;
@@ -415,10 +496,38 @@ export function calculateDreuxGorisseCore(input: MixDesignInput, language: "ar" 
     localWarnings.push(`محتوى المواد الإسمنتية الكلي بالخلطة ارتفع تلقائياً لمتطلبات الحد الأدنى الكودي وهو ${vLimits.minBinderContentKgM3} كجم/م³.`);
   }
 
+  // EN 206 Exposure Class Limits (w/c max and minimum binder)
+  const en206Limits = getEN206ExposureLimits(exposureClass);
+  const currentBinderForWc = activeCementWeight + weightFlyAsh + weightSlag + weightSilicaFume + weightSpecialBinder;
+  const tempWbRatio = effectiveWater / (currentBinderForWc || 1);
+  if (tempWbRatio > en206Limits.maxWcRatio) {
+    const minBinderForWc = effectiveWater / en206Limits.maxWcRatio;
+    if (currentBinderForWc < minBinderForWc) {
+      const diff = minBinderForWc - currentBinderForWc;
+      activeCementWeight += diff;
+      localWarnings.push(
+        language === "ar"
+          ? `تم رفع محتوى الإسمنت تلقائياً بمقدار ${diff.toFixed(1)} كجم/م³ لخفض نسبة W/C إلى الحد الأقصى الكودي (${en206Limits.maxWcRatio.toFixed(2)}) لفئة التعرض (${en206Limits.exposureClass}).`
+          : `Cement content was increased by ${diff.toFixed(1)} kg/m³ to satisfy maximum W/C limit (${en206Limits.maxWcRatio.toFixed(2)}) for exposure class (${en206Limits.exposureClass}).`
+      );
+    }
+  }
+
+  const binderAfterWc = activeCementWeight + weightFlyAsh + weightSlag + weightSilicaFume + weightSpecialBinder;
+  if (binderAfterWc < en206Limits.minCementKg) {
+    const diff = en206Limits.minCementKg - binderAfterWc;
+    activeCementWeight += diff;
+    localWarnings.push(
+      language === "ar"
+        ? `تم رفع محتوى المواد الرابطة بمقدار ${diff.toFixed(1)} كجم/م³ لتحقيق الحد الأدنى الكودي (${en206Limits.minCementKg} كجم/م³) لفئة التعرض (${en206Limits.exposureClass}).`
+        : `Binder content was increased by ${diff.toFixed(1)} kg/m³ to satisfy minimum binder requirement (${en206Limits.minCementKg} kg/m³) for exposure class (${en206Limits.exposureClass}).`
+    );
+  }
+
   const cementitiousBinder = activeCementWeight + weightSpecialBinder;
   const totalBinder = activeCementWeight + weightFlyAsh + weightSlag + weightSilicaFume + weightSpecialBinder;
-  const waterCementRatio = effectiveWater / cementitiousBinder;
-  const waterBinderRatio = effectiveWater / totalBinder;
+  const waterCementRatio = effectiveWater / (cementitiousBinder || 1);
+  const waterBinderRatio = effectiveWater / (totalBinder || 1);
 
   steps.push(`الخطوة 5: حساب وزن الإسمنت والروابط المعدنية البوزولانية (Cementitious Materials Proportions)`);
   steps.push(`• الإسمنت الصافي الفعلي المخلوط للصب = ${activeCementWeight.toFixed(1)} كجم/م³.`);
@@ -460,18 +569,18 @@ export function calculateDreuxGorisseCore(input: MixDesignInput, language: "ar" 
   steps.push(`• معامل الرص المعتمد بالمعادلات γ = ${compactorGamma.toFixed(3)}.`);
 
   // 7. SCM and Aggregates Absolute volume calculations
-  const cDensityL = cementDensity > 100 ? cementDensity / 1000 : cementDensity;
-  const sDensityL = sandRelativeDensity > 10 ? sandRelativeDensity / 1000 : sandRelativeDensity;
-  const gDensityL = gravelRelativeDensity > 10 ? gravelRelativeDensity / 1000 : gravelRelativeDensity;
-
   const cementVolume = activeCementWeight / cDensityL;
 
-  // SCM densities - use mapped selectedScmDensity if available or look up from knowledge base
-  const scmDensityL = (input.selectedScmDensity !== undefined && input.selectedScmDensity > 0) ? (input.selectedScmDensity / 1000) : null;
+  // SCM densities normalization
   const scmDefaultDensities = DREUX_KNOWLEDGE_BASE.lookupTables.scmDefaultDensities.data;
-  const silicaDensityL = (scmDensityL && dosageSilicaFume > 0) ? scmDensityL : scmDefaultDensities.silicaFume / 1000;
-  const flyAshDensityL = (scmDensityL && dosageFlyAsh > 0) ? scmDensityL : scmDefaultDensities.flyAsh / 1000;
-  const slagDensityL = (scmDensityL && dosageSlag > 0) ? scmDensityL : scmDefaultDensities.slag / 1000;
+  const scmDensityInput = (input.selectedScmDensity !== undefined && input.selectedScmDensity > 0) ? input.selectedScmDensity : null;
+  const silicaDensityNorm = normalizeDensity(scmDensityInput ?? scmDefaultDensities.silicaFume, "غبار السيليكا");
+  const flyAshDensityNorm = normalizeDensity(scmDensityInput ?? scmDefaultDensities.flyAsh, "الرماد المتطاير");
+  const slagDensityNorm = normalizeDensity(scmDensityInput ?? scmDefaultDensities.slag, "خبث الأفران");
+
+  const silicaDensityL = silicaDensityNorm.densityKgL;
+  const flyAshDensityL = flyAshDensityNorm.densityKgL;
+  const slagDensityL = slagDensityNorm.densityKgL;
 
   const silicaVolume = weightSilicaFume / silicaDensityL;
   const flyAshVolume = weightFlyAsh / flyAshDensityL;
@@ -524,9 +633,14 @@ export function calculateDreuxGorisseCore(input: MixDesignInput, language: "ar" 
   let isVolumeFailed = false;
   if (aggregateAbsoluteVolume < 100) {
     isVolumeFailed = true;
+    localWarnings.push(
+      language === "ar"
+        ? `فشل إغلاق الحجم: حجم الركام المتبقي (${aggregateAbsoluteVolume.toFixed(1)} لتر/م³) غير كافٍ هندسياً لتكوين هيكل خرساني متماسك (الحد الأدنى 100 لتر/م³).`
+        : `Volume closure failed: remaining aggregate volume (${aggregateAbsoluteVolume.toFixed(1)} L/m³) is below physical threshold (minimum 100 L/m³).`
+    );
   }
 
-  // 8. Pivot point and aggregate distribution (incorporating Solution B packing delta influence!)
+  // 8. Pivot point and aggregate distribution
   const pivotX = dMax <= 12.5 ? 5 : (dMax / 2);
   const k0Data = DREUX_KNOWLEDGE_BASE.lookupTables.baseGranularConstantK0.data;
   const k0List = isRounded ? k0Data.rounded : k0Data.crushed;
@@ -538,13 +652,13 @@ export function calculateDreuxGorisseCore(input: MixDesignInput, language: "ar" 
     }
   }
 
-  const kCement = (cementWeight - 350) / 10;
+  const kCement = (activeCementWeight - 350) / 10;
   const kPumping = hasPumping ? 5 : 0;
   const K = kBase + kCement + kPumping;
 
   let pivotY = 50 - Math.sqrt(dMax) + K;
   
-  // Solution B: higher packing density limits aggregate gaps, shrinking required sand content!
+  // Higher packing density limits aggregate gaps, shrinking required sand content
   pivotY = pivotY - (packingDelta * 40);
 
   if (pivotY < 20) pivotY = 20;
@@ -557,7 +671,8 @@ export function calculateDreuxGorisseCore(input: MixDesignInput, language: "ar" 
     ? input.approvedGravelPercent
     : 100 - sandPercent;
 
-  const safeAggAbsVolume = Math.max(150, aggregateAbsoluteVolume);
+  // Physical calculation of dry aggregate masses without artificial clamping
+  const safeAggAbsVolume = Math.max(0, aggregateAbsoluteVolume);
   const sandWeightDry = safeAggAbsVolume * (sandPercent / 100) * sDensityL;
   const gravelWeightDry = safeAggAbsVolume * (gravelPercent / 100) * gDensityL;
 
@@ -581,42 +696,46 @@ export function calculateDreuxGorisseCore(input: MixDesignInput, language: "ar" 
     gravelAbs = input.heavyweightAggregateAbsorption;
   }
 
-  // Wet aggregate weights based on total moisture content
-  const sandWeightWet = sandWeightDry * (1 + moistureSand / 100);
-  const gravelWeightWet = gravelWeightDry * (1 + moistureGravel / 100);
+  // Rigorous Moisture Correction via dedicated moisture module
+  const moistureResult = applyMoistureCorrection({
+    sandDryKg: sandWeightDry,
+    gravelDryKg: gravelWeightDry,
+    sandMoisturePercent: moistureSand,
+    gravelMoisturePercent: moistureGravel,
+    sandAbsorptionPercent: sandAbs,
+    gravelAbsorptionPercent: gravelAbs,
+    effectiveWaterKg: effectiveWater
+  });
 
-  // Total moisture water inside aggregates
-  const sandTotalMoistureWater = sandWeightDry * moistureSand / 100;
-  const gravelTotalMoistureWater = gravelWeightDry * moistureGravel / 100;
+  const sandWeightWet = moistureResult.sandWetKg;
+  const gravelWeightWet = moistureResult.gravelWetKg;
+  const sandTotalMoistureWater = moistureResult.sandTotalMoistureWater;
+  const gravelTotalMoistureWater = moistureResult.gravelTotalMoistureWater;
   const totalAggregateMoistureWater = sandTotalMoistureWater + gravelTotalMoistureWater;
 
-  // Absorption water inside aggregates
   const sandAbsorptionWater = sandWeightDry * sandAbs / 100;
   const gravelAbsorptionWater = gravelWeightDry * gravelAbs / 100;
   const totalAbsorptionWater = sandAbsorptionWater + gravelAbsorptionWater;
 
-  // Free surface water
-  const sandFreeSurfaceWater = sandWeightDry * Math.max(0, moistureSand - sandAbs) / 100;
-  const gravelFreeSurfaceWater = gravelWeightDry * Math.max(0, moistureGravel - gravelAbs) / 100;
-  const totalFreeSurfaceWater = sandFreeSurfaceWater + gravelFreeSurfaceWater;
+  const sandFreeSurfaceWater = moistureResult.fineAggregate.freeSurfaceWaterKg;
+  const gravelFreeSurfaceWater = moistureResult.coarseAggregate.freeSurfaceWaterKg;
+  const totalFreeSurfaceWater = moistureResult.totalFreeSurfaceWaterKg;
 
-  // Absorption Deficits
-  const sandAbsorptionDeficit = moistureSand < sandAbs ? sandWeightDry * (sandAbs - moistureSand) / 100 : 0;
-  const gravelAbsorptionDeficit = moistureGravel < gravelAbs ? gravelWeightDry * (gravelAbs - moistureGravel) / 100 : 0;
-  const totalAbsorptionDeficit = sandAbsorptionDeficit + gravelAbsorptionDeficit;
+  const sandAbsorptionDeficit = moistureResult.fineAggregate.absorptionDeficitKg;
+  const gravelAbsorptionDeficit = moistureResult.coarseAggregate.absorptionDeficitKg;
+  const totalAbsorptionDeficit = moistureResult.totalAbsorptionDeficitKg;
 
-  // Final water to add (actual mixer volume addition)
-  const waterToAdd = Math.max(0, effectiveWater - totalFreeSurfaceWater + totalAbsorptionDeficit);
+  const waterToAdd = moistureResult.waterToAddKg;
   const batchWaterToAdd = waterToAdd;
 
-  // Legacy mappings for backward compatibility
   const sandMoistureWater = sandTotalMoistureWater;
   const gravelMoistureWater = gravelTotalMoistureWater;
   const aggregateFreeWater = totalFreeSurfaceWater - totalAbsorptionDeficit;
 
-  // Warning when waterToAdd is extremely low or moisture exceeds capacity
-  if (waterToAdd <= 0 && (moistureSand > 0 || moistureGravel > 0)) {
-    localWarnings.push("تنبيه: رطوبة الركام أكبر من ماء التصميم المطلوب. لا تضف ماءً قبل مراجعة الرطوبة أو تعديل الخلطة.");
+  if (moistureResult.warnings.length > 0) {
+    for (const w of moistureResult.warnings) {
+      localWarnings.push(w);
+    }
   }
 
   // Warning when moisture is not entered
@@ -1388,12 +1507,219 @@ export function calculateDreuxGorisseCore(input: MixDesignInput, language: "ar" 
     ...suitability.recommendations
   ].map(r => translateWarning(r, language));
 
+  // Compute absolute volume check using dedicated physics module
+  const absVolResult = calculateAbsoluteVolume({
+    cementKg: activeCementWeight,
+    waterKg: effectiveWater,
+    fineAggregateKg: sandWeightDry,
+    coarseAggregateKg: gravelWeightDry,
+    airContentPercent: airContent,
+    cementDensityKgM3: cNorm.densityKgM3,
+    sandRelativeDensity: sNorm.specificGravity,
+    gravelRelativeDensity: gNorm.specificGravity,
+    flyAshKg: weightFlyAsh,
+    flyAshDensityKgM3: flyAshDensityL * 1000,
+    slagKg: weightSlag,
+    slagDensityKgM3: slagDensityL * 1000,
+    silicaFumeKg: weightSilicaFume,
+    silicaFumeDensityKgM3: silicaDensityL * 1000,
+    specialBinderKg: weightSpecialBinder,
+    specialBinderDensityKgM3: (specialBinderReplacementPercent > 0 && specialBinderDensity > 0) ? (specialBinderDensity > 10 ? specialBinderDensity : specialBinderDensity * 1000) : 3100,
+    admixtureKg: admixWeightsTotal,
+    admixtureDensityKgM3: admixDensity * 1000,
+    fiberKg: fiberDosageKgM3,
+    fiberDensityKgM3: fiberDensityL * 1000,
+    toleranceL: 5.0
+  });
+
+  if (!absVolResult.isValid) {
+    isVolumeFailed = true;
+  }
+
+  // Structured Output Layer 1: Design SSD (1 m³)
+  const designSSD: DesignSSDOutput = {
+    cementKg: activeCementWeight,
+    flyAshKg: weightFlyAsh,
+    slagKg: weightSlag,
+    silicaFumeKg: weightSilicaFume,
+    specialBinderKg: weightSpecialBinder,
+    totalCementitiousKg: totalBinder,
+    effectiveWaterKg: effectiveWater,
+    admixtureKg: admixWeightsTotal,
+    admixtures: admixtureWeights.map(a => ({
+      id: a.admixtureId,
+      name: a.name,
+      weight: a.weight,
+      densityKgM3: admixDensity * 1000,
+      waterContentKg: 0
+    })),
+    fiberKg: fiberDosageKgM3,
+    fineAggregateSSDKg: sandWeightDry * (1 + sandAbs / 100),
+    coarseAggregateSSDKg: gravelWeightDry * (1 + gravelAbs / 100),
+    airContentPercent: airContent,
+    airVolumeL: airVolume,
+    waterCementRatio,
+    waterCementitiousRatio: waterBinderRatio
+  };
+
+  // Structured Output Layer 2: Batch Correction & Moisture Balance
+  const batchCorrection: BatchCorrectionOutput = {
+    aggregates: moistureResult.aggregates,
+    fineAggregate: moistureResult.fineAggregate,
+    coarseAggregate: moistureResult.coarseAggregate,
+    totalFreeSurfaceWaterKg: moistureResult.totalFreeSurfaceWaterKg,
+    totalAbsorptionDeficitKg: moistureResult.totalAbsorptionDeficitKg,
+    rawWaterToAddKg: moistureResult.rawWaterToAddKg,
+    waterToAddKg: moistureResult.waterToAddKg,
+    moistureState: moistureResult.moistureState,
+    moistureWarning: moistureResult.warnings.length > 0 ? moistureResult.warnings[0] : null
+  };
+
+  // Structured Output Layer 3: Batch Execution Quantities
+  const batchVol = Math.max(0.001, input.batchVolume ?? 1.0);
+  const batchQuantities: BatchQuantitiesOutput = {
+    batchVolumeM3: batchVol,
+    cementKg: activeCementWeight * batchVol,
+    flyAshKg: weightFlyAsh * batchVol,
+    slagKg: weightSlag * batchVol,
+    silicaFumeKg: weightSilicaFume * batchVol,
+    specialBinderKg: weightSpecialBinder * batchVol,
+    totalCementitiousKg: totalBinder * batchVol,
+    fineAggregateWetKg: sandWeightWet * batchVol,
+    coarseAggregateWetKg: gravelWeightWet * batchVol,
+    effectiveWaterKg: effectiveWater * batchVol,
+    waterToAddKg: waterToAdd * batchVol,
+    aggregateFreeWaterKg: aggregateFreeWater * batchVol,
+    admixtures: admixtureWeights.map(a => ({
+      id: a.admixtureId,
+      name: a.name,
+      weight: a.weight * batchVol
+    })),
+    fiberKg: fiberDosageKgM3 * batchVol,
+    totalBatchWeightKg: (
+      activeCementWeight + weightFlyAsh + weightSlag + weightSilicaFume + weightSpecialBinder +
+      sandWeightWet + gravelWeightWet + waterToAdd + admixWeightsTotal + fiberDosageKgM3
+    ) * batchVol
+  };
+
+  // Calculation Trace
+  const calculationTrace: CalculationTraceStep[] = [
+    {
+      stepNumber: 1,
+      name: "Target Compressive Strength fcm28",
+      formula: "fcm28 = fck + 1.64 * stdDev",
+      inputs: { fck28, controlClass, stdDev },
+      result: fcm28,
+      unit: "MPa"
+    },
+    {
+      stepNumber: 2,
+      name: "Dreux Granular Factor G",
+      formula: "Lookup G based on aggregate shape, quality, and Dmax",
+      inputs: { aggregateType, aggregateQuality, dMax },
+      result: dreuxAggregateFactor,
+      unit: ""
+    },
+    {
+      stepNumber: 3,
+      name: "Theoretical Water-to-Cement Ratio W/C",
+      formula: "C/W = fcm28 / (G * fce) + 0.5; W/C = 1 / (C/W)",
+      inputs: { fcm28, dreuxAggregateFactor, fce: cementClassStrength * 1.1 },
+      result: wcRatio,
+      unit: ""
+    },
+    {
+      stepNumber: 4,
+      name: "Base Mixing Water & Chemical Water Reduction",
+      formula: "effectiveWater = baseWater * slumpFactor * (1 - waterReduction / 100)",
+      inputs: { baseWater, slumpCorrectionFactor, totalWaterReductionPercent },
+      result: effectiveWater,
+      unit: "L/m³"
+    },
+    {
+      stepNumber: 5,
+      name: "Cement & Cementitious Binder Demand",
+      formula: "cementWeight = effectiveWater / (W/C); totalBinder = cement + SCMs",
+      inputs: { effectiveWater, wcRatioAdjusted, dosageFlyAsh, dosageSlag, dosageSilicaFume },
+      result: { activeCementWeight, totalBinder, waterCementRatio, waterBinderRatio },
+      unit: "kg/m³"
+    },
+    {
+      stepNumber: 6,
+      name: "Granular Partition (Sand % and Gravel %)",
+      formula: "pivotY = 50 - sqrt(Dmax) + K; Sand% = pivotY, Gravel% = 100 - Sand%",
+      inputs: { dMax, K, sandPercent, gravelPercent },
+      result: { sandPercent, gravelPercent },
+      unit: "%"
+    },
+    {
+      stepNumber: 7,
+      name: "Absolute Volume Closure",
+      formula: "V_total = sum(M_i / rho_i) + V_air = 1000 L/m³",
+      inputs: { cementVolume, sandVolL: sandWeightDry / sDensityL, gravelVolL: gravelWeightDry / gDensityL, airVolume, admixVolume, fiberVolume },
+      result: { totalAbsVolumeL: absVolResult.totalAbsVolumeL, deviationL: absVolResult.deviationL },
+      unit: "L/m³"
+    },
+    {
+      stepNumber: 8,
+      name: "Aggregate Moisture & SSD Corrections",
+      formula: "W_add = W_eff - FreeWater + Deficit",
+      inputs: { moistureSand, sandAbs, moistureGravel, gravelAbs, effectiveWater },
+      result: { rawWaterToAdd: moistureResult.rawWaterToAddKg, waterToAdd: moistureResult.waterToAddKg, moistureState: moistureResult.moistureState },
+      unit: "kg/m³"
+    },
+    {
+      stepNumber: 9,
+      name: "Batch Execution Quantities",
+      formula: "BatchQuantity = QuantityPerM3 * batchVolumeM3",
+      inputs: { batchVolumeM3: batchVol },
+      result: {
+        cementKg: batchQuantities.cementKg,
+        fineAggregateWetKg: batchQuantities.fineAggregateWetKg,
+        coarseAggregateWetKg: batchQuantities.coarseAggregateWetKg,
+        waterToAddKg: batchQuantities.waterToAddKg,
+        totalBatchWeightKg: batchQuantities.totalBatchWeightKg
+      },
+      unit: "kg/batch"
+    }
+  ];
+
+  const hasNaNOrInf = [
+    activeCementWeight, effectiveWater, sandWeightDry, gravelWeightDry,
+    sandWeightWet, gravelWeightWet, waterToAdd, totalFreshDensity
+  ].some(v => isNaN(v) || !isFinite(v) || v < 0);
+
+  let engineStatus: EngineStatusGate = "valid";
+  if (
+    (suitability.status as string) === "blocked" || 
+    isVolumeFailed || 
+    !valRes.valid || 
+    !valChecks.valid || 
+    isCementExceeded || 
+    hasNaNOrInf
+  ) {
+    engineStatus = "blocked";
+  } else if (suitability.missingMaterials && suitability.missingMaterials.length > 0) {
+    engineStatus = "needs_data";
+  } else if (
+    level === "limited" || 
+    level === "not_applicable" || 
+    ["HSC", "HPC", "UHPC", "SCC", "LWC", "RCC", "SHOTCRETE", "GPC"].includes(concreteCode)
+  ) {
+    engineStatus = "needs_trial_mix";
+  } else if (combinedWarningsAndValWarnings.length > 0 || localWarnings.length > 0) {
+    engineStatus = "valid_with_warnings";
+  } else {
+    engineStatus = "valid";
+  }
+
   const isSuitabilityBlocked = (suitability.status as string) === "blocked";
-  const finalValid = !isSuitabilityBlocked && valChecks.valid && !isVolumeFailed && valRes.valid && level !== "not_applicable" && !isCementExceeded;
+  const finalValid = engineStatus !== "blocked" && !isSuitabilityBlocked && valChecks.valid && !isVolumeFailed && valRes.valid && level !== "not_applicable" && !isCementExceeded;
 
   return {
     valid: finalValid,
     isValid: finalValid,
+    engineStatus,
     errors: combinedErrorsAndValErrors.map(e => translateWarning(e, language)),
     warnings: combinedWarningsAndValWarnings.map(w => translateWarning(w, language)),
     recommendations: translatedRecommendations,
@@ -1487,15 +1813,15 @@ export function calculateDreuxGorisseCore(input: MixDesignInput, language: "ar" 
       silicaFume: weightSilicaFume
     },
     absoluteVolumeCheck: {
-      isValid: valChecks.checks.volumeClosure.status === "valid",
-      totalAbsVolumeL: typeof valChecks.checks.volumeClosure.value === "number" ? valChecks.checks.volumeClosure.value : 1000,
+      isValid: absVolResult.isValid,
+      totalAbsVolumeL: absVolResult.totalAbsVolumeL,
       cementVolL: cementVolume,
       waterVolL: effectiveWater,
       sandVolL: sandWeightDry / sDensityL,
       gravelVolL: gravelWeightDry / gDensityL,
       airVolL: airVolume,
       admixtureVolL: admixVolume,
-      deviationPercent: ((typeof valChecks.checks.volumeClosure.value === "number" ? valChecks.checks.volumeClosure.value : 1000) - 1000) / 10
+      deviationPercent: absVolResult.deviationL / 10
     },
     compliance: {
       isCompliant: valChecks.valid && valChecks.status === "valid",
@@ -1515,6 +1841,12 @@ export function calculateDreuxGorisseCore(input: MixDesignInput, language: "ar" 
         };
       })
     },
-    methodApplicability
+    methodApplicability,
+
+    // New Structured 3-Layer Outputs
+    designSSD,
+    batchCorrection,
+    batchQuantities,
+    calculationTrace
   };
 }

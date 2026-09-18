@@ -22,7 +22,9 @@ import {
   ChevronRight,
   TrendingUp,
   SlidersHorizontal,
-  BookmarkCheck
+  BookmarkCheck,
+  Download,
+  BookOpen
 } from "lucide-react";
 import { EngineeringMaterial } from "../../types";
 import { 
@@ -37,6 +39,9 @@ import {
 } from "../../services/materialsLabEngine";
 import { NewTestWizard } from "./NewTestWizard";
 import { TestReportModal } from "./TestReportModal";
+import { MaterialComprehensiveReportModal } from "./MaterialComprehensiveReportModal";
+import { MaterialDossierSelectorModal } from "./MaterialDossierSelectorModal";
+import { generateLabTestPdf } from "../../services/pdf/labTestPdfGenerator";
 
 interface LaboratoryDashboardProps {
   materials: EngineeringMaterial[];
@@ -67,6 +72,28 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
   const [wizardInitialMaterialId, setWizardInitialMaterialId] = useState<string>("");
 
   const [selectedReportRecord, setSelectedReportRecord] = useState<MaterialTestRecord | null>(null);
+
+  // Material Dossier & Comprehensive Report State
+  const [selectedDossierMaterial, setSelectedDossierMaterial] = useState<EngineeringMaterial | null>(null);
+  const [exportingTestId, setExportingTestId] = useState<string | null>(null);
+
+  const handleExportTestPdf = async (rec: MaterialTestRecord) => {
+    try {
+      setExportingTestId(rec.id);
+      const doc = await generateLabTestPdf(rec, {
+        language: language === "ar" ? "ar" : language === "en" ? "en" : "fr"
+      });
+      const safeName = (rec.materialName || "Material").replace(/[^a-zA-Z0-9_\u0600-\u06FF-]/g, "_");
+      doc.save(`SnoLab-TestReport-${rec.testType}-${safeName}-${rec.sampleId || rec.id}.pdf`);
+    } catch (err) {
+      console.error("Failed to export test report PDF:", err);
+    } finally {
+      setExportingTestId(null);
+    }
+  };
+  const [isDossierSelectorOpen, setIsDossierSelectorOpen] = useState<boolean>(false);
+  const [materialSearchQuery, setMaterialSearchQuery] = useState<string>("");
+  const [materialCategoryFilter, setMaterialCategoryFilter] = useState<string>("all");
 
   // Statistics
   const stats = useMemo(() => {
@@ -123,6 +150,21 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
     });
   }, [laboratoryTests, activeCategory, statusFilter, searchQuery]);
 
+  // Filtered Materials for Verification Matrix
+  const filteredMatrixMaterials = useMemo(() => {
+    return materials.filter(m => {
+      if (materialCategoryFilter !== "all" && m.category !== materialCategoryFilter) return false;
+      if (materialSearchQuery.trim()) {
+        const q = materialSearchQuery.toLowerCase();
+        const matchName = m.name?.toLowerCase().includes(q);
+        const matchCat = m.category?.toLowerCase().includes(q);
+        const matchId = m.id?.toLowerCase().includes(q);
+        if (!matchName && !matchCat && !matchId) return false;
+      }
+      return true;
+    });
+  }, [materials, materialCategoryFilter, materialSearchQuery]);
+
   const handleLaunchTest = (testId: string, category: LabCategory, materialId?: string) => {
     setWizardInitialTestId(testId);
     setWizardInitialCategory(category);
@@ -172,6 +214,15 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
             >
               <Plus className="w-4 h-4 text-slate-950 stroke-[3]" />
               <span>{language === "ar" ? "إجراء تجربة مخبرية جديدة" : "Run New Lab Test"}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsDossierSelectorOpen(true)}
+              className="flex items-center gap-2 px-4 py-3 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black rounded-2xl text-xs shadow-lg shadow-amber-400/20 transition-all transform active:scale-95 cursor-pointer"
+            >
+              <FileText className="w-4 h-4 text-slate-950 stroke-[2.5]" />
+              <span>{language === "ar" ? "📑 التقرير الأكاديمي الشامل للمواد" : "Academic Material Dossiers"}</span>
             </button>
 
             {onNavigateToMaterialsLibrary && (
@@ -270,7 +321,7 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
       </div>
 
       {/* 3. Materials Lab Verification & Readiness Matrix */}
-      <div className="space-y-3 bg-slate-50 dark:bg-slate-900/50 p-6 rounded-3xl border border-slate-200 dark:border-slate-800">
+      <div className="space-y-4 bg-slate-50 dark:bg-slate-900/50 p-6 rounded-3xl border border-slate-200 dark:border-slate-800">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
           <div>
             <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
@@ -278,17 +329,55 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
               <span>مصفوفة مطابقة وتوثيق مواد المشروع (Materials Verification Matrix)</span>
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              حالة الفحص المخبري للمواد المسجلة في المشروع وإمكانية إجراء فحص فوري لتحديث خواصها.
+              حالة الفحص المخبري للمواد المسجلة في المشروع مع إمكانية استعراض وتنزيل التقرير الأكاديمي الشامل (PDF Dossier) وإجراء فحوصات فورية.
             </p>
           </div>
 
-          <span className="text-xs font-bold text-slate-600 dark:text-slate-400 font-mono">
-            {materials.length} مواد مسجلة
-          </span>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={() => setIsDossierSelectorOpen(true)}
+              className="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/60 dark:hover:bg-amber-900 text-amber-800 dark:text-amber-200 text-xs font-bold rounded-xl border border-amber-200 dark:border-amber-800 transition-all flex items-center gap-1.5 cursor-pointer"
+            >
+              <FileText className="w-3.5 h-3.5 text-amber-600" />
+              <span>دليل التقارير الأكاديمية ({materials.length})</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Matrix Search & Category Filter */}
+        <div className="flex flex-col sm:flex-row items-center gap-2 pt-1">
+          <div className="relative w-full sm:w-72">
+            <Search className="w-3.5 h-3.5 absolute right-3 top-2.5 text-slate-400" />
+            <input
+              type="text"
+              value={materialSearchQuery}
+              onChange={(e) => setMaterialSearchQuery(e.target.value)}
+              placeholder="بحث في المواد المسجلة..."
+              className="w-full pl-3 pr-8 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            />
+          </div>
+
+          <div className="flex items-center gap-1 overflow-x-auto w-full pb-1">
+            {["all", "رمال", "حصى", "إسمنت", "ماء", "إضافات وملدنات"].map(cat => (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => setMaterialCategoryFilter(cat)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold shrink-0 transition-all cursor-pointer ${
+                  materialCategoryFilter === cat
+                    ? "bg-blue-600 text-white shadow-xs"
+                    : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700"
+                }`}
+              >
+                {cat === "all" ? "جميع المواد" : cat}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pt-2">
-          {materials.map(mat => {
+          {filteredMatrixMaterials.map(mat => {
             const matTests = laboratoryTests.filter(t => t.materialId === mat.id);
             const isVerified = matTests.length > 0;
             const lastTest = matTests[matTests.length - 1];
@@ -300,11 +389,14 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
               >
                 <div>
                   <div className="flex items-start justify-between gap-2">
-                    <div>
+                    <div 
+                      onClick={() => setSelectedDossierMaterial(mat)}
+                      className="cursor-pointer hover:opacity-80 transition-opacity"
+                    >
                       <span className="text-[10px] font-black uppercase text-blue-600 dark:text-blue-400 block">
                         {mat.category || "مادة"}
                       </span>
-                      <h4 className="text-sm font-black text-slate-900 dark:text-white line-clamp-1">
+                      <h4 className="text-sm font-black text-slate-900 dark:text-white line-clamp-1 hover:text-blue-600 dark:hover:text-blue-400">
                         {mat.name}
                       </h4>
                     </div>
@@ -331,10 +423,16 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
-                  <span className="text-[10px] text-slate-400 truncate max-w-[150px]">
-                    {lastTest ? `آخر فحص: ${lastTest.date}` : "بانتظار إجراء فحص مخبري"}
-                  </span>
+                <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDossierMaterial(mat)}
+                    className="flex items-center gap-1 px-2.5 py-1 bg-amber-50 hover:bg-amber-600 text-amber-800 hover:text-white dark:bg-amber-950/70 dark:text-amber-300 dark:hover:bg-amber-600 dark:hover:text-white text-[11px] font-black rounded-lg transition-all cursor-pointer"
+                    title="استعراض التقرير الأكاديمي الشامل وتحميل PDF"
+                  >
+                    <FileText className="w-3 h-3" />
+                    <span>التقرير الشامل</span>
+                  </button>
 
                   <button
                     type="button"
@@ -343,9 +441,10 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
                       mat.category === "رمال" || mat.category === "حصى" ? "aggregates" : mat.category === "إسمنت" ? "cement" : "aggregates",
                       mat.id
                     )}
-                    className="px-2.5 py-1 bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white dark:bg-blue-950 dark:text-blue-300 dark:hover:bg-blue-600 dark:hover:text-white text-[11px] font-black rounded-lg transition-all cursor-pointer"
+                    className="flex items-center gap-1 px-2.5 py-1 bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white dark:bg-blue-950 dark:text-blue-300 dark:hover:bg-blue-600 dark:hover:text-white text-[11px] font-black rounded-lg transition-all cursor-pointer"
                   >
-                    + فحص مخبري
+                    <Plus className="w-3 h-3" />
+                    <span>فحص مخبري</span>
                   </button>
                 </div>
               </div>
@@ -573,12 +672,39 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
                       <div className="flex items-center justify-center gap-1.5">
                         <button
                           type="button"
+                          onClick={() => handleExportTestPdf(rec)}
+                          disabled={exportingTestId === rec.id}
+                          className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-600 hover:text-white transition-all cursor-pointer disabled:opacity-50"
+                          title="تصدير التقرير المخبري كملف PDF أكاديمي معتمد"
+                        >
+                          <Download className={`w-4 h-4 ${exportingTestId === rec.id ? "animate-bounce" : ""}`} />
+                        </button>
+
+                        <button
+                          type="button"
                           onClick={() => setSelectedReportRecord(rec)}
                           className="p-1.5 rounded-lg bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 hover:bg-blue-600 hover:text-white transition-all cursor-pointer"
                           title="عرض شهادة الفحص المخبري"
                         >
                           <FileText className="w-4 h-4" />
                         </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const mat = materials.find(m => m.id === rec.materialId) || {
+                              id: rec.materialId,
+                              name: rec.materialName,
+                              category: rec.materialCategory || "عام"
+                            } as EngineeringMaterial;
+                            setSelectedDossierMaterial(mat);
+                          }}
+                          className="p-1.5 rounded-lg bg-amber-50 dark:bg-amber-950 text-amber-600 dark:text-amber-400 hover:bg-amber-600 hover:text-white transition-all cursor-pointer"
+                          title="استعراض التقرير الأكاديمي الشامل للمادة (PDF Dossier)"
+                        >
+                          <BookOpen className="w-4 h-4" />
+                        </button>
+
                         {onDeleteTestRecord && (
                           <button
                             type="button"
@@ -622,6 +748,38 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
           language={language}
         />
       )}
+
+      {/* Material Dossier Selector Modal */}
+      <MaterialDossierSelectorModal
+        isOpen={isDossierSelectorOpen}
+        onClose={() => setIsDossierSelectorOpen(false)}
+        materials={materials}
+        tests={laboratoryTests}
+        onSelectMaterial={(mat) => {
+          setSelectedDossierMaterial(mat);
+        }}
+        onRunTestForMaterial={(mat) => {
+          handleLaunchTest(
+            mat.category === "رمال" ? "AGG_SIEVE" : mat.category === "إسمنت" ? "CEM_COMPRESSIVE_STRENGTH" : "AGG_BULK_DENSITY",
+            mat.category === "رمال" || mat.category === "حصى" ? "aggregates" : mat.category === "إسمنت" ? "cement" : "aggregates",
+            mat.id
+          );
+        }}
+        language={language}
+      />
+
+      {/* Academic Material Comprehensive Report Modal (Dossier & PDF Generator) */}
+      <MaterialComprehensiveReportModal
+        isOpen={!!selectedDossierMaterial}
+        onClose={() => setSelectedDossierMaterial(null)}
+        material={selectedDossierMaterial}
+        tests={laboratoryTests}
+        onRunTestForMaterial={(mat, testId) => {
+          setSelectedDossierMaterial(null);
+          handleLaunchTest(testId || "AGG_SIEVE", "aggregates", mat.id);
+        }}
+        language={language}
+      />
     </div>
   );
 };

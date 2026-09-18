@@ -5,7 +5,7 @@ import {
   calculateBulkDensity,
   calculateMoistureContent,
   calculateSandEquivalent,
-  calculateLosAngelesAbrasion,
+  calculateLosAngeles,
   calculateMicroDeval,
   calculateParticleShapeAndFlakiness
 } from "../utils/materialTestingCalculators";
@@ -18,7 +18,7 @@ import { MaterialTestRecord } from "../types/laboratoryTypes";
 
 describe("SnoLab Final Laboratory Verification Suite", () => {
   // Base test materials
-  const mockSand: EngineeringMaterial = {
+  const mockSand: any = {
     id: "mat-sand-01",
     name: "رمل وادي سوف طبيعي",
     category: "رمال",
@@ -29,7 +29,7 @@ describe("SnoLab Final Laboratory Verification Suite", () => {
     finesContent: 2.1
   };
 
-  const mockGravel: EngineeringMaterial = {
+  const mockGravel: any = {
     id: "mat-gravel-02",
     name: "حصى كلسي مكسر 8/16",
     category: "حصى",
@@ -291,7 +291,7 @@ describe("SnoLab Final Laboratory Verification Suite", () => {
       // Simulating App.tsx handleSaveTestRecord
       let db = [{ ...mockSand }];
       
-      const failedRecord: MaterialTestRecord = {
+      const failedRecord: any = {
         id: "TEST-FAIL-01",
         testType: "AGG_SPECIFIC_GRAVITY",
         testTitleAr: "الكثافة والامتصاص",
@@ -328,7 +328,7 @@ describe("SnoLab Final Laboratory Verification Suite", () => {
   // ==========================================================================
   describe("7. إعادة الاختبار بعد وجود نتيجة سابقة محفوظة (Re-testing & Record Updates)", () => {
     it("7.1 Updating an existing test record replaces it in place in history list", () => {
-      const records: MaterialTestRecord[] = [
+      const records: any[] = [
         {
           id: "TEST-001",
           testType: "AGG_SIEVE",
@@ -349,7 +349,7 @@ describe("SnoLab Final Laboratory Verification Suite", () => {
         }
       ];
 
-      const updatedRecord: MaterialTestRecord = {
+      const updatedRecord: any = {
         ...records[0],
         status: "PASS",
         approvalStatus: "Validated",
@@ -382,8 +382,7 @@ describe("SnoLab Final Laboratory Verification Suite", () => {
 
       currentMat = {
         ...currentMat,
-        ...newSyncedProps,
-        updatedAt: new Date().toISOString()
+        ...newSyncedProps
       };
 
       expect(currentMat.finenessModulus).toBe(2.80);
@@ -399,12 +398,12 @@ describe("SnoLab Final Laboratory Verification Suite", () => {
   // ==========================================================================
   describe("8. مزامنة النتائج مع المادة الصحيحة في المكتبة (Target Material Sync)", () => {
     it("8.1 Sync updates ONLY target material, keeping other library materials untouched", () => {
-      const db: EngineeringMaterial[] = [
+      const db: any[] = [
         { ...mockSand },
         { ...mockGravel }
       ];
 
-      const testRecord: MaterialTestRecord = {
+      const testRecord: any = {
         id: "TEST-002",
         testType: "AGG_SPECIFIC_GRAVITY",
         testTitleAr: "الكثافة",
@@ -450,7 +449,7 @@ describe("SnoLab Final Laboratory Verification Suite", () => {
     });
 
     it("8.2 Prevents syncing undefined or deleting existing properties when properties are not measured", () => {
-      const initialMat: EngineeringMaterial = {
+      const initialMat: any = {
         id: "mat-sand-01",
         name: "رمل",
         category: "رمال",

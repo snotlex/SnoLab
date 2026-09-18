@@ -52,6 +52,46 @@ export function createPdfDocument(): jsPDF {
 }
 
 /**
+ * Draws an official, elegant vector laboratory logo emblem with shield, flask & crystalline cube.
+ * 100% vector, crisp at all zoom levels.
+ */
+export function drawLaboratoryEmblemLogo(
+  doc: jsPDF,
+  x: number,
+  y: number,
+  size: number = 8
+): void {
+  const cx = x + size / 2;
+  const cy = y + size / 2;
+
+  // Outer Badge / Shield Container
+  doc.setFillColor(15, 23, 42); // Navy / Slate 900
+  doc.roundedRect(x, y, size, size, 1.6, 1.6, "F");
+
+  // Inner Accent Border
+  doc.setDrawColor(37, 99, 235); // Blue 600
+  doc.setLineWidth(0.3);
+  doc.roundedRect(x + 0.4, y + 0.4, size - 0.8, size - 0.8, 1.2, 1.2, "D");
+
+  // Laboratory Flask / Geometric Crystal Vector Motif
+  doc.setFillColor(96, 165, 250); // Light blue
+  doc.triangle(
+    cx, y + size * 0.22,
+    x + size * 0.22, y + size * 0.72,
+    x + size * 0.78, y + size * 0.72,
+    "F"
+  );
+
+  // Flask Neck
+  doc.setFillColor(191, 219, 254);
+  doc.rect(cx - size * 0.08, y + size * 0.14, size * 0.16, size * 0.14, "F");
+
+  // Golden Quality Core / Test Particle
+  doc.setFillColor(245, 158, 11); // Amber 500
+  doc.circle(cx, y + size * 0.54, size * 0.09, "F");
+}
+
+/**
  * Draws a clean vector section banner with accent bar and title.
  */
 export function drawSectionBanner(
@@ -396,16 +436,18 @@ export function finalizeReportPages(
     doc.rect(left, 8, contentWidth, 1.2, "F");
 
     // Laboratory Logo Badge / Name
+    drawLaboratoryEmblemLogo(doc, left, 10, 7.5);
+
     doc.setFont("helvetica", "bold");
     doc.setFontSize(8.5);
     doc.setTextColor(...PDF_COLORS.primary);
-    doc.text(lab.name, left, 13.5);
+    doc.text(lab.name, left + 9.5, 13.5);
 
     // Accreditation tag
     doc.setFont("helvetica", "normal");
     doc.setFontSize(5.5);
     doc.setTextColor(...PDF_COLORS.textMuted);
-    doc.text(lab.accreditation, left, 17);
+    doc.text(lab.accreditation, left + 9.5, 17);
 
     // Right Side: Report Title & Reference Info
     doc.setFont("helvetica", "bold");

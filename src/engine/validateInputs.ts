@@ -172,8 +172,8 @@ export function validateMixInputs(input: any, language: "ar" | "fr" | "en" = "ar
   }
 
   // 5. Aggregate Relative Densities
-  const sandSG = input.sandRelativeDensity;
-  const gravelSG = input.gravelRelativeDensity;
+  const sandSG = input.sandRelativeDensity ?? input.sandDensity;
+  const gravelSG = input.gravelRelativeDensity ?? input.gravelDensity;
   
   if (sandSG === undefined || sandSG === null || sandSG <= 0) {
     errors.push("الكثافة النوعية للرمل (Sand Specific Gravity) مطلوبة لحساب توازن الخلطة.");

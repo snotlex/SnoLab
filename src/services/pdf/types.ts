@@ -51,3 +51,12 @@ export interface LabTestPdfOptions {
   chartImageBase64?: string;
   notes?: string;
 }
+
+export interface MaterialDossierPdfOptions {
+  language?: ReportLanguage;
+  labProfile?: Partial<LabProfile>;
+  includeSignatures?: boolean;
+  notes?: string;
+  projectName?: string;
+  academicSupervisor?: string;
+}

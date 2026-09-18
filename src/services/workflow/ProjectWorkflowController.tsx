@@ -10,7 +10,7 @@ import React, {
 import { useProjectStorage } from "../storage/ProjectContext";
 import { ProjectMetadata } from "../storage/types";
 
-export type ProjectStageNumber = 1 | 2 | 3 | 4 | 5 | 6;
+export type ProjectStageNumber = 1 | 2 | 3 | 4 | 5;
 
 export interface ProjectStageDefinition {
   number: ProjectStageNumber;
@@ -48,14 +48,6 @@ export const WORKFLOW_STAGES: ProjectStageDefinition[] = [
   },
   {
     number: 4,
-    id: "mix_calibration",
-    nameKey: "workflow.step4.label",
-    descKey: "workflow.step4.desc",
-    primaryTab: "materials_lab",
-    submoduleTabs: ["materials_lab", "academic_lab", "lab_validation", "optimization", "simulation"]
-  },
-  {
-    number: 5,
     id: "expense_budget",
     nameKey: "workflow.step5.label",
     descKey: "workflow.step5.desc",
@@ -63,7 +55,7 @@ export const WORKFLOW_STAGES: ProjectStageDefinition[] = [
     submoduleTabs: ["cost", "forecasting", "performance_analysis"]
   },
   {
-    number: 6,
+    number: 5,
     id: "final_report",
     nameKey: "workflow.step6.label",
     descKey: "workflow.step6.desc",
@@ -99,8 +91,8 @@ export function validateStageNavigation(
   targetStage: number,
   effectiveProjectIsOpen: boolean
 ): NavigationCheckResult {
-  if (typeof targetStage !== "number" || targetStage < 1 || targetStage > 6 || !Number.isInteger(targetStage)) {
-    return { allowed: false, reason: "Invalid stage range (must be integer 1..6)" };
+  if (typeof targetStage !== "number" || targetStage < 1 || targetStage > 5 || !Number.isInteger(targetStage)) {
+    return { allowed: false, reason: "Invalid stage range (must be integer 1..5)" };
   }
   if (!effectiveProjectIsOpen) {
     return { allowed: false, reason: "No active project is open. Please start or open a project." };
@@ -109,17 +101,17 @@ export function validateStageNavigation(
 }
 
 /**
- * Pure function: Computes next sequential stage (1 -> 6), or null if at final stage.
+ * Pure function: Computes next sequential stage (1 -> 5), or null if at final stage.
  */
 export function getNextStage(current: ProjectStageNumber): ProjectStageNumber | null {
-  if (current < 6) {
+  if (current < 5) {
     return (current + 1) as ProjectStageNumber;
   }
   return null;
 }
 
 /**
- * Pure function: Computes previous sequential stage (6 -> 1), or null if at first stage.
+ * Pure function: Computes previous sequential stage (5 -> 1), or null if at first stage.
  */
 export function getPrevStage(current: ProjectStageNumber): ProjectStageNumber | null {
   if (current > 1) {
@@ -129,7 +121,7 @@ export function getPrevStage(current: ProjectStageNumber): ProjectStageNumber | 
 }
 
 /**
- * Pure function: Maps workspace tab ID to its corresponding ProjectStageNumber (1..6), or null if unmapped.
+ * Pure function: Maps workspace tab ID to its corresponding ProjectStageNumber (1..5), or null if unmapped.
  */
 export function getStageForTab(tab: string): ProjectStageNumber | null {
   for (const stage of WORKFLOW_STAGES) {
@@ -354,7 +346,7 @@ export const ProjectWorkflowProvider: React.FC<{ children: React.ReactNode }> = 
     currentStage,
     activeStageInfo,
     allStages: WORKFLOW_STAGES,
-    totalStages: 6,
+    totalStages: 5,
     projectIsOpen: effectiveProjectIsOpen,
     activeProjectId,
     activeProjectMeta,
