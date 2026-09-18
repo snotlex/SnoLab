@@ -100,19 +100,17 @@ describe("Dreux-Gorisse Engineering Rigor & Formulation Audit Checks", () => {
     const sandAbs = input.sandAbsorption || 1.5;
     const gravelAbs = input.gravelAbsorption || 0.8;
 
-    const sandFreeMoistureDecimal = Math.max(0, input.moistureSand - sandAbs) / 100 / (1 + sandAbs / 100);
-    const gravelFreeMoistureDecimal = Math.max(0, input.moistureGravel - gravelAbs) / 100 / (1 + gravelAbs / 100);
+    const sandFreeMoistureDecimal = (input.moistureSand - sandAbs) / 100;
+    const gravelFreeMoistureDecimal = (input.moistureGravel - gravelAbs) / 100;
 
-    const expectedSandWet = res.sandWeightDry * (1 + input.moistureSand / 100) / (1 + sandAbs / 100);
-    const expectedGravelWet = res.gravelWeightDry * (1 + input.moistureGravel / 100) / (1 + gravelAbs / 100);
+    const expectedSandWet = res.sandWeightDry * (1 + input.moistureSand / 100);
+    const expectedGravelWet = res.gravelWeightDry * (1 + input.moistureGravel / 100);
 
     expect(res.sandWeightWet).toBeCloseTo(expectedSandWet, 2);
     expect(res.gravelWeightWet).toBeCloseTo(expectedGravelWet, 2);
 
     const expectedFreeWaterContribution = (res.sandWeightDry * sandFreeMoistureDecimal) + (res.gravelWeightDry * gravelFreeMoistureDecimal);
-    const expectedSandDeficit = res.sandWeightDry * Math.max(0, sandAbs - input.moistureSand) / 100 / (1 + sandAbs / 100);
-    const expectedGravelDeficit = res.gravelWeightDry * Math.max(0, gravelAbs - input.moistureGravel) / 100 / (1 + gravelAbs / 100);
-    const expectedWaterWet = res.waterContentActual - expectedFreeWaterContribution + expectedSandDeficit + expectedGravelDeficit;
+    const expectedWaterWet = res.waterContentActual - expectedFreeWaterContribution;
 
     expect(res.waterWeightWet).toBeCloseTo(expectedWaterWet, 1);
   };

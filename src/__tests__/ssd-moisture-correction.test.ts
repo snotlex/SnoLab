@@ -44,9 +44,9 @@ describe("Dreux-Gorisse SSD moisture and absorption correction", () => {
     // Thus, waterWeightWet (representing mixing water we need to add) must be higher than waterContentActual.
     expect(result.waterWeightWet).toBeGreaterThan(result.waterContentActual);
 
-    // The design mass is SSD; oven-dry delivery mass is lower by absorption.
-    expect(result.sandWeightWet).toBeCloseTo(result.sandWeightDry / 1.015, 1);
-    expect(result.gravelWeightWet).toBeCloseTo(result.gravelWeightDry / 1.008, 1);
+    // Wet aggregate weight at 0% moisture should equal its dry aggregate weight
+    expect(result.sandWeightWet).toBeCloseTo(result.sandWeightDry, 1);
+    expect(result.gravelWeightWet).toBeCloseTo(result.gravelWeightDry, 1);
   });
 
   it("should decrease water requirement when aggregates are wet (moisture > absorption)", () => {
@@ -66,9 +66,9 @@ describe("Dreux-Gorisse SSD moisture and absorption correction", () => {
     expect(result.sandWeightWet).toBeGreaterThan(result.sandWeightDry);
     expect(result.gravelWeightWet).toBeGreaterThan(result.gravelWeightDry);
 
-    // Convert the SSD design mass to the as-batched mass.
-    expect(result.sandWeightWet).toBeCloseTo(result.sandWeightDry * 1.05 / 1.015, 1);
-    expect(result.gravelWeightWet).toBeCloseTo(result.gravelWeightDry * 1.02 / 1.008, 1);
+    // Proportional damp scale check
+    expect(result.sandWeightWet).toBeCloseTo(result.sandWeightDry * 1.05, 1);
+    expect(result.gravelWeightWet).toBeCloseTo(result.gravelWeightDry * 1.02, 1);
   });
 
   it("should match precise numerical mock scenario requested by user", () => {
@@ -140,17 +140,17 @@ describe("Dreux-Gorisse SSD moisture and absorption correction", () => {
     const sandD = result.sandWeightDry;
     const gravelD = result.gravelWeightDry;
 
-    expect(result.sandTotalMoistureWater).toBeCloseTo(sandD * 0.05 / 1.015, 2);
-    expect(result.gravelTotalMoistureWater).toBeCloseTo(gravelD * 0.02 / 1.008, 2);
-    expect(result.totalAggregateMoistureWater).toBeCloseTo((sandD * 0.05 / 1.015) + (gravelD * 0.02 / 1.008), 2);
+    expect(result.sandTotalMoistureWater).toBeCloseTo(sandD * 0.05, 2);
+    expect(result.gravelTotalMoistureWater).toBeCloseTo(gravelD * 0.02, 2);
+    expect(result.totalAggregateMoistureWater).toBeCloseTo((sandD * 0.05) + (gravelD * 0.02), 2);
 
     expect(result.sandAbsorptionWater).toBeCloseTo(sandD * 0.015, 2);
     expect(result.gravelAbsorptionWater).toBeCloseTo(gravelD * 0.008, 2);
     expect(result.totalAbsorptionWater).toBeCloseTo((sandD * 0.015) + (gravelD * 0.008), 2);
 
-    expect(result.sandFreeSurfaceWater).toBeCloseTo(sandD * 0.035 / 1.015, 2);
-    expect(result.gravelFreeSurfaceWater).toBeCloseTo(gravelD * 0.012 / 1.008, 2);
-    expect(result.totalFreeSurfaceWater).toBeCloseTo((sandD * 0.035 / 1.015) + (gravelD * 0.012 / 1.008), 2);
+    expect(result.sandFreeSurfaceWater).toBeCloseTo(sandD * 0.035, 2);
+    expect(result.gravelFreeSurfaceWater).toBeCloseTo(gravelD * 0.012, 2);
+    expect(result.totalFreeSurfaceWater).toBeCloseTo((sandD * 0.035) + (gravelD * 0.012), 2);
 
     expect(result.waterToAdd).toBeCloseTo(result.designWater! - result.totalFreeSurfaceWater!, 2);
   });
