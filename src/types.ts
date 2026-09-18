@@ -347,6 +347,16 @@ export interface MixDesignResult {
   actualCementUsed?: number;
   cementLimitExceeded?: boolean;
   waterDemand?: number;
+  /** Unclamped physical result of aggregate moisture correction. */
+  rawWaterToAdd?: number;
+  /** Water deficit required to bring aggregates to SSD. */
+  aggregateAbsorptionDeficit?: number;
+  /** Explicit calculation state used by reports and gates. */
+  calculationStatus?: "valid" | "valid_with_warnings" | "needs_data" | "needs_trial_mix" | "blocked";
+  /** Normalized design and field-batch views. */
+  designSSD?: Record<string, unknown>;
+  batchCorrection?: Record<string, unknown>;
+  batchQuantities?: Record<string, unknown>;
   waterCementRatio?: number;
   absoluteVolumeTotal?: number;
   volumeClosureError?: number;

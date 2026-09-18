@@ -673,6 +673,9 @@ export function calculateLosAngeles(
   };
 }
 
+/** Backward-compatible name used by the laboratory verification suite. */
+export const calculateLosAngelesAbrasion = calculateLosAngeles;
+
 export function calculateMicroDeval(
   initialWeightG: number, // M (typically 500g)
   retainedOn1_6mmG: number // m (retained on 1.6mm after 2 hours rotation in water)
