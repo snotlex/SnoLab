@@ -864,6 +864,8 @@ export function calculateDreuxGorisseCore(input: MixDesignInput | DreuxGorisseIn
     totalBinder: totalBinder,
     activeCementWeight: activeCementWeight,
     cementWeight: cementWeight,
+    fiberKg: fiberDosageKgM3,
+    specialBinderKg: weightSpecialBinder,
   };
 
   const valChecks = validateMixDesign(input, temporaryMapResult);

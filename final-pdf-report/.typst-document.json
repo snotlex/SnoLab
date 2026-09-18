@@ -1,0 +1,9 @@
+{
+  "entry": "main.typ",
+  "mode": "markdown",
+  "source": {
+    "original_path": "/home/ubuntu/SnoLab/SnoLab_Final_Engine_Audit_Report_AR.md",
+    "prepared_path": "source.md"
+  },
+  "theme": "report-theme.typ"
+}

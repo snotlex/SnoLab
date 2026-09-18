@@ -85,7 +85,17 @@ export function validateMixDesign(input: any, result: any): MixValidationResult 
     const admixDensity = input.selectedAdmixtureDensity ? (input.selectedAdmixtureDensity > 10 ? input.selectedAdmixtureDensity / 1000 : input.selectedAdmixtureDensity) : 1.15;
     const admixVolL = admixWeightsTotal / admixDensity;
 
-    totalCalculatedVolume = cementVolL + flyAshVolL + slagVolL + silicaVolL + waterVolL + airVolL + sandVolL + gravelVolL + admixVolL;
+    // The core engine subtracts these constituent volumes from the aggregate
+    // volume. Include them here as well, otherwise FRC/SHC designs falsely
+    // fail absolute-volume closure even when the core balance is closed.
+    const fiberKg = cleanNum(result.fiberKg ?? result.designSSD?.fiberKg ?? result.fiberDosageKgM3 ?? input.fiberDosageKgM3);
+    const fiberDensity = input.fiberDensity ? (input.fiberDensity > 10 ? input.fiberDensity / 1000 : input.fiberDensity) : 7.85;
+    const fiberVolL = fiberKg / fiberDensity;
+    const specialBinderKg = cleanNum(result.specialBinderKg ?? result.designSSD?.specialBinderKg ?? result.specialBinderWeight ?? 0);
+    const specialBinderDensity = input.specialBinderDensity ? (input.specialBinderDensity > 10 ? input.specialBinderDensity / 1000 : input.specialBinderDensity) : 3.1;
+    const specialBinderVolL = specialBinderKg / specialBinderDensity;
+
+    totalCalculatedVolume = cementVolL + flyAshVolL + slagVolL + silicaVolL + waterVolL + airVolL + sandVolL + gravelVolL + admixVolL + fiberVolL + specialBinderVolL;
     const deviation = totalCalculatedVolume - 1000;
     const absDeviation = Math.abs(deviation);
 
