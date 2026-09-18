@@ -172,7 +172,8 @@ export function calculateDreuxGorisseCore(input: MixDesignInput | DreuxGorisseIn
   const fck28 = input.fck28;
   const controlClass = input.controlClass;
   const rawConcreteCode = typeof input.concreteType === "string" ? input.concreteType : (input.concreteType as any)?.code || "";
-  const isCementless = String(rawConcreteCode || "").toUpperCase() === "GPC";
+  const normalizedConcreteCode = String(rawConcreteCode || "").toUpperCase();
+  const isCementless = normalizedConcreteCode === "GPC" || normalizedConcreteCode.includes("GEOPOLYMER") || normalizedConcreteCode.includes("GEO-POLYMER") || normalizedConcreteCode.includes("جيوبوليمر");
   const cementClassStrength = isCementless
     ? (Number(input.specialBinderStrengthClass) || 42.5)
     : input.cementClassStrength;

@@ -176,7 +176,7 @@ export function checkMaterialSuitability(
   const concreteType = (input.concreteType || "").toLowerCase();
   const rawConcrete = typeof input.concreteType === "string" ? input.concreteType : (input.concreteType as any)?.code || "";
   const concreteCode = String(rawConcrete || "").toUpperCase();
-  const isCementless = concreteCode === "GPC";
+  const isCementless = concreteCode === "GPC" || concreteCode.includes("GEOPOLYMER") || concreteCode.includes("GEO-POLYMER") || concreteCode.includes("جيوبوليمر");
 
   // 1. Basic lookup for required materials: cement, sand, gravel, water
   const cement = materialsDatabase.find(m => m.id === input.selectedCementId) as any;

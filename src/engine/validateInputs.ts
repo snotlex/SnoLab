@@ -131,7 +131,7 @@ export function validateMixInputs(input: any, language: "ar" | "fr" | "en" = "ar
   const errors: string[] = [];
   const warnings: string[] = [];
   const concreteCode = String(typeof input.concreteType === "string" ? input.concreteType : input.concreteType?.code || "").toUpperCase();
-  const isCementless = concreteCode === "GPC";
+  const isCementless = concreteCode === "GPC" || concreteCode.includes("GEOPOLYMER") || concreteCode.includes("GEO-POLYMER") || concreteCode.includes("جيوبوليمر");
 
   // 1. Concrete volume (if specified, e.g. batchVolume)
   if (input.batchVolume !== undefined && input.batchVolume <= 0) {

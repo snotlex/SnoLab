@@ -190,7 +190,8 @@ export function validateMixDesign(input: any, result: any): MixValidationResult 
   // C. Cement Content Check
   // ---------------------------------------------------------------------------
   // EN 206 uses cumulative binder for replacement in many cases, but let's check cementWeight
-  const isCementless = String(typeof input.concreteType === "string" ? input.concreteType : input.concreteType?.code || "").toUpperCase() === "GPC";
+  const concreteCode = String(typeof input.concreteType === "string" ? input.concreteType : input.concreteType?.code || "").toUpperCase();
+  const isCementless = concreteCode === "GPC" || concreteCode.includes("GEOPOLYMER") || concreteCode.includes("GEO-POLYMER") || concreteCode.includes("جيوبوليمر");
   const cementVal = result.cementKg || result.cementWeight || 0;
   const binderVal = result.totalBinder || result.totalCementitiousKg || cementVal;
   let cemStatus: ValidationStatus = "valid";
