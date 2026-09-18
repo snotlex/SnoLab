@@ -33,6 +33,11 @@ export async function generateMixDesignPdf(
 
   const dateStr = new Date().toISOString().split("T")[0];
   const reportRef = `MIX-${input.cementType || "CEM"}-${input.fck28 ? Math.round(input.fck28) : "NA"}-${Math.floor(Date.now() / 1000).toString().slice(-6)}`;
+  const concreteCode = String(typeof input.concreteType === "string" ? input.concreteType : (input.concreteType as any)?.code || "").toUpperCase();
+  const isCementless = concreteCode === "GPC" || concreteCode.includes("GEOPOLYMER") || concreteCode.includes("GEO-POLYMER") || concreteCode.includes("جيوبوليمر");
+  const concreteTypeLabel = isCementless
+    ? (lang === "ar" ? "خرسانة جيوبوليمرية خالية من الإسمنت" : lang === "en" ? "Cementless Geopolymer Concrete" : "Béton géopolymère sans ciment")
+    : (input.concreteType || (lang === "ar" ? "خرسانة تقليدية" : "Conventional Concrete"));
   const reportTitle = lang === "ar" 
     ? "شهادة دراسة وتركيب الخلطة الخرسانية"
     : lang === "en"
@@ -115,7 +120,8 @@ export async function generateMixDesignPdf(
       items: [
         { label: "Design Method", value: "Georges Dreux-Gorisse" },
         { label: "Max Aggregate (Dmax)", value: input.dMax ? `${input.dMax} mm` : "N/A" },
-        { label: "Cement Type", value: input.cementType || "Not Specified" },
+        { label: "Concrete Type", value: concreteTypeLabel },
+        { label: isCementless ? "Portland Cement" : "Cement Type", value: isCementless ? (lang === "ar" ? "غير مستخدم — 0 كجم/م³" : "Not used — 0 kg/m³") : (input.cementType || "Not Specified") },
         { label: "Batch Calculation", value: `${batchVolume} m³` }
       ]
     }
@@ -246,7 +252,12 @@ export async function generateMixDesignPdf(
     "DREUX-GORISSE COMPOSITION"
   );
 
-  const cementDry = Math.round(result.cementWeight);
+  const cementDry = Math.round(result.cementWeight || 0);
+  const flyAshDry = Math.round(result.flyAshKg || result.designSSD?.flyAshKg || 0);
+  const slagDry = Math.round(result.slagKg || result.designSSD?.slagKg || 0);
+  const silicaFumeDry = Math.round(result.silicaFumeKg || result.designSSD?.silicaFumeKg || 0);
+  const specialBinderDry = Math.round(result.designSSD?.specialBinderKg || 0);
+  const fiberDry = Math.round(result.designSSD?.fiberKg || input.fiberDosageKgM3 || 0);
   const waterDry = Math.round(result.waterContentActual || result.waterContentNeeded);
   const sandDry = Math.round(result.sandWeightDry);
   const gravelDry = Math.round(result.gravelWeightDry);
@@ -254,7 +265,7 @@ export async function generateMixDesignPdf(
   let totalAdmixDry = 0;
   result.admixtureWeights?.forEach(a => totalAdmixDry += a.weight);
 
-  const totalDryMass = cementDry + waterDry + sandDry + gravelDry + Math.round(totalAdmixDry);
+  const totalDryMass = cementDry + flyAshDry + slagDry + silicaFumeDry + specialBinderDry + fiberDry + waterDry + sandDry + gravelDry + Math.round(totalAdmixDry);
 
   const cementVolumeL = (result as any).cementVolume !== undefined
     ? `${(result as any).cementVolume.toFixed(1)} L`
@@ -270,12 +281,12 @@ export async function generateMixDesignPdf(
 
   const dryRows = [
     [
-      "Cement (C)",
+      isCementless ? "Portland Cement (not used)" : "Cement (C)",
       cementVolumeL,
       `${cementDry} kg`,
       `${(cementDry * batchVolume).toFixed(1)} kg`,
       `${((cementDry / totalDryMass) * 100).toFixed(1)}%`,
-      `Binder Base (1.00 C)`
+      isCementless ? "GPC cement = 0" : `Binder Base (1.00 C)`
     ],
     [
       "Effective Water (E)",
@@ -303,6 +314,21 @@ export async function generateMixDesignPdf(
     ]
   ];
 
+  const binderRows: Array<[string, number]> = [
+    ["Fly Ash", flyAshDry],
+    ["Slag", slagDry],
+    ["Silica Fume", silicaFumeDry],
+    ["Special Binder / Activator", specialBinderDry]
+  ];
+  binderRows.forEach(([name, mass]) => {
+    if (mass > 0) dryRows.push([
+      name, "—", `${mass} kg`, `${(mass * batchVolume).toFixed(1)} kg`, `${((mass / Math.max(totalDryMass, 1)) * 100).toFixed(1)}%`, "Alternative binder"
+    ]);
+  });
+  if (fiberDry > 0) {
+    dryRows.push(["Fiber reinforcement", "—", `${fiberDry} kg`, `${(fiberDry * batchVolume).toFixed(1)} kg`, `${((fiberDry / Math.max(totalDryMass, 1)) * 100).toFixed(1)}%`, "Fiber dosage"]);
+  }
+
   if (result.admixtureWeights && result.admixtureWeights.length > 0) {
     result.admixtureWeights.forEach(adm => {
       dryRows.push([
@@ -311,7 +337,7 @@ export async function generateMixDesignPdf(
         `${adm.weight.toFixed(2)} kg`,
         `${(adm.weight * batchVolume).toFixed(2)} kg`,
         `${((adm.weight / totalDryMass) * 100).toFixed(2)}%`,
-        `${((adm.weight / cementDry) * 100).toFixed(1)}% of Cement`
+        `${((adm.weight / Math.max(result.totalBinder || cementDry, 1)) * 100).toFixed(1)}% of Binder`
       ]);
     });
   }
@@ -445,7 +471,7 @@ export async function generateMixDesignPdf(
       fck !== undefined ? "CONFORMING" : "NOT SPECIFIED"
     ],
     [
-      "Water / Binder Ratio (E/C)",
+      isCementless ? "Water / Total Binder Ratio (W/B)" : "Water / Binder Ratio (E/C)",
       wcRatio !== undefined ? `${wcRatio.toFixed(2)}` : "N/A",
       input.exposureClass ? `Limit: <= ${input.exposureClass === "X0" ? "0.65" : "0.50"} (${input.exposureClass})` : "Limit: N/A (Exposure class not specified)",
       "NF EN 206 Table F.1",
@@ -453,10 +479,10 @@ export async function generateMixDesignPdf(
     ],
     [
       "Minimum Binder Content (kg/m³)",
-      `${cementDry} kg/m³`,
+      `${Math.round(result.totalBinder || cementDry)} kg/m³`,
       input.exposureClass ? `Limit: >= ${input.exposureClass === "X0" ? "260" : "300"} kg/m³` : "Limit: N/A (Exposure class not specified)",
       "NF EN 206 Table F.1",
-      cementDry > 0 ? (cementDry >= 300 ? "CONFORMING" : "WARNING") : "N/A"
+      (result.totalBinder || cementDry) > 0 ? ((result.totalBinder || cementDry) >= (isCementless ? 250 : 300) ? "CONFORMING" : "WARNING") : "N/A"
     ],
     [
       "Early Strength at 2 Days (fcm,2d)",
