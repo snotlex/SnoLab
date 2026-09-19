@@ -14,6 +14,7 @@ import { calculateBlaineFineness, validateBlaine, type BlaineInput } from "./bla
 import { calculateCementSettingTime, validateCementSettingTime, type CementSettingTimeInput } from "./cementSettingTime";
 import { calculateCementSoundness, validateCementSoundness, type CementSoundnessInput } from "./cementSoundness";
 import { calculateCementMortarStrength, validateCementMortarStrength, type CementMortarStrengthInput } from "./cementMortarStrength";
+import { calculateCementNormalConsistency, validateCementNormalConsistency, type CementNormalConsistencyInput } from "./cementNormalConsistency";
 
 export const SIEVE_ANALYSIS_DEFINITION: LaboratoryTestDefinition<SieveAnalysisInput> = {
   id: "AGG_SIEVE_PHASE2",
@@ -614,5 +615,44 @@ export const CEMENT_MORTAR_STRENGTH_DEFINITION: LaboratoryTestDefinition<CementM
 export function runCementMortarStrengthPhase2(input: CementMortarStrengthInput) {
   const result = calculateCementMortarStrength(input);
   if (!result) throw new Error("Cement mortar strength inputs are physically invalid.");
+  return result;
+}
+
+export const CEMENT_NORMAL_CONSISTENCY_DEFINITION: LaboratoryTestDefinition<CementNormalConsistencyInput> = {
+  id: "CEM_NORMAL_CONSISTENCY_PHASE2",
+  names: {
+    ar: "القوام القياسي للإسمنت بطريقة فيكات",
+    fr: "Consistance normalisée du ciment au pénétromètre Vicat",
+    en: "Normal Cement Consistency by Vicat"
+  },
+  category: "cement",
+  applicableMaterialTypes: ["cement", "binder"],
+  description: "Determines the water percentage that produces the 6 ± 1 mm Vicat penetration target.",
+  standard: {
+    organization: "EN",
+    code: "EN 196-3",
+    version: "configured by laboratory",
+    status: "Draft",
+    source: "Laboratory configuration required before acceptance classification"
+  },
+  inputs: [
+    { key: "cementMassG", label: "Cement mass", unit: "g", required: true, numeric: true, min: 0.000001, dimension: "mass" },
+    { key: "waterVolumeMl", label: "Water volume", unit: "ml", required: true, numeric: true, min: 0.000001, dimension: "volume" },
+    { key: "plungerPenetrationMm", label: "Vicat plunger penetration", unit: "mm", required: true, numeric: true, min: 0, dimension: "length" }
+  ],
+  resultUnit: "% water",
+  revision: 1,
+  active: true,
+  validateEngineering: data => validateCementNormalConsistency(data).issues,
+  calculate: data => {
+    const result = calculateCementNormalConsistency(data);
+    if (!result) throw new Error("Normal-consistency inputs are physically invalid.");
+    return { result: result.waterPercent, unit: "%", trace: result.trace };
+  }
+};
+
+export function runCementNormalConsistencyPhase2(input: CementNormalConsistencyInput) {
+  const result = calculateCementNormalConsistency(input);
+  if (!result) throw new Error("Normal-consistency inputs are physically invalid.");
   return result;
 }
