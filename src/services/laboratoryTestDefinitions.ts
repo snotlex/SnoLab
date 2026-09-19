@@ -10,6 +10,7 @@ import { calculateMicroDeval, validateMicroDeval, type MicroDevalInput } from ".
 import { calculateFlakinessIndex, validateFlakiness, type FlakinessInput } from "./flakinessIndex";
 import { calculateMethyleneBlue, validateMethyleneBlue, type MethyleneBlueInput } from "./methyleneBlue";
 import { calculateCementSpecificGravity, validateCementSpecificGravity, type CementSpecificGravityInput } from "./cementSpecificGravity";
+import { calculateBlaineFineness, validateBlaine, type BlaineInput } from "./blaineFineness";
 
 export const SIEVE_ANALYSIS_DEFINITION: LaboratoryTestDefinition<SieveAnalysisInput> = {
   id: "AGG_SIEVE_PHASE2",
@@ -447,5 +448,47 @@ export const CEMENT_SPECIFIC_GRAVITY_DEFINITION: LaboratoryTestDefinition<Cement
 export function runCementSpecificGravityPhase2(input: CementSpecificGravityInput) {
   const result = calculateCementSpecificGravity(input);
   if (!result) throw new Error("Cement density inputs are physically invalid.");
+  return result;
+}
+
+export const BLAINE_FINENESS_DEFINITION: LaboratoryTestDefinition<BlaineInput> = {
+  id: "CEM_FINENESS_BLAINE_PHASE2",
+  names: {
+    ar: "نعومة الإسمنت بطريقة بلين",
+    fr: "Finesse Blaine du ciment",
+    en: "Blaine Cement Fineness"
+  },
+  category: "cement",
+  applicableMaterialTypes: ["cement", "binder", "supplementary_cementitious_material"],
+  description: "Determines cement specific surface from calibrated apparatus constant, bed porosity, flow time and air viscosity.",
+  standard: {
+    organization: "EN",
+    code: "EN 196-6",
+    version: "configured by laboratory",
+    status: "Draft",
+    source: "Laboratory configuration required before acceptance classification"
+  },
+  inputs: [
+    { key: "airFlowTimeSeconds", label: "Air-flow time", unit: "s", required: true, numeric: true, min: 0.000001, dimension: "time" },
+    { key: "apparatusConstantK", label: "Calibrated apparatus constant K", unit: "", required: true, numeric: true, min: 0.000001, dimension: "calibration" },
+    { key: "bedPorosityE", label: "Bed porosity", unit: "", required: true, numeric: true, min: 0.000001, max: 0.999999, dimension: "ratio" },
+    { key: "cementDensityGPerCm3", label: "Cement density", unit: "g/cm³", required: true, numeric: true, min: 0.000001, dimension: "density" },
+    { key: "airViscosityMicroPaS", label: "Air viscosity", unit: "µPa·s", required: true, numeric: true, min: 0.000001, dimension: "viscosity" },
+    { key: "airTemperatureC", label: "Air temperature", unit: "°C", required: false, numeric: true, min: 0, max: 60, dimension: "temperature" }
+  ],
+  resultUnit: "cm²/g",
+  revision: 1,
+  active: true,
+  validateEngineering: data => validateBlaine(data).issues,
+  calculate: data => {
+    const result = calculateBlaineFineness(data);
+    if (!result) throw new Error("Blaine inputs are physically invalid.");
+    return { result: result.blaineFinenessCm2PerG, unit: "cm²/g", trace: result.trace };
+  }
+};
+
+export function runBlaineFinenessPhase2(input: BlaineInput) {
+  const result = calculateBlaineFineness(input);
+  if (!result) throw new Error("Blaine inputs are physically invalid.");
   return result;
 }

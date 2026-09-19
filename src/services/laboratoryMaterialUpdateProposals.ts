@@ -67,6 +67,11 @@ export interface CementSpecificGravityProposalResult {
   validation: { valid: boolean };
 }
 
+export interface BlaineProposalResult {
+  blaineFinenessCm2PerG: number;
+  validation: { valid: boolean };
+}
+
 function toPendingProposals(
   material: EngineeringMaterial,
   testRunId: string,
@@ -237,6 +242,19 @@ export function createCementSpecificGravityMaterialUpdateProposals(params: {
   return toPendingProposals(params.material, params.testRunId, [
     { propertyKey: "density", newValue: params.result.densityKgPerM3, unit: "kg/m³" },
     { propertyKey: "specificGravity", newValue: params.result.specificGravity, unit: "-" }
+  ], proposedAt);
+}
+
+export function createBlaineMaterialUpdateProposals(params: {
+  material: EngineeringMaterial;
+  testRunId: string;
+  result: BlaineProposalResult;
+  proposedAt?: string;
+}): MaterialUpdateProposal[] {
+  if (!params.result.validation.valid || !Number.isFinite(params.result.blaineFinenessCm2PerG)) return [];
+  const proposedAt = params.proposedAt || new Date().toISOString();
+  return toPendingProposals(params.material, params.testRunId, [
+    { propertyKey: "blaineFineness", newValue: params.result.blaineFinenessCm2PerG, unit: "cm²/g" }
   ], proposedAt);
 }
 

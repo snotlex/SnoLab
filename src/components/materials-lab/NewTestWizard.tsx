@@ -46,8 +46,8 @@ import {
   TestExecutionResult 
 } from "../../services/materialsLabEngine";
 import { runSieveAnalysisPhase2 } from "../../services/laboratoryTestDefinitions";
-import { createSieveMaterialUpdateProposals, createSpecificGravityMaterialUpdateProposals, createBulkDensityMaterialUpdateProposals, createMoistureMaterialUpdateProposals, createSandEquivalentMaterialUpdateProposals, createSandBulkingMaterialUpdateProposals, createLosAngelesMaterialUpdateProposals, createMicroDevalMaterialUpdateProposals, createFlakinessMaterialUpdateProposals, createMethyleneBlueMaterialUpdateProposals, createCementSpecificGravityMaterialUpdateProposals } from "../../services/laboratoryMaterialUpdateProposals";
-import { runAggregateSpecificGravityPhase2, runAggregateBulkDensityPhase2, runAggregateMoisturePhase2, runSandEquivalentPhase2, runSandBulkingPhase2, runLosAngelesPhase2, runMicroDevalPhase2, runFlakinessPhase2, runMethyleneBluePhase2, runCementSpecificGravityPhase2 } from "../../services/laboratoryTestDefinitions";
+import { createSieveMaterialUpdateProposals, createSpecificGravityMaterialUpdateProposals, createBulkDensityMaterialUpdateProposals, createMoistureMaterialUpdateProposals, createSandEquivalentMaterialUpdateProposals, createSandBulkingMaterialUpdateProposals, createLosAngelesMaterialUpdateProposals, createMicroDevalMaterialUpdateProposals, createFlakinessMaterialUpdateProposals, createMethyleneBlueMaterialUpdateProposals, createCementSpecificGravityMaterialUpdateProposals, createBlaineMaterialUpdateProposals } from "../../services/laboratoryMaterialUpdateProposals";
+import { runAggregateSpecificGravityPhase2, runAggregateBulkDensityPhase2, runAggregateMoisturePhase2, runSandEquivalentPhase2, runSandBulkingPhase2, runLosAngelesPhase2, runMicroDevalPhase2, runFlakinessPhase2, runMethyleneBluePhase2, runCementSpecificGravityPhase2, runBlaineFinenessPhase2 } from "../../services/laboratoryTestDefinitions";
 
 interface NewTestWizardProps {
   isOpen: boolean;
@@ -304,6 +304,22 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
     }
   }, [selectedTestDefId, inputsState]);
 
+  const blainePhase2Result = useMemo(() => {
+    if (selectedTestDefId !== "CEM_FINENESS_BLAINE") return null;
+    try {
+      return runBlaineFinenessPhase2({
+        airFlowTimeSeconds: Number(inputsState.airFlowTimeSeconds),
+        apparatusConstantK: Number(inputsState.apparatusConstantK),
+        bedPorosityE: Number(inputsState.bedPorosityE),
+        cementDensityGPerCm3: Number(inputsState.cementDensityGPerCm3),
+        airViscosityMicroPaS: Number(inputsState.airViscosityMicroPaS),
+        airTemperatureC: inputsState.airTemperatureC === undefined ? undefined : Number(inputsState.airTemperatureC)
+      });
+    } catch {
+      return null;
+    }
+  }, [selectedTestDefId, inputsState]);
+
   // Execute Calculation Real-time
   const calculationResult: TestExecutionResult = useMemo(() => {
     const legacyResult = executeLaboratoryTest(selectedTestDefId, inputsState, currentMaterial);
@@ -414,8 +430,17 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
         syncedProperties: {}
       };
     }
+    if (selectedTestDefId === "CEM_FINENESS_BLAINE" && !blainePhase2Result) {
+      return {
+        ...legacyResult,
+        status: "FAIL",
+        score: 0,
+        interpretation: "لا يمكن اعتماد نعومة بلين قبل التحقق من ثابت الجهاز والمسامية وزمن النفاذية.",
+        syncedProperties: {}
+      };
+    }
     return legacyResult;
-  }, [selectedTestDefId, inputsState, currentMaterial, sievePhase2Result, specificGravityPhase2Result, bulkDensityPhase2Result, moisturePhase2Result, sandEquivalentPhase2Result, sandBulkingPhase2Result, losAngelesPhase2Result, microDevalPhase2Result, flakinessPhase2Result, methyleneBluePhase2Result, cementSpecificGravityPhase2Result]);
+  }, [selectedTestDefId, inputsState, currentMaterial, sievePhase2Result, specificGravityPhase2Result, bulkDensityPhase2Result, moisturePhase2Result, sandEquivalentPhase2Result, sandBulkingPhase2Result, losAngelesPhase2Result, microDevalPhase2Result, flakinessPhase2Result, methyleneBluePhase2Result, cementSpecificGravityPhase2Result, blainePhase2Result]);
 
   if (!isOpen) return null;
 
@@ -487,6 +512,12 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
                               testRunId: testRecordId,
                               result: cementSpecificGravityPhase2Result
                             })
+                          : selectedTestDefId === "CEM_FINENESS_BLAINE" && blainePhase2Result
+                            ? createBlaineMaterialUpdateProposals({
+                                material: currentMaterial,
+                                testRunId: testRecordId,
+                                result: blainePhase2Result
+                              })
       : undefined;
     const hasPendingProposals = Boolean(updateProposals?.length);
     const newRecord: MaterialTestRecord = {
