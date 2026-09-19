@@ -61,6 +61,12 @@ export interface MethyleneBlueProposalResult {
   validation: { valid: boolean };
 }
 
+export interface CementSpecificGravityProposalResult {
+  densityKgPerM3: number;
+  specificGravity: number;
+  validation: { valid: boolean };
+}
+
 function toPendingProposals(
   material: EngineeringMaterial,
   testRunId: string,
@@ -217,6 +223,20 @@ export function createMethyleneBlueMaterialUpdateProposals(params: {
   const proposedAt = params.proposedAt || new Date().toISOString();
   return toPendingProposals(params.material, params.testRunId, [
     { propertyKey: "methyleneBlue", newValue: params.result.methyleneBlueValueGPerKg, unit: "g/kg" }
+  ], proposedAt);
+}
+
+export function createCementSpecificGravityMaterialUpdateProposals(params: {
+  material: EngineeringMaterial;
+  testRunId: string;
+  result: CementSpecificGravityProposalResult;
+  proposedAt?: string;
+}): MaterialUpdateProposal[] {
+  if (!params.result.validation.valid || !Number.isFinite(params.result.densityKgPerM3) || !Number.isFinite(params.result.specificGravity)) return [];
+  const proposedAt = params.proposedAt || new Date().toISOString();
+  return toPendingProposals(params.material, params.testRunId, [
+    { propertyKey: "density", newValue: params.result.densityKgPerM3, unit: "kg/m³" },
+    { propertyKey: "specificGravity", newValue: params.result.specificGravity, unit: "-" }
   ], proposedAt);
 }
 

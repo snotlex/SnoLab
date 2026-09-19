@@ -46,8 +46,8 @@ import {
   TestExecutionResult 
 } from "../../services/materialsLabEngine";
 import { runSieveAnalysisPhase2 } from "../../services/laboratoryTestDefinitions";
-import { createSieveMaterialUpdateProposals, createSpecificGravityMaterialUpdateProposals, createBulkDensityMaterialUpdateProposals, createMoistureMaterialUpdateProposals, createSandEquivalentMaterialUpdateProposals, createSandBulkingMaterialUpdateProposals, createLosAngelesMaterialUpdateProposals, createMicroDevalMaterialUpdateProposals, createFlakinessMaterialUpdateProposals, createMethyleneBlueMaterialUpdateProposals } from "../../services/laboratoryMaterialUpdateProposals";
-import { runAggregateSpecificGravityPhase2, runAggregateBulkDensityPhase2, runAggregateMoisturePhase2, runSandEquivalentPhase2, runSandBulkingPhase2, runLosAngelesPhase2, runMicroDevalPhase2, runFlakinessPhase2, runMethyleneBluePhase2 } from "../../services/laboratoryTestDefinitions";
+import { createSieveMaterialUpdateProposals, createSpecificGravityMaterialUpdateProposals, createBulkDensityMaterialUpdateProposals, createMoistureMaterialUpdateProposals, createSandEquivalentMaterialUpdateProposals, createSandBulkingMaterialUpdateProposals, createLosAngelesMaterialUpdateProposals, createMicroDevalMaterialUpdateProposals, createFlakinessMaterialUpdateProposals, createMethyleneBlueMaterialUpdateProposals, createCementSpecificGravityMaterialUpdateProposals } from "../../services/laboratoryMaterialUpdateProposals";
+import { runAggregateSpecificGravityPhase2, runAggregateBulkDensityPhase2, runAggregateMoisturePhase2, runSandEquivalentPhase2, runSandBulkingPhase2, runLosAngelesPhase2, runMicroDevalPhase2, runFlakinessPhase2, runMethyleneBluePhase2, runCementSpecificGravityPhase2 } from "../../services/laboratoryTestDefinitions";
 
 interface NewTestWizardProps {
   isOpen: boolean;
@@ -291,6 +291,19 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
     }
   }, [selectedTestDefId, inputsState]);
 
+  const cementSpecificGravityPhase2Result = useMemo(() => {
+    if (selectedTestDefId !== "CEM_SPECIFIC_GRAVITY") return null;
+    try {
+      return runCementSpecificGravityPhase2({
+        cementMassG: Number(inputsState.cementMassG),
+        initialVolumeMl: Number(inputsState.initialVolumeMl),
+        finalVolumeMl: Number(inputsState.finalVolumeMl)
+      });
+    } catch {
+      return null;
+    }
+  }, [selectedTestDefId, inputsState]);
+
   // Execute Calculation Real-time
   const calculationResult: TestExecutionResult = useMemo(() => {
     const legacyResult = executeLaboratoryTest(selectedTestDefId, inputsState, currentMaterial);
@@ -392,8 +405,17 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
         syncedProperties: {}
       };
     }
+    if (selectedTestDefId === "CEM_SPECIFIC_GRAVITY" && !cementSpecificGravityPhase2Result) {
+      return {
+        ...legacyResult,
+        status: "FAIL",
+        score: 0,
+        interpretation: "لا يمكن اعتماد كثافة الإسمنت قبل التحقق من كتلة الإسمنت وقراءات لوشاتيليه.",
+        syncedProperties: {}
+      };
+    }
     return legacyResult;
-  }, [selectedTestDefId, inputsState, currentMaterial, sievePhase2Result, specificGravityPhase2Result, bulkDensityPhase2Result, moisturePhase2Result, sandEquivalentPhase2Result, sandBulkingPhase2Result, losAngelesPhase2Result, microDevalPhase2Result, flakinessPhase2Result, methyleneBluePhase2Result]);
+  }, [selectedTestDefId, inputsState, currentMaterial, sievePhase2Result, specificGravityPhase2Result, bulkDensityPhase2Result, moisturePhase2Result, sandEquivalentPhase2Result, sandBulkingPhase2Result, losAngelesPhase2Result, microDevalPhase2Result, flakinessPhase2Result, methyleneBluePhase2Result, cementSpecificGravityPhase2Result]);
 
   if (!isOpen) return null;
 
@@ -459,6 +481,12 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
                             testRunId: testRecordId,
                             result: methyleneBluePhase2Result
                           })
+                        : selectedTestDefId === "CEM_SPECIFIC_GRAVITY" && cementSpecificGravityPhase2Result
+                          ? createCementSpecificGravityMaterialUpdateProposals({
+                              material: currentMaterial,
+                              testRunId: testRecordId,
+                              result: cementSpecificGravityPhase2Result
+                            })
       : undefined;
     const hasPendingProposals = Boolean(updateProposals?.length);
     const newRecord: MaterialTestRecord = {

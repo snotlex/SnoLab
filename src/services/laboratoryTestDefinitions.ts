@@ -9,6 +9,7 @@ import { calculateLosAngelesAbrasion, validateLosAngeles, type LosAngelesInput }
 import { calculateMicroDeval, validateMicroDeval, type MicroDevalInput } from "./microDeval";
 import { calculateFlakinessIndex, validateFlakiness, type FlakinessInput } from "./flakinessIndex";
 import { calculateMethyleneBlue, validateMethyleneBlue, type MethyleneBlueInput } from "./methyleneBlue";
+import { calculateCementSpecificGravity, validateCementSpecificGravity, type CementSpecificGravityInput } from "./cementSpecificGravity";
 
 export const SIEVE_ANALYSIS_DEFINITION: LaboratoryTestDefinition<SieveAnalysisInput> = {
   id: "AGG_SIEVE_PHASE2",
@@ -407,5 +408,44 @@ export const METHYLENE_BLUE_DEFINITION: LaboratoryTestDefinition<MethyleneBlueIn
 export function runMethyleneBluePhase2(input: MethyleneBlueInput) {
   const result = calculateMethyleneBlue(input);
   if (!result) throw new Error("Methylene Blue inputs are physically invalid.");
+  return result;
+}
+
+export const CEMENT_SPECIFIC_GRAVITY_DEFINITION: LaboratoryTestDefinition<CementSpecificGravityInput> = {
+  id: "CEM_SPECIFIC_GRAVITY_PHASE2",
+  names: {
+    ar: "الكثافة المطلقة للإسمنت بطريقة لوشاتيليه",
+    fr: "Masse volumique absolue du ciment",
+    en: "Cement Specific Gravity"
+  },
+  category: "cement",
+  applicableMaterialTypes: ["cement", "binder", "supplementary_cementitious_material"],
+  description: "Determines cement density from mass and Le Chatelier flask displacement.",
+  standard: {
+    organization: "EN",
+    code: "EN 196-6",
+    version: "configured by laboratory",
+    status: "Draft",
+    source: "Laboratory configuration required before acceptance classification"
+  },
+  inputs: [
+    { key: "cementMassG", label: "Cement mass", unit: "g", required: true, numeric: true, min: 0.000001, dimension: "mass" },
+    { key: "initialVolumeMl", label: "Initial flask reading", unit: "ml", required: true, numeric: true, min: 0, dimension: "volume" },
+    { key: "finalVolumeMl", label: "Final flask reading", unit: "ml", required: true, numeric: true, min: 0, dimension: "volume" }
+  ],
+  resultUnit: "g/cm³",
+  revision: 1,
+  active: true,
+  validateEngineering: data => validateCementSpecificGravity(data).issues,
+  calculate: data => {
+    const result = calculateCementSpecificGravity(data);
+    if (!result) throw new Error("Cement density inputs are physically invalid.");
+    return { result: result.densityGPerCm3, unit: "g/cm³", trace: result.trace };
+  }
+};
+
+export function runCementSpecificGravityPhase2(input: CementSpecificGravityInput) {
+  const result = calculateCementSpecificGravity(input);
+  if (!result) throw new Error("Cement density inputs are physically invalid.");
   return result;
 }
