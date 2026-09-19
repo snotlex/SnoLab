@@ -83,6 +83,13 @@ export interface CementSoundnessProposalResult {
   validation: { valid: boolean };
 }
 
+export interface CementMortarStrengthProposalResult {
+  strength2dMPa: number;
+  strength7dMPa: number;
+  strength28dMPa: number;
+  validation: { valid: boolean };
+}
+
 function toPendingProposals(
   material: EngineeringMaterial,
   testRunId: string,
@@ -293,6 +300,21 @@ export function createCementSoundnessMaterialUpdateProposals(params: {
   const proposedAt = params.proposedAt || new Date().toISOString();
   return toPendingProposals(params.material, params.testRunId, [
     { propertyKey: "soundness", newValue: params.result.expansionMm, unit: "mm" }
+  ], proposedAt);
+}
+
+export function createCementMortarStrengthMaterialUpdateProposals(params: {
+  material: EngineeringMaterial;
+  testRunId: string;
+  result: CementMortarStrengthProposalResult;
+  proposedAt?: string;
+}): MaterialUpdateProposal[] {
+  if (!params.result.validation.valid || !Number.isFinite(params.result.strength2dMPa) || !Number.isFinite(params.result.strength7dMPa) || !Number.isFinite(params.result.strength28dMPa)) return [];
+  const proposedAt = params.proposedAt || new Date().toISOString();
+  return toPendingProposals(params.material, params.testRunId, [
+    { propertyKey: "strength2d", newValue: params.result.strength2dMPa, unit: "MPa" },
+    { propertyKey: "strength7d", newValue: params.result.strength7dMPa, unit: "MPa" },
+    { propertyKey: "strength28d", newValue: params.result.strength28dMPa, unit: "MPa" }
   ], proposedAt);
 }
 

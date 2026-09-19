@@ -13,6 +13,7 @@ import { calculateCementSpecificGravity, validateCementSpecificGravity, type Cem
 import { calculateBlaineFineness, validateBlaine, type BlaineInput } from "./blaineFineness";
 import { calculateCementSettingTime, validateCementSettingTime, type CementSettingTimeInput } from "./cementSettingTime";
 import { calculateCementSoundness, validateCementSoundness, type CementSoundnessInput } from "./cementSoundness";
+import { calculateCementMortarStrength, validateCementMortarStrength, type CementMortarStrengthInput } from "./cementMortarStrength";
 
 export const SIEVE_ANALYSIS_DEFINITION: LaboratoryTestDefinition<SieveAnalysisInput> = {
   id: "AGG_SIEVE_PHASE2",
@@ -572,5 +573,46 @@ export const CEMENT_SOUNDNESS_DEFINITION: LaboratoryTestDefinition<CementSoundne
 export function runCementSoundnessPhase2(input: CementSoundnessInput) {
   const result = calculateCementSoundness(input);
   if (!result) throw new Error("Cement soundness inputs are physically invalid.");
+  return result;
+}
+
+export const CEMENT_MORTAR_STRENGTH_DEFINITION: LaboratoryTestDefinition<CementMortarStrengthInput> = {
+  id: "CEM_COMPRESSIVE_STRENGTH_PHASE2",
+  names: {
+    ar: "مقاومة المونة الإسمنتية للضغط",
+    fr: "Résistance à la compression du mortier normalisé",
+    en: "Cement Mortar Compressive Strength"
+  },
+  category: "cement",
+  applicableMaterialTypes: ["cement", "binder"],
+  description: "Converts standardized 40 × 40 mm mortar prism failure forces to mean compressive strengths at 2, 7 and 28 days.",
+  standard: {
+    organization: "EN",
+    code: "EN 196-1",
+    version: "configured by laboratory",
+    status: "Draft",
+    source: "Laboratory configuration required before strength-class acceptance"
+  },
+  inputs: [
+    { key: "strength2dPrismsKn", label: "Two-day prism forces", unit: "kN", required: true, numeric: false, dimension: "force_series" },
+    { key: "strength7dPrismsKn", label: "Seven-day prism forces", unit: "kN", required: true, numeric: false, dimension: "force_series" },
+    { key: "strength28dPrismsKn", label: "Twenty-eight-day prism forces", unit: "kN", required: true, numeric: false, dimension: "force_series" },
+    { key: "prismWidthMm", label: "Prism compression width", unit: "mm", required: false, numeric: true, min: 0.000001, dimension: "length" },
+    { key: "prismDepthMm", label: "Prism compression depth", unit: "mm", required: false, numeric: true, min: 0.000001, dimension: "length" }
+  ],
+  resultUnit: "MPa",
+  revision: 1,
+  active: true,
+  validateEngineering: data => validateCementMortarStrength(data).issues,
+  calculate: data => {
+    const result = calculateCementMortarStrength(data);
+    if (!result) throw new Error("Cement mortar strength inputs are physically invalid.");
+    return { result: result.strength28dMPa, unit: "MPa", trace: result.trace };
+  }
+};
+
+export function runCementMortarStrengthPhase2(input: CementMortarStrengthInput) {
+  const result = calculateCementMortarStrength(input);
+  if (!result) throw new Error("Cement mortar strength inputs are physically invalid.");
   return result;
 }
