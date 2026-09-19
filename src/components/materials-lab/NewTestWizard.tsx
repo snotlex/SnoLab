@@ -46,6 +46,7 @@ import {
   TestExecutionResult 
 } from "../../services/materialsLabEngine";
 import { runSieveAnalysisPhase2 } from "../../services/laboratoryTestDefinitions";
+import { createSieveMaterialUpdateProposals } from "../../services/laboratoryMaterialUpdateProposals";
 
 interface NewTestWizardProps {
   isOpen: boolean;
@@ -139,12 +140,9 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
     });
   }, [materials, matCategoryFilter, matSearchQuery]);
 
-  // Execute Calculation Real-time
-  const calculationResult: TestExecutionResult = useMemo(() => {
-    const legacyResult = executeLaboratoryTest(selectedTestDefId, inputsState, currentMaterial);
-    if (selectedTestDefId !== "AGG_SIEVE") return legacyResult;
-
-    const phase2Result = runSieveAnalysisPhase2({
+  const sievePhase2Result = useMemo(() => {
+    if (selectedTestDefId !== "AGG_SIEVE") return null;
+    return runSieveAnalysisPhase2({
       totalSampleMassG: Number(inputsState.totalWeight),
       finesSieveMm: 0.063,
       massBalanceToleranceG: Number(inputsState.massBalanceToleranceG ?? 1),
@@ -153,13 +151,19 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
         retainedMassG: Number(row.retained)
       }))
     });
-    if (!phase2Result.validation.valid) {
+  }, [selectedTestDefId, inputsState]);
+
+  // Execute Calculation Real-time
+  const calculationResult: TestExecutionResult = useMemo(() => {
+    const legacyResult = executeLaboratoryTest(selectedTestDefId, inputsState, currentMaterial);
+    if (selectedTestDefId !== "AGG_SIEVE" || !sievePhase2Result) return legacyResult;
+    if (!sievePhase2Result.validation.valid) {
       return {
         ...legacyResult,
         status: "FAIL",
         score: 0,
         interpretation: "لا يمكن اعتماد تحليل التدرج قبل إصلاح أخطاء البيانات أو توازن الكتلة.",
-        complianceDetails: phase2Result.validation.issues.map(item => ({
+        complianceDetails: sievePhase2Result.validation.issues.map(item => ({
           parameter: item.field || item.code,
           measured: "—",
           limit: "بيانات صالحة ومتوازنة",
@@ -170,13 +174,22 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
       };
     }
     return legacyResult;
-  }, [selectedTestDefId, inputsState, currentMaterial]);
+  }, [selectedTestDefId, inputsState, currentMaterial, sievePhase2Result]);
 
   if (!isOpen) return null;
 
   const handleSave = () => {
+    const testRecordId = `TEST-${currentTestDef.category.toUpperCase().slice(0, 3)}-${Date.now().toString().slice(-6)}`;
+    const updateProposals = selectedTestDefId === "AGG_SIEVE" && sievePhase2Result
+      ? createSieveMaterialUpdateProposals({
+          material: currentMaterial,
+          testRunId: testRecordId,
+          result: sievePhase2Result
+        })
+      : undefined;
+    const hasPendingProposals = Boolean(updateProposals?.length);
     const newRecord: MaterialTestRecord = {
-      id: `TEST-${currentTestDef.category.toUpperCase().slice(0, 3)}-${Date.now().toString().slice(-6)}`,
+      id: testRecordId,
       testType: currentTestDef.id,
       testTitleAr: currentTestDef.titleAr,
       testTitleFr: currentTestDef.titleFr,
@@ -194,15 +207,16 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
       inputs: inputsState,
       results: calculationResult.results,
       status: calculationResult.status,
-      approvalStatus: "Validated",
+      approvalStatus: hasPendingProposals ? "Pending Review" : "Validated",
       score: calculationResult.score,
       interpretation: calculationResult.interpretation,
       complianceDetails: calculationResult.complianceDetails,
       chartData: calculationResult.chartData,
       granulometricCurve: calculationResult.granulometricCurve,
       notes,
-      syncedToMaterial: true,
-      syncedProperties: calculationResult.syncedProperties,
+      syncedToMaterial: !hasPendingProposals,
+      syncedProperties: hasPendingProposals ? {} : calculationResult.syncedProperties,
+      updateProposals: updateProposals,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };

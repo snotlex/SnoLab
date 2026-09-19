@@ -1,4 +1,5 @@
 import { EngineeringMaterial } from "../types";
+import type { MaterialUpdateProposal } from "./laboratoryDomain";
 
 export type LabCategory = 
   | "aggregates"
@@ -121,6 +122,7 @@ export interface MaterialTestRecord {
   notes?: string;
   syncedToMaterial?: boolean;
   syncedProperties?: Record<string, any>;
+  updateProposals?: MaterialUpdateProposal[];
   historyTimestamp?: string;
   createdAt: string;
   updatedAt: string;
