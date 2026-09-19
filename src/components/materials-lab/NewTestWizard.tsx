@@ -46,8 +46,8 @@ import {
   TestExecutionResult 
 } from "../../services/materialsLabEngine";
 import { runSieveAnalysisPhase2 } from "../../services/laboratoryTestDefinitions";
-import { createSieveMaterialUpdateProposals, createSpecificGravityMaterialUpdateProposals, createBulkDensityMaterialUpdateProposals, createMoistureMaterialUpdateProposals, createSandEquivalentMaterialUpdateProposals, createSandBulkingMaterialUpdateProposals, createLosAngelesMaterialUpdateProposals, createMicroDevalMaterialUpdateProposals } from "../../services/laboratoryMaterialUpdateProposals";
-import { runAggregateSpecificGravityPhase2, runAggregateBulkDensityPhase2, runAggregateMoisturePhase2, runSandEquivalentPhase2, runSandBulkingPhase2, runLosAngelesPhase2, runMicroDevalPhase2 } from "../../services/laboratoryTestDefinitions";
+import { createSieveMaterialUpdateProposals, createSpecificGravityMaterialUpdateProposals, createBulkDensityMaterialUpdateProposals, createMoistureMaterialUpdateProposals, createSandEquivalentMaterialUpdateProposals, createSandBulkingMaterialUpdateProposals, createLosAngelesMaterialUpdateProposals, createMicroDevalMaterialUpdateProposals, createFlakinessMaterialUpdateProposals } from "../../services/laboratoryMaterialUpdateProposals";
+import { runAggregateSpecificGravityPhase2, runAggregateBulkDensityPhase2, runAggregateMoisturePhase2, runSandEquivalentPhase2, runSandBulkingPhase2, runLosAngelesPhase2, runMicroDevalPhase2, runFlakinessPhase2 } from "../../services/laboratoryTestDefinitions";
 
 interface NewTestWizardProps {
   isOpen: boolean;
@@ -257,6 +257,26 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
     }
   }, [selectedTestDefId, inputsState]);
 
+  const flakinessPhase2Result = useMemo(() => {
+    if (selectedTestDefId !== "AGG_SHAPE_FLAKINESS") return null;
+    try {
+      return runFlakinessPhase2({
+        totalSampleMassG: Number(inputsState.totalSampleMassG),
+        passingBarSievesMassG: Number(inputsState.passingBarSievesMassG),
+        fractions: Array.isArray(inputsState.fractions)
+          ? inputsState.fractions.map((fraction: { sizeRange: string; totalMassG: number; passingMassG: number }) => ({
+              sizeRange: String(fraction.sizeRange),
+              totalMassG: Number(fraction.totalMassG),
+              passingMassG: Number(fraction.passingMassG)
+            }))
+          : undefined,
+        massBalanceToleranceG: inputsState.massBalanceToleranceG === undefined ? undefined : Number(inputsState.massBalanceToleranceG)
+      });
+    } catch {
+      return null;
+    }
+  }, [selectedTestDefId, inputsState]);
+
   // Execute Calculation Real-time
   const calculationResult: TestExecutionResult = useMemo(() => {
     const legacyResult = executeLaboratoryTest(selectedTestDefId, inputsState, currentMaterial);
@@ -340,8 +360,17 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
         syncedProperties: {}
       };
     }
+    if (selectedTestDefId === "AGG_SHAPE_FLAKINESS" && !flakinessPhase2Result) {
+      return {
+        ...legacyResult,
+        status: "FAIL",
+        score: 0,
+        interpretation: "لا يمكن اعتماد مؤشر التسطح قبل التحقق من أوزان العينة والكسور الحبيبية.",
+        syncedProperties: {}
+      };
+    }
     return legacyResult;
-  }, [selectedTestDefId, inputsState, currentMaterial, sievePhase2Result, specificGravityPhase2Result, bulkDensityPhase2Result, moisturePhase2Result, sandEquivalentPhase2Result, sandBulkingPhase2Result, losAngelesPhase2Result, microDevalPhase2Result]);
+  }, [selectedTestDefId, inputsState, currentMaterial, sievePhase2Result, specificGravityPhase2Result, bulkDensityPhase2Result, moisturePhase2Result, sandEquivalentPhase2Result, sandBulkingPhase2Result, losAngelesPhase2Result, microDevalPhase2Result, flakinessPhase2Result]);
 
   if (!isOpen) return null;
 
@@ -395,6 +424,12 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
                         testRunId: testRecordId,
                         result: microDevalPhase2Result
                       })
+                    : selectedTestDefId === "AGG_SHAPE_FLAKINESS" && flakinessPhase2Result
+                      ? createFlakinessMaterialUpdateProposals({
+                          material: currentMaterial,
+                          testRunId: testRecordId,
+                          result: flakinessPhase2Result
+                        })
       : undefined;
     const hasPendingProposals = Boolean(updateProposals?.length);
     const newRecord: MaterialTestRecord = {

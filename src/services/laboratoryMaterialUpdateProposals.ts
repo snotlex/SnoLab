@@ -51,6 +51,11 @@ export interface MicroDevalProposalResult {
   validation: { valid: boolean };
 }
 
+export interface FlakinessProposalResult {
+  flakinessIndexPercent: number;
+  validation: { valid: boolean };
+}
+
 function toPendingProposals(
   material: EngineeringMaterial,
   testRunId: string,
@@ -181,6 +186,19 @@ export function createMicroDevalMaterialUpdateProposals(params: {
   const proposedAt = params.proposedAt || new Date().toISOString();
   return toPendingProposals(params.material, params.testRunId, [
     { propertyKey: "microDeval", newValue: params.result.microDevalPercent, unit: "%" }
+  ], proposedAt);
+}
+
+export function createFlakinessMaterialUpdateProposals(params: {
+  material: EngineeringMaterial;
+  testRunId: string;
+  result: FlakinessProposalResult;
+  proposedAt?: string;
+}): MaterialUpdateProposal[] {
+  if (!params.result.validation.valid || !Number.isFinite(params.result.flakinessIndexPercent)) return [];
+  const proposedAt = params.proposedAt || new Date().toISOString();
+  return toPendingProposals(params.material, params.testRunId, [
+    { propertyKey: "flakinessIndex", newValue: params.result.flakinessIndexPercent, unit: "%" }
   ], proposedAt);
 }
 

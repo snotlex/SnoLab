@@ -7,6 +7,7 @@ import { calculateSandEquivalent, validateSandEquivalent, type SandEquivalentInp
 import { calculateSandBulking, validateSandBulking, type SandBulkingInput } from "./sandBulking";
 import { calculateLosAngelesAbrasion, validateLosAngeles, type LosAngelesInput } from "./losAngelesAbrasion";
 import { calculateMicroDeval, validateMicroDeval, type MicroDevalInput } from "./microDeval";
+import { calculateFlakinessIndex, validateFlakiness, type FlakinessInput } from "./flakinessIndex";
 
 export const SIEVE_ANALYSIS_DEFINITION: LaboratoryTestDefinition<SieveAnalysisInput> = {
   id: "AGG_SIEVE_PHASE2",
@@ -325,5 +326,45 @@ export const MICRO_DEVAL_DEFINITION: LaboratoryTestDefinition<MicroDevalInput> =
 export function runMicroDevalPhase2(input: MicroDevalInput) {
   const result = calculateMicroDeval(input);
   if (!result) throw new Error("Micro-Deval inputs are physically invalid.");
+  return result;
+}
+
+export const FLAKINESS_DEFINITION: LaboratoryTestDefinition<FlakinessInput> = {
+  id: "AGG_SHAPE_FLAKINESS_PHASE2",
+  names: {
+    ar: "مؤشر التسطح وشكل الحبيبات",
+    fr: "Coefficient d'aplatissement",
+    en: "Flakiness Index"
+  },
+  category: "aggregates",
+  applicableMaterialTypes: ["gravel", "coarse_aggregate", "aggregate"],
+  description: "Determines the percentage of aggregate mass passing standard bar sieves, with optional fraction reconciliation.",
+  standard: {
+    organization: "EN",
+    code: "EN 933-3",
+    version: "configured by laboratory",
+    status: "Draft",
+    source: "Laboratory configuration required before acceptance classification"
+  },
+  inputs: [
+    { key: "totalSampleMassG", label: "Total sample mass", unit: "g", required: true, numeric: true, min: 0.000001, dimension: "mass" },
+    { key: "passingBarSievesMassG", label: "Mass passing bar sieves", unit: "g", required: true, numeric: true, min: 0, dimension: "mass" },
+    { key: "fractions", label: "Size-fraction records", unit: "", required: false, numeric: false, dimension: "series" },
+    { key: "massBalanceToleranceG", label: "Mass-balance tolerance", unit: "g", required: false, numeric: true, min: 0, dimension: "mass" }
+  ],
+  resultUnit: "%",
+  revision: 1,
+  active: true,
+  validateEngineering: data => validateFlakiness(data).issues,
+  calculate: data => {
+    const result = calculateFlakinessIndex(data);
+    if (!result) throw new Error("Flakiness inputs are physically invalid.");
+    return { result: result.flakinessIndexPercent, unit: "%", trace: result.trace };
+  }
+};
+
+export function runFlakinessPhase2(input: FlakinessInput) {
+  const result = calculateFlakinessIndex(input);
+  if (!result) throw new Error("Flakiness inputs are physically invalid.");
   return result;
 }
