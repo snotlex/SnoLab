@@ -136,7 +136,7 @@ export class LaboratoryService {
    * 1. Records test run with raw measurements
    * 2. Runs standard calculations
    * 3. Validates results
-   * 4. Updates linked Material Properties automatically
+   * 4. Leaves material updates pending until an explicit approval action
    * 5. Preserves historical log
    */
   public static executeAndRecordTestRun(params: {
@@ -164,7 +164,9 @@ export class LaboratoryService {
       laboratoryName: params.laboratoryName,
       measurements: params.measurements,
       calculatedResults: params.calculatedResults,
-      status: "VERIFIED",
+      // A completed record is not an approved laboratory result. Material
+      // properties must not change before an explicit reviewer action.
+      status: "COMPLETED",
       validationNotes: params.validationNotes || [],
       createdAt: now
     };
@@ -173,34 +175,38 @@ export class LaboratoryService {
     LaboratoryService.testRuns.set(record.id, record);
     LaboratoryService.persistTestRunsToStorage();
 
-    // Automatically update linked material properties with LABORATORY provenance
-    const mat = MaterialService.getMaterialById(params.materialId);
-    if (mat) {
-      for (const [key, res] of Object.entries(params.calculatedResults)) {
-        if (res.outputPropertyId && PropertyService.hasMeaningfulValue(res.value)) {
-          MaterialService.setMaterialProperty(
-            mat.id,
-            res.outputPropertyId,
-            res.value,
-            "LABORATORY",
-            res.unit
-          );
-        }
-      }
-
-      // Link test run ID to material
-      if (!mat.laboratoryTestIds) mat.laboratoryTestIds = [];
-      mat.laboratoryTestIds.push(record.id);
-
-      // If granulometry curve data present, update granulometry
-      if (params.measurements.sieveTable) {
-        mat.granulometry = params.measurements.sieveTable;
-      }
-
-      MaterialService.saveMyMaterial(mat);
-    }
-
     return record;
+  }
+
+  /**
+   * Applies a completed test to the material only after explicit reviewer approval.
+   * The original raw measurements and calculated result remain in the run log.
+   */
+  public static approveAndApplyTestRun(testRunId: string, reviewer: string, reason?: string): LabTestRunRecord {
+    const record = LaboratoryService.testRuns.get(testRunId);
+    if (!record) throw new Error("Laboratory test run was not found.");
+    if (record.status !== "COMPLETED") {
+      throw new Error(`Only completed test runs can be approved; current status is ${record.status}.`);
+    }
+    const mat = MaterialService.getMaterialById(record.materialId);
+    if (!mat) throw new Error("The material linked to the test run was not found.");
+    for (const res of Object.values(record.calculatedResults)) {
+      if (res.outputPropertyId && PropertyService.hasMeaningfulValue(res.value)) {
+        MaterialService.setMaterialProperty(mat.id, res.outputPropertyId, res.value, "LABORATORY", res.unit);
+      }
+    }
+    if (!mat.laboratoryTestIds) mat.laboratoryTestIds = [];
+    if (!mat.laboratoryTestIds.includes(record.id)) mat.laboratoryTestIds.push(record.id);
+    if (record.measurements.sieveTable) mat.granulometry = record.measurements.sieveTable;
+    MaterialService.saveMyMaterial(mat);
+    const approved: LabTestRunRecord = {
+      ...record,
+      status: "VERIFIED",
+      validationNotes: [...(record.validationNotes || []), `Approved by ${reviewer}${reason ? `: ${reason}` : ""}`]
+    };
+    LaboratoryService.testRuns.set(approved.id, approved);
+    LaboratoryService.persistTestRunsToStorage();
+    return approved;
   }
 
   private static persistTestRunsToStorage(): void {
