@@ -18,6 +18,35 @@ export interface SpecificGravityProposalResult {
   validation: { valid: boolean };
 }
 
+export interface BulkDensityProposalResult {
+  looseDensityKgM3: number;
+  compactedDensityKgM3: number;
+  compactionIndex: number;
+  validation: { valid: boolean };
+}
+
+function toPendingProposals(
+  material: EngineeringMaterial,
+  testRunId: string,
+  values: Array<{ propertyKey: string; newValue: number; unit: string }>,
+  proposedAt: string
+): MaterialUpdateProposal[] {
+  return values.map(({ propertyKey, newValue, unit }) => {
+    const oldValue = (material as unknown as Record<string, unknown>)[propertyKey];
+    return {
+      id: `MUP-${testRunId}-${propertyKey}`,
+      materialId: material.id,
+      testRunId,
+      propertyKey,
+      oldValue: typeof oldValue === "number" || typeof oldValue === "string" ? oldValue : undefined,
+      newValue,
+      unit,
+      status: "Pending" as const,
+      proposedAt
+    };
+  });
+}
+
 export function createSieveMaterialUpdateProposals(params: {
   material: EngineeringMaterial;
   testRunId: string;
@@ -29,18 +58,7 @@ export function createSieveMaterialUpdateProposals(params: {
   return SIEVE_PROPERTY_MAP.flatMap(({ resultKey, propertyKey, unit }) => {
     const value = params.result[resultKey];
     if (typeof value !== "number" || !Number.isFinite(value)) return [];
-    const oldValue = (params.material as unknown as Record<string, unknown>)[propertyKey];
-    return [{
-      id: `MUP-${params.testRunId}-${propertyKey}`,
-      materialId: params.material.id,
-      testRunId: params.testRunId,
-      propertyKey,
-      oldValue: typeof oldValue === "number" || typeof oldValue === "string" ? oldValue : undefined,
-      newValue: value,
-      unit,
-      status: "Pending" as const,
-      proposedAt
-    }];
+    return toPendingProposals(params.material, params.testRunId, [{ propertyKey, newValue: value, unit }], proposedAt);
   });
 }
 
@@ -52,26 +70,27 @@ export function createSpecificGravityMaterialUpdateProposals(params: {
 }): MaterialUpdateProposal[] {
   if (!params.result.validation.valid) return [];
   const proposedAt = params.proposedAt || new Date().toISOString();
-  const values: Array<{ propertyKey: string; newValue: number; unit: string }> = [
+  return toPendingProposals(params.material, params.testRunId, [
     { propertyKey: "specificGravity", newValue: params.result.absoluteDensityGPerCm3, unit: "-" },
     { propertyKey: "density", newValue: params.result.absoluteDensityKgM3, unit: "kg/m³" },
     { propertyKey: "ssdDensity", newValue: params.result.ssdDensityKgM3, unit: "kg/m³" },
     { propertyKey: "absorption", newValue: params.result.waterAbsorptionPercent, unit: "%" }
-  ];
-  return values.map(({ propertyKey, newValue, unit }) => {
-    const oldValue = (params.material as unknown as Record<string, unknown>)[propertyKey];
-    return {
-      id: `MUP-${params.testRunId}-${propertyKey}`,
-      materialId: params.material.id,
-      testRunId: params.testRunId,
-      propertyKey,
-      oldValue: typeof oldValue === "number" || typeof oldValue === "string" ? oldValue : undefined,
-      newValue,
-      unit,
-      status: "Pending" as const,
-      proposedAt
-    };
-  });
+  ], proposedAt);
+}
+
+export function createBulkDensityMaterialUpdateProposals(params: {
+  material: EngineeringMaterial;
+  testRunId: string;
+  result: BulkDensityProposalResult;
+  proposedAt?: string;
+}): MaterialUpdateProposal[] {
+  if (!params.result.validation.valid) return [];
+  const proposedAt = params.proposedAt || new Date().toISOString();
+  return toPendingProposals(params.material, params.testRunId, [
+    { propertyKey: "bulkDensity", newValue: params.result.looseDensityKgM3, unit: "kg/m³" },
+    { propertyKey: "compactedBulkDensity", newValue: params.result.compactedDensityKgM3, unit: "kg/m³" },
+    { propertyKey: "compactionIndex", newValue: params.result.compactionIndex, unit: "-" }
+  ], proposedAt);
 }
 
 export function acceptMaterialUpdateProposal(

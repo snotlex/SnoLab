@@ -46,8 +46,8 @@ import {
   TestExecutionResult 
 } from "../../services/materialsLabEngine";
 import { runSieveAnalysisPhase2 } from "../../services/laboratoryTestDefinitions";
-import { createSieveMaterialUpdateProposals, createSpecificGravityMaterialUpdateProposals } from "../../services/laboratoryMaterialUpdateProposals";
-import { runAggregateSpecificGravityPhase2 } from "../../services/laboratoryTestDefinitions";
+import { createSieveMaterialUpdateProposals, createSpecificGravityMaterialUpdateProposals, createBulkDensityMaterialUpdateProposals } from "../../services/laboratoryMaterialUpdateProposals";
+import { runAggregateSpecificGravityPhase2, runAggregateBulkDensityPhase2 } from "../../services/laboratoryTestDefinitions";
 
 interface NewTestWizardProps {
   isOpen: boolean;
@@ -168,6 +168,20 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
     }
   }, [selectedTestDefId, inputsState]);
 
+  const bulkDensityPhase2Result = useMemo(() => {
+    if (selectedTestDefId !== "AGG_BULK_DENSITY") return null;
+    try {
+      return runAggregateBulkDensityPhase2({
+        containerVolumeLiters: Number(inputsState.containerVolumeLiters),
+        containerEmptyWeightKg: Number(inputsState.containerEmptyWeightKg),
+        looseFilledWeightKg: Number(inputsState.looseFilledWeightKg),
+        compactedWeightKg: Number(inputsState.compactedWeightKg)
+      });
+    } catch {
+      return null;
+    }
+  }, [selectedTestDefId, inputsState]);
+
   // Execute Calculation Real-time
   const calculationResult: TestExecutionResult = useMemo(() => {
     const legacyResult = executeLaboratoryTest(selectedTestDefId, inputsState, currentMaterial);
@@ -197,8 +211,17 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
         syncedProperties: {}
       };
     }
+    if (selectedTestDefId === "AGG_BULK_DENSITY" && !bulkDensityPhase2Result) {
+      return {
+        ...legacyResult,
+        status: "FAIL",
+        score: 0,
+        interpretation: "لا يمكن اعتماد الكثافة الظاهرية قبل إصلاح حجم الوعاء والأوزان الصافية.",
+        syncedProperties: {}
+      };
+    }
     return legacyResult;
-  }, [selectedTestDefId, inputsState, currentMaterial, sievePhase2Result, specificGravityPhase2Result]);
+  }, [selectedTestDefId, inputsState, currentMaterial, sievePhase2Result, specificGravityPhase2Result, bulkDensityPhase2Result]);
 
   if (!isOpen) return null;
 
@@ -216,6 +239,12 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
             testRunId: testRecordId,
             result: specificGravityPhase2Result
           })
+        : selectedTestDefId === "AGG_BULK_DENSITY" && bulkDensityPhase2Result
+          ? createBulkDensityMaterialUpdateProposals({
+              material: currentMaterial,
+              testRunId: testRecordId,
+              result: bulkDensityPhase2Result
+            })
       : undefined;
     const hasPendingProposals = Boolean(updateProposals?.length);
     const newRecord: MaterialTestRecord = {
