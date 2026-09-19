@@ -3,6 +3,7 @@ import { calculateSieveAnalysis, type SieveAnalysisInput } from "./aggregateSiev
 import { calculateAggregateSpecificGravity, validateAggregateSpecificGravity, type SpecificGravityInput } from "./aggregateSpecificGravity";
 import { calculateAggregateBulkDensity, validateAggregateBulkDensity, type BulkDensityInput } from "./aggregateBulkDensity";
 import { calculateAggregateMoisture, validateAggregateMoisture, type AggregateMoistureInput } from "./aggregateMoisture";
+import { calculateSandEquivalent, validateSandEquivalent, type SandEquivalentInput } from "./sandEquivalent";
 
 export const SIEVE_ANALYSIS_DEFINITION: LaboratoryTestDefinition<SieveAnalysisInput> = {
   id: "AGG_SIEVE_PHASE2",
@@ -163,5 +164,44 @@ export const AGGREGATE_MOISTURE_DEFINITION: LaboratoryTestDefinition<AggregateMo
 export function runAggregateMoisturePhase2(input: AggregateMoistureInput) {
   const result = calculateAggregateMoisture(input);
   if (!result) throw new Error("Moisture inputs are physically invalid.");
+  return result;
+}
+
+export const SAND_EQUIVALENT_DEFINITION: LaboratoryTestDefinition<SandEquivalentInput> = {
+  id: "AGG_SAND_EQUIVALENT_PHASE2",
+  names: {
+    ar: "المكافئ الرملي",
+    fr: "Équivalent de sable",
+    en: "Sand Equivalent"
+  },
+  category: "aggregates",
+  applicableMaterialTypes: ["sand", "fine_aggregate", "aggregate"],
+  description: "Measures the relative proportion of sand to clay-like fines using piston or visual reading.",
+  standard: {
+    organization: "EN",
+    code: "EN 933-8",
+    version: "configured by laboratory",
+    status: "Draft",
+    source: "Laboratory configuration required before acceptance classification"
+  },
+  inputs: [
+    { key: "totalHeightMm", label: "Total suspension height", unit: "mm", required: true, numeric: true, min: 0.000001, dimension: "length" },
+    { key: "sandHeightMm", label: "Sand layer height", unit: "mm", required: true, numeric: true, min: 0, dimension: "length" },
+    { key: "method", label: "Reading method", unit: "", required: true, numeric: false, dimension: "categorical" }
+  ],
+  resultUnit: "%",
+  revision: 1,
+  active: true,
+  validateEngineering: data => validateSandEquivalent(data).issues,
+  calculate: data => {
+    const result = calculateSandEquivalent(data);
+    if (!result) throw new Error("Sand-equivalent inputs are physically invalid.");
+    return { result: result.sandEquivalentPercent, unit: "%", trace: result.trace };
+  }
+};
+
+export function runSandEquivalentPhase2(input: SandEquivalentInput) {
+  const result = calculateSandEquivalent(input);
+  if (!result) throw new Error("Sand-equivalent inputs are physically invalid.");
   return result;
 }

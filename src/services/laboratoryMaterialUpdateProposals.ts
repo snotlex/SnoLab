@@ -30,6 +30,11 @@ export interface MoistureProposalResult {
   validation: { valid: boolean };
 }
 
+export interface SandEquivalentProposalResult {
+  sandEquivalentPercent: number;
+  validation: { valid: boolean };
+}
+
 function toPendingProposals(
   material: EngineeringMaterial,
   testRunId: string,
@@ -108,6 +113,19 @@ export function createMoistureMaterialUpdateProposals(params: {
   const proposedAt = params.proposedAt || new Date().toISOString();
   return toPendingProposals(params.material, params.testRunId, [
     { propertyKey: "moisture", newValue: params.result.moisturePercent, unit: "%" }
+  ], proposedAt);
+}
+
+export function createSandEquivalentMaterialUpdateProposals(params: {
+  material: EngineeringMaterial;
+  testRunId: string;
+  result: SandEquivalentProposalResult;
+  proposedAt?: string;
+}): MaterialUpdateProposal[] {
+  if (!params.result.validation.valid || !Number.isFinite(params.result.sandEquivalentPercent)) return [];
+  const proposedAt = params.proposedAt || new Date().toISOString();
+  return toPendingProposals(params.material, params.testRunId, [
+    { propertyKey: "sandEquivalent", newValue: params.result.sandEquivalentPercent, unit: "%" }
   ], proposedAt);
 }
 

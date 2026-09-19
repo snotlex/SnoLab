@@ -46,8 +46,8 @@ import {
   TestExecutionResult 
 } from "../../services/materialsLabEngine";
 import { runSieveAnalysisPhase2 } from "../../services/laboratoryTestDefinitions";
-import { createSieveMaterialUpdateProposals, createSpecificGravityMaterialUpdateProposals, createBulkDensityMaterialUpdateProposals, createMoistureMaterialUpdateProposals } from "../../services/laboratoryMaterialUpdateProposals";
-import { runAggregateSpecificGravityPhase2, runAggregateBulkDensityPhase2, runAggregateMoisturePhase2 } from "../../services/laboratoryTestDefinitions";
+import { createSieveMaterialUpdateProposals, createSpecificGravityMaterialUpdateProposals, createBulkDensityMaterialUpdateProposals, createMoistureMaterialUpdateProposals, createSandEquivalentMaterialUpdateProposals } from "../../services/laboratoryMaterialUpdateProposals";
+import { runAggregateSpecificGravityPhase2, runAggregateBulkDensityPhase2, runAggregateMoisturePhase2, runSandEquivalentPhase2 } from "../../services/laboratoryTestDefinitions";
 
 interface NewTestWizardProps {
   isOpen: boolean;
@@ -198,6 +198,19 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
     }
   }, [selectedTestDefId, inputsState]);
 
+  const sandEquivalentPhase2Result = useMemo(() => {
+    if (selectedTestDefId !== "AGG_SAND_EQUIVALENT") return null;
+    try {
+      return runSandEquivalentPhase2({
+        totalHeightMm: Number(inputsState.h1TotalHeightMm),
+        sandHeightMm: Number(inputsState.h2SandHeightMm),
+        method: inputsState.testMethod === "visual" ? "visual" : "piston"
+      });
+    } catch {
+      return null;
+    }
+  }, [selectedTestDefId, inputsState]);
+
   // Execute Calculation Real-time
   const calculationResult: TestExecutionResult = useMemo(() => {
     const legacyResult = executeLaboratoryTest(selectedTestDefId, inputsState, currentMaterial);
@@ -245,8 +258,17 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
         syncedProperties: {}
       };
     }
+    if (selectedTestDefId === "AGG_SAND_EQUIVALENT" && !sandEquivalentPhase2Result) {
+      return {
+        ...legacyResult,
+        status: "FAIL",
+        score: 0,
+        interpretation: "لا يمكن اعتماد المكافئ الرملي قبل إصلاح ارتفاعات التعليق وطبقة الرمل.",
+        syncedProperties: {}
+      };
+    }
     return legacyResult;
-  }, [selectedTestDefId, inputsState, currentMaterial, sievePhase2Result, specificGravityPhase2Result, bulkDensityPhase2Result, moisturePhase2Result]);
+  }, [selectedTestDefId, inputsState, currentMaterial, sievePhase2Result, specificGravityPhase2Result, bulkDensityPhase2Result, moisturePhase2Result, sandEquivalentPhase2Result]);
 
   if (!isOpen) return null;
 
@@ -276,6 +298,12 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
                 testRunId: testRecordId,
                 result: moisturePhase2Result
               })
+            : selectedTestDefId === "AGG_SAND_EQUIVALENT" && sandEquivalentPhase2Result
+              ? createSandEquivalentMaterialUpdateProposals({
+                  material: currentMaterial,
+                  testRunId: testRecordId,
+                  result: sandEquivalentPhase2Result
+                })
       : undefined;
     const hasPendingProposals = Boolean(updateProposals?.length);
     const newRecord: MaterialTestRecord = {
