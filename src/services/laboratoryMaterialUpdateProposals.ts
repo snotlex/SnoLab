@@ -25,6 +25,11 @@ export interface BulkDensityProposalResult {
   validation: { valid: boolean };
 }
 
+export interface MoistureProposalResult {
+  moisturePercent: number;
+  validation: { valid: boolean };
+}
+
 function toPendingProposals(
   material: EngineeringMaterial,
   testRunId: string,
@@ -90,6 +95,19 @@ export function createBulkDensityMaterialUpdateProposals(params: {
     { propertyKey: "bulkDensity", newValue: params.result.looseDensityKgM3, unit: "kg/m³" },
     { propertyKey: "compactedBulkDensity", newValue: params.result.compactedDensityKgM3, unit: "kg/m³" },
     { propertyKey: "compactionIndex", newValue: params.result.compactionIndex, unit: "-" }
+  ], proposedAt);
+}
+
+export function createMoistureMaterialUpdateProposals(params: {
+  material: EngineeringMaterial;
+  testRunId: string;
+  result: MoistureProposalResult;
+  proposedAt?: string;
+}): MaterialUpdateProposal[] {
+  if (!params.result.validation.valid || !Number.isFinite(params.result.moisturePercent)) return [];
+  const proposedAt = params.proposedAt || new Date().toISOString();
+  return toPendingProposals(params.material, params.testRunId, [
+    { propertyKey: "moisture", newValue: params.result.moisturePercent, unit: "%" }
   ], proposedAt);
 }
 

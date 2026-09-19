@@ -2,6 +2,7 @@ import type { LaboratoryTestDefinition } from "../types/laboratoryDomain";
 import { calculateSieveAnalysis, type SieveAnalysisInput } from "./aggregateSieveAnalysis";
 import { calculateAggregateSpecificGravity, validateAggregateSpecificGravity, type SpecificGravityInput } from "./aggregateSpecificGravity";
 import { calculateAggregateBulkDensity, validateAggregateBulkDensity, type BulkDensityInput } from "./aggregateBulkDensity";
+import { calculateAggregateMoisture, validateAggregateMoisture, type AggregateMoistureInput } from "./aggregateMoisture";
 
 export const SIEVE_ANALYSIS_DEFINITION: LaboratoryTestDefinition<SieveAnalysisInput> = {
   id: "AGG_SIEVE_PHASE2",
@@ -120,5 +121,47 @@ export const AGGREGATE_BULK_DENSITY_DEFINITION: LaboratoryTestDefinition<BulkDen
 export function runAggregateBulkDensityPhase2(input: BulkDensityInput) {
   const result = calculateAggregateBulkDensity(input);
   if (!result) throw new Error("Bulk-density inputs are physically invalid.");
+  return result;
+}
+
+export const AGGREGATE_MOISTURE_DEFINITION: LaboratoryTestDefinition<AggregateMoistureInput> = {
+  id: "AGG_MOISTURE_CONTENT_PHASE2",
+  names: {
+    ar: "رطوبة الركام وتصحيح ماء الخلط",
+    fr: "Teneur en eau des granulats et correction de l'eau",
+    en: "Aggregate Moisture and Mixing Water Correction"
+  },
+  category: "aggregates",
+  applicableMaterialTypes: ["sand", "gravel", "aggregate", "recycled_aggregate", "lightweight_aggregate", "heavyweight_aggregate"],
+  description: "Determines aggregate moisture on a dry-mass basis and separates moisture water from absorption demand for batching correction.",
+  standard: {
+    organization: "EN",
+    code: "EN 1097-5",
+    version: "configured by laboratory",
+    status: "Draft",
+    source: "Laboratory configuration required before acceptance classification"
+  },
+  inputs: [
+    { key: "wetMassG", label: "Wet sample mass", unit: "g", required: true, numeric: true, min: 0, dimension: "mass" },
+    { key: "dryMassG", label: "Oven-dry sample mass", unit: "g", required: true, numeric: true, min: 0, dimension: "mass" },
+    { key: "tareMassG", label: "Tare mass", unit: "g", required: true, numeric: true, min: 0, dimension: "mass" },
+    { key: "absorptionPercent", label: "Absorption for water correction", unit: "%", required: false, numeric: true, min: 0, dimension: "ratio" },
+    { key: "designAggregateDryMassKg", label: "Design dry aggregate mass", unit: "kg", required: false, numeric: true, min: 0, dimension: "mass" },
+    { key: "designWaterKg", label: "Design mixing water", unit: "kg", required: false, numeric: true, min: 0, dimension: "mass" }
+  ],
+  resultUnit: "%",
+  revision: 1,
+  active: true,
+  validateEngineering: data => validateAggregateMoisture(data).issues,
+  calculate: data => {
+    const result = calculateAggregateMoisture(data);
+    if (!result) throw new Error("Moisture inputs are physically invalid.");
+    return { result: result.moisturePercent, unit: "%", trace: result.trace };
+  }
+};
+
+export function runAggregateMoisturePhase2(input: AggregateMoistureInput) {
+  const result = calculateAggregateMoisture(input);
+  if (!result) throw new Error("Moisture inputs are physically invalid.");
   return result;
 }

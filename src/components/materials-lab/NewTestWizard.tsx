@@ -46,8 +46,8 @@ import {
   TestExecutionResult 
 } from "../../services/materialsLabEngine";
 import { runSieveAnalysisPhase2 } from "../../services/laboratoryTestDefinitions";
-import { createSieveMaterialUpdateProposals, createSpecificGravityMaterialUpdateProposals, createBulkDensityMaterialUpdateProposals } from "../../services/laboratoryMaterialUpdateProposals";
-import { runAggregateSpecificGravityPhase2, runAggregateBulkDensityPhase2 } from "../../services/laboratoryTestDefinitions";
+import { createSieveMaterialUpdateProposals, createSpecificGravityMaterialUpdateProposals, createBulkDensityMaterialUpdateProposals, createMoistureMaterialUpdateProposals } from "../../services/laboratoryMaterialUpdateProposals";
+import { runAggregateSpecificGravityPhase2, runAggregateBulkDensityPhase2, runAggregateMoisturePhase2 } from "../../services/laboratoryTestDefinitions";
 
 interface NewTestWizardProps {
   isOpen: boolean;
@@ -182,6 +182,22 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
     }
   }, [selectedTestDefId, inputsState]);
 
+  const moisturePhase2Result = useMemo(() => {
+    if (selectedTestDefId !== "AGG_MOISTURE_CONTENT") return null;
+    try {
+      return runAggregateMoisturePhase2({
+        wetMassG: Number(inputsState.wetMassG),
+        dryMassG: Number(inputsState.dryMassG),
+        tareMassG: Number(inputsState.tareMassG),
+        absorptionPercent: inputsState.absorptionPercent === undefined ? undefined : Number(inputsState.absorptionPercent),
+        designAggregateDryMassKg: inputsState.designAggregateDryMassKg === undefined ? undefined : Number(inputsState.designAggregateDryMassKg),
+        designWaterKg: inputsState.designWaterKg === undefined ? undefined : Number(inputsState.designWaterKg)
+      });
+    } catch {
+      return null;
+    }
+  }, [selectedTestDefId, inputsState]);
+
   // Execute Calculation Real-time
   const calculationResult: TestExecutionResult = useMemo(() => {
     const legacyResult = executeLaboratoryTest(selectedTestDefId, inputsState, currentMaterial);
@@ -220,8 +236,17 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
         syncedProperties: {}
       };
     }
+    if (selectedTestDefId === "AGG_MOISTURE_CONTENT" && !moisturePhase2Result) {
+      return {
+        ...legacyResult,
+        status: "FAIL",
+        score: 0,
+        interpretation: "لا يمكن اعتماد رطوبة الركام قبل إصلاح أوزان العينة والوعاء.",
+        syncedProperties: {}
+      };
+    }
     return legacyResult;
-  }, [selectedTestDefId, inputsState, currentMaterial, sievePhase2Result, specificGravityPhase2Result, bulkDensityPhase2Result]);
+  }, [selectedTestDefId, inputsState, currentMaterial, sievePhase2Result, specificGravityPhase2Result, bulkDensityPhase2Result, moisturePhase2Result]);
 
   if (!isOpen) return null;
 
@@ -245,6 +270,12 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
               testRunId: testRecordId,
               result: bulkDensityPhase2Result
             })
+          : selectedTestDefId === "AGG_MOISTURE_CONTENT" && moisturePhase2Result
+            ? createMoistureMaterialUpdateProposals({
+                material: currentMaterial,
+                testRunId: testRecordId,
+                result: moisturePhase2Result
+              })
       : undefined;
     const hasPendingProposals = Boolean(updateProposals?.length);
     const newRecord: MaterialTestRecord = {
