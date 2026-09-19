@@ -493,7 +493,7 @@ export interface EngineeringMaterial {
   price?: number; // Price per kg or ton
   engineeringData?: any; // Nested engineering data properties
   extraProperties?: Record<string, any>; // Extra unknown columns preserved from import
-  ownerId?: string; // Owner UID for Firestore partition
+  ownerId?: string; // Local ownership marker for browser storage
   materialType?: string; // e.g., 'مادة رابطة' | 'ركام' | 'إضافات معدنية' | 'ألياف' | 'إضافات كيميائية' | 'ماء' | 'أخرى'
 
   // --- SOURCE OF TRUTH & PROVENANCE METADATA ---

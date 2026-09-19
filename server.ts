@@ -1196,7 +1196,7 @@ function scanDirectory(dir: string, fileList: string[] = []): string[] {
         scanDirectory(filePath, fileList);
       }
     } else {
-      if (file.endsWith(".tsx") || (file.endsWith(".ts") && !file.endsWith(".config.ts") && !file.endsWith("firebase.ts") && !file.endsWith("localization.tsx"))) {
+      if (file.endsWith(".tsx") || (file.endsWith(".ts") && !file.endsWith(".config.ts") && !file.endsWith("localization.tsx"))) {
         fileList.push(filePath);
       }
     }

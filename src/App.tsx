@@ -23,8 +23,6 @@ import { InteractiveTooltip } from "./components/InteractiveTooltip";
 import { resolveMaterials } from "./utils/resolveMaterials";
 import { MixVersioningPanel } from "./components/MixVersioningPanel";
 import { LandingPage } from "./components/LandingPage";
-import { LoginGate } from "./components/LoginGate";
-import { AdminPanel } from "./components/AdminPanel";
 import { WelcomeBanner } from "./components/WelcomeBanner";
 import { StatusBar } from "./components/StatusBar";
 import { MixQualityScore } from "./components/MixQualityScore";
@@ -170,18 +168,6 @@ import {
   FolderX,
   ChevronRight
 } from "lucide-react";
-
-import { 
-  auth, 
-  db, 
-  signInWithPopup, 
-  signOut, 
-  googleProvider, 
-  handleFirestoreError, 
-  OperationType 
-} from "./firebase";
-import { onAuthStateChanged } from "firebase/auth";
-import { collection, doc, query, where, serverTimestamp, setDoc, deleteDoc, onSnapshot, orderBy, getDoc, getDocs } from "firebase/firestore";
 
 // Helper to load default prices from local storage if any
 const getInitialPrice = (key: string, defaultVal: number): number => {
@@ -595,9 +581,14 @@ export default function App() {
 
 
 
-  // Firebase Auth and Firestore states
-  const [user, setUser] = useState<any>(null);
-  const [authLoading, setAuthLoading] = useState(true);
+  // Local-only identity used for UI ownership labels; no remote account is created.
+  const [user] = useState<any>({
+    uid: "local-user",
+    email: "local@device",
+    displayName: "المستخدم المحلي",
+    emailVerified: true,
+    photoURL: null
+  });
 
   const localizedLabel = (ar: string, fr: string, en: string) => {
     if (language === "ar") return ar;
@@ -847,7 +838,7 @@ export default function App() {
     }
   };
 
-  // Keep track of the current materialsDatabase to avoid stale closures in the Firestore listener
+  // Keep track of the current materialsDatabase to avoid stale closures in local updates
   const materialsDatabaseRef = useRef<EngineeringMaterial[]>([]);
   useEffect(() => {
     materialsDatabaseRef.current = materialsDatabase;
@@ -897,122 +888,30 @@ export default function App() {
     return 0;
   };
 
-  // Sync custom materials from Firestore in real-time if logged in, otherwise load from localStorage
+  // Load custom materials from the user's local browser storage.
   useEffect(() => {
-    if (!user) {
-      try {
-        const saved = localStorage.getItem("mixwizard_materials_db");
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed)) {
-            const filtered = enrichMaterials(parsed).filter(m => {
-              const delTime = deletedMaterialIdsRef.current.get(m.id);
-              if (delTime !== undefined) {
-                const updatedAt = m.updatedAt ? (typeof m.updatedAt === "number" ? m.updatedAt : new Date(m.updatedAt).getTime()) : 0;
-                if (updatedAt < delTime) {
-                  return false;
-                }
-              }
-              return true;
-            });
-            setMaterialsDatabase(filtered);
-            return;
-          }
+    try {
+      const saved = localStorage.getItem("mixwizard_materials_db");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          const filtered = enrichMaterials(parsed).filter(m => {
+            const delTime = deletedMaterialIdsRef.current.get(m.id);
+            if (delTime !== undefined) {
+              const updatedAt = m.updatedAt ? (typeof m.updatedAt === "number" ? m.updatedAt : new Date(m.updatedAt).getTime()) : 0;
+              if (updatedAt < delTime) return false;
+            }
+            return true;
+          });
+          setMaterialsDatabase(filtered);
+          return;
         }
-      } catch (e) {
-        console.error("Failed to parse materials database from localStorage", e);
       }
-      setMaterialsDatabase([]); // Start completely empty of SEEDED_MATERIALS
-      return;
+    } catch (e) {
+      console.error("Failed to parse materials database from localStorage", e);
     }
-
-    const q = query(
-      collection(db, "user_materials"),
-      where("ownerId", "==", user.uid)
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const customMaterials = snapshot.docs.map(docSnap => {
-        const data = docSnap.data();
-        return {
-          ...data,
-          updatedAt: parseTimestamp(data.updatedAt || data.updatedDate)
-        };
-      }) as EngineeringMaterial[];
-
-      const enrichedCustom = enrichMaterials(customMaterials);
-
-      // Clean up deleted IDs that are no longer present in the incoming snapshot
-      const incomingIds = new Set(enrichedCustom.map(m => m.id));
-      let deletedChanged = false;
-      for (const [id] of deletedMaterialIdsRef.current) {
-        if (!incomingIds.has(id)) {
-          deletedMaterialIdsRef.current.delete(id);
-          deletedChanged = true;
-        }
-      }
-      if (deletedChanged) {
-        persistDeletedMaterialIds();
-      }
-
-      // Merge and resolve conflicts between incoming data and current local state
-      const currentLocal = materialsDatabaseRef.current;
-      const currentLocalMap = new Map<string, EngineeringMaterial>(currentLocal.map(m => [m.id, m]));
-      const resolvedList: EngineeringMaterial[] = [];
-
-      for (const incomingMat of enrichedCustom) {
-        const incomingUpdatedAt = parseTimestamp(incomingMat.updatedAt || incomingMat.updatedDate);
-        
-        // 1. Check if deleted locally
-        const delTime = deletedMaterialIdsRef.current.get(incomingMat.id);
-        if (delTime !== undefined && incomingUpdatedAt < delTime) {
-          // Stale item that was deleted locally: skip/discard it
-          continue;
-        }
-
-        // 2. Check if local version is newer
-        const localMat = currentLocalMap.get(incomingMat.id);
-        if (localMat) {
-          const localUpdatedAt = parseTimestamp(localMat.updatedAt || localMat.updatedDate);
-          if (localUpdatedAt > incomingUpdatedAt) {
-            // Keep the newer local version
-            resolvedList.push(localMat);
-            continue;
-          }
-        }
-
-        // Use the incoming version
-        resolvedList.push({
-          ...incomingMat,
-          updatedAt: incomingUpdatedAt || Date.now()
-        });
-      }
-
-      // Compare resolved list with current local state to avoid redundant re-renders
-      const isSameList = (listA: EngineeringMaterial[], listB: EngineeringMaterial[]): boolean => {
-        if (listA.length !== listB.length) return false;
-        const sortedA = [...listA].sort((a, b) => a.id.localeCompare(b.id));
-        const sortedB = [...listB].sort((a, b) => a.id.localeCompare(b.id));
-        for (let i = 0; i < sortedA.length; i++) {
-          if (JSON.stringify(sortedA[i]) !== JSON.stringify(sortedB[i])) {
-            return false;
-          }
-        }
-        return true;
-      };
-
-      if (!isSameList(resolvedList, currentLocal)) {
-        setMaterialsDatabase(resolvedList);
-        // Synchronize back to local storage cache so it's always hot-loaded on refresh
-        localStorage.setItem("mixwizard_materials_db", JSON.stringify(resolvedList));
-        localStorage.setItem("mixwizard_materials_seeded", "true");
-      }
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, "user_materials");
-    });
-
-    return () => unsubscribe();
-  }, [user]);
+    setMaterialsDatabase([]);
+  }, []);
 
   // Handle addition, editing, duplication, and archiving/deleting of materials
   const handleUpdateMaterials = async (updatedList: EngineeringMaterial[]) => {
@@ -1049,88 +948,10 @@ export default function App() {
     // Save to localStorage so that offline or early initial loads are perfectly consistent
     localStorage.setItem("mixwizard_materials_db", JSON.stringify(updatedListWithTimestamps));
 
-    // 2. Save custom or modified materials to database if logged in
-    if (user) {
-      try {
-        
-        // Ensure materialsSeeded is marked true on the user document in Firestore to prevent accidental auto-seeding
-        const userDocRef = doc(db, "users", user.uid);
-        await setDoc(userDocRef, {
-          materialsSeeded: true,
-          updatedAt: serverTimestamp()
-        }, { merge: true }).catch(err => {
-          handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}`);
-          console.warn("Could not mark materialsSeeded on user document:", err);
-        });
-        localStorage.setItem("mixwizard_materials_seeded", "true");
-        
-        // Find deleted materials and delete them permanently from Firestore
-        for (const prevMat of materialsDatabaseRef.current) {
-          if (!updatedIds.has(prevMat.id)) {
-            try {
-              // Only delete if it belongs to the logged in user
-              if (!prevMat.ownerId || prevMat.ownerId === user.uid) {
-                await deleteDoc(doc(db, "user_materials", prevMat.id)).catch((err) => {
-                  handleFirestoreError(err, OperationType.DELETE, `user_materials/${prevMat.id}`);
-                  throw err;
-                });
-              }
-            } catch (err) {
-              console.warn(`Could not delete document user_materials/${prevMat.id} from Firestore, skipping:`, err);
-            }
-          }
-        }
-        
-        for (const mat of updatedListWithTimestamps) {
-          const previousMat = materialsDatabaseRef.current.find(prev => prev.id === mat.id);
-          const isNewOrModified = !previousMat || JSON.stringify(previousMat) !== JSON.stringify(mat);
-
-          if (isNewOrModified) {
-            const matToSave: any = {
-              ...mat,
-              id: mat.id || "MAT-UNKNOWN",
-              ownerId: user.uid,
-              name: mat.name || "مادة غير مسمى",
-              category: mat.category || "أخرى",
-              status: mat.status || "نشط",
-              ApprovalStatus: mat.ApprovalStatus || "Draft",
-              updatedDate: new Date().toISOString().split('T')[0],
-              updatedAt: mat.updatedAt || Date.now()
-            };
-
-            // Ensure correct types for checked fields if they are present
-            if (matToSave.englishName !== undefined && matToSave.englishName !== null) {
-              matToSave.englishName = String(matToSave.englishName || "Unnamed Material");
-            }
-            if (matToSave.type !== undefined && matToSave.type !== null) {
-              matToSave.type = String(matToSave.type || "other");
-            }
-            if (matToSave.density !== undefined && matToSave.density !== null && matToSave.category !== "إضافات كيميائية") {
-              const parsedDensity = Number(matToSave.density);
-              matToSave.density = isNaN(parsedDensity) ? 0 : parsedDensity;
-            }
-            if (matToSave.absorption !== undefined && matToSave.absorption !== null) {
-              const parsedAbs = Number(matToSave.absorption);
-              matToSave.absorption = isNaN(parsedAbs) ? 0 : parsedAbs;
-            }
-
-            const cleanMat = JSON.parse(JSON.stringify(matToSave));
-            
-            try {
-              await setDoc(doc(db, "user_materials", mat.id), cleanMat);
-            } catch (err) {
-              handleFirestoreError(err, OperationType.WRITE, `user_materials/${mat.id}`);
-            }
-          }
-        }
-      } catch (error) {
-        console.error("Failed to sync materials to Firestore:", error);
-      }
-    }
+    localStorage.setItem("mixwizard_materials_seeded", "true");
   };
 
   const handleClearAllMaterials = async () => {
-    // Keep a copy of the current materials to delete from Firestore
     const currentMats = [...materialsDatabaseRef.current];
 
     // Track all as deleted locally
@@ -1146,54 +967,6 @@ export default function App() {
     localStorage.setItem("mixwizard_materials_db", JSON.stringify([]));
     localStorage.setItem("mixwizard_materials_seeded", "true");
 
-    // 2. Clear from Firestore if logged in
-    if (user) {
-      try {
-        const userDocRef = doc(db, "users", user.uid);
-        await setDoc(userDocRef, {
-          materialsSeeded: true,
-          updatedAt: serverTimestamp()
-        }, { merge: true }).catch(err => {
-          handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}`);
-          console.warn("Could not mark materialsSeeded on user document:", err);
-        });
-
-        // Delete all materials currently in the ref
-        for (const mat of currentMats) {
-          if (!mat.ownerId || mat.ownerId === user.uid) {
-            await deleteDoc(doc(db, "user_materials", mat.id)).catch((err) => {
-              handleFirestoreError(err, OperationType.DELETE, `user_materials/${mat.id}`);
-            });
-          }
-        }
-
-        // Fetch any remaining documents from user_materials query and delete them to guarantee a 100% clean slate
-        const q = query(
-          collection(db, "user_materials"),
-          where("ownerId", "==", user.uid)
-        );
-        const snapshot = await getDocs(q).catch((err) => {
-          handleFirestoreError(err, OperationType.GET, "user_materials");
-          return null;
-        });
-
-        if (snapshot && !snapshot.empty) {
-          let cloudDeletedChanged = false;
-          for (const d of snapshot.docs) {
-            deletedMaterialIdsRef.current.set(d.id, Date.now());
-            cloudDeletedChanged = true;
-            await deleteDoc(doc(db, "user_materials", d.id)).catch((err) => {
-              handleFirestoreError(err, OperationType.DELETE, `user_materials/${d.id}`);
-            });
-          }
-          if (cloudDeletedChanged) {
-            persistDeletedMaterialIds();
-          }
-        }
-      } catch (err) {
-        console.error("Error clearing all materials from Firestore:", err);
-      }
-    }
   };
 
   const [expandedMaterials, setExpandedMaterials] = useState<ExpandedMaterial[]>(() => {
@@ -1766,9 +1539,6 @@ export default function App() {
 
 
 
-  // Firebase Auth and Firestore states
-  const [isActivated, setIsActivated] = useState<boolean | null>(null);
-  const [activationLoading, setActivationLoading] = useState<boolean>(false);
   const [savedMixes, setSavedMixes] = useState<any[]>([]);
   const [saveName, setSaveName] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -1817,150 +1587,16 @@ export default function App() {
     }));
   };
 
-  // Firebase auth state observer
+  // Restore saved mixes from the user's local browser storage.
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setUser(currentUser);
-      setAuthLoading(false);
-
-      if (currentUser) {
-        // Safe centralized user document initialization
-        const userDocRef = doc(db, "users", currentUser.uid);
-        try {
-          const uDoc = await getDoc(userDocRef).catch((err) => {
-            handleFirestoreError(err, OperationType.GET, `users/${currentUser.uid}`);
-            return null;
-          });
-          if (!uDoc || !uDoc.exists() || !uDoc.data()?.email) {
-            const isBypassed = currentUser.email === "senoussi.s.t@gmail.com" || 
-                               currentUser.email === "engineer.demo@sno-engineering.com" || 
-                               currentUser.uid === "bypassed-demo-engineer-99";
-            const localSeeded = localStorage.getItem("mixwizard_materials_seeded") === "true";
-            await setDoc(userDocRef, {
-              uid: currentUser.uid,
-              email: currentUser.email || "",
-              displayName: currentUser.displayName || "SNO Engineering Professional",
-              activated: isBypassed ? true : false,
-              materialsSeeded: localSeeded,
-              createdAt: serverTimestamp(),
-              updatedAt: serverTimestamp()
-            }, { merge: true }).catch((err) => {
-              handleFirestoreError(err, OperationType.WRITE, `users/${currentUser.uid}`);
-            });
-            console.log("Centralized initialization: Created/merged user profile document.");
-          } else {
-            // Self-healing: if the user document exists but materialsSeeded is missing, check if local materials are already marked seeded
-            const data = uDoc.data();
-            const localSeeded = localStorage.getItem("mixwizard_materials_seeded") === "true";
-            if (data && !data.materialsSeeded && localSeeded) {
-              await setDoc(userDocRef, {
-                materialsSeeded: true,
-                updatedAt: serverTimestamp()
-              }, { merge: true }).catch((err) => {
-                console.warn("Self-healing materialsSeeded update failed:", err);
-              });
-            }
-          }
-        } catch (err) {
-          console.warn("Centralized initialization warning/error:", err);
-        }
-      }
-    });
-    return () => unsubscribe();
-  }, []);
-
-  // Real-time user activation Firestore synchronizer hook
-  useEffect(() => {
-    if (!user) {
-      setIsActivated(null);
-      setActivationLoading(false);
-      return;
-    }
-
-    // Hardcoded bypass status
-    const isBypassed = user.email === "senoussi.s.t@gmail.com" || 
-                       user.email === "engineer.demo@sno-engineering.com" || 
-                       user.uid === "bypassed-demo-engineer-99";
-
-    setActivationLoading(true);
-    const userDocRef = doc(db, "users", user.uid);
-    
-    const unsubscribe = onSnapshot(userDocRef, (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        setIsActivated(isBypassed ? true : !!data.activated);
-        setActivationLoading(false);
-      } else {
-        // Document does not exist yet. Rely on centralized initialization in onAuthStateChanged.
-        setIsActivated(isBypassed ? true : false);
-        setActivationLoading(false);
-      }
-    }, (error) => {
-      handleFirestoreError(error, OperationType.GET, `users/${user.uid}`);
-      console.error("Error checking user activation status:", error);
-      if (isBypassed) {
-        setIsActivated(true);
-      }
-      setActivationLoading(false);
-    });
-
-    return () => unsubscribe();
-  }, [user]);
-
-  // Safe Google Sign-In with popup closed / canceled recovery
-  const handleGoogleSignIn = async () => {
     try {
-      setSaveError("");
-      await signInWithPopup(auth, googleProvider);
-    } catch (error: any) {
-      const errCode = String(error?.code || "").toLowerCase();
-      const errMsg = String(error?.message || "").toLowerCase();
-      
-      if (errCode.includes("popup-closed-by-user") || errMsg.includes("popup-closed-by-user")) {
-        console.log("Safe Auth Recovery: Google sign-in popup was closed by the user.");
-        throw error;
-      }
-      if (errCode.includes("cancelled-popup-request") || errMsg.includes("cancelled-popup-request")) {
-        console.log("Safe Auth Recovery: Google sign-in popup request was cancelled.");
-        throw error;
-      }
-      if (errCode.includes("popup-blocked") || errMsg.includes("popup-blocked")) {
-        console.warn("Safe Auth Recovery: Google sign-in popup was blocked by the browser.");
-        throw error;
-      }
-      console.error("Google login error:", error);
-      setSaveError(localizedLabel("فشل تسجيل الدخول: ", "Échec de connexion: ", "Login failed: ") + (error.message || localizedLabel("الرجاء المحاولة لاحقاً", "Veuillez réessayer plus tard", "Please try again later")));
-      throw error;
-    }
-  };
-
-  // Sync saved mixes in real-time
-  useEffect(() => {
-    if (!user) {
+      const stored = localStorage.getItem("snolab_saved_mixes");
+      const mixes = stored ? JSON.parse(stored) : [];
+      setSavedMixes(Array.isArray(mixes) ? mixes : []);
+    } catch {
       setSavedMixes([]);
-      return;
     }
-    const q = query(
-      collection(db, "user_mixes"),
-      where("ownerId", "==", user.uid)
-    );
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const mixesList = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      // Sort client-side by createdAt desc (newest first) representing durable cloud history
-      mixesList.sort((a: any, b: any) => {
-        const timeA = a.createdAt?.seconds || a.createdAt?.toMillis?.() || 0;
-        const timeB = b.createdAt?.seconds || b.createdAt?.toMillis?.() || 0;
-        return timeB - timeA;
-      });
-      setSavedMixes(mixesList);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, "user_mixes");
-    });
-    return unsubscribe;
-  }, [user]);
+  }, []);
 
   // Action: Save custom mix design
   const handleSaveMix = async (e?: React.FormEvent) => {
@@ -1987,6 +1623,7 @@ export default function App() {
         createdAt: new Date().toISOString()
       };
       setSavedMixes(prev => [newMix, ...prev.filter(m => m.id !== newMix.id)]);
+      localStorage.setItem("snolab_saved_mixes", JSON.stringify([newMix, ...savedMixes.filter(m => m.id !== newMix.id)]));
       setSaveName("");
       setSaveSuccess(localizedLabel("تم حفظ الخلطة بنجاح في ملف المشروع المحلي (.snlab)!", "Formule sauvegardée avec succès dans votre fichier projet local (.snlab) !", "Mix design successfully saved to your local project file (.snlab)!"));
       setTimeout(() => setSaveSuccess(""), 4000);
@@ -2004,6 +1641,7 @@ export default function App() {
     try {
       deleteNamedMixFromProject(mixId);
       setSavedMixes(prev => prev.filter(m => m.id !== mixId));
+      localStorage.setItem("snolab_saved_mixes", JSON.stringify(savedMixes.filter(m => m.id !== mixId)));
     } catch (err) {
       console.error("Error deleting mix: ", err);
     }
@@ -4121,28 +3759,6 @@ export default function App() {
     };
   }, [inputs.slump, language]);
 
-  if (authLoading) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-[#0B1120] text-slate-400 p-8 text-center font-sans space-y-4" dir={language === "ar" ? "rtl" : "ltr"}>
-        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-500"></div>
-        <span className="font-bold text-slate-250">
-          {localizedLabel(
-            "SNO Engineering - جاري التحقق من الهوية والأدوات الهندسية...",
-            "SNO Engineering - Vérification de l'identité et des outils...",
-            "SNO Engineering - Verifying identity & engineering modules..."
-          )}
-        </span>
-        <span className="text-xs text-slate-500">
-          {localizedLabel(
-            "يرجى الانتظار لتجهيز الواجهات وتأمين بياناتك الهندسية",
-            "Veuillez patienter pendant la préparation des interfaces...",
-            "Please wait while we set up the workspace and secure your engineering data..."
-          )}
-        </span>
-      </div>
-    );
-  }
-
   if (viewMode === "landing") {
     return (
       <LandingPage 
@@ -4167,27 +3783,6 @@ export default function App() {
         themeMode={themeMode}
         themeSetting={themeSetting}
         setThemeSetting={setThemeSetting}
-      />
-    );
-  }
-
-  const isEmailVerified = user ? (
-    user.emailVerified || 
-    user.email === "engineer.demo@sno-engineering.com" ||
-    user.providerData.some((p: any) => p.providerId === "google.com")
-  ) : false;
-
-  // Strictly enforce that the workspace can only be used if logged in with email AND verified AND activated by the administrator
-  if (viewMode === "workspace" && (!user || !user.email || !isEmailVerified || isActivated === false)) {
-    return (
-      <LoginGate 
-        onLogin={handleGoogleSignIn}
-        onBack={() => setViewMode("landing")}
-        themeMode={themeMode}
-        user={user}
-        setUser={setUser}
-        isActivated={isActivated}
-        activationLoading={activationLoading}
       />
     );
   }
@@ -4398,22 +3993,15 @@ export default function App() {
 
               {/* USER PROFILE INFO card */}
               <div className="flex items-center gap-2 shrink-0">
-                {authLoading ? (
-                  <div className="text-[10px] text-slate-500 py-1 font-mono animate-pulse">
-                    LOADING...
-                  </div>
-                ) : user ? (
+                {user ? (
                   <div className="flex items-center gap-2">
                     <div className="hidden lg:flex flex-col text-right">
                       <span className={`text-[10.5px] font-extrabold leading-tight ${themeMode === "dark" ? "text-blue-200" : "text-slate-800"}`}>
                         {user.displayName || "مهندس معتمد"}
                       </span>
-                      <button 
-                        onClick={() => signOut(auth)}
-                        className={`text-[9px] text-red-500 hover:text-red-600 text-right font-bold transition hover:underline cursor-pointer`}
-                      >
-                        {language === "ar" ? "خروج" : "Sign Out"}
-                      </button>
+                      <span className="text-[9px] text-emerald-600 text-right font-bold">
+                        {language === "ar" ? "تخزين محلي" : "Local storage"}
+                      </span>
                     </div>
                     {user.photoURL ? (
                       <img 
@@ -4428,16 +4016,7 @@ export default function App() {
                       </div>
                     )}
                   </div>
-                ) : (
-                  <button
-                    onClick={handleGoogleSignIn}
-                    className="text-[10.5px] bg-blue-600 hover:bg-blue-500 hover:scale-102 active:scale-98 text-white px-3 py-1.5 rounded-xl font-bold transition-all shadow-md flex items-center gap-1 shrink-0 cursor-pointer"
-                    title="تسجيل الدخول الآمن لحساب Google"
-                  >
-                    <Lock size={12} />
-                    <span>{language === "ar" ? "دخول" : "Login"}</span>
-                  </button>
-                )}
+                ) : null}
               </div>
 
             </div>
@@ -4787,29 +4366,6 @@ export default function App() {
                         </div>
                       )}
                     </div>
-
-                    {/* SECTION ADMIN: 🛡️ ADMIN PANEL */}
-                    {(user?.email === "senoussi.s.t@gmail.com" || user?.email === "engineer.demo@sno-engineering.com" || user?.uid === "bypassed-demo-engineer-99") && (
-                      <div className="space-y-1 mt-3 p-2 bg-rose-500/5 dark:bg-rose-500/10 rounded-2xl border border-rose-500/10 mr-1 ml-1">
-                        <div className="flex items-center gap-1.5 w-full text-[10px] font-black text-rose-500 dark:text-rose-400 uppercase tracking-widest font-mono select-none">
-                          <ShieldAlert size={12} className="text-rose-505 shrink-0" />
-                          <span>{language === "ar" ? "تحكم المدير" : "Admin Panel"}</span>
-                        </div>
-                        <div className="flex flex-col">
-                          <button 
-                            onClick={() => {
-                              setViewMode("workspace");
-                              setActiveSidebarTab("admin");
-                            }}
-                            className={`flex items-center gap-1 px-2.5 py-1.5 hover:bg-rose-500/10 rounded transition-all w-full cursor-pointer ${activeSidebarTab === "admin" ? "text-rose-600 dark:text-rose-400 font-extrabold bg-rose-500/10" : "text-slate-600 dark:text-slate-355 hover:text-rose-500"}`}
-                          >
-                            <span className="text-[11px] font-black truncate">
-                              🔑 {language === "ar" ? "تفعيل حسابات المستخدمين" : "Activate User Accounts"}
-                            </span>
-                          </button>
-                        </div>
-                      </div>
-                    )}
 
                     {/* 7. KNOWLEDGE CENTER GROUP */}
                     <div className="border-b border-slate-105 dark:border-slate-800/40 pb-1.5 animate-fade-in">
@@ -9339,13 +8895,6 @@ max="0.95"
                   materialsDatabase={materialsDatabase}
                   resolvedMaterials={activeResolvedMats}
                 />
-              </div>
-            )}
-
-            {/* TAB CONTENT: ADMIN PANEL */}
-            {activeSidebarTab === "admin" && (
-              <div className="space-y-6 animate-fade-in" id="admin-panel-screen">
-                <AdminPanel themeMode={themeMode} />
               </div>
             )}
 

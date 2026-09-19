@@ -14,7 +14,7 @@ The calculator provides a full-stack, responsive, and bilingual interface (Engli
 - **SSD & Moisture Correction**: Real-time adjustment of added mixing water and raw aggregate quantities based on stockpiles' moisture and absorption states.
 - **Thermal & Heat of Hydration Simulation**: Predictive thermodynamic graphing to evaluate peak internal temperatures and cracking risks in massive concrete pours.
 - **Dynamic Cost Optimization**: Direct link between raw component mass and bulk volume to optimize cost per cubic meter ($/m³ or localized currency).
-- **Secure Cloud Storage**: Integration with Google Firebase (Firestore and Auth) to save, manage, and audit concrete formulas.
+- **Local-First Storage**: Projects, saved mixes, materials, and working sessions are stored locally in the user's browser through IndexedDB and localStorage; no account or cloud database is required.
 
 ---
 
@@ -103,19 +103,9 @@ GEMINI_API_KEY=your_gemini_api_key_here
 
 ---
 
-## 🔥 5. Firebase Setup
+## 💾 5. Local Storage
 
-The application features durable cloud persistence for saving mix recipes and validating material tests.
-
-1. Create a Firebase project in the [Firebase Console](https://console.firebase.google.com/).
-2. Enable **Cloud Firestore** in test mode or production mode.
-3. Enable **Firebase Authentication** (Email/Password provider).
-4. Save your configuration credentials into `firebase-applet-config.json` in the root folder.
-5. Deploy security rules:
-   ```bash
-   # Deploy rules to protect data
-   npm run deploy-firebase # if using firebase-cli
-   ```
+SnoLab is local-first and does not require Firebase, authentication, or a cloud database. The active project, saved mixes, custom materials, laboratory records, and recovery backups are stored in the browser using IndexedDB and localStorage. Use the built-in project export/import controls to move a `.snlab` project file between devices or create an external backup.
 
 ---
 
