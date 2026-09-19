@@ -5,6 +5,7 @@ import { calculateAggregateBulkDensity, validateAggregateBulkDensity, type BulkD
 import { calculateAggregateMoisture, validateAggregateMoisture, type AggregateMoistureInput } from "./aggregateMoisture";
 import { calculateSandEquivalent, validateSandEquivalent, type SandEquivalentInput } from "./sandEquivalent";
 import { calculateSandBulking, validateSandBulking, type SandBulkingInput } from "./sandBulking";
+import { calculateLosAngelesAbrasion, validateLosAngeles, type LosAngelesInput } from "./losAngelesAbrasion";
 
 export const SIEVE_ANALYSIS_DEFINITION: LaboratoryTestDefinition<SieveAnalysisInput> = {
   id: "AGG_SIEVE_PHASE2",
@@ -242,5 +243,45 @@ export const SAND_BULKING_DEFINITION: LaboratoryTestDefinition<SandBulkingInput>
 export function runSandBulkingPhase2(input: SandBulkingInput) {
   const result = calculateSandBulking(input);
   if (!result) throw new Error("Sand-bulking inputs are physically invalid.");
+  return result;
+}
+
+export const LOS_ANGELES_DEFINITION: LaboratoryTestDefinition<LosAngelesInput> = {
+  id: "AGG_LOS_ANGELES_PHASE2",
+  names: {
+    ar: "مقاومة التفتت بطريقة لوس أنجلوس",
+    fr: "Résistance à la fragmentation Los Angeles",
+    en: "Los Angeles Abrasion Resistance"
+  },
+  category: "aggregates",
+  applicableMaterialTypes: ["gravel", "coarse_aggregate", "aggregate", "recycled_aggregate"],
+  description: "Determines Los Angeles mass loss from initial and retained masses, with optional fines mass-balance verification.",
+  standard: {
+    organization: "EN",
+    code: "EN 1097-2",
+    version: "configured by laboratory",
+    status: "Draft",
+    source: "Laboratory configuration required before acceptance classification"
+  },
+  inputs: [
+    { key: "initialMassG", label: "Initial test mass", unit: "g", required: true, numeric: true, min: 0.000001, dimension: "mass" },
+    { key: "retainedMassOn1_6mmG", label: "Mass retained on 1.6 mm sieve", unit: "g", required: true, numeric: true, min: 0, dimension: "mass" },
+    { key: "finesMassG", label: "Fines mass passing 1.6 mm", unit: "g", required: false, numeric: true, min: 0, dimension: "mass" },
+    { key: "massBalanceToleranceG", label: "Mass-balance tolerance", unit: "g", required: false, numeric: true, min: 0, dimension: "mass" }
+  ],
+  resultUnit: "%",
+  revision: 1,
+  active: true,
+  validateEngineering: data => validateLosAngeles(data).issues,
+  calculate: data => {
+    const result = calculateLosAngelesAbrasion(data);
+    if (!result) throw new Error("Los Angeles inputs are physically invalid.");
+    return { result: result.losAngelesAbrasionPercent, unit: "%", trace: result.trace };
+  }
+};
+
+export function runLosAngelesPhase2(input: LosAngelesInput) {
+  const result = calculateLosAngelesAbrasion(input);
+  if (!result) throw new Error("Los Angeles inputs are physically invalid.");
   return result;
 }

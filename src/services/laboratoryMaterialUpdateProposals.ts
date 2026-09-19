@@ -41,6 +41,11 @@ export interface SandBulkingProposalResult {
   validation: { valid: boolean };
 }
 
+export interface LosAngelesProposalResult {
+  losAngelesAbrasionPercent: number;
+  validation: { valid: boolean };
+}
+
 function toPendingProposals(
   material: EngineeringMaterial,
   testRunId: string,
@@ -145,6 +150,19 @@ export function createSandBulkingMaterialUpdateProposals(params: {
   const proposedAt = params.proposedAt || new Date().toISOString();
   return toPendingProposals(params.material, params.testRunId, [
     { propertyKey: "sandBulkingCoeff", newValue: params.result.sandBulkingCoefficient, unit: "-" }
+  ], proposedAt);
+}
+
+export function createLosAngelesMaterialUpdateProposals(params: {
+  material: EngineeringMaterial;
+  testRunId: string;
+  result: LosAngelesProposalResult;
+  proposedAt?: string;
+}): MaterialUpdateProposal[] {
+  if (!params.result.validation.valid || !Number.isFinite(params.result.losAngelesAbrasionPercent)) return [];
+  const proposedAt = params.proposedAt || new Date().toISOString();
+  return toPendingProposals(params.material, params.testRunId, [
+    { propertyKey: "losAngelesAbrasion", newValue: params.result.losAngelesAbrasionPercent, unit: "%" }
   ], proposedAt);
 }
 

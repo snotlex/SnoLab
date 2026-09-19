@@ -46,8 +46,8 @@ import {
   TestExecutionResult 
 } from "../../services/materialsLabEngine";
 import { runSieveAnalysisPhase2 } from "../../services/laboratoryTestDefinitions";
-import { createSieveMaterialUpdateProposals, createSpecificGravityMaterialUpdateProposals, createBulkDensityMaterialUpdateProposals, createMoistureMaterialUpdateProposals, createSandEquivalentMaterialUpdateProposals, createSandBulkingMaterialUpdateProposals } from "../../services/laboratoryMaterialUpdateProposals";
-import { runAggregateSpecificGravityPhase2, runAggregateBulkDensityPhase2, runAggregateMoisturePhase2, runSandEquivalentPhase2, runSandBulkingPhase2 } from "../../services/laboratoryTestDefinitions";
+import { createSieveMaterialUpdateProposals, createSpecificGravityMaterialUpdateProposals, createBulkDensityMaterialUpdateProposals, createMoistureMaterialUpdateProposals, createSandEquivalentMaterialUpdateProposals, createSandBulkingMaterialUpdateProposals, createLosAngelesMaterialUpdateProposals } from "../../services/laboratoryMaterialUpdateProposals";
+import { runAggregateSpecificGravityPhase2, runAggregateBulkDensityPhase2, runAggregateMoisturePhase2, runSandEquivalentPhase2, runSandBulkingPhase2, runLosAngelesPhase2 } from "../../services/laboratoryTestDefinitions";
 
 interface NewTestWizardProps {
   isOpen: boolean;
@@ -228,6 +228,20 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
     }
   }, [selectedTestDefId, inputsState]);
 
+  const losAngelesPhase2Result = useMemo(() => {
+    if (selectedTestDefId !== "AGG_LOS_ANGELES") return null;
+    try {
+      return runLosAngelesPhase2({
+        initialMassG: Number(inputsState.initialMassG),
+        retainedMassOn1_6mmG: Number(inputsState.retainedMassOn1_6mmG),
+        finesMassG: inputsState.finesMassG === undefined ? undefined : Number(inputsState.finesMassG),
+        massBalanceToleranceG: inputsState.massBalanceToleranceG === undefined ? undefined : Number(inputsState.massBalanceToleranceG)
+      });
+    } catch {
+      return null;
+    }
+  }, [selectedTestDefId, inputsState]);
+
   // Execute Calculation Real-time
   const calculationResult: TestExecutionResult = useMemo(() => {
     const legacyResult = executeLaboratoryTest(selectedTestDefId, inputsState, currentMaterial);
@@ -293,8 +307,17 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
         syncedProperties: {}
       };
     }
+    if (selectedTestDefId === "AGG_LOS_ANGELES" && !losAngelesPhase2Result) {
+      return {
+        ...legacyResult,
+        status: "FAIL",
+        score: 0,
+        interpretation: "لا يمكن اعتماد اختبار Los Angeles قبل إصلاح الكتل المدخلة وتوازن الكتلة.",
+        syncedProperties: {}
+      };
+    }
     return legacyResult;
-  }, [selectedTestDefId, inputsState, currentMaterial, sievePhase2Result, specificGravityPhase2Result, bulkDensityPhase2Result, moisturePhase2Result, sandEquivalentPhase2Result, sandBulkingPhase2Result]);
+  }, [selectedTestDefId, inputsState, currentMaterial, sievePhase2Result, specificGravityPhase2Result, bulkDensityPhase2Result, moisturePhase2Result, sandEquivalentPhase2Result, sandBulkingPhase2Result, losAngelesPhase2Result]);
 
   if (!isOpen) return null;
 
@@ -336,6 +359,12 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
                     testRunId: testRecordId,
                     result: sandBulkingPhase2Result
                   })
+                : selectedTestDefId === "AGG_LOS_ANGELES" && losAngelesPhase2Result
+                  ? createLosAngelesMaterialUpdateProposals({
+                      material: currentMaterial,
+                      testRunId: testRecordId,
+                      result: losAngelesPhase2Result
+                    })
       : undefined;
     const hasPendingProposals = Boolean(updateProposals?.length);
     const newRecord: MaterialTestRecord = {
