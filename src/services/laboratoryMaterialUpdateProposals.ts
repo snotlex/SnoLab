@@ -46,6 +46,11 @@ export interface LosAngelesProposalResult {
   validation: { valid: boolean };
 }
 
+export interface MicroDevalProposalResult {
+  microDevalPercent: number;
+  validation: { valid: boolean };
+}
+
 function toPendingProposals(
   material: EngineeringMaterial,
   testRunId: string,
@@ -163,6 +168,19 @@ export function createLosAngelesMaterialUpdateProposals(params: {
   const proposedAt = params.proposedAt || new Date().toISOString();
   return toPendingProposals(params.material, params.testRunId, [
     { propertyKey: "losAngelesAbrasion", newValue: params.result.losAngelesAbrasionPercent, unit: "%" }
+  ], proposedAt);
+}
+
+export function createMicroDevalMaterialUpdateProposals(params: {
+  material: EngineeringMaterial;
+  testRunId: string;
+  result: MicroDevalProposalResult;
+  proposedAt?: string;
+}): MaterialUpdateProposal[] {
+  if (!params.result.validation.valid || !Number.isFinite(params.result.microDevalPercent)) return [];
+  const proposedAt = params.proposedAt || new Date().toISOString();
+  return toPendingProposals(params.material, params.testRunId, [
+    { propertyKey: "microDeval", newValue: params.result.microDevalPercent, unit: "%" }
   ], proposedAt);
 }
 

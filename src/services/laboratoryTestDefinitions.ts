@@ -6,6 +6,7 @@ import { calculateAggregateMoisture, validateAggregateMoisture, type AggregateMo
 import { calculateSandEquivalent, validateSandEquivalent, type SandEquivalentInput } from "./sandEquivalent";
 import { calculateSandBulking, validateSandBulking, type SandBulkingInput } from "./sandBulking";
 import { calculateLosAngelesAbrasion, validateLosAngeles, type LosAngelesInput } from "./losAngelesAbrasion";
+import { calculateMicroDeval, validateMicroDeval, type MicroDevalInput } from "./microDeval";
 
 export const SIEVE_ANALYSIS_DEFINITION: LaboratoryTestDefinition<SieveAnalysisInput> = {
   id: "AGG_SIEVE_PHASE2",
@@ -283,5 +284,46 @@ export const LOS_ANGELES_DEFINITION: LaboratoryTestDefinition<LosAngelesInput> =
 export function runLosAngelesPhase2(input: LosAngelesInput) {
   const result = calculateLosAngelesAbrasion(input);
   if (!result) throw new Error("Los Angeles inputs are physically invalid.");
+  return result;
+}
+
+export const MICRO_DEVAL_DEFINITION: LaboratoryTestDefinition<MicroDevalInput> = {
+  id: "AGG_MICRO_DEVAL_PHASE2",
+  names: {
+    ar: "مقاومة التآكل الرطب Micro-Deval",
+    fr: "Résistance à l'usure en présence d'eau Micro-Deval",
+    en: "Micro-Deval Wet Wear Resistance"
+  },
+  category: "aggregates",
+  applicableMaterialTypes: ["gravel", "coarse_aggregate", "aggregate", "recycled_aggregate"],
+  description: "Determines wet abrasion loss and records water condition and grading fraction.",
+  standard: {
+    organization: "EN",
+    code: "EN 1097-1",
+    version: "configured by laboratory",
+    status: "Draft",
+    source: "Laboratory configuration required before acceptance classification"
+  },
+  inputs: [
+    { key: "initialMassG", label: "Initial test mass", unit: "g", required: true, numeric: true, min: 0.000001, dimension: "mass" },
+    { key: "retainedMassOn1_6mmG", label: "Mass retained after wet rotation", unit: "g", required: true, numeric: true, min: 0, dimension: "mass" },
+    { key: "waterVolumeMl", label: "Test water volume", unit: "ml", required: true, numeric: true, min: 0.000001, dimension: "volume" },
+    { key: "gradingFraction", label: "Grading fraction", unit: "", required: false, numeric: false, dimension: "categorical" },
+    { key: "abrasiveChargeG", label: "Abrasive charge", unit: "g", required: false, numeric: true, min: 0, dimension: "mass" }
+  ],
+  resultUnit: "%",
+  revision: 1,
+  active: true,
+  validateEngineering: data => validateMicroDeval(data).issues,
+  calculate: data => {
+    const result = calculateMicroDeval(data);
+    if (!result) throw new Error("Micro-Deval inputs are physically invalid.");
+    return { result: result.microDevalPercent, unit: "%", trace: result.trace };
+  }
+};
+
+export function runMicroDevalPhase2(input: MicroDevalInput) {
+  const result = calculateMicroDeval(input);
+  if (!result) throw new Error("Micro-Deval inputs are physically invalid.");
   return result;
 }
