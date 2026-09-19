@@ -8,6 +8,7 @@ import { calculateSandBulking, validateSandBulking, type SandBulkingInput } from
 import { calculateLosAngelesAbrasion, validateLosAngeles, type LosAngelesInput } from "./losAngelesAbrasion";
 import { calculateMicroDeval, validateMicroDeval, type MicroDevalInput } from "./microDeval";
 import { calculateFlakinessIndex, validateFlakiness, type FlakinessInput } from "./flakinessIndex";
+import { calculateMethyleneBlue, validateMethyleneBlue, type MethyleneBlueInput } from "./methyleneBlue";
 
 export const SIEVE_ANALYSIS_DEFINITION: LaboratoryTestDefinition<SieveAnalysisInput> = {
   id: "AGG_SIEVE_PHASE2",
@@ -366,5 +367,45 @@ export const FLAKINESS_DEFINITION: LaboratoryTestDefinition<FlakinessInput> = {
 export function runFlakinessPhase2(input: FlakinessInput) {
   const result = calculateFlakinessIndex(input);
   if (!result) throw new Error("Flakiness inputs are physically invalid.");
+  return result;
+}
+
+export const METHYLENE_BLUE_DEFINITION: LaboratoryTestDefinition<MethyleneBlueInput> = {
+  id: "AGG_METHYLENE_BLUE_PHASE2",
+  names: {
+    ar: "قيمة أزرق الميثيلين للغضار",
+    fr: "Valeur au bleu de méthylène",
+    en: "Methylene Blue Value"
+  },
+  category: "aggregates",
+  applicableMaterialTypes: ["sand", "fine_aggregate", "aggregate"],
+  description: "Determines dye demand of the 0/2 mm fraction and records the titration endpoint condition.",
+  standard: {
+    organization: "EN",
+    code: "EN 933-9",
+    version: "configured by laboratory",
+    status: "Draft",
+    source: "Laboratory configuration required before acceptance classification"
+  },
+  inputs: [
+    { key: "fraction0_2MassG", label: "0/2 mm fraction mass", unit: "g", required: true, numeric: true, min: 0.000001, dimension: "mass" },
+    { key: "dyeSolutionInjectedMl", label: "Injected dye solution volume", unit: "ml", required: true, numeric: true, min: 0, dimension: "volume" },
+    { key: "dyeConcentrationGPerL", label: "Dye concentration", unit: "g/L", required: true, numeric: true, min: 0.000001, dimension: "mass_concentration" },
+    { key: "endpointConfirmed", label: "Titration endpoint confirmed", unit: "", required: false, numeric: false, dimension: "boolean" }
+  ],
+  resultUnit: "g/kg",
+  revision: 1,
+  active: true,
+  validateEngineering: data => validateMethyleneBlue(data).issues,
+  calculate: data => {
+    const result = calculateMethyleneBlue(data);
+    if (!result) throw new Error("Methylene Blue inputs are physically invalid.");
+    return { result: result.methyleneBlueValueGPerKg, unit: "g/kg", trace: result.trace };
+  }
+};
+
+export function runMethyleneBluePhase2(input: MethyleneBlueInput) {
+  const result = calculateMethyleneBlue(input);
+  if (!result) throw new Error("Methylene Blue inputs are physically invalid.");
   return result;
 }

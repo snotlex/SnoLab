@@ -56,6 +56,11 @@ export interface FlakinessProposalResult {
   validation: { valid: boolean };
 }
 
+export interface MethyleneBlueProposalResult {
+  methyleneBlueValueGPerKg: number;
+  validation: { valid: boolean };
+}
+
 function toPendingProposals(
   material: EngineeringMaterial,
   testRunId: string,
@@ -199,6 +204,19 @@ export function createFlakinessMaterialUpdateProposals(params: {
   const proposedAt = params.proposedAt || new Date().toISOString();
   return toPendingProposals(params.material, params.testRunId, [
     { propertyKey: "flakinessIndex", newValue: params.result.flakinessIndexPercent, unit: "%" }
+  ], proposedAt);
+}
+
+export function createMethyleneBlueMaterialUpdateProposals(params: {
+  material: EngineeringMaterial;
+  testRunId: string;
+  result: MethyleneBlueProposalResult;
+  proposedAt?: string;
+}): MaterialUpdateProposal[] {
+  if (!params.result.validation.valid || !Number.isFinite(params.result.methyleneBlueValueGPerKg)) return [];
+  const proposedAt = params.proposedAt || new Date().toISOString();
+  return toPendingProposals(params.material, params.testRunId, [
+    { propertyKey: "methyleneBlue", newValue: params.result.methyleneBlueValueGPerKg, unit: "g/kg" }
   ], proposedAt);
 }
 
