@@ -96,5 +96,87 @@
     }
   ],
   "invalidMaterials": [],
+  "verificationQueue": [
+    {
+      "materialId": "SYS-SCM-SF-001",
+      "materialName": "غبار السيليكا المكثف",
+      "role": "scm",
+      "propertyKey": "pozzolanicIndex",
+      "testStandard": "ASTM C311/C311M (strength activity index); use EN 450-1 for fly ash or EN 13263-1 for silica fume where applicable",
+      "evidence": "Supplier certificate or laboratory report identifying the SCM type, test age, reference cement/mortar and measured activity index.",
+      "acceptance": "Numeric percentage within the schema range, with test age and standard recorded; do not substitute replacement percentage or a generic typical value.",
+      "calculationImpact": "Required for pozzolanic SCMs because it affects binder qualification and the engineering warning layer."
+    },
+    {
+      "materialId": "SYS-SCM-FA-001",
+      "materialName": "الرماد المتطاير فئة F",
+      "role": "scm",
+      "propertyKey": "pozzolanicIndex",
+      "testStandard": "ASTM C311/C311M (strength activity index); use EN 450-1 for fly ash or EN 13263-1 for silica fume where applicable",
+      "evidence": "Supplier certificate or laboratory report identifying the SCM type, test age, reference cement/mortar and measured activity index.",
+      "acceptance": "Numeric percentage within the schema range, with test age and standard recorded; do not substitute replacement percentage or a generic typical value.",
+      "calculationImpact": "Required for pozzolanic SCMs because it affects binder qualification and the engineering warning layer."
+    },
+    {
+      "materialId": "SYS-FIB-STEEL-001",
+      "materialName": "ألياف فولاذية مستقيمة",
+      "role": "fiber",
+      "propertyKey": "tensileStrength",
+      "testStandard": "EN 14889-1 or ASTM A820/A820M, according to the declared steel-fiber product",
+      "evidence": "Current product data sheet or laboratory tensile test for the exact fiber grade and diameter.",
+      "acceptance": "Numeric tensile strength in MPa linked to the exact product/lot; do not infer it from steel density, grade name or dosage.",
+      "calculationImpact": "Required for FRC/BFUP suitability checks and post-cracking reinforcement warnings."
+    },
+    {
+      "materialId": "SYS-AGG-LWA-001",
+      "materialName": "ركام خفيف طيني ممدد",
+      "role": "lightweightAggregate",
+      "propertyKey": "bulkDensity",
+      "testStandard": "EN 1097-3 or ASTM C29/C29M",
+      "evidence": "Bulk-density test report stating loose/rodded condition, moisture state and test temperature.",
+      "acceptance": "Numeric dry bulk density in kg/m³ with the test condition recorded; do not reuse particle density or specific gravity.",
+      "calculationImpact": "Required to distinguish particle density from batching/volume behavior in lightweight concrete."
+    },
+    {
+      "materialId": "SYS-AGG-HWA-001",
+      "materialName": "ركام باريتي ثقيل",
+      "role": "heavyweightAggregate",
+      "propertyKey": "bulkDensity",
+      "testStandard": "EN 1097-3 or ASTM C29/C29M",
+      "evidence": "Bulk-density test report for the supplied heavyweight aggregate, including loose/rodded condition and moisture state.",
+      "acceptance": "Numeric dry bulk density in kg/m³ with the test condition recorded; do not derive it from specific gravity.",
+      "calculationImpact": "Required for mass-volume closure and batching estimates for heavyweight concrete."
+    },
+    {
+      "materialId": "SYS-AGG-HWA-001",
+      "materialName": "ركام باريتي ثقيل",
+      "role": "heavyweightAggregate",
+      "propertyKey": "bariumSulfate",
+      "testStandard": "Chemical/XRF or wet-chemistry report for BaSO₄; classify the aggregate against ASTM C637 where radiation-shielding use applies",
+      "evidence": "Lot-specific chemical composition report identifying BaSO₄ content and the analytical method.",
+      "acceptance": "Numeric mass percentage with method, lot and reporting basis documented; do not equate baryte classification with a guaranteed BaSO₄ percentage.",
+      "calculationImpact": "Required for radiation-shielding suitability and material traceability; it must not silently affect ordinary concrete calculations."
+    },
+    {
+      "materialId": "SYS-AGG-RCA-001",
+      "materialName": "ركام خشن معاد التدوير",
+      "role": "recycledAggregate",
+      "propertyKey": "bulkDensity",
+      "testStandard": "EN 1097-3 or ASTM C29/C29M",
+      "evidence": "Bulk-density test report for the actual recycled aggregate fraction, with moisture and loose/rodded condition.",
+      "acceptance": "Numeric dry bulk density in kg/m³ with test condition recorded; do not use parent-concrete density as a proxy.",
+      "calculationImpact": "Required for volume closure and reliable moisture/batching corrections in recycled aggregate concrete."
+    },
+    {
+      "materialId": "SYS-AGG-RCA-001",
+      "materialName": "ركام خشن معاد التدوير",
+      "role": "recycledAggregate",
+      "propertyKey": "masonryContent",
+      "testStandard": "EN 933-11",
+      "evidence": "Constituent-composition report for the recycled coarse aggregate fraction, including masonry particles and test fraction.",
+      "acceptance": "Numeric mass percentage for masonry constituents, with fraction, sampling and test date recorded.",
+      "calculationImpact": "Required for recycled-aggregate quality classification and durability/use restrictions."
+    }
+  ],
   "allIdsUnique": true
 }
