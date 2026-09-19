@@ -35,6 +35,12 @@ export interface SandEquivalentProposalResult {
   validation: { valid: boolean };
 }
 
+export interface SandBulkingProposalResult {
+  sandBulkingCoefficient: number;
+  maxExpansionPercent: number;
+  validation: { valid: boolean };
+}
+
 function toPendingProposals(
   material: EngineeringMaterial,
   testRunId: string,
@@ -126,6 +132,19 @@ export function createSandEquivalentMaterialUpdateProposals(params: {
   const proposedAt = params.proposedAt || new Date().toISOString();
   return toPendingProposals(params.material, params.testRunId, [
     { propertyKey: "sandEquivalent", newValue: params.result.sandEquivalentPercent, unit: "%" }
+  ], proposedAt);
+}
+
+export function createSandBulkingMaterialUpdateProposals(params: {
+  material: EngineeringMaterial;
+  testRunId: string;
+  result: SandBulkingProposalResult;
+  proposedAt?: string;
+}): MaterialUpdateProposal[] {
+  if (!params.result.validation.valid || !Number.isFinite(params.result.sandBulkingCoefficient)) return [];
+  const proposedAt = params.proposedAt || new Date().toISOString();
+  return toPendingProposals(params.material, params.testRunId, [
+    { propertyKey: "sandBulkingCoeff", newValue: params.result.sandBulkingCoefficient, unit: "-" }
   ], proposedAt);
 }
 

@@ -46,8 +46,8 @@ import {
   TestExecutionResult 
 } from "../../services/materialsLabEngine";
 import { runSieveAnalysisPhase2 } from "../../services/laboratoryTestDefinitions";
-import { createSieveMaterialUpdateProposals, createSpecificGravityMaterialUpdateProposals, createBulkDensityMaterialUpdateProposals, createMoistureMaterialUpdateProposals, createSandEquivalentMaterialUpdateProposals } from "../../services/laboratoryMaterialUpdateProposals";
-import { runAggregateSpecificGravityPhase2, runAggregateBulkDensityPhase2, runAggregateMoisturePhase2, runSandEquivalentPhase2 } from "../../services/laboratoryTestDefinitions";
+import { createSieveMaterialUpdateProposals, createSpecificGravityMaterialUpdateProposals, createBulkDensityMaterialUpdateProposals, createMoistureMaterialUpdateProposals, createSandEquivalentMaterialUpdateProposals, createSandBulkingMaterialUpdateProposals } from "../../services/laboratoryMaterialUpdateProposals";
+import { runAggregateSpecificGravityPhase2, runAggregateBulkDensityPhase2, runAggregateMoisturePhase2, runSandEquivalentPhase2, runSandBulkingPhase2 } from "../../services/laboratoryTestDefinitions";
 
 interface NewTestWizardProps {
   isOpen: boolean;
@@ -211,6 +211,23 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
     }
   }, [selectedTestDefId, inputsState]);
 
+  const sandBulkingPhase2Result = useMemo(() => {
+    if (selectedTestDefId !== "AGG_BULKING_SAND") return null;
+    try {
+      return runSandBulkingPhase2({
+        dryVolumeCm3: Number(inputsState.dryVolumeCm3),
+        moistureSteps: Array.isArray(inputsState.moistureSteps)
+          ? inputsState.moistureSteps.map((step: { moisturePercent: number; volumeCm3: number }) => ({
+              moisturePercent: Number(step.moisturePercent),
+              volumeCm3: Number(step.volumeCm3)
+            }))
+          : []
+      });
+    } catch {
+      return null;
+    }
+  }, [selectedTestDefId, inputsState]);
+
   // Execute Calculation Real-time
   const calculationResult: TestExecutionResult = useMemo(() => {
     const legacyResult = executeLaboratoryTest(selectedTestDefId, inputsState, currentMaterial);
@@ -267,8 +284,17 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
         syncedProperties: {}
       };
     }
+    if (selectedTestDefId === "AGG_BULKING_SAND" && !sandBulkingPhase2Result) {
+      return {
+        ...legacyResult,
+        status: "FAIL",
+        score: 0,
+        interpretation: "لا يمكن اعتماد منحنى انتفاخ الرمل قبل إصلاح الحجم الجاف وتسلسل نقاط الرطوبة.",
+        syncedProperties: {}
+      };
+    }
     return legacyResult;
-  }, [selectedTestDefId, inputsState, currentMaterial, sievePhase2Result, specificGravityPhase2Result, bulkDensityPhase2Result, moisturePhase2Result, sandEquivalentPhase2Result]);
+  }, [selectedTestDefId, inputsState, currentMaterial, sievePhase2Result, specificGravityPhase2Result, bulkDensityPhase2Result, moisturePhase2Result, sandEquivalentPhase2Result, sandBulkingPhase2Result]);
 
   if (!isOpen) return null;
 
@@ -304,6 +330,12 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
                   testRunId: testRecordId,
                   result: sandEquivalentPhase2Result
                 })
+              : selectedTestDefId === "AGG_BULKING_SAND" && sandBulkingPhase2Result
+                ? createSandBulkingMaterialUpdateProposals({
+                    material: currentMaterial,
+                    testRunId: testRecordId,
+                    result: sandBulkingPhase2Result
+                  })
       : undefined;
     const hasPendingProposals = Boolean(updateProposals?.length);
     const newRecord: MaterialTestRecord = {

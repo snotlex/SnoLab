@@ -4,6 +4,7 @@ import { calculateAggregateSpecificGravity, validateAggregateSpecificGravity, ty
 import { calculateAggregateBulkDensity, validateAggregateBulkDensity, type BulkDensityInput } from "./aggregateBulkDensity";
 import { calculateAggregateMoisture, validateAggregateMoisture, type AggregateMoistureInput } from "./aggregateMoisture";
 import { calculateSandEquivalent, validateSandEquivalent, type SandEquivalentInput } from "./sandEquivalent";
+import { calculateSandBulking, validateSandBulking, type SandBulkingInput } from "./sandBulking";
 
 export const SIEVE_ANALYSIS_DEFINITION: LaboratoryTestDefinition<SieveAnalysisInput> = {
   id: "AGG_SIEVE_PHASE2",
@@ -203,5 +204,43 @@ export const SAND_EQUIVALENT_DEFINITION: LaboratoryTestDefinition<SandEquivalent
 export function runSandEquivalentPhase2(input: SandEquivalentInput) {
   const result = calculateSandEquivalent(input);
   if (!result) throw new Error("Sand-equivalent inputs are physically invalid.");
+  return result;
+}
+
+export const SAND_BULKING_DEFINITION: LaboratoryTestDefinition<SandBulkingInput> = {
+  id: "AGG_BULKING_SAND_PHASE2",
+  names: {
+    ar: "انتفاخ الرمل بالرطوبة",
+    fr: "Foisonnement du sable",
+    en: "Sand Bulking Curve"
+  },
+  category: "aggregates",
+  applicableMaterialTypes: ["sand", "fine_aggregate"],
+  description: "Determines volumetric expansion of sand at increasing moisture levels and identifies peak bulking.",
+  standard: {
+    organization: "Other",
+    code: "BS 812",
+    version: "configured by laboratory",
+    status: "Draft",
+    source: "Laboratory configuration required before acceptance classification"
+  },
+  inputs: [
+    { key: "dryVolumeCm3", label: "Dry reference volume", unit: "cm³", required: true, numeric: true, min: 0.000001, dimension: "volume" },
+    { key: "moistureSteps", label: "Moisture-volume series", unit: "", required: true, numeric: false, dimension: "series" }
+  ],
+  resultUnit: "%",
+  revision: 1,
+  active: true,
+  validateEngineering: data => validateSandBulking(data).issues,
+  calculate: data => {
+    const result = calculateSandBulking(data);
+    if (!result) throw new Error("Sand-bulking inputs are physically invalid.");
+    return { result: result.maxExpansionPercent, unit: "%", trace: result.trace };
+  }
+};
+
+export function runSandBulkingPhase2(input: SandBulkingInput) {
+  const result = calculateSandBulking(input);
+  if (!result) throw new Error("Sand-bulking inputs are physically invalid.");
   return result;
 }
