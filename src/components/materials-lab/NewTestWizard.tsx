@@ -46,8 +46,8 @@ import {
   TestExecutionResult 
 } from "../../services/materialsLabEngine";
 import { runSieveAnalysisPhase2 } from "../../services/laboratoryTestDefinitions";
-import { createSieveMaterialUpdateProposals, createSpecificGravityMaterialUpdateProposals, createBulkDensityMaterialUpdateProposals, createMoistureMaterialUpdateProposals, createSandEquivalentMaterialUpdateProposals, createSandBulkingMaterialUpdateProposals, createLosAngelesMaterialUpdateProposals, createMicroDevalMaterialUpdateProposals, createFlakinessMaterialUpdateProposals, createMethyleneBlueMaterialUpdateProposals, createCementSpecificGravityMaterialUpdateProposals, createBlaineMaterialUpdateProposals } from "../../services/laboratoryMaterialUpdateProposals";
-import { runAggregateSpecificGravityPhase2, runAggregateBulkDensityPhase2, runAggregateMoisturePhase2, runSandEquivalentPhase2, runSandBulkingPhase2, runLosAngelesPhase2, runMicroDevalPhase2, runFlakinessPhase2, runMethyleneBluePhase2, runCementSpecificGravityPhase2, runBlaineFinenessPhase2 } from "../../services/laboratoryTestDefinitions";
+import { createSieveMaterialUpdateProposals, createSpecificGravityMaterialUpdateProposals, createBulkDensityMaterialUpdateProposals, createMoistureMaterialUpdateProposals, createSandEquivalentMaterialUpdateProposals, createSandBulkingMaterialUpdateProposals, createLosAngelesMaterialUpdateProposals, createMicroDevalMaterialUpdateProposals, createFlakinessMaterialUpdateProposals, createMethyleneBlueMaterialUpdateProposals, createCementSpecificGravityMaterialUpdateProposals, createBlaineMaterialUpdateProposals, createCementSettingTimeMaterialUpdateProposals } from "../../services/laboratoryMaterialUpdateProposals";
+import { runAggregateSpecificGravityPhase2, runAggregateBulkDensityPhase2, runAggregateMoisturePhase2, runSandEquivalentPhase2, runSandBulkingPhase2, runLosAngelesPhase2, runMicroDevalPhase2, runFlakinessPhase2, runMethyleneBluePhase2, runCementSpecificGravityPhase2, runBlaineFinenessPhase2, runCementSettingTimePhase2 } from "../../services/laboratoryTestDefinitions";
 
 interface NewTestWizardProps {
   isOpen: boolean;
@@ -320,6 +320,24 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
     }
   }, [selectedTestDefId, inputsState]);
 
+  const cementSettingTimePhase2Result = useMemo(() => {
+    if (selectedTestDefId !== "CEM_SETTING_TIME") return null;
+    try {
+      return runCementSettingTimePhase2({
+        waterPercent: Number(inputsState.waterPercent),
+        roomTempC: Number(inputsState.roomTempC),
+        humidityPercent: Number(inputsState.humidityPercent),
+        timeReadings: Array.isArray(inputsState.timeReadings)
+          ? inputsState.timeReadings.map((reading: { timeMinutes: number; penetrationMm: number }) => ({ timeMinutes: Number(reading.timeMinutes), penetrationMm: Number(reading.penetrationMm) }))
+          : [],
+        initialSetThresholdMm: inputsState.initialSetThresholdMm === undefined ? undefined : Number(inputsState.initialSetThresholdMm),
+        finalSetThresholdMm: inputsState.finalSetThresholdMm === undefined ? undefined : Number(inputsState.finalSetThresholdMm)
+      });
+    } catch {
+      return null;
+    }
+  }, [selectedTestDefId, inputsState]);
+
   // Execute Calculation Real-time
   const calculationResult: TestExecutionResult = useMemo(() => {
     const legacyResult = executeLaboratoryTest(selectedTestDefId, inputsState, currentMaterial);
@@ -439,8 +457,17 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
         syncedProperties: {}
       };
     }
+    if (selectedTestDefId === "CEM_SETTING_TIME" && !cementSettingTimePhase2Result) {
+      return {
+        ...legacyResult,
+        status: "FAIL",
+        score: 0,
+        interpretation: "لا يمكن اعتماد زمن الشك قبل إدخال قراءات فيكات مرتبة وتحقيق عتبات الشك الابتدائي والنهائي.",
+        syncedProperties: {}
+      };
+    }
     return legacyResult;
-  }, [selectedTestDefId, inputsState, currentMaterial, sievePhase2Result, specificGravityPhase2Result, bulkDensityPhase2Result, moisturePhase2Result, sandEquivalentPhase2Result, sandBulkingPhase2Result, losAngelesPhase2Result, microDevalPhase2Result, flakinessPhase2Result, methyleneBluePhase2Result, cementSpecificGravityPhase2Result, blainePhase2Result]);
+  }, [selectedTestDefId, inputsState, currentMaterial, sievePhase2Result, specificGravityPhase2Result, bulkDensityPhase2Result, moisturePhase2Result, sandEquivalentPhase2Result, sandBulkingPhase2Result, losAngelesPhase2Result, microDevalPhase2Result, flakinessPhase2Result, methyleneBluePhase2Result, cementSpecificGravityPhase2Result, blainePhase2Result, cementSettingTimePhase2Result]);
 
   if (!isOpen) return null;
 
@@ -518,6 +545,12 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
                                 testRunId: testRecordId,
                                 result: blainePhase2Result
                               })
+                            : selectedTestDefId === "CEM_SETTING_TIME" && cementSettingTimePhase2Result
+                              ? createCementSettingTimeMaterialUpdateProposals({
+                                  material: currentMaterial,
+                                  testRunId: testRecordId,
+                                  result: cementSettingTimePhase2Result
+                                })
       : undefined;
     const hasPendingProposals = Boolean(updateProposals?.length);
     const newRecord: MaterialTestRecord = {

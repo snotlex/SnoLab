@@ -11,6 +11,7 @@ import { calculateFlakinessIndex, validateFlakiness, type FlakinessInput } from 
 import { calculateMethyleneBlue, validateMethyleneBlue, type MethyleneBlueInput } from "./methyleneBlue";
 import { calculateCementSpecificGravity, validateCementSpecificGravity, type CementSpecificGravityInput } from "./cementSpecificGravity";
 import { calculateBlaineFineness, validateBlaine, type BlaineInput } from "./blaineFineness";
+import { calculateCementSettingTime, validateCementSettingTime, type CementSettingTimeInput } from "./cementSettingTime";
 
 export const SIEVE_ANALYSIS_DEFINITION: LaboratoryTestDefinition<SieveAnalysisInput> = {
   id: "AGG_SIEVE_PHASE2",
@@ -490,5 +491,47 @@ export const BLAINE_FINENESS_DEFINITION: LaboratoryTestDefinition<BlaineInput> =
 export function runBlaineFinenessPhase2(input: BlaineInput) {
   const result = calculateBlaineFineness(input);
   if (!result) throw new Error("Blaine inputs are physically invalid.");
+  return result;
+}
+
+export const CEMENT_SETTING_TIME_DEFINITION: LaboratoryTestDefinition<CementSettingTimeInput> = {
+  id: "CEM_SETTING_TIME_PHASE2",
+  names: {
+    ar: "زمن الشك الابتدائي والنهائي للإسمنت",
+    fr: "Temps de début et fin de prise Vicat",
+    en: "Initial and Final Setting Time"
+  },
+  category: "cement",
+  applicableMaterialTypes: ["cement", "binder"],
+  description: "Identifies first and final setting from an ordered series of Vicat penetration readings.",
+  standard: {
+    organization: "EN",
+    code: "EN 196-3",
+    version: "configured by laboratory",
+    status: "Draft",
+    source: "Laboratory configuration required before acceptance classification"
+  },
+  inputs: [
+    { key: "waterPercent", label: "Water percentage", unit: "%", required: true, numeric: true, min: 0.000001, max: 99.999999, dimension: "ratio" },
+    { key: "roomTempC", label: "Room temperature", unit: "°C", required: true, numeric: true, min: 5, max: 40, dimension: "temperature" },
+    { key: "humidityPercent", label: "Relative humidity", unit: "%", required: true, numeric: true, min: 0, max: 100, dimension: "ratio" },
+    { key: "timeReadings", label: "Vicat penetration readings", unit: "", required: true, numeric: false, dimension: "series" },
+    { key: "initialSetThresholdMm", label: "Initial-set threshold", unit: "mm", required: false, numeric: true, min: 0.000001, dimension: "length" },
+    { key: "finalSetThresholdMm", label: "Final-set threshold", unit: "mm", required: false, numeric: true, min: 0, dimension: "length" }
+  ],
+  resultUnit: "min",
+  revision: 1,
+  active: true,
+  validateEngineering: data => validateCementSettingTime(data).issues,
+  calculate: data => {
+    const result = calculateCementSettingTime(data);
+    if (!result) throw new Error("Cement setting-time inputs are physically invalid.");
+    return { result: result.initialSettingMinutes, unit: "min", trace: result.trace };
+  }
+};
+
+export function runCementSettingTimePhase2(input: CementSettingTimeInput) {
+  const result = calculateCementSettingTime(input);
+  if (!result) throw new Error("Cement setting-time inputs are physically invalid.");
   return result;
 }

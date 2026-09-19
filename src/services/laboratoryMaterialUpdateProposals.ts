@@ -72,6 +72,12 @@ export interface BlaineProposalResult {
   validation: { valid: boolean };
 }
 
+export interface CementSettingTimeProposalResult {
+  initialSettingMinutes: number;
+  finalSettingMinutes: number;
+  validation: { valid: boolean };
+}
+
 function toPendingProposals(
   material: EngineeringMaterial,
   testRunId: string,
@@ -255,6 +261,20 @@ export function createBlaineMaterialUpdateProposals(params: {
   const proposedAt = params.proposedAt || new Date().toISOString();
   return toPendingProposals(params.material, params.testRunId, [
     { propertyKey: "blaineFineness", newValue: params.result.blaineFinenessCm2PerG, unit: "cm²/g" }
+  ], proposedAt);
+}
+
+export function createCementSettingTimeMaterialUpdateProposals(params: {
+  material: EngineeringMaterial;
+  testRunId: string;
+  result: CementSettingTimeProposalResult;
+  proposedAt?: string;
+}): MaterialUpdateProposal[] {
+  if (!params.result.validation.valid || !Number.isFinite(params.result.initialSettingMinutes) || !Number.isFinite(params.result.finalSettingMinutes)) return [];
+  const proposedAt = params.proposedAt || new Date().toISOString();
+  return toPendingProposals(params.material, params.testRunId, [
+    { propertyKey: "initialSettingMinutes", newValue: params.result.initialSettingMinutes, unit: "min" },
+    { propertyKey: "finalSettingMinutes", newValue: params.result.finalSettingMinutes, unit: "min" }
   ], proposedAt);
 }
 
