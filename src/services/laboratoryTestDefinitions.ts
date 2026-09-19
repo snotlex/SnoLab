@@ -1,5 +1,6 @@
 import type { LaboratoryTestDefinition } from "../types/laboratoryDomain";
 import { calculateSieveAnalysis, type SieveAnalysisInput } from "./aggregateSieveAnalysis";
+import { calculateAggregateSpecificGravity, validateAggregateSpecificGravity, type SpecificGravityInput } from "./aggregateSpecificGravity";
 
 export const SIEVE_ANALYSIS_DEFINITION: LaboratoryTestDefinition<SieveAnalysisInput> = {
   id: "AGG_SIEVE_PHASE2",
@@ -39,4 +40,44 @@ export const SIEVE_ANALYSIS_DEFINITION: LaboratoryTestDefinition<SieveAnalysisIn
 
 export function runSieveAnalysisPhase2(input: SieveAnalysisInput) {
   return calculateSieveAnalysis(input);
+}
+
+export const AGGREGATE_SPECIFIC_GRAVITY_DEFINITION: LaboratoryTestDefinition<SpecificGravityInput> = {
+  id: "AGG_SPECIFIC_GRAVITY_PHASE2",
+  names: {
+    ar: "الكثافة النوعية والامتصاص المائي للركام",
+    fr: "Masse volumique et absorption des granulats",
+    en: "Aggregate Specific Gravity and Water Absorption"
+  },
+  category: "aggregates",
+  applicableMaterialTypes: ["sand", "gravel", "aggregate", "recycled_aggregate", "lightweight_aggregate", "heavyweight_aggregate"],
+  description: "Determines absolute density, SSD density and water absorption from oven-dry, SSD and pycnometer masses.",
+  standard: {
+    organization: "EN",
+    code: "EN 1097-6",
+    version: "configured by laboratory",
+    status: "Draft",
+    source: "Laboratory configuration required before acceptance classification"
+  },
+  inputs: [
+    { key: "ovenDryMassG", label: "Oven-dry mass M4", unit: "g", required: true, numeric: true, min: 0.000001, dimension: "mass" },
+    { key: "ssdMassG", label: "SSD mass M1", unit: "g", required: true, numeric: true, min: 0.000001, dimension: "mass" },
+    { key: "pycnometerSampleWaterMassG", label: "Pycnometer + sample + water mass M2", unit: "g", required: true, numeric: true, min: 0.000001, dimension: "mass" },
+    { key: "pycnometerWaterMassG", label: "Pycnometer + water mass M3", unit: "g", required: true, numeric: true, min: 0.000001, dimension: "mass" }
+  ],
+  resultUnit: "g/cm³",
+  revision: 1,
+  active: true,
+  validateEngineering: data => validateAggregateSpecificGravity(data).issues,
+  calculate: data => {
+    const result = calculateAggregateSpecificGravity(data);
+    if (!result) throw new Error("Specific-gravity inputs are physically invalid.");
+    return { result: result.absoluteDensityGPerCm3, unit: "g/cm³", trace: result.trace };
+  }
+};
+
+export function runAggregateSpecificGravityPhase2(input: SpecificGravityInput) {
+  const result = calculateAggregateSpecificGravity(input);
+  if (!result) throw new Error("Specific-gravity inputs are physically invalid.");
+  return result;
 }

@@ -9,6 +9,15 @@ const SIEVE_PROPERTY_MAP: Array<{ resultKey: keyof SieveAnalysisOutput; property
   { resultKey: "dMinMm", propertyKey: "dMin", unit: "mm" }
 ];
 
+export interface SpecificGravityProposalResult {
+  absoluteDensityGPerCm3: number;
+  absoluteDensityKgM3: number;
+  ssdDensityGPerCm3: number;
+  ssdDensityKgM3: number;
+  waterAbsorptionPercent: number;
+  validation: { valid: boolean };
+}
+
 export function createSieveMaterialUpdateProposals(params: {
   material: EngineeringMaterial;
   testRunId: string;
@@ -32,6 +41,36 @@ export function createSieveMaterialUpdateProposals(params: {
       status: "Pending" as const,
       proposedAt
     }];
+  });
+}
+
+export function createSpecificGravityMaterialUpdateProposals(params: {
+  material: EngineeringMaterial;
+  testRunId: string;
+  result: SpecificGravityProposalResult;
+  proposedAt?: string;
+}): MaterialUpdateProposal[] {
+  if (!params.result.validation.valid) return [];
+  const proposedAt = params.proposedAt || new Date().toISOString();
+  const values: Array<{ propertyKey: string; newValue: number; unit: string }> = [
+    { propertyKey: "specificGravity", newValue: params.result.absoluteDensityGPerCm3, unit: "-" },
+    { propertyKey: "density", newValue: params.result.absoluteDensityKgM3, unit: "kg/m³" },
+    { propertyKey: "ssdDensity", newValue: params.result.ssdDensityKgM3, unit: "kg/m³" },
+    { propertyKey: "absorption", newValue: params.result.waterAbsorptionPercent, unit: "%" }
+  ];
+  return values.map(({ propertyKey, newValue, unit }) => {
+    const oldValue = (params.material as unknown as Record<string, unknown>)[propertyKey];
+    return {
+      id: `MUP-${params.testRunId}-${propertyKey}`,
+      materialId: params.material.id,
+      testRunId: params.testRunId,
+      propertyKey,
+      oldValue: typeof oldValue === "number" || typeof oldValue === "string" ? oldValue : undefined,
+      newValue,
+      unit,
+      status: "Pending" as const,
+      proposedAt
+    };
   });
 }
 

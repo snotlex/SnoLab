@@ -46,7 +46,8 @@ import {
   TestExecutionResult 
 } from "../../services/materialsLabEngine";
 import { runSieveAnalysisPhase2 } from "../../services/laboratoryTestDefinitions";
-import { createSieveMaterialUpdateProposals } from "../../services/laboratoryMaterialUpdateProposals";
+import { createSieveMaterialUpdateProposals, createSpecificGravityMaterialUpdateProposals } from "../../services/laboratoryMaterialUpdateProposals";
+import { runAggregateSpecificGravityPhase2 } from "../../services/laboratoryTestDefinitions";
 
 interface NewTestWizardProps {
   isOpen: boolean;
@@ -153,11 +154,25 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
     });
   }, [selectedTestDefId, inputsState]);
 
+  const specificGravityPhase2Result = useMemo(() => {
+    if (selectedTestDefId !== "AGG_SPECIFIC_GRAVITY") return null;
+    try {
+      return runAggregateSpecificGravityPhase2({
+        ovenDryMassG: Number(inputsState.ovenDryMassG),
+        ssdMassG: Number(inputsState.ssdMassG),
+        pycnometerSampleWaterMassG: Number(inputsState.pycnometerSampleWaterMassG),
+        pycnometerWaterMassG: Number(inputsState.pycnometerWaterMassG)
+      });
+    } catch {
+      return null;
+    }
+  }, [selectedTestDefId, inputsState]);
+
   // Execute Calculation Real-time
   const calculationResult: TestExecutionResult = useMemo(() => {
     const legacyResult = executeLaboratoryTest(selectedTestDefId, inputsState, currentMaterial);
-    if (selectedTestDefId !== "AGG_SIEVE" || !sievePhase2Result) return legacyResult;
-    if (!sievePhase2Result.validation.valid) {
+    if (selectedTestDefId === "AGG_SIEVE" && !sievePhase2Result) return legacyResult;
+    if (selectedTestDefId === "AGG_SIEVE" && !sievePhase2Result.validation.valid) {
       return {
         ...legacyResult,
         status: "FAIL",
@@ -173,8 +188,17 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
         syncedProperties: {}
       };
     }
+    if (selectedTestDefId === "AGG_SPECIFIC_GRAVITY" && !specificGravityPhase2Result) {
+      return {
+        ...legacyResult,
+        status: "FAIL",
+        score: 0,
+        interpretation: "لا يمكن اعتماد اختبار الكثافة النوعية قبل إصلاح كتل العينة والبيكنومتر.",
+        syncedProperties: {}
+      };
+    }
     return legacyResult;
-  }, [selectedTestDefId, inputsState, currentMaterial, sievePhase2Result]);
+  }, [selectedTestDefId, inputsState, currentMaterial, sievePhase2Result, specificGravityPhase2Result]);
 
   if (!isOpen) return null;
 
@@ -186,6 +210,12 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
           testRunId: testRecordId,
           result: sievePhase2Result
         })
+      : selectedTestDefId === "AGG_SPECIFIC_GRAVITY" && specificGravityPhase2Result
+        ? createSpecificGravityMaterialUpdateProposals({
+            material: currentMaterial,
+            testRunId: testRecordId,
+            result: specificGravityPhase2Result
+          })
       : undefined;
     const hasPendingProposals = Boolean(updateProposals?.length);
     const newRecord: MaterialTestRecord = {
