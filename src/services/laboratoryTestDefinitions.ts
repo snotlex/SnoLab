@@ -15,6 +15,7 @@ import { calculateCementSettingTime, validateCementSettingTime, type CementSetti
 import { calculateCementSoundness, validateCementSoundness, type CementSoundnessInput } from "./cementSoundness";
 import { calculateCementMortarStrength, validateCementMortarStrength, type CementMortarStrengthInput } from "./cementMortarStrength";
 import { calculateCementNormalConsistency, validateCementNormalConsistency, type CementNormalConsistencyInput } from "./cementNormalConsistency";
+import { calculateWaterPh, validateWaterPh, type WaterPhInput } from "./waterPh";
 
 export const SIEVE_ANALYSIS_DEFINITION: LaboratoryTestDefinition<SieveAnalysisInput> = {
   id: "AGG_SIEVE_PHASE2",
@@ -654,5 +655,43 @@ export const CEMENT_NORMAL_CONSISTENCY_DEFINITION: LaboratoryTestDefinition<Ceme
 export function runCementNormalConsistencyPhase2(input: CementNormalConsistencyInput) {
   const result = calculateCementNormalConsistency(input);
   if (!result) throw new Error("Normal-consistency inputs are physically invalid.");
+  return result;
+}
+
+export const WATER_PH_DEFINITION: LaboratoryTestDefinition<WaterPhInput> = {
+  id: "WATER_PH_PHASE2",
+  names: {
+    ar: "درجة حموضة ماء الخلط",
+    fr: "pH de l'eau de gâchage",
+    en: "Mixing Water pH"
+  },
+  category: "water",
+  applicableMaterialTypes: ["mixing_water", "water"],
+  description: "Records calibrated water pH and screens it against the EN 1008 working range.",
+  standard: {
+    organization: "EN",
+    code: "EN 1008 / ISO 10523",
+    version: "configured by laboratory",
+    status: "Draft",
+    source: "Laboratory configuration required before acceptance classification"
+  },
+  inputs: [
+    { key: "measuredPh", label: "Measured pH", unit: "pH", required: true, numeric: true, min: 0, max: 14, dimension: "pH" },
+    { key: "waterTemperatureC", label: "Water temperature", unit: "°C", required: false, numeric: true, min: 0, max: 60, dimension: "temperature" }
+  ],
+  resultUnit: "pH",
+  revision: 1,
+  active: true,
+  validateEngineering: data => validateWaterPh(data).issues,
+  calculate: data => {
+    const result = calculateWaterPh(data);
+    if (!result) throw new Error("Water pH inputs are physically invalid.");
+    return { result: result.waterPh, unit: "pH", trace: result.trace };
+  }
+};
+
+export function runWaterPhPhase2(input: WaterPhInput) {
+  const result = calculateWaterPh(input);
+  if (!result) throw new Error("Water pH inputs are physically invalid.");
   return result;
 }

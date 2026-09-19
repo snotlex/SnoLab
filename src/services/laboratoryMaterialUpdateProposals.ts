@@ -95,6 +95,11 @@ export interface CementNormalConsistencyProposalResult {
   validation: { valid: boolean };
 }
 
+export interface WaterPhProposalResult {
+  waterPh: number;
+  validation: { valid: boolean };
+}
+
 function toPendingProposals(
   material: EngineeringMaterial,
   testRunId: string,
@@ -333,6 +338,19 @@ export function createCementNormalConsistencyMaterialUpdateProposals(params: {
   const proposedAt = params.proposedAt || new Date().toISOString();
   return toPendingProposals(params.material, params.testRunId, [
     { propertyKey: "normalConsistencyWaterPercent", newValue: params.result.waterPercent, unit: "%" }
+  ], proposedAt);
+}
+
+export function createWaterPhMaterialUpdateProposals(params: {
+  material: EngineeringMaterial;
+  testRunId: string;
+  result: WaterPhProposalResult;
+  proposedAt?: string;
+}): MaterialUpdateProposal[] {
+  if (!params.result.validation.valid || !Number.isFinite(params.result.waterPh)) return [];
+  const proposedAt = params.proposedAt || new Date().toISOString();
+  return toPendingProposals(params.material, params.testRunId, [
+    { propertyKey: "waterPh", newValue: params.result.waterPh, unit: "pH" }
   ], proposedAt);
 }
 
