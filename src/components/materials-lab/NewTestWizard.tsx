@@ -45,6 +45,7 @@ import {
   executeLaboratoryTest, 
   TestExecutionResult 
 } from "../../services/materialsLabEngine";
+import { runSieveAnalysisPhase2 } from "../../services/laboratoryTestDefinitions";
 
 interface NewTestWizardProps {
   isOpen: boolean;
@@ -140,7 +141,35 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
 
   // Execute Calculation Real-time
   const calculationResult: TestExecutionResult = useMemo(() => {
-    return executeLaboratoryTest(selectedTestDefId, inputsState, currentMaterial);
+    const legacyResult = executeLaboratoryTest(selectedTestDefId, inputsState, currentMaterial);
+    if (selectedTestDefId !== "AGG_SIEVE") return legacyResult;
+
+    const phase2Result = runSieveAnalysisPhase2({
+      totalSampleMassG: Number(inputsState.totalWeight),
+      finesSieveMm: 0.063,
+      massBalanceToleranceG: Number(inputsState.massBalanceToleranceG ?? 1),
+      sieves: (inputsState.sieves || []).map((row: { sieve: number; retained: number }) => ({
+        sieveMm: Number(row.sieve),
+        retainedMassG: Number(row.retained)
+      }))
+    });
+    if (!phase2Result.validation.valid) {
+      return {
+        ...legacyResult,
+        status: "FAIL",
+        score: 0,
+        interpretation: "لا يمكن اعتماد تحليل التدرج قبل إصلاح أخطاء البيانات أو توازن الكتلة.",
+        complianceDetails: phase2Result.validation.issues.map(item => ({
+          parameter: item.field || item.code,
+          measured: "—",
+          limit: "بيانات صالحة ومتوازنة",
+          status: "FAIL" as TestStatus,
+          note: item.message
+        })),
+        syncedProperties: {}
+      };
+    }
+    return legacyResult;
   }, [selectedTestDefId, inputsState, currentMaterial]);
 
   if (!isOpen) return null;
