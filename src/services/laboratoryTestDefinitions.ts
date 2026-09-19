@@ -12,6 +12,7 @@ import { calculateMethyleneBlue, validateMethyleneBlue, type MethyleneBlueInput 
 import { calculateCementSpecificGravity, validateCementSpecificGravity, type CementSpecificGravityInput } from "./cementSpecificGravity";
 import { calculateBlaineFineness, validateBlaine, type BlaineInput } from "./blaineFineness";
 import { calculateCementSettingTime, validateCementSettingTime, type CementSettingTimeInput } from "./cementSettingTime";
+import { calculateCementSoundness, validateCementSoundness, type CementSoundnessInput } from "./cementSoundness";
 
 export const SIEVE_ANALYSIS_DEFINITION: LaboratoryTestDefinition<SieveAnalysisInput> = {
   id: "AGG_SIEVE_PHASE2",
@@ -533,5 +534,43 @@ export const CEMENT_SETTING_TIME_DEFINITION: LaboratoryTestDefinition<CementSett
 export function runCementSettingTimePhase2(input: CementSettingTimeInput) {
   const result = calculateCementSettingTime(input);
   if (!result) throw new Error("Cement setting-time inputs are physically invalid.");
+  return result;
+}
+
+export const CEMENT_SOUNDNESS_DEFINITION: LaboratoryTestDefinition<CementSoundnessInput> = {
+  id: "CEM_SOUNDNESS_PHASE2",
+  names: {
+    ar: "ثبات الإسمنت وتمدد لوشاتيليه",
+    fr: "Stabilité du ciment par expansion Le Chatelier",
+    en: "Cement Soundness and Expansion"
+  },
+  category: "cement",
+  applicableMaterialTypes: ["cement", "binder"],
+  description: "Determines Le Chatelier expansion from pointer distances before and after boiling.",
+  standard: {
+    organization: "EN",
+    code: "EN 196-3",
+    version: "configured by laboratory",
+    status: "Draft",
+    source: "Laboratory configuration required before acceptance classification"
+  },
+  inputs: [
+    { key: "pointerDistanceBeforeBoilingMm", label: "Pointer distance before boiling", unit: "mm", required: true, numeric: true, min: 0.000001, dimension: "length" },
+    { key: "pointerDistanceAfterBoilingMm", label: "Pointer distance after boiling", unit: "mm", required: true, numeric: true, min: 0, dimension: "length" }
+  ],
+  resultUnit: "mm",
+  revision: 1,
+  active: true,
+  validateEngineering: data => validateCementSoundness(data).issues,
+  calculate: data => {
+    const result = calculateCementSoundness(data);
+    if (!result) throw new Error("Cement soundness inputs are physically invalid.");
+    return { result: result.expansionMm, unit: "mm", trace: result.trace };
+  }
+};
+
+export function runCementSoundnessPhase2(input: CementSoundnessInput) {
+  const result = calculateCementSoundness(input);
+  if (!result) throw new Error("Cement soundness inputs are physically invalid.");
   return result;
 }

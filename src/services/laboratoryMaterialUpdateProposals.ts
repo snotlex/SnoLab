@@ -78,6 +78,11 @@ export interface CementSettingTimeProposalResult {
   validation: { valid: boolean };
 }
 
+export interface CementSoundnessProposalResult {
+  expansionMm: number;
+  validation: { valid: boolean };
+}
+
 function toPendingProposals(
   material: EngineeringMaterial,
   testRunId: string,
@@ -275,6 +280,19 @@ export function createCementSettingTimeMaterialUpdateProposals(params: {
   return toPendingProposals(params.material, params.testRunId, [
     { propertyKey: "initialSettingMinutes", newValue: params.result.initialSettingMinutes, unit: "min" },
     { propertyKey: "finalSettingMinutes", newValue: params.result.finalSettingMinutes, unit: "min" }
+  ], proposedAt);
+}
+
+export function createCementSoundnessMaterialUpdateProposals(params: {
+  material: EngineeringMaterial;
+  testRunId: string;
+  result: CementSoundnessProposalResult;
+  proposedAt?: string;
+}): MaterialUpdateProposal[] {
+  if (!params.result.validation.valid || !Number.isFinite(params.result.expansionMm)) return [];
+  const proposedAt = params.proposedAt || new Date().toISOString();
+  return toPendingProposals(params.material, params.testRunId, [
+    { propertyKey: "soundness", newValue: params.result.expansionMm, unit: "mm" }
   ], proposedAt);
 }
 
