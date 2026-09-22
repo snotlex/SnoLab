@@ -5,6 +5,8 @@ import type { AggregateCrushingValueOutput } from "./aggregateCrushingValue";
 import type { CementChemicalCompositionOutput } from "./cementChemicalComposition";
 import type { AggregateImpactValueOutput } from "./aggregateImpactValue";
 import type { CementHydrationHeatOutput } from "./cementHydrationHeat";
+import type { AggregateElongationIndexOutput } from "./aggregateElongationIndex";
+import type { CementFalseSetOutput } from "./cementFalseSet";
 
 const SIEVE_PROPERTY_MAP: Array<{ resultKey: keyof SieveAnalysisOutput; propertyKey: string; unit: string }> = [
   { resultKey: "finenessModulus", propertyKey: "finenessModulus", unit: "-" },
@@ -425,4 +427,13 @@ export function createAggregateImpactValueMaterialUpdateProposals(params: { mate
 export function createCementHydrationHeatMaterialUpdateProposals(params: { material: EngineeringMaterial; testRunId: string; result: Pick<CementHydrationHeatOutput, "heatOfHydrationJPerG" | "validation">; proposedAt?: string; }): MaterialUpdateProposal[] {
   if (!params.result.validation.valid || !Number.isFinite(params.result.heatOfHydrationJPerG)) return [];
   return toPendingProposals(params.material, params.testRunId, [{ propertyKey: "heatOfHydration", newValue: params.result.heatOfHydrationJPerG, unit: "J/g" }], params.proposedAt || new Date().toISOString());
+}
+
+export function createAggregateElongationIndexMaterialUpdateProposals(params: { material: EngineeringMaterial; testRunId: string; result: Pick<AggregateElongationIndexOutput, "elongationIndexPercent" | "validation">; proposedAt?: string; }): MaterialUpdateProposal[] {
+  if (!params.result.validation.valid || !Number.isFinite(params.result.elongationIndexPercent)) return [];
+  return toPendingProposals(params.material, params.testRunId, [{ propertyKey: "elongationIndex", newValue: params.result.elongationIndexPercent, unit: "%" }], params.proposedAt || new Date().toISOString());
+}
+export function createCementFalseSetMaterialUpdateProposals(params: { material: EngineeringMaterial; testRunId: string; result: Pick<CementFalseSetOutput, "recoveryPercent" | "validation">; proposedAt?: string; }): MaterialUpdateProposal[] {
+  if (!params.result.validation.valid || !Number.isFinite(params.result.recoveryPercent)) return [];
+  return toPendingProposals(params.material, params.testRunId, [{ propertyKey: "falseSetRecovery", newValue: params.result.recoveryPercent, unit: "%" }], params.proposedAt || new Date().toISOString());
 }

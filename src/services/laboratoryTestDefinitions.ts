@@ -19,6 +19,8 @@ import { calculateAggregateCrushingValue, validateAggregateCrushingValue, type A
 import { calculateCementChemicalComposition, validateCementChemicalComposition, type CementChemicalCompositionInput } from "./cementChemicalComposition";
 import { calculateAggregateImpactValue, validateAggregateImpactValue, type AggregateImpactValueInput } from "./aggregateImpactValue";
 import { calculateCementHydrationHeat, validateCementHydrationHeat, type CementHydrationHeatInput } from "./cementHydrationHeat";
+import { calculateAggregateElongationIndex, validateAggregateElongationIndex, type AggregateElongationIndexInput } from "./aggregateElongationIndex";
+import { calculateCementFalseSet, validateCementFalseSet, type CementFalseSetInput } from "./cementFalseSet";
 import { calculateWaterPh, validateWaterPh, type WaterPhInput } from "./waterPh";
 
 export const SIEVE_ANALYSIS_DEFINITION: LaboratoryTestDefinition<SieveAnalysisInput> = {
@@ -774,4 +776,19 @@ export const CEMENT_HYDRATION_HEAT_DEFINITION: LaboratoryTestDefinition<CementHy
     { key: "finalHeatJ", label: "Final heat", unit: "J", required: true, numeric: true, min: 0, dimension: "energy" }
   ], resultUnit: "J/g", revision: 1, active: true, validateEngineering: data => validateCementHydrationHeat(data).issues,
   calculate: data => { const result = calculateCementHydrationHeat(data); if (!result) throw new Error("Hydration heat inputs are physically invalid."); return { result: result.heatOfHydrationJPerG, unit: "J/g", trace: result.trace }; }
+};
+
+export const AGGREGATE_ELONGATION_INDEX_DEFINITION: LaboratoryTestDefinition<AggregateElongationIndexInput> = {
+  id: "AGG_ELONGATION_INDEX_PHASE2", names: { ar: "مؤشر استطالة حبيبات الركام", fr: "Indice d'allongement des granulats", en: "Aggregate Elongation Index" }, category: "aggregates",
+  applicableMaterialTypes: ["sand", "gravel", "aggregate", "recycled_aggregate", "lightweight_aggregate", "heavyweight_aggregate"], description: "Determines the mass percentage of elongated aggregate particles.",
+  standard: { organization: "EN", code: "EN 933-3", version: "configured by laboratory", status: "Draft", source: "Laboratory configuration required before acceptance classification" },
+  inputs: [{ key: "totalMassG", label: "Total sample mass", unit: "g", required: true, numeric: true, min: 0.000001, dimension: "mass" }, { key: "elongatedMassG", label: "Elongated particle mass", unit: "g", required: true, numeric: true, min: 0, dimension: "mass" }], resultUnit: "%", revision: 1, active: true, validateEngineering: data => validateAggregateElongationIndex(data).issues,
+  calculate: data => { const result = calculateAggregateElongationIndex(data); if (!result) throw new Error("Elongation inputs are physically invalid."); return { result: result.elongationIndexPercent, unit: "%", trace: result.trace }; }
+};
+export const CEMENT_FALSE_SET_DEFINITION: LaboratoryTestDefinition<CementFalseSetInput> = {
+  id: "CEM_FALSE_SET_PHASE2", names: { ar: "التصلب الكاذب للإسمنت", fr: "Fausse prise du ciment", en: "Cement False Set" }, category: "cement",
+  applicableMaterialTypes: ["cement", "binder"], description: "Screens loss of plasticity and recovery after standardized remixing.",
+  standard: { organization: "EN", code: "EN 196-3", version: "configured by laboratory", status: "Draft", source: "Laboratory configuration required before acceptance classification" },
+  inputs: [{ key: "initialPenetrationMm", label: "Initial Vicat penetration", unit: "mm", required: true, numeric: true, min: 0.000001, dimension: "length" }, { key: "remixedPenetrationMm", label: "Penetration after remixing", unit: "mm", required: true, numeric: true, min: 0, dimension: "length" }], resultUnit: "% recovery", revision: 1, active: true, validateEngineering: data => validateCementFalseSet(data).issues,
+  calculate: data => { const result = calculateCementFalseSet(data); if (!result) throw new Error("False-set inputs are physically invalid."); return { result: result.recoveryPercent, unit: "%", trace: result.trace }; }
 };
