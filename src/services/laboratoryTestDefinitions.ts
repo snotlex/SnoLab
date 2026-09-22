@@ -15,6 +15,8 @@ import { calculateCementSettingTime, validateCementSettingTime, type CementSetti
 import { calculateCementSoundness, validateCementSoundness, type CementSoundnessInput } from "./cementSoundness";
 import { calculateCementMortarStrength, validateCementMortarStrength, type CementMortarStrengthInput } from "./cementMortarStrength";
 import { calculateCementNormalConsistency, validateCementNormalConsistency, type CementNormalConsistencyInput } from "./cementNormalConsistency";
+import { calculateAggregateCrushingValue, validateAggregateCrushingValue, type AggregateCrushingValueInput } from "./aggregateCrushingValue";
+import { calculateCementChemicalComposition, validateCementChemicalComposition, type CementChemicalCompositionInput } from "./cementChemicalComposition";
 import { calculateWaterPh, validateWaterPh, type WaterPhInput } from "./waterPh";
 
 export const SIEVE_ANALYSIS_DEFINITION: LaboratoryTestDefinition<SieveAnalysisInput> = {
@@ -657,7 +659,61 @@ export function runCementNormalConsistencyPhase2(input: CementNormalConsistencyI
   if (!result) throw new Error("Normal-consistency inputs are physically invalid.");
   return result;
 }
-
+export const AGGREGATE_CRUSHING_VALUE_DEFINITION: LaboratoryTestDefinition<AggregateCrushingValueInput> = {
+  id: "AGG_CRUSHING_VALUE_PHASE2",
+  names: { ar: "قيمة سحق الركام", fr: "Coefficient Los Angeles de concassage", en: "Aggregate Crushing Value" },
+  category: "aggregates",
+  applicableMaterialTypes: ["sand", "gravel", "aggregate", "recycled_aggregate", "lightweight_aggregate", "heavyweight_aggregate"],
+  description: "Determines the percentage of aggregate passing the specified sieve after the standardized crushing test.",
+  standard: { organization: "EN", code: "EN 1097-2", version: "configured by laboratory", status: "Draft", source: "Laboratory configuration required before acceptance classification" },
+  inputs: [
+    { key: "initialMassG", label: "Initial aggregate mass", unit: "g", required: true, numeric: true, min: 0.000001, dimension: "mass" },
+    { key: "crushedPassingMassG", label: "Crushed mass passing test sieve", unit: "g", required: true, numeric: true, min: 0, dimension: "mass" }
+  ],
+  resultUnit: "%",
+  revision: 1,
+  active: true,
+  validateEngineering: data => validateAggregateCrushingValue(data).issues,
+  calculate: data => {
+    const result = calculateAggregateCrushingValue(data);
+    if (!result) throw new Error("Aggregate crushing inputs are physically invalid.");
+    return { result: result.crushingValuePercent, unit: "%", trace: result.trace };
+  }
+};
+export function runAggregateCrushingValuePhase2(input: AggregateCrushingValueInput) {
+  const result = calculateAggregateCrushingValue(input);
+  if (!result) throw new Error("Aggregate crushing inputs are physically invalid.");
+  return result;
+}
+export const CEMENT_CHEMICAL_COMPOSITION_DEFINITION: LaboratoryTestDefinition<CementChemicalCompositionInput> = {
+  id: "CEM_CHEMICAL_COMPOSITION_PHASE2",
+  names: { ar: "التركيب الكيميائي للإسمنت", fr: "Composition chimique du ciment", en: "Cement Chemical Composition" },
+  category: "cement",
+  applicableMaterialTypes: ["cement", "binder"],
+  description: "Calculates sulfate, chloride, insoluble residue and loss-on-ignition percentages from measured constituent masses.",
+  standard: { organization: "EN", code: "EN 196-2", version: "configured by laboratory", status: "Draft", source: "Laboratory configuration required before acceptance classification" },
+  inputs: [
+    { key: "sampleMassG", label: "Cement sample mass", unit: "g", required: true, numeric: true, min: 0.000001, dimension: "mass" },
+    { key: "sulfateMassG", label: "Sulfate mass", unit: "g", required: true, numeric: true, min: 0, dimension: "mass" },
+    { key: "chlorideMassG", label: "Chloride mass", unit: "g", required: true, numeric: true, min: 0, dimension: "mass" },
+    { key: "insolubleResidueMassG", label: "Insoluble residue mass", unit: "g", required: true, numeric: true, min: 0, dimension: "mass" },
+    { key: "lossOnIgnitionMassG", label: "Loss on ignition mass", unit: "g", required: true, numeric: true, min: 0, dimension: "mass" }
+  ],
+  resultUnit: "%",
+  revision: 1,
+  active: true,
+  validateEngineering: data => validateCementChemicalComposition(data).issues,
+  calculate: data => {
+    const result = calculateCementChemicalComposition(data);
+    if (!result) throw new Error("Cement chemical composition inputs are physically invalid.");
+    return { result: result.sulfatePercent, unit: "%", trace: result.trace };
+  }
+};
+export function runCementChemicalCompositionPhase2(input: CementChemicalCompositionInput) {
+  const result = calculateCementChemicalComposition(input);
+  if (!result) throw new Error("Cement chemical composition inputs are physically invalid.");
+  return result;
+}
 export const WATER_PH_DEFINITION: LaboratoryTestDefinition<WaterPhInput> = {
   id: "WATER_PH_PHASE2",
   names: {

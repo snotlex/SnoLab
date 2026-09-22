@@ -1,6 +1,8 @@
 import type { EngineeringMaterial } from "../types";
 import type { MaterialUpdateProposal } from "../types/laboratoryDomain";
 import type { SieveAnalysisOutput } from "./aggregateSieveAnalysis";
+import type { AggregateCrushingValueOutput } from "./aggregateCrushingValue";
+import type { CementChemicalCompositionOutput } from "./cementChemicalComposition";
 
 const SIEVE_PROPERTY_MAP: Array<{ resultKey: keyof SieveAnalysisOutput; propertyKey: string; unit: string }> = [
   { resultKey: "finenessModulus", propertyKey: "finenessModulus", unit: "-" },
@@ -384,4 +386,32 @@ export function rejectMaterialUpdateProposal(
   if (proposal.status !== "Pending") throw new Error(`Only pending proposals can be rejected; current status is ${proposal.status}.`);
   if (!reason.trim()) throw new Error("A rejection reason is required.");
   return { ...proposal, status: "Rejected", decidedAt, decidedBy, reason };
+}
+
+export function createAggregateCrushingValueMaterialUpdateProposals(params: {
+  material: EngineeringMaterial;
+  testRunId: string;
+  result: Pick<AggregateCrushingValueOutput, "crushingValuePercent" | "validation">;
+  proposedAt?: string;
+}): MaterialUpdateProposal[] {
+  if (!params.result.validation.valid || !Number.isFinite(params.result.crushingValuePercent)) return [];
+  return toPendingProposals(params.material, params.testRunId, [
+    { propertyKey: "aggregateCrushingValue", newValue: params.result.crushingValuePercent, unit: "%" }
+  ], params.proposedAt || new Date().toISOString());
+}
+
+export function createCementChemicalCompositionMaterialUpdateProposals(params: {
+  material: EngineeringMaterial;
+  testRunId: string;
+  result: Pick<CementChemicalCompositionOutput, "sulfatePercent" | "chloridePercent" | "insolubleResiduePercent" | "lossOnIgnitionPercent" | "validation">;
+  proposedAt?: string;
+}): MaterialUpdateProposal[] {
+  if (!params.result.validation.valid) return [];
+  const values = [
+    { propertyKey: "sulfateContent", newValue: params.result.sulfatePercent, unit: "%" },
+    { propertyKey: "chlorideContent", newValue: params.result.chloridePercent, unit: "%" },
+    { propertyKey: "insolubleResidue", newValue: params.result.insolubleResiduePercent, unit: "%" },
+    { propertyKey: "lossOnIgnition", newValue: params.result.lossOnIgnitionPercent, unit: "%" }
+  ].filter(item => Number.isFinite(item.newValue));
+  return toPendingProposals(params.material, params.testRunId, values, params.proposedAt || new Date().toISOString());
 }
