@@ -3,6 +3,8 @@ import type { MaterialUpdateProposal } from "../types/laboratoryDomain";
 import type { SieveAnalysisOutput } from "./aggregateSieveAnalysis";
 import type { AggregateCrushingValueOutput } from "./aggregateCrushingValue";
 import type { CementChemicalCompositionOutput } from "./cementChemicalComposition";
+import type { AggregateImpactValueOutput } from "./aggregateImpactValue";
+import type { CementHydrationHeatOutput } from "./cementHydrationHeat";
 
 const SIEVE_PROPERTY_MAP: Array<{ resultKey: keyof SieveAnalysisOutput; propertyKey: string; unit: string }> = [
   { resultKey: "finenessModulus", propertyKey: "finenessModulus", unit: "-" },
@@ -414,4 +416,13 @@ export function createCementChemicalCompositionMaterialUpdateProposals(params: {
     { propertyKey: "lossOnIgnition", newValue: params.result.lossOnIgnitionPercent, unit: "%" }
   ].filter(item => Number.isFinite(item.newValue));
   return toPendingProposals(params.material, params.testRunId, values, params.proposedAt || new Date().toISOString());
+}
+
+export function createAggregateImpactValueMaterialUpdateProposals(params: { material: EngineeringMaterial; testRunId: string; result: Pick<AggregateImpactValueOutput, "impactValuePercent" | "validation">; proposedAt?: string; }): MaterialUpdateProposal[] {
+  if (!params.result.validation.valid || !Number.isFinite(params.result.impactValuePercent)) return [];
+  return toPendingProposals(params.material, params.testRunId, [{ propertyKey: "aggregateImpactValue", newValue: params.result.impactValuePercent, unit: "%" }], params.proposedAt || new Date().toISOString());
+}
+export function createCementHydrationHeatMaterialUpdateProposals(params: { material: EngineeringMaterial; testRunId: string; result: Pick<CementHydrationHeatOutput, "heatOfHydrationJPerG" | "validation">; proposedAt?: string; }): MaterialUpdateProposal[] {
+  if (!params.result.validation.valid || !Number.isFinite(params.result.heatOfHydrationJPerG)) return [];
+  return toPendingProposals(params.material, params.testRunId, [{ propertyKey: "heatOfHydration", newValue: params.result.heatOfHydrationJPerG, unit: "J/g" }], params.proposedAt || new Date().toISOString());
 }

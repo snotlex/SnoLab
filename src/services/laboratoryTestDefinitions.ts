@@ -17,6 +17,8 @@ import { calculateCementMortarStrength, validateCementMortarStrength, type Cemen
 import { calculateCementNormalConsistency, validateCementNormalConsistency, type CementNormalConsistencyInput } from "./cementNormalConsistency";
 import { calculateAggregateCrushingValue, validateAggregateCrushingValue, type AggregateCrushingValueInput } from "./aggregateCrushingValue";
 import { calculateCementChemicalComposition, validateCementChemicalComposition, type CementChemicalCompositionInput } from "./cementChemicalComposition";
+import { calculateAggregateImpactValue, validateAggregateImpactValue, type AggregateImpactValueInput } from "./aggregateImpactValue";
+import { calculateCementHydrationHeat, validateCementHydrationHeat, type CementHydrationHeatInput } from "./cementHydrationHeat";
 import { calculateWaterPh, validateWaterPh, type WaterPhInput } from "./waterPh";
 
 export const SIEVE_ANALYSIS_DEFINITION: LaboratoryTestDefinition<SieveAnalysisInput> = {
@@ -751,3 +753,25 @@ export function runWaterPhPhase2(input: WaterPhInput) {
   if (!result) throw new Error("Water pH inputs are physically invalid.");
   return result;
 }
+
+export const AGGREGATE_IMPACT_VALUE_DEFINITION: LaboratoryTestDefinition<AggregateImpactValueInput> = {
+  id: "AGG_IMPACT_VALUE_PHASE2", names: { ar: "قيمة صدم الركام", fr: "Valeur au choc des granulats", en: "Aggregate Impact Value" }, category: "aggregates",
+  applicableMaterialTypes: ["sand", "gravel", "aggregate", "recycled_aggregate", "lightweight_aggregate", "heavyweight_aggregate"], description: "Determines aggregate resistance to impact fragmentation.",
+  standard: { organization: "EN", code: "EN 1097-2", version: "configured by laboratory", status: "Draft", source: "Laboratory configuration required before acceptance classification" },
+  inputs: [
+    { key: "initialMassG", label: "Initial aggregate mass", unit: "g", required: true, numeric: true, min: 0.000001, dimension: "mass" },
+    { key: "passingMassG", label: "Mass passing after impact", unit: "g", required: true, numeric: true, min: 0, dimension: "mass" }
+  ], resultUnit: "%", revision: 1, active: true, validateEngineering: data => validateAggregateImpactValue(data).issues,
+  calculate: data => { const result = calculateAggregateImpactValue(data); if (!result) throw new Error("Aggregate impact inputs are physically invalid."); return { result: result.impactValuePercent, unit: "%", trace: result.trace }; }
+};
+export const CEMENT_HYDRATION_HEAT_DEFINITION: LaboratoryTestDefinition<CementHydrationHeatInput> = {
+  id: "CEM_HYDRATION_HEAT_PHASE2", names: { ar: "حرارة إماهة الإسمنت", fr: "Chaleur d'hydratation du ciment", en: "Cement Heat of Hydration" }, category: "cement",
+  applicableMaterialTypes: ["cement", "binder"], description: "Calculates heat released per gram of cement from calorimetric heat measurements.",
+  standard: { organization: "EN", code: "EN 196-8", version: "configured by laboratory", status: "Draft", source: "Laboratory configuration required before acceptance classification" },
+  inputs: [
+    { key: "cementMassG", label: "Cement mass", unit: "g", required: true, numeric: true, min: 0.000001, dimension: "mass" },
+    { key: "initialHeatJ", label: "Initial heat", unit: "J", required: true, numeric: true, min: 0, dimension: "energy" },
+    { key: "finalHeatJ", label: "Final heat", unit: "J", required: true, numeric: true, min: 0, dimension: "energy" }
+  ], resultUnit: "J/g", revision: 1, active: true, validateEngineering: data => validateCementHydrationHeat(data).issues,
+  calculate: data => { const result = calculateCementHydrationHeat(data); if (!result) throw new Error("Hydration heat inputs are physically invalid."); return { result: result.heatOfHydrationJPerG, unit: "J/g", trace: result.trace }; }
+};
