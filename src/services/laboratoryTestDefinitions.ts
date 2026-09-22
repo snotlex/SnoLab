@@ -21,6 +21,8 @@ import { calculateAggregateImpactValue, validateAggregateImpactValue, type Aggre
 import { calculateCementHydrationHeat, validateCementHydrationHeat, type CementHydrationHeatInput } from "./cementHydrationHeat";
 import { calculateAggregateElongationIndex, validateAggregateElongationIndex, type AggregateElongationIndexInput } from "./aggregateElongationIndex";
 import { calculateCementFalseSet, validateCementFalseSet, type CementFalseSetInput } from "./cementFalseSet";
+import { calculateAggregateClayLumps, validateAggregateClayLumps, type AggregateClayLumpsInput } from "./aggregateClayLumps";
+import { calculateCementAlkaliEquivalent, validateCementAlkaliEquivalent, type CementAlkaliEquivalentInput } from "./cementAlkaliEquivalent";
 import { calculateWaterPh, validateWaterPh, type WaterPhInput } from "./waterPh";
 
 export const SIEVE_ANALYSIS_DEFINITION: LaboratoryTestDefinition<SieveAnalysisInput> = {
@@ -791,4 +793,19 @@ export const CEMENT_FALSE_SET_DEFINITION: LaboratoryTestDefinition<CementFalseSe
   standard: { organization: "EN", code: "EN 196-3", version: "configured by laboratory", status: "Draft", source: "Laboratory configuration required before acceptance classification" },
   inputs: [{ key: "initialPenetrationMm", label: "Initial Vicat penetration", unit: "mm", required: true, numeric: true, min: 0.000001, dimension: "length" }, { key: "remixedPenetrationMm", label: "Penetration after remixing", unit: "mm", required: true, numeric: true, min: 0, dimension: "length" }], resultUnit: "% recovery", revision: 1, active: true, validateEngineering: data => validateCementFalseSet(data).issues,
   calculate: data => { const result = calculateCementFalseSet(data); if (!result) throw new Error("False-set inputs are physically invalid."); return { result: result.recoveryPercent, unit: "%", trace: result.trace }; }
+};
+
+export const AGGREGATE_CLAY_LUMPS_DEFINITION: LaboratoryTestDefinition<AggregateClayLumpsInput> = {
+  id: "AGG_CLAY_LUMPS_PHASE2", names: { ar: "كتل الطين والجزيئات الهشة في الركام", fr: "Mottes d'argile et particules friables", en: "Aggregate Clay Lumps" }, category: "aggregates",
+  applicableMaterialTypes: ["sand", "gravel", "aggregate", "recycled_aggregate", "lightweight_aggregate", "heavyweight_aggregate"], description: "Determines clay lumps and friable particles as a percentage of dry aggregate mass.",
+  standard: { organization: "EN", code: "EN 933-9", version: "configured by laboratory", status: "Draft", source: "Laboratory configuration required before acceptance classification" },
+  inputs: [{ key: "drySampleMassG", label: "Dry sample mass", unit: "g", required: true, numeric: true, min: 0.000001, dimension: "mass" }, { key: "clayLumpsMassG", label: "Clay lumps mass", unit: "g", required: true, numeric: true, min: 0, dimension: "mass" }], resultUnit: "%", revision: 1, active: true, validateEngineering: data => validateAggregateClayLumps(data).issues,
+  calculate: data => { const result = calculateAggregateClayLumps(data); if (!result) throw new Error("Clay-lumps inputs are physically invalid."); return { result: result.clayLumpsPercent, unit: "%", trace: result.trace }; }
+};
+export const CEMENT_ALKALI_EQUIVALENT_DEFINITION: LaboratoryTestDefinition<CementAlkaliEquivalentInput> = {
+  id: "CEM_ALKALI_EQUIVALENT_PHASE2", names: { ar: "المكافئ القلوي للإسمنت", fr: "Équivalent alcalin du ciment", en: "Cement Equivalent Alkali" }, category: "cement",
+  applicableMaterialTypes: ["cement", "binder"], description: "Calculates Na₂O equivalent from measured sodium and potassium oxide percentages.",
+  standard: { organization: "EN", code: "EN 196-2", version: "configured by laboratory", status: "Draft", source: "Laboratory configuration required before acceptance classification" },
+  inputs: [{ key: "sodiumOxidePercent", label: "Sodium oxide Na₂O", unit: "%", required: true, numeric: true, min: 0, dimension: "ratio" }, { key: "potassiumOxidePercent", label: "Potassium oxide K₂O", unit: "%", required: true, numeric: true, min: 0, dimension: "ratio" }], resultUnit: "%", revision: 1, active: true, validateEngineering: data => validateCementAlkaliEquivalent(data).issues,
+  calculate: data => { const result = calculateCementAlkaliEquivalent(data); if (!result) throw new Error("Alkali inputs are physically invalid."); return { result: result.alkaliEquivalentPercent, unit: "%", trace: result.trace }; }
 };

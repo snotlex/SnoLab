@@ -7,6 +7,8 @@ import type { AggregateImpactValueOutput } from "./aggregateImpactValue";
 import type { CementHydrationHeatOutput } from "./cementHydrationHeat";
 import type { AggregateElongationIndexOutput } from "./aggregateElongationIndex";
 import type { CementFalseSetOutput } from "./cementFalseSet";
+import type { AggregateClayLumpsOutput } from "./aggregateClayLumps";
+import type { CementAlkaliEquivalentOutput } from "./cementAlkaliEquivalent";
 
 const SIEVE_PROPERTY_MAP: Array<{ resultKey: keyof SieveAnalysisOutput; propertyKey: string; unit: string }> = [
   { resultKey: "finenessModulus", propertyKey: "finenessModulus", unit: "-" },
@@ -436,4 +438,13 @@ export function createAggregateElongationIndexMaterialUpdateProposals(params: { 
 export function createCementFalseSetMaterialUpdateProposals(params: { material: EngineeringMaterial; testRunId: string; result: Pick<CementFalseSetOutput, "recoveryPercent" | "validation">; proposedAt?: string; }): MaterialUpdateProposal[] {
   if (!params.result.validation.valid || !Number.isFinite(params.result.recoveryPercent)) return [];
   return toPendingProposals(params.material, params.testRunId, [{ propertyKey: "falseSetRecovery", newValue: params.result.recoveryPercent, unit: "%" }], params.proposedAt || new Date().toISOString());
+}
+
+export function createAggregateClayLumpsMaterialUpdateProposals(params: { material: EngineeringMaterial; testRunId: string; result: Pick<AggregateClayLumpsOutput, "clayLumpsPercent" | "validation">; proposedAt?: string; }): MaterialUpdateProposal[] {
+  if (!params.result.validation.valid || !Number.isFinite(params.result.clayLumpsPercent)) return [];
+  return toPendingProposals(params.material, params.testRunId, [{ propertyKey: "clayLumpsContent", newValue: params.result.clayLumpsPercent, unit: "%" }], params.proposedAt || new Date().toISOString());
+}
+export function createCementAlkaliEquivalentMaterialUpdateProposals(params: { material: EngineeringMaterial; testRunId: string; result: Pick<CementAlkaliEquivalentOutput, "alkaliEquivalentPercent" | "validation">; proposedAt?: string; }): MaterialUpdateProposal[] {
+  if (!params.result.validation.valid || !Number.isFinite(params.result.alkaliEquivalentPercent)) return [];
+  return toPendingProposals(params.material, params.testRunId, [{ propertyKey: "alkaliEquivalent", newValue: params.result.alkaliEquivalentPercent, unit: "%" }], params.proposedAt || new Date().toISOString());
 }
