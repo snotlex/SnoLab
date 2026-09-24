@@ -67,7 +67,6 @@ export function validateSccInputs(
   if (!Number.isFinite(flow) || flow < 500 || flow > 850) errors.push({ code: "slump_flow", severity: "error", field: "sccTargetSlumpFlowMm", message: "Target slump flow must be within the supported SCC input envelope (500-850 mm)." });
   if (!Number.isFinite(powder) || powder < 380 || powder > 600) errors.push({ code: "powder", severity: "error", field: "sccPowderKgM3", message: "SCC total powder must be between 380 and 600 kg/m3 for the initial EFNARC-oriented composition." });
   if (!Number.isFinite(wpv) || wpv < 0.80 || wpv > 1.10) errors.push({ code: "water_powder_volume", severity: "error", field: "sccWaterPowderRatioByVolume", message: "SCC water/powder ratio by volume must be between 0.80 and 1.10 for the initial composition." });
-  if (Number.isFinite(waterExplicit) && (waterExplicit < 150 || waterExplicit > 210)) errors.push({ code: "water", severity: "error", field: "sccWaterKgM3", message: "SCC effective water should be between 150 and 210 kg/m3 for the initial composition." });
 
   const slump = Number(input.slump || 0);
   if (slump > 0 && slump > 30) {
@@ -202,9 +201,6 @@ export function calculateSccMix(
   if (!Number.isFinite(actualWpv) || actualWpv < 0.80 || actualWpv > 1.10) {
     errors.push("SCC water/powder ratio by volume must be within 0.80-1.10 for the EFNARC-oriented initial composition.");
   }
-  if (!Number.isFinite(water) || water < 150 || water > 210) {
-    errors.push("SCC effective water should be within the 150-210 kg/m3 initial composition range.");
-  }
   if (!Number.isFinite(coarseVolumeFraction) || coarseVolumeFraction < 0.28 || coarseVolumeFraction > 0.35) {
     errors.push("SCC coarse aggregate volume fraction must be within 28-35% of concrete volume.");
   }
@@ -219,7 +215,6 @@ export function calculateSccMix(
   const complianceChecks: any[] = [
     { parameter: "powder", requirement: "380-600 kg/m3 initial SCC envelope", actual: powderKg.toFixed(1) + " kg/m3", status: powderKg >= 380 && powderKg <= 600 ? "compliant" : "non_compliant" },
     { parameter: "water_powder_volume", requirement: "0.80-1.10 by volume", actual: actualWpv.toFixed(3), status: actualWpv >= 0.80 && actualWpv <= 1.10 ? "compliant" : "non_compliant" },
-    { parameter: "water", requirement: "150-210 kg/m3 initial envelope", actual: water.toFixed(1) + " kg/m3", status: water >= 150 && water <= 210 ? "compliant" : "non_compliant" },
     { parameter: "coarse_aggregate_volume", requirement: "28-35% of concrete volume", actual: (coarseVolumeFraction * 100).toFixed(1) + "%", status: coarseVolumeFraction >= 0.28 && coarseVolumeFraction <= 0.35 ? "compliant" : "non_compliant" },
     { parameter: "sand_share", requirement: "Typically about 48-55% of total aggregate mass", actual: (sandMassShare * 100).toFixed(1) + "%", status: sandMassShare >= 0.48 && sandMassShare <= 0.55 ? "compliant" : "warning" },
     { parameter: "paste_volume", requirement: "Check initial paste-volume envelope against selected materials", actual: pasteVolumeL.toFixed(1) + " L/m3", status: pasteVolumeL >= 300 && pasteVolumeL <= 400 ? "compliant" : "warning" },
