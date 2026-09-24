@@ -142,7 +142,7 @@ describe("Dreux-Gorisse Engine Parity & Integration Tests", () => {
     expect(paths[2].status).not.toBe("success");
   });
 
-  it("SCC must use the specialized route for automatic calculation", () => {
+  it("SCC uses the specialized route for automatic calculation", () => {
     const input = getBaseInput({ concreteType: "SCC" });
     const directDreux = calculateDreuxGorisse(input);
     const automatic = calculateMixDesign(input as any);
@@ -151,10 +151,11 @@ describe("Dreux-Gorisse Engine Parity & Integration Tests", () => {
     expect(directDreux.isValid).toBe(true);
     expect(directDreux.methodApplicability?.level).toBe("limited");
 
-    expect(automatic.isValid).toBe(false);
-    expect(automatic.status).toBe("not-supported");
+    expect(automatic.isValid).toBe(true);
+    expect(automatic.status).toBe("success");
     expect(automatic.methodId).toBe("scc-specialized");
-    expect(automatic.calculationStatus).toBe("blocked");
+    expect(automatic.calculationStatus).toBe("needs_trial_mix");
+    expect(automatic.cementKg).toBeGreaterThan(0);
 
     expect(explicitDreux.isValid).toBe(true);
     expect(explicitDreux.methodApplicability?.level).toBe("limited");
