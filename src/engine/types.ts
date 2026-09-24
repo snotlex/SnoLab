@@ -127,6 +127,19 @@ export interface MixDesignInput {
   uhpcQuartzPowderKgM3?: number;
   bfupQuartzPowderKgM3?: number;
 
+  // Specialized roller-compacted concrete (RCC/BCR) proportioning inputs.
+  // These are intentionally laboratory/project inputs: RCC water is governed by
+  // the moisture-density relationship rather than conventional slump design.
+  rccWaterKgM3?: number;
+  rccWaterBinderRatio?: number;
+  rccOptimumMoisturePercent?: number;
+  rccMaxDryDensityKgM3?: number;
+  rccFineAggregatePercent?: number;
+  rccCompactionTargetPercent?: number;
+  rccCompactionEnergyKJm3?: number;
+  rccVebeTimeSeconds?: number;
+  rccCombinedVoidPercent?: number;
+
   // Specialized heavyweight concrete proportioning inputs.
   hwcTargetDensityKgM3?: number;
   hwcWaterKgM3?: number;
