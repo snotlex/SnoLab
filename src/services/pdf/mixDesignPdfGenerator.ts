@@ -635,9 +635,7 @@ export async function generateMixDesignPdf(
   // =========================================================================
   // 10. OFFICIAL REVIEW & RELEASE
   // =========================================================================
-  // =========================================================================
-  // 10. OFFICIAL LABORATORY SIGN-OFF & CERTIFICATION STAMP
-  // =========================================================================
+  currentY = (doc as any).lastAutoTable?.finalY ? (doc as any).lastAutoTable.finalY + 6 : currentY;
   drawSignOffBlock(doc, currentY, {
     operatorName: project.engineer || "Senior Concrete Formulation Engineer",
     directorName: "Director of Technical & Quality Control",
@@ -647,7 +645,7 @@ export async function generateMixDesignPdf(
   });
 
   // =========================================================================
-  // 8. FINALIZE RUNNING HEADERS, FOOTERS & PAGE NUMBERS ACROSS ALL PAGES
+  // 11. FINALIZE RUNNING HEADERS, FOOTERS & PAGE NUMBERS ACROSS ALL PAGES
   // =========================================================================
   finalizeReportPages(doc, {
     reportTitle: "SNOLAB — CONCRETE MIX DESIGN CALCULATION REPORT",
