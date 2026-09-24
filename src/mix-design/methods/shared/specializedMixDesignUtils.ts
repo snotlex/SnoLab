@@ -194,8 +194,8 @@ export function makeSpecializedResult(
       weight: data.admixtureKg
     }] : [],
     airContentPercent: input.airContent || 0,
-    wcRatio: data.waterBinderRatio,
-    waterCementRatio: data.waterBinderRatio,
+    wcRatio: data.cementKg > 0 ? data.waterKg / data.cementKg : 0,
+    waterCementRatio: data.cementKg > 0 ? data.waterKg / data.cementKg : 0,
     freshDensityKgM3: data.freshDensityKgM3,
     totalFreshDensity: totalFresh,
     totalBatchWeight: totalFresh,
@@ -238,7 +238,7 @@ export function makeSpecializedResult(
       }] : []
     },
     ratios: {
-      waterCementRatio: data.waterBinderRatio,
+      waterCementRatio: data.cementKg > 0 ? data.waterKg / data.cementKg : undefined,
       waterBinderRatio: data.waterBinderRatio,
       sandAggregateRatio:
         data.fineAggregateKg + data.coarseAggregateKg > 0
