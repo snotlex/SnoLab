@@ -108,6 +108,14 @@ export interface MixDesignInput {
   selectedScmReplacementPercent?: number;
   selectedScmWaterDemandFactor?: number;
   selectedScmPozzolanicIndex?: number;
+
+  // Specialized lightweight concrete proportioning inputs.
+  targetDensity?: number;
+  lwcTargetDensityKgM3?: number;
+  lwcWaterKgM3?: number;
+  lwcWaterBinderRatio?: number;
+  lwcPrewetDegreePercent?: number;
+
   priceFiber?: number;
   priceSpecialBinder?: number;
   admixtures?: any[];

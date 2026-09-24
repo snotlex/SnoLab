@@ -4,6 +4,7 @@ import { dreuxGorisseMethod } from "../methods/dreux-gorisse/DreuxGorisseMethod"
 import { sccSpecializedMethod } from "../methods/scc/SccSpecializedMethod";
 import { perviousSpecializedMethod } from "../methods/pervious/PerviousSpecializedMethod";
 import { hscHpcSpecializedMethod } from "../methods/hsc-hpc/HscHpcSpecializedMethod";
+import { lwcSpecializedMethod } from "../methods/lwc/LwcSpecializedMethod";
 
 export class MixDesignMethodRegistry {
   private static instance: MixDesignMethodRegistry;
@@ -15,6 +16,7 @@ export class MixDesignMethodRegistry {
     this.register(sccSpecializedMethod);
     this.register(perviousSpecializedMethod);
     this.register(hscHpcSpecializedMethod);
+    this.register(lwcSpecializedMethod);
   }
 
   public static getInstance(): MixDesignMethodRegistry {
