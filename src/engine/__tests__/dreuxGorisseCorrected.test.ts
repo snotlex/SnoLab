@@ -19,7 +19,7 @@ function base() {
     moistureGravel: 1.0,
     sandAbsorption: 1.5,
     gravelAbsorption: 0.8,
-    finenessModulus: 2.6,
+    finenessModulus: 2.5,
     dosageSuper: 0,
     dosageAir: 0,
     dosageRetarder: 0,
@@ -54,7 +54,7 @@ function base() {
 
 describe("Dreux-Gorisse corrected calculation layer", () => {
   it("returns true W/C in all W/C result fields", () => {
-    const result: any = calculateDreuxGorisse(base());
+    const result: any = calculateDreuxGorisse({ ...(base() as any), dosageFlyAsh: 15 });
 
     const expected = result.waterContentActual / result.cementWeight;
     expect(result.wcRatioAdjusted).toBeCloseTo(expected, 8);
