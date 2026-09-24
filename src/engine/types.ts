@@ -145,6 +145,37 @@ export interface MixDesignInput {
   hwcWaterKgM3?: number;
   hwcWaterBinderRatio?: number;
 
+  // Phase-2 specialized concrete proportioning inputs.
+  gpcPrecursorKgM3?: number;
+  gpcActivatorLiquidKgM3?: number;
+  gpcWaterKgM3?: number;
+  gpcWaterBinderRatio?: number;
+  gpcActivatorToPrecursorRatio?: number;
+  gpcCoarseAggregateVolumeFraction?: number;
+  racCementKgM3?: number;
+  racWaterKgM3?: number;
+  racWaterBinderRatio?: number;
+  racCoarseAggregateKgM3?: number;
+  racReplacementPercent?: number;
+  racRecycledAggregateDensityKgM3?: number;
+  racRecycledAbsorptionPercent?: number;
+  racPreSaturationPercent?: number;
+  racSuperplasticizerDosage?: number;
+  shcCementKgM3?: number;
+  shcWaterKgM3?: number;
+  shcWaterBinderRatio?: number;
+  shcHealingAgentDosageKgM3?: number;
+  shcHealingAgentDensityKgM3?: number;
+  shcHealingAgentType?: string;
+  shcCoarseAggregateVolumeFraction?: number;
+  shcSuperplasticizerDosage?: number;
+  shotcreteWaterKgM3?: number;
+  shotcreteWaterBinderRatio?: number;
+  shotcreteCementFraction?: number;
+  shotcreteAcceleratorPercent?: number;
+  shotcreteSuperplasticizerPercent?: number;
+  shotcreteCoarseAggregateVolumeFraction?: number;
+
   // Specialized fiber-reinforced concrete proportioning inputs.
   frcWaterBinderRatio?: number;
   frcWaterKgM3?: number;
