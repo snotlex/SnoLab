@@ -1,6 +1,6 @@
 import { MixDesignInput, MixDesignResult } from "./types";
 import { calculateAbsoluteVolume } from "./absoluteVolume";
-import { calculateDreuxGorisseCore } from "./dreuxGorisseCore";
+import { calculateDreuxGorisseCorrected } from "./dreuxGorisseCorrected";
 import { MixDesignInput as UIMixInput } from "../types";
 
 /**
@@ -50,7 +50,7 @@ export function calculateDreuxGorisseEngine(input: MixDesignInput): MixDesignRes
     autoDensities: input.autoDensities !== undefined ? input.autoDensities : false
   };
 
-  const coreResult = calculateDreuxGorisseCore(uiInput);
+  const coreResult = calculateDreuxGorisseCorrected(uiInput);
 
   // Re-verify the absolute volume using the dry weights
   const abVolume = calculateAbsoluteVolume({
