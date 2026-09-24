@@ -23,9 +23,7 @@ export function drawGradingChart(
 ): number {
   const series = getGradingSeries(result);
   const { left, contentWidth } = PDF_PAGE_MARGINS;
-  const top = (doc as any).lastAutoTable?.finalY
-    ? (doc as any).lastAutoTable.finalY + 6
-    : PDF_PAGE_MARGINS.top + 4;
+  const top = options.startY ?? PDF_PAGE_MARGINS.top + 4;
   const chartW = contentWidth;
   const chartH = 82;
   const plotLeft = left + 18;
