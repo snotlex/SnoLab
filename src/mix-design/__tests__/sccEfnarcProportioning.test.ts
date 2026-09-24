@@ -55,7 +55,7 @@ describe("SCC EFNARC-oriented proportioning", () => {
         { id: "g1", name: "Gravel", category: "gravel", density: 2680 },
         { id: "w1", name: "Water", category: "water", density: 1000 },
         { id: "a1", name: "PCE", category: "admixture", density: 1100 }
-      ],
+      ] as any,
       selectedCementId: "c1",
       selectedSandId: "s1",
       selectedGravelId: "g1",
