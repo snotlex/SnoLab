@@ -344,7 +344,7 @@ export function calculateShcMix(input: MixDesignInput, language: "ar" | "fr" | "
   const air = Math.max(0.5, Math.min(6, num(input, "airContent", 2)));
   const coarseFraction = Math.max(0.25, Math.min(0.55, num(input, "shcCoarseAggregateVolumeFraction", 0.40)));
   const coarseKg = coarseFraction * gravelDensity;
-  const fixedVolume = cement / cementDensity * 1000 + water + totalAdmixture / admixtureDensity * 1000 + agent / agentDensity * 1000 + coarseFraction * 1000 + air * 10;
+  const fixedVolume = cement / cementDensity * 1000 + water + superplasticizer / admixtureDensity * 1000 + agent / agentDensity * 1000 + coarseFraction * 1000 + air * 10;
   const sandKg = solveSand(fixedVolume, coarseKg, sandDensity);
   const volume = cement / cementDensity * 1000 + water + superplasticizer / admixtureDensity * 1000 + agent / agentDensity * 1000 + sandKg / sandDensity * 1000 + coarseKg / gravelDensity * 1000 + air * 10;
   const density = cement + water + superplasticizer + agent + sandKg + coarseKg;
