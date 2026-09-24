@@ -55,6 +55,22 @@ export function createPdfDocument(): jsPDF {
  * Draws an official, elegant vector laboratory logo emblem with shield, flask & crystalline cube.
  * 100% vector, crisp at all zoom levels.
  */
+export async function loadPublicImageDataUrl(url: string): Promise<string | undefined> {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) return undefined;
+    const blob = await response.blob();
+    return await new Promise<string | undefined>((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : undefined);
+      reader.onerror = () => resolve(undefined);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return undefined;
+  }
+}
+
 export function drawLaboratoryEmblemLogo(
   doc: jsPDF,
   x: number,
@@ -435,13 +451,21 @@ export function finalizeReportPages(
     doc.setFillColor(...PDF_COLORS.primary);
     doc.rect(left, 8, contentWidth, 1.2, "F");
 
-    // Laboratory Logo Badge / Name
-    drawLaboratoryEmblemLogo(doc, left, 10, 7.5);
+    // Official SnoLab logo / fallback laboratory emblem
+    if (options.logoDataUrl) {
+      try {
+        doc.addImage(options.logoDataUrl, "PNG", left, 10, 29, 15.4, undefined, "FAST");
+      } catch {
+        drawLaboratoryEmblemLogo(doc, left, 10, 7.5);
+      }
+    } else {
+      drawLaboratoryEmblemLogo(doc, left, 10, 7.5);
+    }
 
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(8.5);
+    doc.setFontSize(7.5);
     doc.setTextColor(...PDF_COLORS.primary);
-    doc.text(lab.name, left + 9.5, 13.5);
+    doc.text(lab.name, left + 31.5, 13.5);
 
     // Accreditation tag
     doc.setFont("helvetica", "normal");
