@@ -77,7 +77,6 @@ export function calculateUhpcBfupMix(input: MixDesignInput, language:"ar"|"fr"|"
   const requestedVf=Number(t==="BFUP" ? ((input as any).bfupFiberVolumePercent ?? (input as any).uhpcFiberVolumePercent) : ((input as any).uhpcFiberVolumePercent ?? (input as any).bfupFiberVolumePercent));
   const vf=clamp(Number.isFinite(requestedVf)?requestedVf:(t==="BFUP"?2:1.5),1,3);
   const defaultWb=t==="BFUP"?0.21:0.24;
-  const requestedWb=Number((input as any).uhpcWaterBinderRatio ?? (input as any).bfupWaterBinderRatio);
   const requestedWb=Number(t==="BFUP" ? ((input as any).bfupWaterBinderRatio ?? (input as any).uhpcWaterBinderRatio) : ((input as any).uhpcWaterBinderRatio ?? (input as any).bfupWaterBinderRatio));
   const wb=clamp(Number.isFinite(requestedWb)?requestedWb:clamp(defaultWb-(fck-100)*0.00015,0.18,0.26),0.18,0.28);
   const binder=clamp(760+Math.max(0,fck-100)*1.2,760,900);
