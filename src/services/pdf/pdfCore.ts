@@ -312,7 +312,7 @@ export function drawSignOffBlock(
   doc.setTextColor(...PDF_COLORS.textSecondary);
   doc.text(`Name: ${options.operatorName || "Senior Materials Engineer"}`, leftX + 3, yPos + 9);
   doc.text(`Date: ${dateStr}`, leftX + 3, yPos + 13);
-  doc.text(`Status: Verified & Conforming`, leftX + 3, yPos + 17);
+  doc.text(`Status: Prepared for technical review`, leftX + 3, yPos + 17);
 
   // Signature Stamp Area
   doc.setFont("courier", "bold");
@@ -336,7 +336,7 @@ export function drawSignOffBlock(
   doc.setFontSize(6.5);
   doc.setTextColor(...PDF_COLORS.textSecondary);
   doc.text(`Authority: ${options.directorName || "Head of Concrete Quality Dept."}`, rightX + 3, yPos + 9);
-  doc.text(`Accreditation: ISO/IEC 17025:2017`, rightX + 3, yPos + 13);
+  doc.text(`Report control: Review + trial mix required`, rightX + 3, yPos + 13);
   doc.text(`Cert Ref: ${refStr}`, rightX + 3, yPos + 17);
 
   // Official Stamp Box
@@ -346,13 +346,13 @@ export function drawSignOffBlock(
   doc.setFont("helvetica", "bold");
   doc.setFontSize(5.5);
   doc.setTextColor(...PDF_COLORS.secondary);
-  doc.text("SNOLAB OFFICIAL", rightX + boxWidth - 17.5, yPos + 7.5, { align: "center" });
+  doc.text("SNOLAB TECHNICAL", rightX + boxWidth - 17.5, yPos + 7.5, { align: "center" });
   doc.setFontSize(5);
   doc.setTextColor(...PDF_COLORS.textMuted);
-  doc.text("QUALITY STAMP", rightX + boxWidth - 17.5, yPos + 11.5, { align: "center" });
+  doc.text("ENGINEERING REVIEW", rightX + boxWidth - 17.5, yPos + 11.5, { align: "center" });
   doc.setFontSize(5);
   doc.setTextColor(...PDF_COLORS.primary);
-  doc.text("APPROVED", rightX + boxWidth - 17.5, yPos + 16, { align: "center" });
+  doc.text("TECHNICAL REVIEW", rightX + boxWidth - 17.5, yPos + 16, { align: "center" });
 
   return yPos + boxHeight + 4;
 }
@@ -481,7 +481,7 @@ export function finalizeReportPages(
     doc.setFontSize(5.5);
     doc.setTextColor(...PDF_COLORS.textMuted);
     doc.text(
-      "CONFIDENTIAL & OFFICIAL ENGINEERING REPORT • CERTIFIED IN ACCORDANCE WITH ISO/IEC 17025 & EN 206",
+      "CONFIDENTIAL & ENGINEERING CALCULATION REPORT • VERIFY PROJECT REQUIREMENTS BEFORE USE",
       left,
       footerY + 1.5
     );
