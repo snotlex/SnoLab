@@ -112,9 +112,7 @@ export function drawStrengthEvolutionChart(
   if (!series.length) return PDF_PAGE_MARGINS.top + 4;
 
   const { left, contentWidth } = PDF_PAGE_MARGINS;
-  const top = (doc as any).lastAutoTable?.finalY
-    ? (doc as any).lastAutoTable.finalY + 6
-    : PDF_PAGE_MARGINS.top + 4;
+  const top = options.startY ?? PDF_PAGE_MARGINS.top + 4;
   const chartW = contentWidth;
   const chartH = 70;
   const plotLeft = left + 18;
