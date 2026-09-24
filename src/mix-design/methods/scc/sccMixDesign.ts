@@ -196,7 +196,7 @@ export function calculateSccMix(
     airVolumeL;
 
   const estimatedFreshDensity =
-    cementKg + scmKg + fineKg + coarseKg + waterToAdd + admixtureKg;
+    cementKg + scmKg + sandCorrection.wetKg + gravelCorrection.wetKg + waterToAdd + admixtureKg;
 
   const warnings = [
     "SCC requires confirmation by slump-flow, T500, V-funnel, L-box/J-ring and segregation testing.",
