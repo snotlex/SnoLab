@@ -256,6 +256,13 @@ export function calculateSccMix(
     lifecycle: errors.length > 0 ? "blocked" : "needs_trial_mix"
   });
 
+  // Keep SCC W/P and W/C semantically distinct in the returned result.
+  // W/P is the SCC proportioning control; W/C remains a reporting ratio only.
+  result.waterCementRatio = cementKg > 0 ? water / cementKg : 0;
+  result.wcRatio = result.waterCementRatio;
+  result.ratios.waterCementRatio = result.waterCementRatio;
+  result.ratios.waterBinderRatio = waterBinderRatio;
+
   result.batchWaterToAdd = waterToAdd;
   result.waterToAdd = waterToAdd;
   result.waterWeightWet = waterToAdd;
