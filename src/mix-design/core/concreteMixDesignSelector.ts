@@ -156,7 +156,7 @@ const ROUTES: Record<string, ConcreteMixDesignRouteDefinition> = {
     reasonEn: "Heavyweight aggregates require dedicated volumetric, density, and segregation controls."
   },
   RCC: {
-    support: "planned",
+    support: "active",
     mode: "specialized",
     methodId: "rcc-specialized",
     nameAr: "محرك RCC متخصص",
