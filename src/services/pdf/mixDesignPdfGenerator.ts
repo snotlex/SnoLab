@@ -578,6 +578,7 @@ export async function generateMixDesignPdf(
   if (hasStrength) {
     currentY = drawStrengthEvolutionChart(doc, result, {
       startY: currentY,
+      fck28: input.fck28,
       title: lang === "ar" ? "تطور مقاومة الضغط مع العمر" : lang === "fr" ? "Évolution de la résistance en compression" : "Compressive strength development"
     });
   }
