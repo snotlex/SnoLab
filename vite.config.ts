@@ -40,7 +40,6 @@ export default defineConfig(() => {
               if (
                 id.includes("jspdf") || 
                 id.includes("html2canvas") || 
-                id.includes("dompurify") || 
                 id.includes("canvg") || 
                 id.includes("fflate")
               ) {

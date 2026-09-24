@@ -32,7 +32,7 @@ flowchart TD
   Dashboard --> Record[MaterialTestRecord]
   Record --> Project[ProjectContext / ProjectStorageService]
   Project --> Local[Local Project File + IndexedDB cache]
-  LaboratoryService --> Run[LabTestRunRecord]
+  LaboratoryDashboard --> Run[LabTestRunRecord]
   Run --> BrowserStorage[localStorage vault]
   Run --> Property[Material Property Service]
   Report --> Pdf[labTestPdfGenerator]
@@ -46,7 +46,7 @@ flowchart TD
 | فهرس الاختبارات | `MASTER_TEST_CATALOG` داخل `materialsLabEngine.ts` | يحوي 28 تعريفًا، لكن تعريف الاختبار لا يحمل كل حقول Test Definition المطلوبة مثل المعدات، النسخة، خطوات الحساب، وعدم الصلاحية. |
 | تنفيذ الحساب | `executeLaboratoryTest` ومحركات مساعدة | توجد حسابات حقيقية، لكن قواعد القبول موزعة داخل كتل `switch` وشروط ثابتة. |
 | نموذج سجل الاختبار | `MaterialTestRecord` | يجمع البيانات الخام والنتيجة والامتثال والتزامن في سجل واحد، ولا يفصل بوضوح بين Calculated وApproved. |
-| خدمة التشغيل | `LaboratoryService` | تستخدم `LabTestRunRecord` ثانيًا وتخزن في `localStorage` منفصل عن ملف المشروع. |
+| خدمة التشغيل | مسار المختبر الحالي | يستخدم `LabTestRunRecord` ضمن تدفق المشروع والتخزين المعتمد؛ أما خدمة `LaboratoryService` القديمة فقد أزيلت لعدم دخولها في مسار التطبيق. |
 | مكتبة المواد | `MaterialService`, `materialLabSync`, `PropertyService` | التكامل موجود، لكن بعض مسارات المزامنة مباشرة ولا تمر دائمًا ببوابة اعتماد مستقلة. |
 | المشروع المحلي | `ProjectStorageService`, `ProjectContext`, `laboratoryTests` | يدعم حفظ سجلات الاختبارات داخل المشروع، لكن لا يوجد نموذج أولي مستقل للعينة أو الجهاز أو المواصفة. |
 | التقارير | `labTestPdfGenerator` وتقارير المواد | يوجد توليد PDF، لكن النموذج الموحد للتقرير مع raw data وcalculation trace وrevision وaudit trail غير مكتمل. |
@@ -69,7 +69,7 @@ flowchart TD
 ### المشكلات ذات الأولوية
 
 1. **فصل الحالة الحسابية عن حالة الاعتماد غير مكتمل.** نوع `TestStatus` الحالي هو `PASS | WARNING | FAIL` فقط، بينما المواصفة تحتاج حالات مثل `Draft`, `Incomplete`, `Invalid`, `Calculated`, `Under Review`, `Passed`, `Failed`, `Approved`, `Rejected`, و`Superseded`.
-2. **تحديث المادة قبل الاعتماد.** مسار `LaboratoryService.executeAndRecordTestRun` ينشئ السجل بالحالة `VERIFIED` ثم يكتب النتائج إلى خصائص المادة مباشرة. هذا يخالف قاعدة عدم تغيير مادة معتمدة دون إجراء صريح وسجل مراجعة.
+2. **تحديث المادة قبل الاعتماد.** كان مسار `LaboratoryService.executeAndRecordTestRun` القديم ينشئ السجل بالحالة `VERIFIED` ثم يكتب النتائج إلى خصائص المادة مباشرة. أزيل هذا المسار غير المستخدم، وتبقى قاعدة عدم تغيير مادة معتمدة دون إجراء صريح وسجل مراجعة ملزمة للمسار الحالي.
 3. **قواعد القبول موزعة داخل الكود.** بعض النطاقات والحدود موجودة مباشرة داخل المحركات، ولذلك لا يمكن تغيير إصدار المواصفة أو إظهار أن معيارًا غير مهيأ دون تعديل منطق الحساب.
 4. **البيانات الخام والحسابات والنتيجة في نموذج مختلط.** هذا يصعّب إعادة الحساب بإصدار جديد مع الاحتفاظ بالبيانات الخام القديمة.
 5. **تثبيت الوحدات داخل الاختبارات.** توجد وحدات ومفاتيح مختلفة بين تعريفات الاختبار والمحركات ومزامنة المواد. يلزم محرك وحدات مركزي قبل توسيع الفحوص.
@@ -77,7 +77,7 @@ flowchart TD
 
 ## 5. نماذج البيانات والتكاملات
 
-النموذج الحالي يربط `MaterialTestRecord` بالمادة والعينة والمشروع نصيًا، ويحتوي على `sampleId` و`projectId`، لكنه لا يقدم كيان `Sample` مستقلًا له مصدر وكمية وحالة تخزين ومرفقات ورقم دفعة. كذلك لا يوجد كيان `Equipment` أو `StandardVersion` مرتبط بسجل الاختبار. التخزين المحلي يدعم `laboratoryTests` داخل ملف المشروع، بينما `LaboratoryService` يحتفظ بسجل آخر في مفتاح `localStorage` منفصل؛ هذا يخلق خطر انفصال بين نسخة المشروع ونسخة المتصفح.
+النموذج الحالي يربط `MaterialTestRecord` بالمادة والعينة والمشروع نصيًا، ويحتوي على `sampleId` و`projectId`، لكنه لا يقدم كيان `Sample` مستقلًا له مصدر وكمية وحالة تخزين ومرفقات ورقم دفعة. كذلك لا يوجد كيان `Equipment` أو `StandardVersion` مرتبط بسجل الاختبار. التخزين المحلي يدعم `laboratoryTests` داخل ملف المشروع؛ وقد أزيل مسار التخزين الموازي القديم لتقليل خطر انفصال نسخة المشروع عن نسخة المتصفح.
 
 تكامل مكتبة المواد قوي نسبيًا، خصوصًا عبر `materialLabSync` وحقول `propertyMetadata` و`laboratoryTestIds`. لكن هذا التكامل يجب أن ينتقل من تحديث تلقائي إلى **اقتراح تحديث ينتظر قبول المستخدم أو المراجع**، مع حفظ القيمة القديمة والجديدة ومرجع الاختبار والعينة والتاريخ والسبب.
 

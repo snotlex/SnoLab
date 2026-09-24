@@ -11,7 +11,7 @@ The values **3100**, **2600**, **2650**, and **2680** exist in the codebase unde
 ### A. Value: `3100` (Typical Portland Cement Density, kg/m³)
 * **Permitted (Unit Tests):** Under `src/engine/__tests__/` and `src/__tests__/`, explicitly specified as input data for test suites to simulate standard Portland cement mixes.
 * **Permitted (Field Guidelines):** Inside `src/types.ts` as a purely descriptive TypeScript comment (`// e.g. 3100 kg/m3`).
-* **Permitted (Standard Concrete Classification Rules):** Inside `src/services/ConcreteValidator.ts` and `src/concreteTypes.ts` where high-density concrete rules are checked (`sandDens >= 3000 && gravelDens >= 3100`). This is a physical threshold comparison, not a fallback value.
+* **Permitted (Standard Concrete Classification Rules):** Inside `src/concreteTypes.ts` where high-density concrete rules are checked (`sandDens >= 3000 && gravelDens >= 3100`). The former standalone `ConcreteValidator` module was unused and has been removed. This is a physical threshold comparison, not a fallback value.
 * **Permitted (Interactive AI Assistant):** Inside `MaterialEngineeringDatabase.tsx` under the AI suggestion heuristic `handleAIAssistSuggest`, filling the input form with realistic suggestions upon explicit user request.
 * **Permitted (Form Placeholders):** Inside `MaterialEngineeringDatabase.tsx` as a standard placeholder / initial value in the interactive "Add Material" form.
 * **STRICTLY FORBIDDEN & REMOVED (Calculation Path):** Under `src/engine/dreuxGorisseCore.ts`, the previous fallback of `3100` for special binders when density was omitted has been completely removed. It now triggers `status: "blocked"` in the suitability gate.
@@ -44,7 +44,7 @@ The values **3100**, **2600**, **2650**, and **2680** exist in the codebase unde
 | `src/components/MaterialEngineeringDatabase.tsx` | 2600 | Live JSON save preview / copy | **ELIMINATED** | Replaced `|| 2600` fallback with `null` when density is empty or invalid. |
 | `src/engine/validation/mixValidation.ts` | 2600 | Fresh concrete warning threshold | **PERMITTED** | Validates final fresh density is within normal range (2100 - 2600 kg/m³). |
 | `src/engine/densityChecks.ts` | 2600 | Upper-bound alert threshold | **PERMITTED** | Alerts if fresh density exceeds typical standard concrete bounds. |
-| `src/services/ConcreteValidator.ts` | 3100 | High-density aggregate category | **PERMITTED** | Logical comparison rule for heavy concrete classification. |
+| `src/concreteTypes.ts` | 3100 | High-density aggregate category | **PERMITTED** | Logical comparison rule for heavy concrete classification. |
 
 ---
 
