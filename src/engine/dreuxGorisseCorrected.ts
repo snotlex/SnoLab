@@ -523,7 +523,7 @@ function refreshMoistureAndBatchData(result: CorrectedResult, input: any): void 
   const cement = Number(result.cementWeight || 0);
   const admix = (result.admixtureWeights || []).reduce((s, a) => s + a.weight, 0);
   const fiber = Number((result as any).fiberKg || input.fiberDosageKgM3 || 0);
-  const specialBinder = Number((result as any).specialBinderKg || 0);
+  const specialBinder = Number((result as any).specialBinderKg ?? result.designSSD?.specialBinderKg ?? 0);
   result.totalFreshDensity =
     cement +
     Number(result.flyAshKg || 0) +
