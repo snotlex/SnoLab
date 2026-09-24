@@ -101,7 +101,7 @@ const ROUTES: Record<string, ConcreteMixDesignRouteDefinition> = {
     reasonEn: "The base route is supported with checks specific to prestressed concrete."
   },
   HSC: {
-    support: "planned",
+    support: "active",
     mode: "specialized",
     methodId: "hsc-hpc-specialized",
     nameAr: "محرك HSC متخصص",
@@ -112,7 +112,7 @@ const ROUTES: Record<string, ConcreteMixDesignRouteDefinition> = {
     reasonEn: "Final HSC design should not be presented as a plain Dreux-Gorisse calculation."
   },
   HPC: {
-    support: "planned",
+    support: "active",
     mode: "specialized",
     methodId: "hsc-hpc-specialized",
     nameAr: "محرك HPC متخصص",
