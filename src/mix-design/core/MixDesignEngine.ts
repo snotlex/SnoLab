@@ -137,7 +137,13 @@ export class MixDesignEngine {
       name: method.metadata.name,
       version: method.metadata.version
     };
-    result.methodApplicability = applicabilityView;
+    // Some legacy/corrected calculation layers already provide a richer
+    // applicability result (for example C45/C60 and concrete-type aliases).
+    // Preserve that domain-specific result instead of overwriting it with the
+    // generic strategy contract.
+    if (!result.methodApplicability) {
+      result.methodApplicability = applicabilityView;
+    }
 
     if (applicability.level === "limited") {
       result.calculationStatus = "needs_trial_mix";
