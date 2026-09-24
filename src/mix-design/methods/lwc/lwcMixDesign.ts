@@ -256,10 +256,9 @@ export function calculateLwcMix(
 
   const cementDensity = materialDensityKgM3(materials.materials.cement, Number(input.cementDensity || 3150));
   const sandDensity = materialDensityKgM3(materials.materials.sand, Number(input.sandRelativeDensity || 2.65) * 1000);
-  const lightweightDensity = materialDensityKgM3(
-    lightweightMaterial,
-    Number((input as any).lightweightAggregateDensity || 1200)
-  );
+  const lightweightDensity =
+    Number((input as any).lightweightAggregateDensity) ||
+    materialDensityKgM3(lightweightMaterial, 1200);
   const admixtureDensity = materialDensityKgM3(
     materials.materials.admixture,
     Number(input.selectedAdmixtureDensity || 1080)
@@ -332,7 +331,7 @@ export function calculateLwcMix(
 
   const denominator = 1 - lightweightDensity / sandDensity;
   const sandKg = denominator !== 0
-    ? (targetDensity - fixedMass - lightweightDensity * (1 - airPercent / 100 - fixedVolumeM3)) / denominator
+    ? (targetDensity - fixedMass - lightweightDensity * (1 - fixedVolumeM3)) / denominator
     : 0;
 
   const fineAggregateKg = Math.max(0, sandKg);
