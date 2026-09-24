@@ -162,6 +162,26 @@ export function getCompleteResultRows(result: MixDesignResult): ReportDataRow[] 
   return flattenReportObject(result, 5);
 }
 
+export function getSelectedMaterialSnapshots(input: MixDesignInput): Array<{ role: string; material: Record<string, any> }> {
+  const source = Array.isArray((input as any).materialsDatabase) ? (input as any).materialsDatabase : [];
+  const selected = [
+    { role: "Cement", id: (input as any).selectedCementId },
+    { role: "Fine aggregate / Sand", id: (input as any).selectedSandId },
+    { role: "Coarse aggregate / Gravel", id: (input as any).selectedGravelId },
+    { role: "Water", id: (input as any).selectedWaterId },
+    { role: "Admixture", id: (input as any).selectedAdmixtureId },
+    { role: "SCM", id: (input as any).selectedScmId },
+    { role: "Fiber", id: (input as any).selectedFiberId }
+  ];
+  const out: Array<{ role: string; material: Record<string, any> }> = [];
+  for (const item of selected) {
+    if (!item.id) continue;
+    const material = source.find((m: any) => String(m?.id ?? m?.MaterialID ?? "") === String(item.id));
+    if (material) out.push({ role: item.role, material });
+  }
+  return out;
+}
+
 export function getGradingSeries(result: MixDesignResult): ReportCurvePoint[] {
   const target = Array.isArray(result.gradingCurve) ? result.gradingCurve : [];
   const actual = Array.isArray((result as any).actualGradingCurve)
