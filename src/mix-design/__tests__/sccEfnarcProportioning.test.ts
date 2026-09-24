@@ -45,6 +45,30 @@ describe("SCC EFNARC-oriented proportioning", () => {
     expect(a.quantities.totalBinder).toBeCloseTo(b.quantities.totalBinder, 6);
   });
 
+  it("requires an approved SCM when SCM replacement is requested", () => {
+    const result: any = calculateMixDesign(createTestInput({
+      concreteType: "SCC",
+      dMax: 16,
+      materialsDatabase: [
+        { id: "c1", name: "CEM I", category: "cement", density: 3150 },
+        { id: "s1", name: "Sand", category: "sand", density: 2650 },
+        { id: "g1", name: "Gravel", category: "gravel", density: 2680 },
+        { id: "w1", name: "Water", category: "water", density: 1000 },
+        { id: "a1", name: "PCE", category: "admixture", density: 1100 }
+      ],
+      selectedCementId: "c1",
+      selectedSandId: "s1",
+      selectedGravelId: "g1",
+      selectedWaterId: "w1",
+      selectedAdmixtureId: "a1",
+      sccPowderKgM3: 500,
+      sccScmReplacementPercent: 20
+    }));
+
+    expect(result.calculationStatus).toBe("blocked");
+    expect(result.isValid).toBe(false);
+  });
+
   it("blocks an initial composition outside the EFNARC-oriented powder envelope", () => {
     const result: any = calculateMixDesign(createTestInput({
       concreteType: "SCC",
