@@ -115,7 +115,6 @@ describe("Dreux calculation and diagnostic regression checks", () => {
     ) as any;
 
     const gate = validateCalculationLogic(validInput({ isGranularOptimizedApproved: false }), result);
-    console.log("[diagnostic-final] criticalErrors=", gate.criticalErrors, "warnings=", gate.warnings);
     expect(gate.criticalErrors).not.toContain("granular_optimization_not_approved");
     expect(gate.isValidForReport).toBe(true);
   });
