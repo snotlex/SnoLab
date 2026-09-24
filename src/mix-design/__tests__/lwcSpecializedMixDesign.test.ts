@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { calculateMixDesign } from "../../engine/calculateMixDesign";
 import { createTestInput } from "../../__tests__/testHelper";
 
-const lwcMaterials = [
+const lwcMaterials: any[] = [
   {
     id: "cem-lwc",
     name: "CEM I 42.5",
