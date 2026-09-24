@@ -182,6 +182,37 @@ describe("Dreux-Gorisse corrected calculation layer", () => {
     expect(result.cementWeight).toBeGreaterThan(550);
   });
 
+  it("applies the classical Dreux K corrections and correct pivot X for Dmax", () => {
+    const mf25: any = calculateDreuxGorisse(base());
+    const mf28: any = calculateDreuxGorisse({
+      ...(base() as any),
+      finenessModulus: 2.8
+    } as any);
+
+    const y25 = mf25.gradingCurve.find((p: any) => Math.abs(p.size - 10) < 1e-6)?.targetPassing;
+    const y28 = mf28.gradingCurve.find((p: any) => Math.abs(p.size - 10) < 1e-6)?.targetPassing;
+
+    expect(y25).toBeDefined();
+    expect(y28).toBeDefined();
+    // Ks = 6 Mf - 15, therefore changing Mf 2.5 -> 2.8 raises Y by 1.8 points.
+    expect(y28 - y25).toBeCloseTo(1.8, 6);
+
+    const d8: any = calculateDreuxGorisse({
+      ...(base() as any),
+      dMax: 8
+    } as any);
+    expect(d8.gradingCurve.some((p: any) => Math.abs(p.size - 4) < 1e-6)).toBe(true);
+
+    const d25: any = calculateDreuxGorisse({
+      ...(base() as any),
+      dMax: 25
+    } as any);
+    const expectedX = Math.sqrt(5 * 25);
+    expect(
+      d25.gradingCurve.some((p: any) => Math.abs(p.size - expectedX) < 1e-6)
+    ).toBe(true);
+  });
+
   it("honours multiple structured admixture rows", () => {
     const result: any = calculateDreuxGorisse({
       ...(base() as any),
