@@ -183,8 +183,10 @@ export function calculateDreuxGorisseCorrected(
     Number.isFinite(theoreticalCement) &&
     theoreticalCement > 0
   ) {
-    baseResult.cementWeight = theoreticalCement;
-    baseResult.actualCementUsed = theoreticalCement;
+    // Keep the physically applied/capped cement quantity untouched.
+    // Theoretical demand is reported separately so the diagnostic does not
+    // masquerade as a feasible final mix.
+    baseResult.actualCementUsed = Number(baseResult.cementWeight || 0);
     baseResult.isValid = false;
     baseResult.valid = false;
     baseResult.engineStatus = "blocked";
