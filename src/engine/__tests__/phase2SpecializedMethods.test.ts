@@ -48,7 +48,7 @@ function input(extra: Record<string, unknown>) {
   } as any;
 }
 
-describe("phase-2 specialized concrete engines", () => {
+describe("phase-2 specialized concrete engines", () => { // regression suite
   it("activates all four phase-2 routes", () => {
     for (const type of ["GPC", "RAC", "SHC", "SHOTCRETE"]) {
       const route = selectConcreteMixDesignRoute({ concreteType: type } as any);
