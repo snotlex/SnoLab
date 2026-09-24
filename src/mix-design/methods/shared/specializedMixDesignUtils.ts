@@ -81,6 +81,19 @@ export function resolveSpecializedMaterials(
     )
   };
 
+  // Some legacy/local-project records retain only a category and materialName
+  // for utility constituents. Resolve a unique water record in that case,
+  // while keeping cement/aggregate roles name- or ID-driven to avoid ambiguity.
+  if (hasRepository && !materials.water) {
+    const waterCandidates = database.filter((m) => {
+      const category = String(m?.category || "").trim().toLowerCase();
+      return category === "water" || category.includes("water") || category.includes("ماء") || category.includes("eau");
+    });
+    if (waterCandidates.length === 1) {
+      materials.water = waterCandidates[0];
+    }
+  }
+
   if (hasRepository) {
     if (!materials.cement) errors.push(roleMessage("cement / إسمنت", language));
     if (!materials.sand) errors.push(roleMessage("fine aggregate / رمال", language));
