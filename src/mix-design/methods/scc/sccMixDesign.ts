@@ -235,7 +235,7 @@ export function calculateSccMix(
     });
   }
 
-  const result = makeSpecializedResult(input, {
+  const result: any = makeSpecializedResult(input, {
     methodId: "scc-specialized",
     methodName: "SCC / Self-Compacting Concrete",
     version: VERSION,
