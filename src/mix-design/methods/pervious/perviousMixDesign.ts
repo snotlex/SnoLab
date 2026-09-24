@@ -249,6 +249,7 @@ export function calculatePerviousMix(
     absoluteVolumeL: totalVolumeL,
     targetVoidContentPercent: targetVoid,
     estimatedVoidContentPercent: estimatedVoid,
+    referenceFilledVolumeL: 1000 - targetVoid * 10,
     warnings,
     assumptions,
     recommendations,
