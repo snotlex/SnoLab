@@ -278,7 +278,7 @@ export function calculateSccMix(
     targetSlumpFlowMm: flow,
     waterBinderRatio: actualWaterToBinder,
     binderKgM3: binder,
-    coarseAggregateVolumeFraction
+    coarseVolumeFraction
   };
   result.materialSuitability = {
     status: "approved",
