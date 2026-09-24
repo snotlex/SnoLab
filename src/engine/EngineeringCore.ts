@@ -491,11 +491,17 @@ export class ValidationEngine {
     const warnings = gateResult.warnings || [];
 
     // Formulate checklists for each step of the engineering state
+    const resolvedMaterialIds = (results as any)?.resolvedMaterialIds || {};
+    const effectiveCementId = inputs.selectedCementId || resolvedMaterialIds.selectedCementId;
+    const effectiveSandId = inputs.selectedSandId || resolvedMaterialIds.selectedSandId;
+    const effectiveGravelId = inputs.selectedGravelId || resolvedMaterialIds.selectedGravelId;
+    const effectiveWaterId = inputs.selectedWaterId || resolvedMaterialIds.selectedWaterId;
+
     const materialsCheck = [
-      { id: "m1", labelEn: "Selected Cement constituent", labelAr: "تحديد إسمنت المشروع", done: !!inputs.selectedCementId },
-      { id: "m2", labelEn: "Selected Sand constituent", labelAr: "تحديد الرمل المعتمد", done: !!inputs.selectedSandId },
-      { id: "m3", labelEn: "Selected Gravel constituent", labelAr: "تحديد الحصى المرخص", done: !!inputs.selectedGravelId },
-      { id: "m4", labelEn: "Selected Water constituent", labelAr: "تحديد مياه الخلط", done: !!inputs.selectedWaterId },
+      { id: "m1", labelEn: "Selected Cement constituent", labelAr: "تحديد إسمنت المشروع", done: !!effectiveCementId },
+      { id: "m2", labelEn: "Selected Sand constituent", labelAr: "تحديد الرمل المعتمد", done: !!effectiveSandId },
+      { id: "m3", labelEn: "Selected Gravel constituent", labelAr: "تحديد الحصى المرخص", done: !!effectiveGravelId },
+      { id: "m4", labelEn: "Selected Water constituent", labelAr: "تحديد مياه الخلط", done: !!effectiveWaterId },
     ];
     const materialsDone = materialsCheck.every(c => c.done);
 
@@ -539,7 +545,7 @@ export class ValidationEngine {
     const engineeringState: EngineeringState = {
       materials: {
         step: "materials",
-        status: getStatus(materialsDone, !!inputs.selectedCementId),
+        status: getStatus(materialsDone, !!effectiveCementId),
         updatedAt: now,
         checklist: materialsCheck,
       },
