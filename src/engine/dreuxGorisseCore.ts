@@ -27,6 +27,44 @@ export type DreuxGorisseInput = Partial<MixDesignInput> & Record<string, any>;
  * Highly polished, professional single source of truth for the Georges Dreux-Gorisse method.
  * Conforms entirely to EN 206 limits, absolute volume stability, and moisture physics.
  */
+function interpolateDreuxNormalK(
+  cementKg: number,
+  rounded: boolean,
+  hasFluidifier: boolean
+): number {
+  const rows = [
+    { cement: 200, rounded: 6, crushed: 8 },
+    { cement: 250, rounded: 4, crushed: 6 },
+    { cement: 300, rounded: 2, crushed: 4 },
+    { cement: 350, rounded: 0, crushed: 2 },
+    { cement: 400, rounded: -2, crushed: 0 }
+  ];
+
+  if (cementKg >= 400) {
+    if (cementKg > 400 && hasFluidifier) {
+      return rounded ? -4 : -2;
+    }
+    return rounded ? -2 : 0;
+  }
+
+  if (cementKg <= 200) {
+    return rounded ? rows[0].rounded : rows[0].crushed;
+  }
+
+  for (let i = 1; i < rows.length; i++) {
+    const a = rows[i - 1];
+    const b = rows[i];
+    if (cementKg <= b.cement) {
+      const t = (cementKg - a.cement) / (b.cement - a.cement);
+      const av = rounded ? a.rounded : a.crushed;
+      const bv = rounded ? b.rounded : b.crushed;
+      return av + (bv - av) * t;
+    }
+  }
+
+  return rounded ? -2 : 0;
+}
+
 export function calculateDreuxGorisseCore(input: MixDesignInput | DreuxGorisseInput, language: "ar" | "fr" | "en" = "ar"): MixDesignResult & { 
   valid: boolean; 
   isValid: boolean; 
@@ -645,25 +683,45 @@ export function calculateDreuxGorisseCore(input: MixDesignInput | DreuxGorisseIn
     );
   }
 
-  // 8. Pivot point and aggregate distribution
-  const pivotX = dMax <= 12.5 ? 5 : (dMax / 2);
-  const k0Data = DREUX_KNOWLEDGE_BASE.lookupTables.baseGranularConstantK0.data;
-  const k0List = isRounded ? k0Data.rounded : k0Data.crushed;
-  let kBase = isRounded ? 4 : 8;
-  for (const entry of k0List) {
-    if (dMax <= entry.dMaxLimit) {
-      kBase = entry.k;
-      break;
-    }
-  }
+  // 8. Dreux reference curve pivot and aggregate distribution
+  // Classical Dreux-Gorisse:
+  // X = Dmax / 2 for Dmax <= 20 mm.
+  // For Dmax > 20 mm, the "module" relation is represented on the
+  // logarithmic sieve scale by X = sqrt(5 * Dmax).
+  const pivotX = dMax <= 20 ? dMax / 2 : Math.sqrt(5 * dMax);
 
-  const kCement = (activeCementWeight - 350) / 10;
-  const kPumping = hasPumping ? 5 : 0;
-  const K = kBase + kCement + kPumping;
+  // K is selected from the classical Dreux table for NORMAL vibration.
+  // This stage has no independent vibration-energy input, so "normal"
+  // is the deterministic engineering default.
+  //
+  // Rows: 200, 250, 300, 350 and 400 kg/m³ of cement.
+  // Values between rows are linearly interpolated.
+  // Above 400 kg/m³, the 400 + fluidifier row is used only when a
+  // superplasticizer is actually present.
+  const kBase = interpolateDreuxNormalK(
+    activeCementWeight,
+    isRounded,
+    dosageSuper > 0
+  );
+
+  // Sand fineness correction: Ks = 6 Mf - 15.
+  // For the reference Mf = 2.5, Ks = 0.
+  const kSand = Number.isFinite(finenessModulus)
+    ? (6 * finenessModulus - 15)
+    : 0;
+
+  // Pumping correction Kp is selected inside the standard +5..+10 range
+  // using the workability requested in the preparation stage.
+  const kPumping = hasPumping
+    ? (slump <= 9 ? 5 : slump <= 15 ? 7.5 : 10)
+    : 0;
+
+  const K = kBase + kSand + kPumping;
 
   let pivotY = 50 - Math.sqrt(dMax) + K;
   
-  // Higher packing density limits aggregate gaps, shrinking required sand content
+  // Higher packing density limits aggregate gaps, shrinking required sand content.
+  // This remains SnoLab's explicit empirical packing adjustment.
   pivotY = pivotY - (packingDelta * 40);
 
   if (pivotY < 20) pivotY = 20;
