@@ -48,7 +48,7 @@ export function validatePerviousInputs(
     message
   })));
 
-  const targetVoid = Number((input as any).perviousTargetVoidContent ?? input.approvedVoidRatio ?? 20);
+  const targetVoid = Number((input as any).perviousTargetVoidContent ?? (input as any).approvedVoidRatio ?? 20);
   const dMax = Number(input.dMax);
   const wb = Number((input as any).perviousWaterBinderRatio ?? NaN);
 
@@ -122,7 +122,7 @@ export function calculatePerviousMix(
 
   const targetVoid = Math.min(
     30,
-    Math.max(15, Number((input as any).perviousTargetVoidContent ?? input.approvedVoidRatio ?? 20))
+    Math.max(15, Number((input as any).perviousTargetVoidContent ?? (input as any).approvedVoidRatio ?? 20))
   );
 
   if (Array.isArray(input.materialsDatabase) && input.materialsDatabase.length > 0 && aggregateBulkDensity <= 0) {
@@ -261,7 +261,7 @@ export function calculatePerviousMix(
     { parameter: "trial_mix", requirement: "fresh density/void and permeability verification", actual: "Required", status: "warning" }
   ];
 
-  const result = makeSpecializedResult(input, {
+  const result: any = makeSpecializedResult(input, {
     methodId: "pervious-specialized",
     methodName: "Pervious Concrete",
     version: VERSION,
