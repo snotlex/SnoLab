@@ -44,9 +44,9 @@ export function createPdfDocument(): jsPDF {
   });
   doc.setProperties({
     creator: "SnoLab Concrete Mix & Materials LIMS Engine",
-    title: "Official Engineering Laboratory Report",
-    author: "SnoLab ISO/IEC 17025 Engine",
-    subject: "Civil Engineering Materials & Concrete Formulation Certificate"
+    title: "SnoLab Engineering Calculation Report",
+    author: "SnoLab Engineering Materials Laboratory",
+    subject: "Civil Engineering Materials & Concrete Formulation Report"
   });
   return doc;
 }
@@ -55,6 +55,22 @@ export function createPdfDocument(): jsPDF {
  * Draws an official, elegant vector laboratory logo emblem with shield, flask & crystalline cube.
  * 100% vector, crisp at all zoom levels.
  */
+export async function loadPublicImageDataUrl(url: string): Promise<string | undefined> {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) return undefined;
+    const blob = await response.blob();
+    return await new Promise<string | undefined>((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : undefined);
+      reader.onerror = () => resolve(undefined);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return undefined;
+  }
+}
+
 export function drawLaboratoryEmblemLogo(
   doc: jsPDF,
   x: number,
@@ -312,7 +328,7 @@ export function drawSignOffBlock(
   doc.setTextColor(...PDF_COLORS.textSecondary);
   doc.text(`Name: ${options.operatorName || "Senior Materials Engineer"}`, leftX + 3, yPos + 9);
   doc.text(`Date: ${dateStr}`, leftX + 3, yPos + 13);
-  doc.text(`Status: Verified & Conforming`, leftX + 3, yPos + 17);
+  doc.text(`Status: Prepared for technical review`, leftX + 3, yPos + 17);
 
   // Signature Stamp Area
   doc.setFont("courier", "bold");
@@ -336,7 +352,7 @@ export function drawSignOffBlock(
   doc.setFontSize(6.5);
   doc.setTextColor(...PDF_COLORS.textSecondary);
   doc.text(`Authority: ${options.directorName || "Head of Concrete Quality Dept."}`, rightX + 3, yPos + 9);
-  doc.text(`Accreditation: ISO/IEC 17025:2017`, rightX + 3, yPos + 13);
+  doc.text(`Report control: Review + trial mix required`, rightX + 3, yPos + 13);
   doc.text(`Cert Ref: ${refStr}`, rightX + 3, yPos + 17);
 
   // Official Stamp Box
@@ -346,13 +362,13 @@ export function drawSignOffBlock(
   doc.setFont("helvetica", "bold");
   doc.setFontSize(5.5);
   doc.setTextColor(...PDF_COLORS.secondary);
-  doc.text("SNOLAB OFFICIAL", rightX + boxWidth - 17.5, yPos + 7.5, { align: "center" });
+  doc.text("SNOLAB TECHNICAL", rightX + boxWidth - 17.5, yPos + 7.5, { align: "center" });
   doc.setFontSize(5);
   doc.setTextColor(...PDF_COLORS.textMuted);
-  doc.text("QUALITY STAMP", rightX + boxWidth - 17.5, yPos + 11.5, { align: "center" });
+  doc.text("ENGINEERING REVIEW", rightX + boxWidth - 17.5, yPos + 11.5, { align: "center" });
   doc.setFontSize(5);
   doc.setTextColor(...PDF_COLORS.primary);
-  doc.text("APPROVED", rightX + boxWidth - 17.5, yPos + 16, { align: "center" });
+  doc.text("TECHNICAL REVIEW", rightX + boxWidth - 17.5, yPos + 16, { align: "center" });
 
   return yPos + boxHeight + 4;
 }
@@ -418,6 +434,7 @@ export function finalizeReportPages(
     date?: string;
     labProfile?: LabProfile;
     isDraft?: boolean;
+    logoDataUrl?: string;
   }
 ) {
   const totalPages = doc.getNumberOfPages();
@@ -435,13 +452,21 @@ export function finalizeReportPages(
     doc.setFillColor(...PDF_COLORS.primary);
     doc.rect(left, 8, contentWidth, 1.2, "F");
 
-    // Laboratory Logo Badge / Name
-    drawLaboratoryEmblemLogo(doc, left, 10, 7.5);
+    // Official SnoLab logo / fallback laboratory emblem
+    if (options.logoDataUrl) {
+      try {
+        doc.addImage(options.logoDataUrl, "PNG", left, 10, 29, 15.4, undefined, "FAST");
+      } catch {
+        drawLaboratoryEmblemLogo(doc, left, 10, 7.5);
+      }
+    } else {
+      drawLaboratoryEmblemLogo(doc, left, 10, 7.5);
+    }
 
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(8.5);
+    doc.setFontSize(7.5);
     doc.setTextColor(...PDF_COLORS.primary);
-    doc.text(lab.name, left + 9.5, 13.5);
+    doc.text(lab.name, left + 31.5, 13.5);
 
     // Accreditation tag
     doc.setFont("helvetica", "normal");
@@ -481,7 +506,7 @@ export function finalizeReportPages(
     doc.setFontSize(5.5);
     doc.setTextColor(...PDF_COLORS.textMuted);
     doc.text(
-      "CONFIDENTIAL & OFFICIAL ENGINEERING REPORT • CERTIFIED IN ACCORDANCE WITH ISO/IEC 17025 & EN 206",
+      "CONFIDENTIAL & ENGINEERING CALCULATION REPORT • VERIFY PROJECT REQUIREMENTS BEFORE USE",
       left,
       footerY + 1.5
     );

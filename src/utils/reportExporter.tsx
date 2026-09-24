@@ -1,6 +1,7 @@
 import React from "react";
 import * as XLSX from "xlsx";
 import { MixDesignResult, MixDesignInput } from "../types";
+import { buildReportFileName, formatReportValue, getCalculationStatusLabel, getCompleteInputRows, getCompleteResultRows, getGradingSeries, getStrengthSeries, getSelectedMaterialSnapshots } from "./reportData";
 
 // QR Code SVG Generator representing the verified parameters
 export const QrCodeSvg: React.FC<{ text: string; size?: number }> = ({ text, size = 110 }) => {
@@ -332,6 +333,87 @@ export const reportTranslations: Record<"ar" | "fr" | "en", any> = {
   }
 };
 
+
+const esc = (value: unknown): string =>
+  String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+const reportLogoSvg = (width = 150, height = 46) => `
+<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 150 46">
+  <rect x="1" y="1" width="44" height="44" rx="11" fill="#0B1F3A"/>
+  <rect x="5" y="5" width="36" height="36" rx="9" fill="none" stroke="#2563EB" stroke-width="1.5"/>
+  <path d="M23 9L11 31h24L23 9Z" fill="#2563EB"/>
+  <path d="M23 15v10M18 29h10" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="23" cy="27" r="2.4" fill="#10B981"/>
+  <text x="54" y="28" font-family="Segoe UI,Arial,sans-serif" font-size="24" font-weight="800" fill="#0B1F3A">Sno</text>
+  <text x="99" y="28" font-family="Segoe UI,Arial,sans-serif" font-size="24" font-weight="800" fill="#2563EB">Lab</text>
+</svg>`;
+
+const gradingChartSvg = (result: MixDesignResult, lang: "ar" | "fr" | "en", width = 760, height = 350) => {
+  const series = getGradingSeries(result);
+  if (!series.length) return "";
+  const left = 58, right = 22, top = 26, bottom = 52;
+  const plotW = width - left - right, plotH = height - top - bottom;
+  const minS = 0.08, maxS = 100;
+  const logMin = Math.log10(minS), logMax = Math.log10(maxS);
+  const x = (s:number) => left + ((Math.log10(Math.max(minS, Math.min(maxS, s))) - logMin) / (logMax - logMin)) * plotW;
+  const y = (p:number) => top + (1 - Math.max(0, Math.min(100, p)) / 100) * plotH;
+  const path = (key: "targetPassing" | "actualPassing") => series.filter(p => key === "targetPassing" || p.actualPassing !== undefined)
+    .map((p,i) => `${i===0?"M":"L"} ${x(p.size).toFixed(1)} ${y(Number(p[key] ?? 0)).toFixed(1)}`).join(" ");
+  const title = lang==="ar" ? "منحنى التدرج الحبيبي" : lang==="fr" ? "Courbe granulométrique" : "Aggregate grading curve";
+  const target = lang==="ar" ? "منحنى Dreux المستهدف" : lang==="fr" ? "Cible Dreux" : "Dreux target";
+  const actual = lang==="ar" ? "التدرج الفعلي للخلطة" : lang==="fr" ? "Granulométrie réelle du mélange" : "Actual blended grading";
+  const sizes = [0.1,0.25,0.5,1,2,5,10,20,40,80,100];
+  const h = [0,20,40,60,80,100];
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+    <rect width="100%" height="100%" fill="#fff"/>
+    <text x="${left}" y="16" font-family="Segoe UI,Arial" font-size="15" font-weight="700" fill="#0B1F3A">${esc(title)}</text>
+    ${h.map(p=>`<line x1="${left}" y1="${y(p)}" x2="${width-right}" y2="${y(p)}" stroke="#E2E8F0" stroke-dasharray="4 4"/><text x="${left-8}" y="${y(p)+4}" text-anchor="end" font-family="Arial" font-size="9" fill="#64748B">${p}%</text>`).join("")}
+    ${sizes.map(s=>`<line x1="${x(s)}" y1="${top}" x2="${x(s)}" y2="${height-bottom}" stroke="#E2E8F0"/><text x="${x(s)}" y="${height-bottom+16}" text-anchor="middle" font-family="Arial" font-size="8" fill="#475569">${s}</text>`).join("")}
+    <line x1="${left}" y1="${height-bottom}" x2="${width-right}" y2="${height-bottom}" stroke="#64748B" stroke-width="1.2"/>
+    <line x1="${left}" y1="${top}" x2="${left}" y2="${height-bottom}" stroke="#64748B" stroke-width="1.2"/>
+    <path d="${path("targetPassing")}" fill="none" stroke="#10B981" stroke-width="3"/>
+    ${series.filter(p=>p.actualPassing!==undefined).length ? `<path d="${path("actualPassing")}" fill="none" stroke="#2563EB" stroke-width="3"/>` : ""}
+    <g font-family="Segoe UI,Arial" font-size="10">
+      <line x1="${width-260}" y1="18" x2="${width-240}" y2="18" stroke="#10B981" stroke-width="3"/><text x="${width-235}" y="22" fill="#334155">${esc(target)}</text>
+      ${series.some(p=>p.actualPassing!==undefined) ? `<line x1="${width-120}" y1="18" x2="${width-100}" y2="18" stroke="#2563EB" stroke-width="3"/><text x="${width-95}" y="22" fill="#334155">${esc(actual)}</text>` : ""}
+    </g>
+    <text x="${(left+width-right)/2}" y="${height-10}" text-anchor="middle" font-family="Segoe UI,Arial" font-size="10" font-weight="700" fill="#334155">Sieve opening D (mm) — logarithmic scale</text>
+    <text x="13" y="${(top+height-bottom)/2}" transform="rotate(-90 13 ${(top+height-bottom)/2})" text-anchor="middle" font-family="Segoe UI,Arial" font-size="10" font-weight="700" fill="#334155">% Passing</text>
+  </svg>`;
+};
+
+const strengthChartSvg = (result: MixDesignResult, lang: "ar" | "fr" | "en", width = 760, height = 300, fck28?: number) => {
+  const series = getStrengthSeries(result);
+  if (!series.length) return "";
+  const left=55,right=24,top=28,bottom=48,plotW=width-left-right,plotH=height-top-bottom;
+  const max=Math.max(10, Math.ceil(Math.max(...series.map(p=>p.strength), Number(fck28 || 0))/10)*10);
+  const minAge=Math.min(...series.map(p=>p.age)), maxAge=Math.max(...series.map(p=>p.age));
+  const x=(a:number)=>left+((a-minAge)/Math.max(1,maxAge-minAge))*plotW;
+  const y=(s:number)=>top+(1-Math.max(0,Math.min(max,s))/max)*plotH;
+  const path=series.map((p,i)=>`${i===0?"M":"L"} ${x(p.age).toFixed(1)} ${y(p.strength).toFixed(1)}`).join(" ");
+  const title=lang==="ar"?"منحنى تطور مقاومة الضغط":lang==="fr"?"Évolution de la résistance en compression":"Compressive strength development";
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+    <rect width="100%" height="100%" fill="#fff"/>
+    <text x="${left}" y="17" font-family="Segoe UI,Arial" font-size="15" font-weight="700" fill="#0B1F3A">${esc(title)}</text>
+    ${[0,20,40,60,80,100].map(p=>{const v=max*p/100;return `<line x1="${left}" y1="${y(v)}" x2="${width-right}" y2="${y(v)}" stroke="#E2E8F0" stroke-dasharray="4 4"/><text x="${left-8}" y="${y(v)+4}" text-anchor="end" font-family="Arial" font-size="9" fill="#64748B">${v.toFixed(0)}</text>`;}).join("")}
+    <line x1="${left}" y1="${height-bottom}" x2="${width-right}" y2="${height-bottom}" stroke="#64748B" stroke-width="1.2"/>
+    <line x1="${left}" y1="${top}" x2="${left}" y2="${height-bottom}" stroke="#64748B" stroke-width="1.2"/>
+    <path d="${path}" fill="none" stroke="#2563EB" stroke-width="3"/>
+    ${series.map(p=>`<circle cx="${x(p.age)}" cy="${y(p.strength)}" r="4" fill="#10B981"/><text x="${x(p.age)}" y="${y(p.strength)-9}" text-anchor="middle" font-family="Arial" font-size="9" fill="#0F172A">${p.strength.toFixed(1)}</text><text x="${x(p.age)}" y="${height-bottom+16}" text-anchor="middle" font-family="Arial" font-size="8" fill="#475569">${p.age} d</text>`).join("")}
+    <text x="${(left+width-right)/2}" y="${height-10}" text-anchor="middle" font-family="Segoe UI,Arial" font-size="10" font-weight="700" fill="#334155">Age (days)</text>
+    <text x="13" y="${(top+height-bottom)/2}" transform="rotate(-90 13 ${(top+height-bottom)/2})" text-anchor="middle" font-family="Segoe UI,Arial" font-size="10" font-weight="700" fill="#334155">Strength (MPa)</text>
+  </svg>`;
+};
+
+const htmlTable = (headers: string[], rows: Array<Array<unknown>>) => `
+<table class="tbl"><thead><tr>${headers.map(h=>`<th>${esc(h)}</th>`).join("")}</tr></thead>
+<tbody>${rows.map(row=>`<tr>${row.map(v=>`<td>${esc(formatReportValue(v))}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+
 export const handleExportWord = (
   lang: "ar" | "fr" | "en",
   companyName: string,
@@ -350,325 +432,197 @@ export const handleExportWord = (
   totalDryPerM3: number,
   scale: (w: number) => number
 ) => {
+  const rtl = lang === "ar";
+  const direction = rtl ? "rtl" : "ltr";
+  const inputRows = getCompleteInputRows(input);
+  const resultRows = getCompleteResultRows(result);
+  const grading = getGradingSeries(result);
+  const strength = getStrengthSeries(result);
   const t = reportTranslations[lang];
-  const isRtl = lang === "ar";
-  const dir = isRtl ? "rtl" : "ltr";
-  const align = isRtl ? "right" : "left";
+  const status = getCalculationStatusLabel(result.calculationStatus, lang);
+  const wc = result.waterCementRatio ?? result.wcRatioAdjusted ?? result.wcRatio;
+  const reportRef = buildReportFileName("MixDesignReport", input, lang, "doc").replace(/\.doc$/i, "").replace(/^SnoLab_MixDesignReport_/, "MX-");
+  const date = new Date().toLocaleDateString(lang==="ar" ? "ar-DZ" : lang==="fr" ? "fr-DZ" : "en-US");
 
-  const dryWater = Math.round(result.waterContentActual) + " L";
-  const wetWater = Math.round(result.waterWeightWet) + " L";
+  const selectedMaterialSnapshots = getSelectedMaterialSnapshots(input);
 
-  const docContent = `
-  <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-  <head>
-    <meta charset="utf-8">
-    <title>${t.reportTitle}</title>
-    <!--[if gte mso 9]>
-    <xml>
-      <w:WordDocument>
-        <w:View>Print</w:View>
-        <w:Zoom>100</w:Zoom>
-        <w:DoNotOptimizeForBrowser/>
-      </w:WordDocument>
-    </xml>
-    <![endif]-->
-    <style>
-      body {
-        font-family: 'Segoe UI', Arial, sans-serif;
-        direction: ${dir};
-        background-color: #ffffff;
-        color: #1e293b;
-        margin: 1in;
-      }
-      .header-container {
-        text-align: center;
-        margin-bottom: 25px;
-        border-bottom: 3px double #1e3a8a;
-        padding-bottom: 15px;
-      }
-      .org-name {
-        font-size: 16pt;
-        font-weight: bold;
-        color: #1e3a8a;
-        margin: 0;
-      }
-      .report-title {
-        font-size: 14pt;
-        font-weight: bold;
-        color: #475569;
-        margin: 8px 0 3px 0;
-      }
-      .sub-title {
-        font-size: 9.5pt;
-        color: #64748b;
-        font-style: italic;
-      }
-      .section-header {
-        font-size: 11pt;
-        font-weight: bold;
-        color: #1e3a8a;
-        border-bottom: 1px solid #1e3a8a;
-        padding-bottom: 4px;
-        margin-top: 25px;
-        margin-bottom: 12px;
-      }
-      table.data-table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-bottom: 20px;
-      }
-      table.data-table td, table.data-table th {
-        border: 1px solid #cbd5e1;
-        padding: 8px;
-        font-size: 9pt;
-        text-align: ${align};
-      }
-      table.data-table th {
-        background-color: #f1f5f9;
-        font-weight: bold;
-      }
-      .highlight-row {
-        background-color: #fefcf6;
-        font-weight: bold;
-      }
-      .blue-field-row {
-        background-color: #eff6ff;
-        font-weight: bold;
-        color: #1d4ed8;
-      }
-      .info-box {
-        background-color: #0f172a;
-        color: #ffffff;
-        padding: 12px;
-        margin-bottom: 20px;
-        border-left: 5px solid #d97706;
-      }
-      .info-box table {
-        width: 100%;
-      }
-      .info-box td {
-        color: #cbd5e1;
-        text-align: center;
-        font-size: 8.5pt;
-        border: none;
-      }
-      .info-box .num {
-        font-size: 12pt;
-        font-weight: bold;
-        color: #f59e0b;
-      }
-    </style>
-  </head>
-  <body>
-    <div class="header-container">
-      <p class="org-name">${companyName}</p>
-      <p class="report-title">${t.reportTitle}</p>
-      <p class="sub-title">${t.reportSub}</p>
-      <p style="font-size: 8.5pt; color:#94a3b8; margin: 4px 0;">DOC REF: DG-MX-${Date.now().toString().substring(7)}-CERT • ${t.date}: ${new Date().toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US')}</p>
+  const materialRows = [
+    ["Cement", input.selectedCementId || input.cementType || "—", input.cementDensity ?? "—", input.cementClassStrength ?? "—"],
+    ["Fine aggregate", input.selectedSandId || input.sandType || "—", input.sandRelativeDensity ?? "—", input.finenessModulus ?? "—"],
+    ["Coarse aggregate", input.selectedGravelId || input.gravelType || "—", input.gravelRelativeDensity ?? "—", input.dMax ?? "—"],
+    ["Water", input.selectedWaterName || "Mixing water", 1.0, input.selectedWaterPH ?? "—"]
+  ];
+
+  const materialSnapshotRows = selectedMaterialSnapshots.flatMap(item => {
+    const r = getCompleteResultRows(item.material as any);
+    return r.slice(0, 45).map(row => [item.role, row.label, row.path || row.key, formatReportValue(row.value)]);
+  });
+
+  const formulaRows = [
+    ["Cement", result.cementWeight, scale(result.cementWeight)],
+    ["Effective water", result.waterContentActual, scale(result.waterContentActual)],
+    ["Dry sand", result.sandWeightDry, scale(result.sandWeightDry)],
+    ["Dry gravel", result.gravelWeightDry, scale(result.gravelWeightDry)],
+    ["Wet sand", result.sandWeightWet, scale(result.sandWeightWet)],
+    ["Wet gravel", result.gravelWeightWet, scale(result.gravelWeightWet)],
+    ["Water to add", result.waterWeightWet, scale(result.waterWeightWet)],
+    ...(result.admixtureWeights || []).map(a => [`Admixture — ${a.name}`, a.weight, scale(a.weight)]),
+    ...(Number(result.flyAshKg||0)>0 ? [["Fly ash",result.flyAshKg,scale(result.flyAshKg)]] : []),
+    ...(Number(result.slagKg||0)>0 ? [["Slag",result.slagKg,scale(result.slagKg)]] : []),
+    ...(Number(result.silicaFumeKg||0)>0 ? [["Silica fume",result.silicaFumeKg,scale(result.silicaFumeKg)]] : []),
+    ...(Number((result.designSSD as any)?.fiberKg || 0)>0 ? [["Fibers",(result.designSSD as any)?.fiberKg,scale((result.designSSD as any)?.fiberKg)]] : [])
+  ];
+
+  const standardsRows = (result.standardsCompliance || []).map(c => [c.standardName,c.parameter,c.requirement,c.actual,c.status,c.note]);
+  const traceRows = (result.calculationTrace || []).map(s => [s.stepNumber,s.name,s.formula,formatReportValue(s.result),s.unit||"",s.note||""]);
+  const warnings = [...new Set([...(result.warnings||[]), ...(result.errors||[])])];
+
+  const inputTableRows = inputRows.map(r=>[r.label,r.path||"",formatReportValue(r.value)]);
+  const resultTableRows = resultRows.map(r=>[r.label,r.path||"",formatReportValue(r.value)]);
+
+  const docContent = `<!DOCTYPE html>
+<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word">
+<head><meta charset="utf-8"><title>${esc(t.reportTitle)}</title>
+<style>
+@page{size:A4;margin:16mm 14mm 18mm 14mm}
+body{font-family:"Segoe UI",Arial,sans-serif;color:#0f172a;font-size:9pt;line-height:1.45;direction:${direction};margin:0}
+.page{page-break-after:always}
+.cover{min-height:255mm;display:flex;flex-direction:column;justify-content:space-between}
+.brand{padding-bottom:12px;border-bottom:2px solid #2563EB;margin-bottom:18px}
+.logo{text-align:center;margin:4mm 0 8mm}
+.meta{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.card{border:1px solid #CBD5E1;background:#F8FAFC;padding:8px;border-radius:5px}
+.kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:12px 0}
+.kpi .card{background:#EFF6FF;text-align:center}
+.kpi .v{font-size:15pt;font-weight:800;color:#2563EB}
+.section{font-size:12pt;font-weight:800;color:#0B1F3A;border-bottom:2px solid #2563EB;padding-bottom:4px;margin:10px 0 8px}
+.tbl{width:100%;border-collapse:collapse;margin:6px 0 14px}
+.tbl th{background:#0B1F3A;color:#fff;padding:5px;border:1px solid #CBD5E1;text-align:${rtl?"right":"left"}}
+.tbl td{padding:4px 5px;border:1px solid #CBD5E1;vertical-align:top;word-break:break-word}
+.tbl tr:nth-child(even) td{background:#F8FAFC}
+.badge{display:inline-block;padding:4px 8px;border:1px solid #2563EB;color:#2563EB;font-weight:800;border-radius:12px}
+.note{padding:8px;border-left:4px solid #10B981;background:#ECFDF5;margin:8px 0}
+.warn{padding:8px;border-left:4px solid #F59E0B;background:#FFFBEB;margin:8px 0}
+.footer{font-size:8pt;color:#64748B;border-top:1px solid #CBD5E1;padding-top:6px;margin-top:15px}
+h1{font-size:22pt;color:#0B1F3A;margin:4px 0} h2{font-size:16pt;color:#0B1F3A} h3{font-size:12pt;color:#2563EB}
+pre{white-space:pre-wrap;font-size:7.5pt;background:#F8FAFC;padding:8px;border:1px solid #E2E8F0}
+img.chart{width:100%;height:auto;border:1px solid #E2E8F0}
+</style></head><body>
+
+<div class="page cover">
+  <div>
+    <div class="logo">${reportLogoSvg(260,80)}</div>
+    <div class="brand"><h1>${esc(t.reportTitle)}</h1><div>${esc(t.reportSub)}</div></div>
+    <div class="meta">
+      <div class="card"><b>Report reference</b><br/>${esc(reportRef)}</div>
+      <div class="card"><b>Date</b><br/>${esc(date)}</div>
+      <div class="card"><b>Project</b><br/>${esc(projectName || "—")}</div>
+      <div class="card"><b>Client / Owner</b><br/>${esc(clientOwner || "—")}</div>
+      <div class="card"><b>Site</b><br/>${esc(siteLocation || "—")}</div>
+      <div class="card"><b>Structural element</b><br/>${esc(structuralElement || "—")}</div>
+      <div class="card"><b>Laboratory / Unit</b><br/>${esc(companyName || "SnoLab Engineering Materials Laboratory")}</div>
+      <div class="card"><b>Status</b><br/><span class="badge">${esc(status)}</span></div>
     </div>
-
-    <div class="section-header">${t.projectInfo}</div>
-    <table class="data-table">
-      <tr>
-        <td style="font-weight:bold; background-color:#f8fafc; width:25%;">${t.projectName}</td>
-        <td>${projectName}</td>
-        <td style="font-weight:bold; background-color:#f8fafc; width:25%;">${t.siteLocation}</td>
-        <td>${siteLocation}</td>
-      </tr>
-      <tr>
-        <td style="font-weight:bold; background-color:#f8fafc;">${t.clientOwner}</td>
-        <td>${clientOwner}</td>
-        <td style="font-weight:bold; background-color:#f8fafc;">${t.contractor}</td>
-        <td>${contractor}</td>
-      </tr>
-      <tr>
-        <td style="font-weight:bold; background-color:#f8fafc;">${t.structuralElement}</td>
-        <td>${structuralElement}</td>
-        <td style="font-weight:bold; background-color:#f8fafc;">${t.laboratory}</td>
-        <td>${companyName} Laboratory Division</td>
-      </tr>
-    </table>
-
-    <div class="section-header">${t.engineerInfo}</div>
-    <table class="data-table">
-      <tr>
-        <td style="font-weight:bold; background-color:#f8fafc; width:25%;">${t.leadEngineer}</td>
-        <td>${engineerName}</td>
-        <td style="font-weight:bold; background-color:#f8fafc; width:25%;">${t.licenseNumber}</td>
-        <td>${licenseNumber}</td>
-      </tr>
-      <tr>
-        <td style="font-weight:bold; background-color:#f8fafc;">${t.contactEmail}</td>
-        <td>${engineerEmail}</td>
-        <td style="font-weight:bold; background-color:#f8fafc;">${t.signatureTitle}</td>
-        <td>${signatureDesignation}</td>
-      </tr>
-    </table>
-
-    <div class="info-box">
-      <table>
-        <tr>
-          <td>
-            <div>${t.characteristicStrength}</div>
-            <div class="num">C${input.fck28} MPa</div>
-          </td>
-          <td>
-            <div>${t.targetMeanStrength}</div>
-            <div class="num">${result.fcm28.toFixed(1)} MPa</div>
-          </td>
-          <td>
-            <div>${t.wcRatio}</div>
-            <div class="num">${result.wcRatioAdjusted.toFixed(2)}</div>
-          </td>
-          <td>
-            <div>${t.compacityCoeff}</div>
-            <div class="num">γ = ${result.compactorGamma.toFixed(3)}</div>
-          </td>
-        </tr>
-      </table>
+    <div class="kpi">
+      <div class="card"><div>fck,28</div><div class="v">${esc(input.fck28)} MPa</div></div>
+      <div class="card"><div>fcm,28</div><div class="v">${Number(result.fcm28||0).toFixed(1)} MPa</div></div>
+      <div class="card"><div>W/C</div><div class="v">${Number(wc||0).toFixed(3)}</div></div>
+      <div class="card"><div>Dmax</div><div class="v">${esc(input.dMax)} mm</div></div>
     </div>
+    <div class="note"><b>Engineering use note:</b> this document records the calculated formulation, source inputs, laboratory-linked values and checks. Physical trial batching and laboratory verification remain required before structural casting.</div>
+  </div>
+  <div class="footer">SnoLab • Concrete formulation & materials laboratory report • ${esc(date)} • ${esc(reportRef)}</div>
+</div>
 
-    <div class="section-header">${t.laboratoryDryRecipe}</div>
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th>${t.constituent}</th>
-          <th>${t.densityLabel}</th>
-          <th>Dry dosage per m³</th>
-          <th style="background-color: #fef3c7;">Scaled Weight (${batchVolume} m³)</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td style="font-weight:bold;">${t.cementDry}</td>
-          <td>${input.cementDensity && input.cementDensity > 0 ? `${input.cementDensity} kg/m³` : (lang === "ar" ? "غير متوفر" : lang === "fr" ? "Non disponible" : "N/A")}</td>
-          <td>${Math.round(result.cementWeight)} kg</td>
-          <td style="font-weight:bold; background-color:#fefcf6;">${scale(result.cementWeight)} kg</td>
-        </tr>
-        <tr>
-          <td style="font-weight:bold;">${t.nominalWater}</td>
-          <td>1.0</td>
-          <td>${dryWater}</td>
-          <td style="font-weight:bold; background-color:#fefcf6;">${scale(result.waterContentActual)} L</td>
-        </tr>
-        <tr>
-          <td style="font-weight:bold;">${t.drySand}</td>
-          <td>${input.sandRelativeDensity && input.sandRelativeDensity > 0 ? input.sandRelativeDensity : (lang === "ar" ? "غير متوفر" : lang === "fr" ? "Non disponible" : "N/A")}</td>
-          <td>${Math.round(result.sandWeightDry)} kg</td>
-          <td style="font-weight:bold; background-color:#fefcf6;">${scale(result.sandWeightDry)} kg</td>
-        </tr>
-        <tr>
-          <td style="font-weight:bold;">${t.dryGravel}</td>
-          <td>${input.gravelRelativeDensity && input.gravelRelativeDensity > 0 ? input.gravelRelativeDensity : (lang === "ar" ? "غير متوفر" : lang === "fr" ? "Non disponible" : "N/A")}</td>
-          <td>${Math.round(result.gravelWeightDry)} kg</td>
-          <td style="font-weight:bold; background-color:#fefcf6;">${scale(result.gravelWeightDry)} kg</td>
-        </tr>
-        ${result.admixtureWeights.map(adm => `
-        <tr>
-          <td>🧪 ${adm.name}</td>
-          <td>~1.1</td>
-          <td>${adm.weight.toFixed(2)} kg</td>
-          <td>${scale(adm.weight)} kg</td>
-        </tr>
-        `).join('')}
-        ${[
-          { name: lang === "ar" ? "الرماد المتطاير (إضافة معدنية)" : "Fly ash (mineral addition)", weight: result.flyAshKg ?? 0 },
-          { name: lang === "ar" ? "خبث الأفران (إضافة معدنية)" : "Slag (mineral addition)", weight: result.slagKg ?? 0 },
-          { name: lang === "ar" ? "غبار السيليكا (إضافة معدنية)" : "Silica fume (mineral addition)", weight: result.silicaFumeKg ?? 0 }
-        ].filter(addition => addition.weight > 0).map(addition => `
-        <tr>
-          <td>⛰ ${addition.name}</td>
-          <td>~2.2</td>
-          <td>${addition.weight.toFixed(2)} kg</td>
-          <td>${scale(addition.weight)} kg</td>
-        </tr>
-        `).join('')}
-        <tr style="background-color: #f1f5f9; font-weight:bold;">
-          <td>Total Net Bulk Weight</td>
-          <td>-</td>
-          <td>${Math.round(totalDryPerM3)} kg/m³</td>
-          <td>-</td>
-        </tr>
-      </tbody>
-    </table>
+<div class="page">
+  <div class="section">${lang === "ar" ? "1. مدخلات تحضير الخلطة الكاملة" : "1. Complete mix-preparation inputs"}</div>
+  ${htmlTable([lang==="ar"?"المدخل":"Input parameter","Path / field","Value"], inputTableRows)}
+  <div class="section">2. Selected material records</div>
+  ${htmlTable(["Material","Selected record","Density / SG","Key property"], materialRows)}
+  ${selectedMaterialSnapshots.length ? `<div class="section">Selected library material snapshots</div>${htmlTable(["Role","Property","Field","Value"], materialSnapshotRows)}` : ""}
+</div>
 
-    <div class="section-header">${t.fieldWetScale}</div>
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th>${t.constituent}</th>
-          <th>${t.moistureSand} / ${t.moistureGravel}</th>
-          <th>Wet dosage per m³</th>
-          <th style="background-color: #fef3c7;">Actual Scale Weight (${batchVolume} m³)</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td style="font-weight:bold;">${t.cementDry}</td>
-          <td>0% (Dry silo)</td>
-          <td>${Math.round(result.cementWeight)} kg</td>
-          <td style="font-weight:bold; background-color:#fefcf6;">${scale(result.cementWeight)} kg</td>
-        </tr>
-        <tr>
-          <td style="font-weight:bold;">${t.actualWetSand}</td>
-          <td style="font-weight:bold; color:#b45309;">${input.moistureSand}%</td>
-          <td>${Math.round(result.sandWeightWet)} kg</td>
-          <td style="font-weight:bold; background-color:#fefcf6;">${scale(result.sandWeightWet)} kg</td>
-        </tr>
-        <tr>
-          <td style="font-weight:bold;">${t.actualWetGravel}</td>
-          <td style="font-weight:bold; color:#b45309;">${input.moistureGravel}%</td>
-          <td>${Math.round(result.gravelWeightWet)} kg</td>
-          <td style="font-weight:bold; background-color:#fefcf6;">${scale(result.gravelWeightWet)} kg</td>
-        </tr>
-        <tr class="blue-field-row">
-          <td>${t.actualMixingWater}</td>
-          <td>Adjusted</td>
-          <td>${wetWater}</td>
-          <td>${scale(result.waterWeightWet)} L</td>
-        </tr>
-      </tbody>
-    </table>
+<div class="page">
+  <div class="section">3. Design formula & batching quantities</div>
+  ${htmlTable(["Component","Per m³","For batch","Unit"], formulaRows.map(r=>[r[0],r[1],r[2],"kg or L"]))}
+  <div class="section">Moisture / batching correction</div>
+  ${htmlTable(["Parameter","Value","Unit"],[
+    ["Sand moisture",input.moistureSand??"—","%"],
+    ["Gravel moisture",input.moistureGravel??"—","%"],
+    ["Sand wet mass",result.sandWeightWet??"—","kg/m³"],
+    ["Gravel wet mass",result.gravelWeightWet??"—","kg/m³"],
+    ["Water to add",result.waterWeightWet??result.waterToAdd??"—","kg or L/m³"],
+    ["Absorption deficit",result.aggregateAbsorptionDeficit??"—","kg/m³"],
+    ["Raw water to add",result.rawWaterToAdd??"—","kg/m³"]
+  ])}
+  <div class="section">Primary results</div>
+  ${htmlTable(["Result","Value","Unit"],[
+    ["Effective W/C",wc??"—",""],
+    ["Water/Binder",((result as any).waterBinderRatio ?? result.designSSD?.waterCementitiousRatio)??"—",""],
+    ["Cement used",result.actualCementUsed??result.cementWeight??"—","kg/m³"],
+    ["Theoretical cement demand",result.theoreticalCementDemand??"—","kg/m³"],
+    ["Sand fraction",result.sandPercent??"—","%"],
+    ["Gravel fraction",result.gravelPercent??"—","%"],
+    ["Fresh density",result.totalFreshDensity??"—","kg/m³"],
+    ["Volume closure error",result.volumeClosureError??"—","%"],
+    ["Calculation status",status,""]
+  ])}
+</div>
 
-    <div class="section-header">${t.trialMixAdvisory}</div>
-    <p style="font-size: 9.5pt; line-height: 1.5; color: #475569;">${t.trialMixDesc}</p>
+<div class="page">
+  <div class="section">4. Grading & engineering curves</div>
+  ${gradingChartSvg(result,lang) ? `<div>${gradingChartSvg(result,lang)}</div>` : "<div class='warn'>No grading series were available for export.</div>"}
+  ${strengthChartSvg(result,lang,760,300,input.fck28) ? `<div style="margin-top:14px">${strengthChartSvg(result,lang,760,300,input.fck28)}</div>` : ""}
+  <div class="section">Curve data</div>
+  ${htmlTable(["Sieve / age","Target","Actual / strength","Unit"],[
+    ...grading.map(p=>[`${p.size} mm`,p.targetPassing,p.actualPassing??"—","% passing"]),
+    ...strength.map(p=>[`${p.age} d`,"—",p.strength,"MPa"])
+  ])}
+</div>
 
-    <br/><br/>
-    <table style="width:100%; border:none;">
-      <tr>
-        <td style="border:none; text-align:center;">
-          <p style="font-weight:bold;">1. ${t.labQualityEngineer}</p>
-          <p style="margin-top:25px; border-bottom:1px solid #cbd5e1; width:150px; display:inline-block;"></p>
-          <p style="font-size: 8pt; color:#64748b;">${signatureDesignation}</p>
-        </td>
-        <td style="border:none; text-align:center;">
-          <p style="font-weight:bold;">2. ${t.pmApproval}</p>
-          <p style="margin-top:25px; border-bottom:1px solid #cbd5e1; width:150px; display:inline-block;"></p>
-          <p style="font-size: 8pt; color:#64748b;">Date & Sign-off</p>
-        </td>
-        <td style="border:none; text-align:center;">
-          <div style="border: 3px double #b45309; padding: 10px; font-weight:bold; color:#b45309; display:inline-block; font-size:10pt;">
-            APPROVED FOR CASTING
-          </div>
-        </td>
-      </tr>
-    </table>
-  </body>
-  </html>
-  `;
+<div class="page">
+  <div class="section">5. Standards / engineering checks</div>
+  ${standardsRows.length ? htmlTable(["Standard","Parameter","Requirement","Actual","Status","Note"],standardsRows) : "<div class='warn'>No standards-compliance rows were recorded.</div>"}
+  ${warnings.length ? `<div class="section">Warnings / blocking messages</div>${warnings.map(w=>`<div class="warn">${esc(w)}</div>`).join("")}` : ""}
+  <div class="section">Engineering audit</div>
+  ${htmlTable(["Audit field","Value"],[
+    ["Engine status",status],
+    ["Engine version",(result as any).engineeringAudit?.engineVersion??"—"],
+    ["Material resolution",(result as any).engineeringAudit?.inputResolution ? JSON.stringify((result as any).engineeringAudit.inputResolution) : "—"],
+    ["Manual W/C override",(result as any).engineeringAudit?.manualWcOverrideUsed??false],
+    ["Granular optimization",(result as any).engineeringAudit?.granularOptimization ? JSON.stringify((result as any).engineeringAudit.granularOptimization) : "—"],
+    ["Confidence",(result as any).confidenceLevel??"—"]
+  ])}
+</div>
 
-  const blob = new Blob(['\ufeff' + docContent], { type: 'application/msword;charset=utf-8' });
-  const downloadUrl = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = downloadUrl;
-  a.download = `Concrete_Mix_Report_C${input.fck28}_${lang.toUpperCase()}_${Date.now().toString().substring(8)}.doc`;
-  a.style.display = 'none';
+<div class="page">
+  <div class="section">6. Complete calculated result register</div>
+  ${htmlTable(["Result parameter","Path / field","Value"], resultTableRows)}
+</div>
+
+<div class="page">
+  <div class="section">${lang === "ar" ? "7. سجل الحساب" : "7. Calculation trace"}</div>
+  ${traceRows.length ? htmlTable(["Step","Name","Formula","Result","Unit","Note"],traceRows) : "<div class='warn'>No calculation trace was stored.</div>"}
+  <div class="section">8. Approval & release</div>
+  <div class="meta">
+    <div class="card"><b>Prepared by</b><br/>${esc(engineerName || "—")}<br/>${esc(signatureDesignation || "")}</div>
+    <div class="card"><b>Professional / license reference</b><br/>${esc(licenseNumber || "—")}<br/>${esc(engineerEmail || "")}</div>
+    <div class="card"><b>Reviewer</b><br/>____________________________</div>
+    <div class="card"><b>Laboratory / QA sign-off</b><br/>____________________________</div>
+  </div>
+  <div class="note" style="margin-top:18px"><b>Document control:</b> report reference ${esc(reportRef)} • generated ${esc(date)} • batch volume ${esc(batchVolume)} m³ • revision 1.</div>
+</div>
+
+</body></html>`;
+
+  const blob = new Blob(["\\ufeff" + docContent], { type: "application/msword;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = buildReportFileName("MixDesignReport", input, lang, "doc");
   document.body.appendChild(a);
   a.click();
-  window.setTimeout(() => {
-    a.remove();
-    URL.revokeObjectURL(downloadUrl);
-  }, 1000);
+  window.setTimeout(()=>{ a.remove(); URL.revokeObjectURL(url); }, 1000);
 };
 
 export const handleExportExcel = (
@@ -689,291 +643,155 @@ export const handleExportExcel = (
   batchVolume: number
 ) => {
   const t = reportTranslations[lang];
+  const status = getCalculationStatusLabel(result.calculationStatus, lang);
+  const wc = result.waterCementRatio ?? result.wcRatioAdjusted ?? result.wcRatio;
+  const inputRows = getCompleteInputRows(input);
+  const resultRows = getCompleteResultRows(result);
+  const grading = getGradingSeries(result);
+  const strength = getStrengthSeries(result);
+  const selectedMaterialSnapshots = getSelectedMaterialSnapshots(input);
+  const wb = XLSX.utils.book_new();
 
-  // Helper to construct cell objects
-  const cell = (value: any, type: 's' | 'n' | 'b' = 's', formula?: string, format?: string) => {
-    const obj: any = { t: type };
-    if (value !== undefined && value !== null) {
-      obj.v = value;
-    }
-    if (formula) {
-      obj.f = formula;
-    }
-    if (format) {
-      obj.z = format;
-    }
-    return obj;
+  const makeSheet = (rows: any[][], widths: number[] = [34,30,28,24]) => {
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws["!cols"] = widths.map(w=>({wch:w}));
+    ws["!freeze"] = { xSplit: 0, ySplit: 1 };
+    if (lang === "ar") ws["!views"] = [{ RTL: true }];
+    return ws;
   };
 
-  const str = (v: string) => cell(v, 's');
-  const num = (v: number, formula?: string, format?: string) => cell(v, 'n', formula, format);
-
-  const rows: any[][] = [];
-
-  // Title block
-  const titleText = `${companyName} - ${t.reportTitle || "Concrete Mix Report"}`;
-  const subTitleText = `${t.reportSub || "Dreux-Gorisse Formulation"}`;
-  
-  rows.push([]);
-  rows.push([str(titleText)]);
-  rows.push([str(subTitleText)]);
-  rows.push([]);
-
-  // Project Info
-  rows.push([str((t.projectInfo || "Project Information").toUpperCase())]);
-  rows.push([
-    str(t.projectName || "Project Name"), str(projectName), 
-    str(""), 
-    str(t.siteLocation || "Casting Site Location"), str(siteLocation)
-  ]);
-  rows.push([
-    str(t.clientOwner || "Project Client / Owner"), str(clientOwner), 
-    str(""), 
-    str(t.contractor || "General Contractor"), str(contractor)
-  ]);
-  rows.push([
-    str(t.structuralElement || "Target Structural Member"), str(structuralElement), 
-    str(""), 
-    str(t.date || "Date"), str(new Date().toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US'))
-  ]);
-  rows.push([]);
-
-  // Engineer Info
-  rows.push([str((t.engineerInfo || "Engineer Info").toUpperCase())]);
-  rows.push([
-    str(t.leadEngineer || "Lead Testing Engineer"), str(engineerName), 
-    str(""), 
-    str(t.licenseNumber || "Professional License Number"), str(licenseNumber)
-  ]);
-  rows.push([
-    str(t.contactEmail || "Engineer Business Email"), str(engineerEmail), 
-    str(""), 
-    str("Authority / Designation"), str(signatureDesignation)
-  ]);
-  rows.push([]);
-
-  // Specs
-  rows.push([str("CONCRETE DESIGN SPECIFICATIONS")]);
-  rows.push([
-    str(t.characteristicStrength || "Characteristic fck"), str(`C${input.fck28} MPa`), 
-    str(""), 
-    str(t.targetMeanStrength || "Target Mean fcm"), str(`${result.fcm28.toFixed(1)} MPa`)
-  ]);
-  
-  rows.push([
-    str(t.wcRatio || "Actual W/C Ratio"), num(Number(result.wcRatioAdjusted.toFixed(3))), 
-    str(""), 
-    str("Batch Volume (Multiplier m³)"), num(Number(batchVolume))
-  ]);
-  rows.push([]);
-
-  // 1. Dry Recipe
-  rows.push([str(t.laboratoryDryRecipe || "1. Laboratory Dry Recipe List (Calculated for dry masses per m³)")]);
-  rows.push([
-    str(t.constituent || "Constituent"), 
-    str("Relative Density"), 
-    str("Dry Unit Mass / m³ (kg)"), 
-    str("Sizing Factor"), 
-    str("Calculated Weight for Batch (kg)")
-  ]);
-
-  // Cement (Row 20 in Excel, index 19)
-  const cementDens = input.cementDensity && input.cementDensity > 0 ? (input.cementDensity / 1000) : undefined;
-  rows.push([
-    str(t.cementDry || "Cement"), 
-    cementDens !== undefined ? num(Number(cementDens.toFixed(2))) : str("-"), 
-    num(Math.round(result.cementWeight)), 
-    str("=E16"), 
-    num(Math.round(result.cementWeight * batchVolume), "C20*D20")
-  ]);
-
-  // Water (Row 21 in Excel, index 20)
-  rows.push([
-    str(t.nominalWater || "Water"), 
-    num(1.0), 
-    num(Math.round(result.waterContentActual)), 
-    str("=E16"), 
-    num(Math.round(result.waterContentActual * batchVolume), "C21*D21")
-  ]);
-
-  // Sand (Row 22 in Excel, index 21)
-  const sandDens = input.sandRelativeDensity && input.sandRelativeDensity > 0 ? input.sandRelativeDensity : undefined;
-  rows.push([
-    str(t.drySand || "Fine Sand"), 
-    sandDens !== undefined ? num(Number(sandDens.toFixed(2))) : str("-"), 
-    num(Math.round(result.sandWeightDry)), 
-    str("=E16"), 
-    num(Math.round(result.sandWeightDry * batchVolume), "C22*D22")
-  ]);
-
-  // Gravel (Row 23 in Excel, index 22)
-  const gravelDens = input.gravelRelativeDensity && input.gravelRelativeDensity > 0 ? input.gravelRelativeDensity : undefined;
-  rows.push([
-    str(t.dryGravel || "Coarse Gravel"), 
-    gravelDens !== undefined ? num(Number(gravelDens.toFixed(2))) : str("-"), 
-    num(Math.round(result.gravelWeightDry)), 
-    str("=E16"), 
-    num(Math.round(result.gravelWeightDry * batchVolume), "C23*D23")
-  ]);
-
-  const mineralAdditions = [
-    { name: "Fly ash (mineral addition)", weight: result.flyAshKg ?? 0 },
-    { name: "Slag (mineral addition)", weight: result.slagKg ?? 0 },
-    { name: "Silica fume (mineral addition)", weight: result.silicaFumeKg ?? 0 }
-  ].filter((addition) => addition.weight > 0);
-
-  // Chemical admixtures
-  const nAdmixtures = result.admixtureWeights.length;
-  result.admixtureWeights.forEach((adm, idx) => {
-    const rowNum = 24 + idx; // 1-based Excel row number for current admixture
-    rows.push([
-      str(`🧪 ${adm.name}`), 
-      num(1.1), 
-      num(Number(adm.weight.toFixed(2))), 
-      str("=E16"), 
-      num(Number((adm.weight * batchVolume).toFixed(2)), `C${rowNum}*D${rowNum}`)
-    ]);
-  });
-
-  mineralAdditions.forEach((addition, idx) => {
-    const rowNum = 24 + nAdmixtures + idx;
-    rows.push([
-      str(`⛰ ${addition.name}`),
-      num(2.2),
-      num(Number(addition.weight.toFixed(2))),
-      str("=E16"),
-      num(Number((addition.weight * batchVolume).toFixed(2)), `C${rowNum}*D${rowNum}`)
-    ]);
-  });
-
-  // Total Dry
-  const totalDryRowExcel = 24 + nAdmixtures + mineralAdditions.length;
-  rows.push([
-    str("TOTAL FRESH DENSITY (DRY)"), 
-    str("-"), 
-    num(Math.round(totalDryPerM3), `SUM(C20:C${totalDryRowExcel - 1})`), 
-    str("-"), 
-    num(Math.round(totalDryPerM3 * batchVolume), `SUM(E20:E${totalDryRowExcel - 1})`)
-  ]);
-
-  rows.push([]);
-
-  // 2. Wet Scale
-  const wetHeaderRowExcel = totalDryRowExcel + 2;
-  const wetTableHeaderRowExcel = wetHeaderRowExcel + 1;
-  const startWetRowExcel = wetTableHeaderRowExcel + 1; // Row where Cement starts
-
-  rows.push([str(t.fieldWetScale || "2. Real Site Wet Scales (Adjusted for stock moisture content)")]);
-  rows.push([
-    str(t.constituent || "Constituent"), 
-    str("Stock Moisture (%)"), 
-    str("Moist Unit Mass / m³ (kg)"), 
-    str("Sizing Factor"), 
-    str("Central Scale Dynamic Batch (kg)")
-  ]);
-
-  // Moist Cement (no moisture, 0%)
-  rows.push([
-    str(t.cementDry || "Cement"), 
-    str("0%"), 
-    num(Math.round(result.cementWeight), "C20"), 
-    str("=E16"), 
-    num(Math.round(result.cementWeight * batchVolume), `C${startWetRowExcel}*D${startWetRowExcel}`)
-  ]);
-
-  // Moist Sand
-  rows.push([
-    str(t.actualWetSand || "Moist Sand"), 
-    num(Number((input.moistureSand || 0) / 100), undefined, "0.0%"), 
-    num(Math.round(result.sandWeightWet), `C22*(1 + B${startWetRowExcel + 1})`), 
-    str("=E16"), 
-    num(Math.round(result.sandWeightWet * batchVolume), `C${startWetRowExcel + 1}*D${startWetRowExcel + 1}`)
-  ]);
-
-  // Moist Gravel
-  rows.push([
-    str(t.actualWetGravel || "Moist Gravel"), 
-    num(Number((input.moistureGravel || 0) / 100), undefined, "0.0%"), 
-    num(Math.round(result.gravelWeightWet), `C23*(1 + B${startWetRowExcel + 2})`), 
-    str("=E16"), 
-    num(Math.round(result.gravelWeightWet * batchVolume), `C${startWetRowExcel + 2}*D${startWetRowExcel + 2}`)
-  ]);
-
-  // compensated water
-  rows.push([
-    str(t.actualMixingWater || "Moisture Compensated Water"), 
-    str("Moisture Compensated"), 
-    num(Math.round(result.waterWeightWet), `C21 - (C22*B${startWetRowExcel + 1}) - (C23*B${startWetRowExcel + 2})`), 
-    str("=E16"), 
-    num(Math.round(result.waterWeightWet * batchVolume), `C${startWetRowExcel + 3}*D${startWetRowExcel + 3}`)
-  ]);
-
-  // Admixtures (Wet scale)
-  result.admixtureWeights.forEach((adm, idx) => {
-    const dryRowRef = 24 + idx;
-    const wetRowExcel = startWetRowExcel + 4 + idx;
-    rows.push([
-      str(`🧪 ${adm.name}`), 
-      str("0%"), 
-      num(Number(adm.weight.toFixed(2)), `C${dryRowRef}`), 
-      str("=E16"), 
-      num(Number((adm.weight * batchVolume).toFixed(2)), `C${wetRowExcel}*D${wetRowExcel}`)
-    ]);
-  });
-  mineralAdditions.forEach((addition, idx) => {
-    const dryRowRef = 24 + nAdmixtures + idx;
-    const wetRowExcel = startWetRowExcel + 4 + nAdmixtures + idx;
-    rows.push([
-      str(`⛰ ${addition.name}`),
-      str("0%"),
-      num(Number(addition.weight.toFixed(2)), `C${dryRowRef}`),
-      str("=E16"),
-      num(Number((addition.weight * batchVolume).toFixed(2)), `C${wetRowExcel}*D${wetRowExcel}`)
-    ]);
-  });
-
-  // Total Wet
-  const totalWetRowExcel = startWetRowExcel + 4 + nAdmixtures + mineralAdditions.length;
-  rows.push([
-    str("TOTAL FRESH DENSITY (WET)"), 
-    str("-"), 
-    num(Math.round(result.cementWeight + result.sandWeightWet + result.gravelWeightWet + result.waterWeightWet + result.admixtureWeights.reduce((acc, a) => acc + a.weight, 0) + mineralAdditions.reduce((acc, a) => acc + a.weight, 0)), `SUM(C${startWetRowExcel}:C${totalWetRowExcel - 1})`),
-    str("-"), 
-    num(Math.round((result.cementWeight + result.sandWeightWet + result.gravelWeightWet + result.waterWeightWet + result.admixtureWeights.reduce((acc, a) => acc + a.weight, 0) + mineralAdditions.reduce((acc, a) => acc + a.weight, 0)) * batchVolume), `SUM(E${startWetRowExcel}:E${totalWetRowExcel - 1})`)
-  ]);
-
-  // Build sheet
-  const ws = XLSX.utils.aoa_to_sheet(rows);
-
-  // Apply column widths
-  ws["!cols"] = [
-    { wch: 35 }, // Constituent / Name
-    { wch: 22 }, // Density / Moisture
-    { wch: 25 }, // Unit weight
-    { wch: 18 }, // Sizing factor
-    { wch: 30 }  // Batch weight
+  const title = [
+    ["SnoLab", t.reportTitle],
+    [t.reportSub || "Dreux-Gorisse"],
+    [],
+    ["REPORT REFERENCE", buildReportFileName("MixDesignReport", input, lang, "xlsx").replace(/^SnoLab_|\.xlsx$/g,"")],
+    ["DATE", new Date().toLocaleDateString(lang==="ar"?"ar-DZ":lang==="fr"?"fr-DZ":"en-US")],
+    ["STATUS", status],
+    [],
+    ["PROJECT", projectName || "—"],
+    ["SITE", siteLocation || "—"],
+    ["CLIENT / OWNER", clientOwner || "—"],
+    ["CONTRACTOR", contractor || "—"],
+    ["STRUCTURAL ELEMENT", structuralElement || "—"],
+    ["ENGINEER", engineerName || "—"],
+    ["LICENSE / REF", licenseNumber || "—"],
+    ["ENGINEER EMAIL", engineerEmail || "—"],
+    [],
+    ["KEY METRICS","Value","Unit"],
+    ["fck,28",input.fck28,"MPa"],
+    ["fcm,28",result.fcm28,"MPa"],
+    ["W/C",wc,""],
+    ["W/B",((result as any).waterBinderRatio ?? result.designSSD?.waterCementitiousRatio)??"—",""],
+    ["Dmax",input.dMax,"mm"],
+    ["Slump",input.slump,"cm"],
+    ["Batch volume",batchVolume,"m³"],
+    ["Fresh density",result.totalFreshDensity,"kg/m³"]
   ];
+  XLSX.utils.book_append_sheet(wb, makeSheet(title,[34,70,18]), "01 Cover");
 
-  // Set RTL for Arabic
-  if (lang === "ar") {
-    ws["!views"] = [{ RTL: true }];
+  XLSX.utils.book_append_sheet(wb, makeSheet([
+    ["SnoLab — Complete Mix Preparation Inputs"],
+    ["Parameter","Field path","Value"],
+    ...inputRows.map(r=>[r.label,r.path||"",formatReportValue(r.value)])
+  ],[48,58,70]), "02 Inputs");
+
+  const materials = [
+    ["Selected materials & key properties"],
+    ["Component","Selected record","Density / SG","Absorption / moisture","Additional data"],
+    ["Cement",input.selectedCementId||input.cementType||"—",input.cementDensity??"—","—",input.cementClassStrength??"—"],
+    ["Fine aggregate",input.selectedSandId||input.sandType||"—",input.sandRelativeDensity??"—",`${input.sandAbsorption??"—"} / ${input.moistureSand??"—"}%`,`FM=${input.finenessModulus??"—"}`],
+    ["Coarse aggregate",input.selectedGravelId||input.gravelType||"—",input.gravelRelativeDensity??"—",`${input.gravelAbsorption??"—"} / ${input.moistureGravel??"—"}%`,`Dmax=${input.dMax??"—"} mm`],
+    ["Water",input.selectedWaterName||"Mixing water",1.0,"—",`pH=${input.selectedWaterPH??"—"}`]
+  ];
+  XLSX.utils.book_append_sheet(wb, makeSheet(materials,[26,38,22,30,36]), "03 Materials");
+  if (selectedMaterialSnapshots.length) {
+    const snapshotRows = [
+      ["Selected SnoLab library material snapshots"],
+      ["Role","Material","Property","Field","Value"],
+      ...selectedMaterialSnapshots.flatMap(item =>
+        getCompleteResultRows(item.material as any).slice(0, 60).map(row => [
+          item.role,
+          item.material.name || item.material.englishName || item.material.MaterialID || "—",
+          row.label,
+          row.path || row.key,
+          formatReportValue(row.value)
+        ])
+      )
+    ];
+    XLSX.utils.book_append_sheet(wb, makeSheet(snapshotRows,[26,34,42,52,70]), "03B Material Snapshots");
   }
 
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "SnoLab Mix Design");
+  const formula = [
+    ["SnoLab — Mix Formula / Batching"],
+    ["Component","Per m³","Batch quantity","Unit","Notes"],
+    ["Cement",result.cementWeight,Number(result.cementWeight||0)*batchVolume,"kg","Actual cement used"],
+    ["Effective water",result.waterContentActual,Number(result.waterContentActual||0)*batchVolume,"kg/L","Effective water"],
+    ["Dry sand",result.sandWeightDry,Number(result.sandWeightDry||0)*batchVolume,"kg","SSD/dry design basis"],
+    ["Dry gravel",result.gravelWeightDry,Number(result.gravelWeightDry||0)*batchVolume,"kg","SSD/dry design basis"],
+    ["Wet sand",result.sandWeightWet,Number(result.sandWeightWet||0)*batchVolume,"kg","Moisture corrected"],
+    ["Wet gravel",result.gravelWeightWet,Number(result.gravelWeightWet||0)*batchVolume,"kg","Moisture corrected"],
+    ["Water to add",result.waterWeightWet??result.waterToAdd,Number(result.waterWeightWet??result.waterToAdd??0)*batchVolume,"kg/L","After aggregate moisture correction"],
+    ["Theoretical cement demand",result.theoreticalCementDemand,"—","kg/m³","Uncapped demand"],
+    ["Actual cement used",result.actualCementUsed??result.cementWeight,"—","kg/m³","Applied design value"],
+    ["Fine aggregate fraction",result.sandPercent,"—","%","Blend fraction"],
+    ["Coarse aggregate fraction",result.gravelPercent,"—","%","Blend fraction"],
+    ["Effective W/C",wc,"—","","Water / cement"],
+    ["Water/Binder",((result as any).waterBinderRatio ?? result.designSSD?.waterCementitiousRatio)??"—","—","","Water / total binder"],
+    ["Fresh density",result.totalFreshDensity,"—","kg/m³","Calculated value"]
+  ];
+  (result.admixtureWeights||[]).forEach(a=>formula.push([`Admixture — ${a.name}`,a.weight,a.weight*batchVolume,"kg", "Structured admixture"]));
+  if(Number(result.flyAshKg||0)>0) formula.push(["Fly ash",result.flyAshKg,(result.flyAshKg||0)*batchVolume,"kg","Mineral addition"]);
+  if(Number(result.slagKg||0)>0) formula.push(["Slag",result.slagKg,(result.slagKg||0)*batchVolume,"kg","Mineral addition"]);
+  if(Number(result.silicaFumeKg||0)>0) formula.push(["Silica fume",result.silicaFumeKg,(result.silicaFumeKg||0)*batchVolume,"kg","Mineral addition"]);
+  XLSX.utils.book_append_sheet(wb, makeSheet(formula,[34,20,22,14,44]), "04 Formula");
 
-  const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+  XLSX.utils.book_append_sheet(wb, makeSheet([
+    ["SnoLab — Complete Calculated Output Register"],
+    ["Result parameter","Field path","Value"],
+    ...resultRows.map(r=>[r.label,r.path||"",formatReportValue(r.value)])
+  ],[50,62,80]), "05 Results");
 
-  const blob = new Blob([wbout], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-  const downloadUrl = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = downloadUrl;
-  a.download = `SnoLab_Mix_Design_C${input.fck28}_${lang.toUpperCase()}_${Date.now().toString().substring(8)}.xlsx`;
-  a.style.display = 'none';
+  XLSX.utils.book_append_sheet(wb, makeSheet([
+    ["SnoLab — Curves / Graph Data"],
+    ["Sieve size (mm)","Target passing (%)","Actual blend passing (%)"],
+    ...grading.map(p=>[p.size,p.targetPassing,p.actualPassing??"—"]),
+    [],
+    ["Strength age (days)","Strength (MPa)","fck target (MPa)"],
+    ...strength.map(p=>[p.age,p.strength,input.fck28])
+  ],[24,26,30]), "06 Curves");
+
+  XLSX.utils.book_append_sheet(wb, makeSheet([
+    ["SnoLab — Compliance / Verification"],
+    ["Standard","Parameter","Requirement","Actual","Status","Note"],
+    ...(result.standardsCompliance||[]).map(c=>[c.standardName,c.parameter,c.requirement,c.actual,c.status,c.note]),
+    [],
+    ["Warnings / errors"],
+    ...(result.warnings||[]).map(w=>[w]),
+    ...(result.errors||[]).map(e=>[e])
+  ],[26,30,32,28,18,50]), "07 Checks");
+
+  XLSX.utils.book_append_sheet(wb, makeSheet([
+    ["SnoLab — Engineering Audit / Calculation Trace"],
+    ["Step","Name","Formula","Result","Unit","Note"],
+    ...(result.calculationTrace||[]).map(s=>[s.stepNumber,s.name,s.formula,formatReportValue(s.result),s.unit||"",s.note||""]),
+    [],
+    ["Audit metadata","Value"],
+    ["Engine status",status],
+    ["Engine version",(result as any).engineeringAudit?.engineVersion??"—"],
+    ["Input resolution",(result as any).engineeringAudit?.inputResolution ? JSON.stringify((result as any).engineeringAudit.inputResolution) : "—"],
+    ["Manual W/C override",(result as any).engineeringAudit?.manualWcOverrideUsed??false],
+    ["Granular optimization",(result as any).engineeringAudit?.granularOptimization ? JSON.stringify((result as any).engineeringAudit.granularOptimization) : "—"],
+    ["Confidence",(result as any).confidenceLevel??"—"]
+  ],[10,30,42,34,16,50]), "08 Audit");
+
+  const wbout = XLSX.write(wb, { bookType:"xlsx", type:"array", cellStyles:true, compression:true });
+  const blob = new Blob([wbout], {type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = buildReportFileName("MixDesignReport", input, lang, "xlsx");
   document.body.appendChild(a);
   a.click();
-  window.setTimeout(() => {
-    a.remove();
-    URL.revokeObjectURL(downloadUrl);
-  }, 1000);
+  window.setTimeout(()=>{a.remove();URL.revokeObjectURL(url)},1000);
 };
+

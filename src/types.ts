@@ -97,6 +97,7 @@ export interface MixDesignInput {
   internalSandRatio?: number;    // Georges Dreux: نسبة الرمل الأصلية المفترضة
   packingFactor?: number;        // Georges Dreux: معامل الرص الفعلي جاما (Compaction factor)
   internalWcOverride?: number;   // Georges Dreux: نسبة الماء إلى الإسمنت المعدلة مسبقاً
+  useManualWcOverride?: boolean; // Explicit opt-in for a manually imposed W/C ratio; never enabled implicitly by recommendations
 
   // Unified Material ID selection keys (Single Source of Truth)
   selectedSandId?: string;

@@ -10,10 +10,13 @@ import {
   getStandardTableTheme, 
   finalizeReportPages,
   PDF_COLORS,
-  PDF_PAGE_MARGINS
+  PDF_PAGE_MARGINS,
+  loadPublicImageDataUrl
 } from "./pdfCore";
 import { MixDesignPdfOptions, DEFAULT_LAB_PROFILE } from "./types";
 import { formatEngineeringValue } from "../../utils/unitFormatter";
+import { getCompleteInputRows, getCompleteResultRows, getSelectedMaterialSnapshots } from "../../utils/reportData";
+import { drawGradingChart, drawStrengthEvolutionChart } from "./reportCharts";
 
 /**
  * Generates an official, publication-quality, multi-page vector PDF for a Concrete Mix Design.
@@ -38,6 +41,7 @@ export async function generateMixDesignPdf(
   const concreteTypeLabel = isCementless
     ? (lang === "ar" ? "خرسانة جيوبوليمرية خالية من الإسمنت" : lang === "en" ? "Cementless Geopolymer Concrete" : "Béton géopolymère sans ciment")
     : (input.concreteType || (lang === "ar" ? "خرسانة تقليدية" : "Conventional Concrete"));
+  const logoDataUrl = await loadPublicImageDataUrl("/brand/snolab-official-light.png");
   const reportTitle = lang === "ar" 
     ? "شهادة دراسة وتركيب الخلطة الخرسانية"
     : lang === "en"
@@ -531,8 +535,153 @@ export async function generateMixDesignPdf(
   currentY = (doc as any).lastAutoTable.finalY + 6;
 
   // =========================================================================
-  // 7. OFFICIAL LABORATORY SIGN-OFF & CERTIFICATION STAMP
+  // 7. VISUAL ENGINEERING ANALYSIS — NATIVE VECTOR CURVES
   // =========================================================================
+  doc.addPage();
+  currentY = PDF_PAGE_MARGINS.top + 2;
+  currentY = drawSectionBanner(
+    doc,
+    currentY,
+    lang === "ar" ? "التحليل البياني والمنحنيات الهندسية" : lang === "fr" ? "ANALYSE GRAPHIQUE ET COURBES D'INGÉNIERIE" : "ENGINEERING GRAPHICAL ANALYSIS & CURVES",
+    "DREUX + MATERIAL BLEND"
+  );
+
+  const hasGrading = Array.isArray((result as any).gradingCurve) && (result as any).gradingCurve.length > 0;
+  const hasStrength = Array.isArray(result.strengthEvolution) && result.strengthEvolution.length > 0;
+
+  if (hasGrading) {
+    currentY = drawGradingChart(doc, result, {
+      startY: currentY,
+      title: lang === "ar" ? "منحنى التدرج: Dreux المستهدف مقابل التدرج الفعلي للخلطة" : lang === "fr" ? "Granulométrie : cible Dreux vs mélange réel" : "Grading: Dreux target vs actual blended curve",
+      showActual: true
+    });
+  } else {
+    autoTable(doc, {
+      ...theme,
+      startY: currentY,
+      body: [[lang === "ar" ? "لا توجد بيانات تدرج حبيبي كافية لإنشاء المنحنى." : "Insufficient grading data to generate the grading curve."]]
+    });
+    currentY = (doc as any).lastAutoTable.finalY + 5;
+  }
+
+  if (currentY + 78 > PDF_PAGE_MARGINS.pageHeight - PDF_PAGE_MARGINS.bottom) {
+    doc.addPage();
+    currentY = PDF_PAGE_MARGINS.top + 2;
+    currentY = drawSectionBanner(
+      doc,
+      currentY,
+      lang === "ar" ? "تطور المقاومة" : lang === "fr" ? "ÉVOLUTION DE LA RÉSISTANCE" : "STRENGTH DEVELOPMENT",
+      "PREDICTIVE / TRACEABLE"
+    );
+  }
+
+  if (hasStrength) {
+    currentY = drawStrengthEvolutionChart(doc, result, {
+      startY: currentY,
+      fck28: input.fck28,
+      title: lang === "ar" ? "تطور مقاومة الضغط مع العمر" : lang === "fr" ? "Évolution de la résistance en compression" : "Compressive strength development"
+    });
+  }
+
+  // =========================================================================
+  // 8. APPENDIX A — SELECTED MATERIAL-LIBRARY SNAPSHOTS
+  // =========================================================================
+  doc.addPage();
+  currentY = PDF_PAGE_MARGINS.top + 2;
+  currentY = drawSectionBanner(
+    doc,
+    currentY,
+    lang === "ar" ? "الملحق أ — نسخ المواد المختارة من مكتبة المواد" : lang === "fr" ? "ANNEXE A — PROFILS DES MATÉRIAUX SÉLECTIONNÉS" : "APPENDIX A — SELECTED MATERIAL-LIBRARY SNAPSHOTS",
+    "MATERIAL SOURCE"
+  );
+
+  const selectedMaterialSnapshots = getSelectedMaterialSnapshots(input);
+  if (selectedMaterialSnapshots.length) {
+    const snapshotRows = selectedMaterialSnapshots.flatMap(item =>
+      getCompleteResultRows(item.material as any).slice(0, 60).map(row => [
+        item.role,
+        row.label,
+        row.path || row.key,
+        String(row.value)
+      ])
+    );
+    autoTable(doc, {
+      ...theme,
+      startY: currentY,
+      head: [["Role", "Material property", "Field / Path", "Value"]],
+      body: snapshotRows,
+      columnStyles: {
+        0: { cellWidth: 31, fontStyle: "bold" },
+        1: { cellWidth: 55 },
+        2: { cellWidth: 51 },
+        3: { cellWidth: 45 }
+      },
+      styles: { overflow: "linebreak" }
+    });
+  } else {
+    autoTable(doc, {
+      ...theme,
+      startY: currentY,
+      body: [[lang === "ar" ? "لم يتم العثور على نسخ المواد في مكتبة المواد ضمن بيانات التصدير." : "No selected library material snapshots were available in the export payload."]]
+    });
+  }
+
+  // =========================================================================
+  // 9. APPENDIX B — COMPLETE MIX-PREPARATION INPUT REGISTER
+  // =========================================================================
+  doc.addPage();
+  currentY = PDF_PAGE_MARGINS.top + 2;
+  currentY = drawSectionBanner(
+    doc,
+    currentY,
+    lang === "ar" ? "الملحق أ — سجل جميع مدخلات تحضير الخلطة" : lang === "fr" ? "ANNEXE A — REGISTRE COMPLET DES ENTRÉES DE FORMULATION" : "APPENDIX A — COMPLETE MIX-PREPARATION INPUT REGISTER",
+    "SOURCE DATA"
+  );
+
+  const inputRows = getCompleteInputRows(input);
+  autoTable(doc, {
+    ...theme,
+    startY: currentY,
+    head: [[lang === "ar" ? "المعامل" : "Parameter", "Field / Path", lang === "ar" ? "القيمة" : "Value"]],
+    body: inputRows.map(row => [row.label, row.path || row.key, String(row.value)]),
+    columnStyles: {
+      0: { cellWidth: 67, fontStyle: "bold" },
+      1: { cellWidth: 58 },
+      2: { cellWidth: 48 }
+    },
+    styles: { overflow: "linebreak" }
+  });
+
+  // =========================================================================
+  // 10. APPENDIX C — COMPLETE RESULT REGISTER
+  // =========================================================================
+  doc.addPage();
+  currentY = PDF_PAGE_MARGINS.top + 2;
+  currentY = drawSectionBanner(
+    doc,
+    currentY,
+    lang === "ar" ? "الملحق ب — سجل جميع النتائج والمخرجات" : lang === "fr" ? "ANNEXE B — REGISTRE COMPLET DES RÉSULTATS" : "APPENDIX B — COMPLETE CALCULATION RESULT REGISTER",
+    "OUTPUT DATA"
+  );
+
+  const resultRows = getCompleteResultRows(result);
+  autoTable(doc, {
+    ...theme,
+    startY: currentY,
+    head: [[lang === "ar" ? "النتيجة" : "Result", "Field / Path", lang === "ar" ? "القيمة" : "Value"]],
+    body: resultRows.map(row => [row.label, row.path || row.key, String(row.value)]),
+    columnStyles: {
+      0: { cellWidth: 67, fontStyle: "bold" },
+      1: { cellWidth: 58 },
+      2: { cellWidth: 48 }
+    },
+    styles: { overflow: "linebreak" }
+  });
+
+  // =========================================================================
+  // 11. OFFICIAL REVIEW & RELEASE
+  // =========================================================================
+  currentY = (doc as any).lastAutoTable?.finalY ? (doc as any).lastAutoTable.finalY + 6 : currentY;
   drawSignOffBlock(doc, currentY, {
     operatorName: project.engineer || "Senior Concrete Formulation Engineer",
     directorName: "Director of Technical & Quality Control",
@@ -542,14 +691,15 @@ export async function generateMixDesignPdf(
   });
 
   // =========================================================================
-  // 8. FINALIZE RUNNING HEADERS, FOOTERS & PAGE NUMBERS ACROSS ALL PAGES
+  // 12. FINALIZE RUNNING HEADERS, FOOTERS & PAGE NUMBERS ACROSS ALL PAGES
   // =========================================================================
   finalizeReportPages(doc, {
-    reportTitle: "CERTIFICAT DE FORMULATION DE BÉTON",
+    reportTitle: "SNOLAB — CONCRETE MIX DESIGN CALCULATION REPORT",
     reportSubtitle: `${fck !== undefined ? `C${fck}/${Math.round(fck * 1.25)}` : "Concrete Formulation"}${input.exposureClass ? ` - ${input.exposureClass}` : ""}`,
     reportRef: reportRef,
     date: dateStr,
-    labProfile: lab
+    labProfile: lab,
+    logoDataUrl
   });
 
   return doc;
