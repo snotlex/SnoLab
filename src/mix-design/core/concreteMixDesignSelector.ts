@@ -244,7 +244,7 @@ const ROUTES: Record<string, ConcreteMixDesignRouteDefinition> = {
     reasonEn: "BFUP requires a dedicated fine-powder and fiber design."
   },
   FRC: {
-    support: "planned",
+    support: "active",
     mode: "specialized",
     methodId: "fiber-reinforced-specialized",
     nameAr: "محرك الخرسانة المسلحة بالألياف",
