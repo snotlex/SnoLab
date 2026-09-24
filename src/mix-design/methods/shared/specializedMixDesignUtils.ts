@@ -9,6 +9,8 @@ export interface ResolvedSpecializedMaterials {
   water?: MaterialRecord;
   admixture?: MaterialRecord;
   scm?: MaterialRecord;
+  lightweightAggregate?: MaterialRecord;
+  heavyweightAggregate?: MaterialRecord;
 }
 
 export interface SpecializedMaterialResolution {
@@ -50,7 +52,8 @@ export function resolveSpecializedMaterials(
   input: MixDesignInput,
   language: "ar" | "fr" | "en" = "ar",
   requireAdmixture = false,
-  requireScm = false
+  requireScm = false,
+  requireCoarseAggregate = true
 ): SpecializedMaterialResolution {
   const database = Array.isArray(input.materialsDatabase) ? input.materialsDatabase as MaterialRecord[] : [];
   const hasRepository = database.length > 0;
@@ -63,13 +66,25 @@ export function resolveSpecializedMaterials(
     gravel: byIdOrName(database, input.selectedGravelId, input.gravelType),
     water: byIdOrName(database, input.selectedWaterId, input.selectedWaterName),
     admixture: byIdOrName(database, input.selectedAdmixtureId, input.selectedAdmixtureName),
-    scm: byIdOrName(database, input.selectedScmId, input.selectedScmName)
+    scm: byIdOrName(database, input.selectedScmId, input.selectedScmName),
+    lightweightAggregate: byIdOrName(
+      database,
+      input.selectedLightweightAggregateId,
+      input.selectedLightweightAggregateName
+    ),
+    heavyweightAggregate: byIdOrName(
+      database,
+      input.selectedHeavyweightAggregateId,
+      input.selectedHeavyweightAggregateName
+    )
   };
 
   if (hasRepository) {
     if (!materials.cement) errors.push(roleMessage("cement / إسمنت", language));
     if (!materials.sand) errors.push(roleMessage("fine aggregate / رمال", language));
-    if (!materials.gravel) errors.push(roleMessage("coarse aggregate / حصى", language));
+    if (requireCoarseAggregate && !materials.gravel) {
+      errors.push(roleMessage("coarse aggregate / حصى", language));
+    }
     if (!materials.water) errors.push(roleMessage("water / ماء", language));
     if (requireAdmixture && !materials.admixture) errors.push(roleMessage("superplasticizer / ملدن فائق", language));
     if (requireScm && !materials.scm) errors.push(roleMessage("SCM / إضافة معدنية", language));
