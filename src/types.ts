@@ -158,6 +158,11 @@ export interface MixDesignInput {
   lwcWaterBinderRatio?: number;
   lwcPrewetDegreePercent?: number;
 
+  // Specialized heavyweight concrete proportioning inputs.
+  hwcTargetDensityKgM3?: number;
+  hwcWaterKgM3?: number;
+  hwcWaterBinderRatio?: number;
+
   priceFiber?: number;
   priceSpecialBinder?: number;
   materialsDatabase?: EngineeringMaterial[];

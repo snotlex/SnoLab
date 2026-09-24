@@ -145,7 +145,7 @@ const ROUTES: Record<string, ConcreteMixDesignRouteDefinition> = {
     reasonEn: "Lightweight aggregates require dedicated absorption, pre-wetting, and density calculations."
   },
   HWC: {
-    support: "planned",
+    support: "active",
     mode: "specialized",
     methodId: "heavyweight-specialized",
     nameAr: "محرك الخرسانة ثقيلة الوزن",
