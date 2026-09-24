@@ -338,17 +338,34 @@ export class MixDesignEngine {
     
     const updatedInputs = {
       ...project.inputs,
-      methodId: project.inputs?.methodId || project.methodId || "auto",
+      methodId:
+        project.inputs?.methodId ||
+        project.methodId ||
+        (String(project.inputs?.concreteType || "").toUpperCase() &&
+          String(project.inputs?.concreteType || "").toUpperCase() !== "NSC"
+          ? "auto"
+          : "dreux-gorisse"),
       selectedMethod: project.inputs?.selectedMethod || "dreux"
     };
 
     return {
       ...project,
-      methodId: project.methodId || "auto",
+      methodId:
+        project.methodId ||
+        (String(project.inputs?.concreteType || "").toUpperCase() &&
+          String(project.inputs?.concreteType || "").toUpperCase() !== "NSC"
+          ? "auto"
+          : "dreux-gorisse"),
       methodVersion: project.methodVersion || "1.0.0",
       inputs: updatedInputs,
       calculationMethod: {
-        id: project.calculationMethod?.id || project.methodId || "auto",
+        id:
+          project.calculationMethod?.id ||
+          project.methodId ||
+          (String(project.inputs?.concreteType || "").toUpperCase() &&
+            String(project.inputs?.concreteType || "").toUpperCase() !== "NSC"
+            ? "auto"
+            : "dreux-gorisse"),
         version: project.calculationMethod?.version || "1.0.0"
       }
     };
