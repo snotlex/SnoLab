@@ -519,22 +519,10 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
   };
 
   const handlePrint = () => {
-    if (!validation.isValidForReport) {
-      alert(language === "ar" 
-        ? "لا يمكن تنزيل أو طباعة التقرير لعدم مطابقة المدخلات أو النتائج للمعايير والمقاييس الهندسية." 
-        : "Cannot download or print the report because inputs or results do not comply with engineering standards.");
-      return;
-    }
     window.print();
   };
 
   const triggerExportWord = () => {
-    if (!validation.isValidForReport) {
-      alert(language === "ar" 
-        ? "لا يمكن تنزيل أو طباعة التقرير لعدم مطابقة المدخلات أو النتائج للمعايير والمقاييس الهندسية." 
-        : "Cannot download or print the report because inputs or results do not comply with engineering standards.");
-      return;
-    }
     handleExportWord(
       reportLanguage,
       companyName,
@@ -556,12 +544,6 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
   };
 
   const triggerExportExcel = () => {
-    if (!validation.isValidForReport) {
-      alert(language === "ar" 
-        ? "لا يمكن تنزيل أو طباعة التقرير لعدم مطابقة المدخلات أو النتائج للمعايير والمقاييس الهندسية." 
-        : "Cannot download or print the report because inputs or results do not comply with engineering standards.");
-      return;
-    }
     handleExportExcel(
       reportLanguage,
       companyName,
@@ -582,12 +564,6 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
   };
 
   const handleExportPDF = async () => {
-    if (!validation.isValidForReport) {
-      alert(language === "ar" 
-        ? "لا يمكن تنزيل أو طباعة التقرير لعدم مطابقة المدخلات أو النتائج للمعايير والمقاييس الهندسية." 
-        : "Cannot download or print the report because inputs or results do not comply with engineering standards.");
-      return;
-    }
     setIsExporting(true);
     console.log("Generating Native Vector PDF Concrete Formulation Certificate...");
 
@@ -616,7 +592,10 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
     result.waterContentActual + 
     result.sandWeightDry + 
     result.gravelWeightDry + 
-    result.admixtureWeights.reduce((s, a) => s + a.weight, 0);
+    result.admixtureWeights.reduce((s, a) => s + a.weight, 0) +
+    (result.flyAshKg ?? 0) +
+    (result.slagKg ?? 0) +
+    (result.silicaFumeKg ?? 0);
 
   const dryWater = Math.round(result.waterContentActual) + " L";
   
@@ -1881,6 +1860,11 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
               {/* Composition Matrix Card Grid */}
               {(() => {
                 const resolvedAll = resolveMaterials(input, activeProject?.materialSnapshots, materialsDatabase);
+                const mineralAdditions = [
+                  { name: reportLanguage === "ar" ? "الرماد المتطاير (إضافة معدنية)" : "Fly ash (mineral addition)", weight: result.flyAshKg ?? 0 },
+                  { name: reportLanguage === "ar" ? "خبث الأفران (إضافة معدنية)" : "Slag (mineral addition)", weight: result.slagKg ?? 0 },
+                  { name: reportLanguage === "ar" ? "غبار السيليكا (إضافة معدنية)" : "Silica fume (mineral addition)", weight: result.silicaFumeKg ?? 0 }
+                ].filter((addition) => addition.weight > 0);
                 return (
                   <div className="grid grid-cols-2 gap-3 text-xs">
                     {/* Dry recipe table */}
@@ -1918,6 +1902,12 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
                           <div className="flex justify-between text-indigo-700" key={`dry-adm-${index}`}>
                             <span>{formatEngineeringValue(adm.weight, "mass")}</span>
                             <span className="truncate max-w-[140px] text-[8.5px]">{adm.name}:</span>
+                          </div>
+                        ))}
+                        {mineralAdditions.map((addition) => (
+                          <div className="flex justify-between text-amber-700" key={`dry-mineral-${addition.name}`}>
+                            <span>{formatEngineeringValue(addition.weight, "mass")}</span>
+                            <span className="truncate max-w-[140px] text-[8.5px]">{addition.name}:</span>
                           </div>
                         ))}
                       </div>
@@ -1958,6 +1948,12 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
                           <div className="flex justify-between text-indigo-600" key={`wet-adm-${index}`}>
                             <span>{formatEngineeringValue(adm.weight, "mass")}</span>
                             <span className="truncate max-w-[140px] text-[8.5px]">{adm.name}:</span>
+                          </div>
+                        ))}
+                        {mineralAdditions.map((addition) => (
+                          <div className="flex justify-between text-amber-700" key={`wet-mineral-${addition.name}`}>
+                            <span>{formatEngineeringValue(addition.weight, "mass")}</span>
+                            <span className="truncate max-w-[140px] text-[8.5px]">{addition.name}:</span>
                           </div>
                         ))}
                       </div>

@@ -6627,7 +6627,7 @@ export default function App() {
                         </div>
                         <select
                           value={inputs.dMax}
-                          disabled={isFieldDisabled("dMax") || !inputs.labOverrides?.dMax}
+                          disabled={isFieldDisabled("dMax")}
                           onChange={(e) => setInputs(prev => ({ ...prev, dMax: parseFloat(e.target.value) }))}
                           className={`w-full text-xs p-2.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white cursor-pointer text-slate-800 dark:text-slate-200 ${!inputs.labOverrides?.dMax ? "opacity-75 bg-slate-100 dark:bg-slate-800" : ""}`}
                         >

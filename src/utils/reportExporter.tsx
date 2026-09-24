@@ -571,6 +571,18 @@ export const handleExportWord = (
           <td>${scale(adm.weight)} kg</td>
         </tr>
         `).join('')}
+        ${[
+          { name: lang === "ar" ? "الرماد المتطاير (إضافة معدنية)" : "Fly ash (mineral addition)", weight: result.flyAshKg ?? 0 },
+          { name: lang === "ar" ? "خبث الأفران (إضافة معدنية)" : "Slag (mineral addition)", weight: result.slagKg ?? 0 },
+          { name: lang === "ar" ? "غبار السيليكا (إضافة معدنية)" : "Silica fume (mineral addition)", weight: result.silicaFumeKg ?? 0 }
+        ].filter(addition => addition.weight > 0).map(addition => `
+        <tr>
+          <td>⛰ ${addition.name}</td>
+          <td>~2.2</td>
+          <td>${addition.weight.toFixed(2)} kg</td>
+          <td>${scale(addition.weight)} kg</td>
+        </tr>
+        `).join('')}
         <tr style="background-color: #f1f5f9; font-weight:bold;">
           <td>Total Net Bulk Weight</td>
           <td>-</td>
@@ -650,8 +662,13 @@ export const handleExportWord = (
   const a = document.createElement('a');
   a.href = downloadUrl;
   a.download = `Concrete_Mix_Report_C${input.fck28}_${lang.toUpperCase()}_${Date.now().toString().substring(8)}.doc`;
+  a.style.display = 'none';
+  document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(downloadUrl);
+  window.setTimeout(() => {
+    a.remove();
+    URL.revokeObjectURL(downloadUrl);
+  }, 1000);
 };
 
 export const handleExportExcel = (
@@ -799,7 +816,13 @@ export const handleExportExcel = (
     num(Math.round(result.gravelWeightDry * batchVolume), "C23*D23")
   ]);
 
-  // Admixtures
+  const mineralAdditions = [
+    { name: "Fly ash (mineral addition)", weight: result.flyAshKg ?? 0 },
+    { name: "Slag (mineral addition)", weight: result.slagKg ?? 0 },
+    { name: "Silica fume (mineral addition)", weight: result.silicaFumeKg ?? 0 }
+  ].filter((addition) => addition.weight > 0);
+
+  // Chemical admixtures
   const nAdmixtures = result.admixtureWeights.length;
   result.admixtureWeights.forEach((adm, idx) => {
     const rowNum = 24 + idx; // 1-based Excel row number for current admixture
@@ -812,8 +835,19 @@ export const handleExportExcel = (
     ]);
   });
 
+  mineralAdditions.forEach((addition, idx) => {
+    const rowNum = 24 + nAdmixtures + idx;
+    rows.push([
+      str(`⛰ ${addition.name}`),
+      num(2.2),
+      num(Number(addition.weight.toFixed(2))),
+      str("=E16"),
+      num(Number((addition.weight * batchVolume).toFixed(2)), `C${rowNum}*D${rowNum}`)
+    ]);
+  });
+
   // Total Dry
-  const totalDryRowExcel = 24 + nAdmixtures;
+  const totalDryRowExcel = 24 + nAdmixtures + mineralAdditions.length;
   rows.push([
     str("TOTAL FRESH DENSITY (DRY)"), 
     str("-"), 
@@ -886,15 +920,26 @@ export const handleExportExcel = (
       num(Number((adm.weight * batchVolume).toFixed(2)), `C${wetRowExcel}*D${wetRowExcel}`)
     ]);
   });
+  mineralAdditions.forEach((addition, idx) => {
+    const dryRowRef = 24 + nAdmixtures + idx;
+    const wetRowExcel = startWetRowExcel + 4 + nAdmixtures + idx;
+    rows.push([
+      str(`⛰ ${addition.name}`),
+      str("0%"),
+      num(Number(addition.weight.toFixed(2)), `C${dryRowRef}`),
+      str("=E16"),
+      num(Number((addition.weight * batchVolume).toFixed(2)), `C${wetRowExcel}*D${wetRowExcel}`)
+    ]);
+  });
 
   // Total Wet
-  const totalWetRowExcel = startWetRowExcel + 4 + nAdmixtures;
+  const totalWetRowExcel = startWetRowExcel + 4 + nAdmixtures + mineralAdditions.length;
   rows.push([
     str("TOTAL FRESH DENSITY (WET)"), 
     str("-"), 
-    num(Math.round(result.cementWeight + result.sandWeightWet + result.gravelWeightWet + result.waterWeightWet + result.admixtureWeights.reduce((acc, a) => acc + a.weight, 0)), `SUM(C${startWetRowExcel}:C${totalWetRowExcel - 1})`), 
+    num(Math.round(result.cementWeight + result.sandWeightWet + result.gravelWeightWet + result.waterWeightWet + result.admixtureWeights.reduce((acc, a) => acc + a.weight, 0) + mineralAdditions.reduce((acc, a) => acc + a.weight, 0)), `SUM(C${startWetRowExcel}:C${totalWetRowExcel - 1})`),
     str("-"), 
-    num(Math.round((result.cementWeight + result.sandWeightWet + result.gravelWeightWet + result.waterWeightWet + result.admixtureWeights.reduce((acc, a) => acc + a.weight, 0)) * batchVolume), `SUM(E${startWetRowExcel}:E${totalWetRowExcel - 1})`)
+    num(Math.round((result.cementWeight + result.sandWeightWet + result.gravelWeightWet + result.waterWeightWet + result.admixtureWeights.reduce((acc, a) => acc + a.weight, 0) + mineralAdditions.reduce((acc, a) => acc + a.weight, 0)) * batchVolume), `SUM(E${startWetRowExcel}:E${totalWetRowExcel - 1})`)
   ]);
 
   // Build sheet
@@ -924,6 +969,11 @@ export const handleExportExcel = (
   const a = document.createElement('a');
   a.href = downloadUrl;
   a.download = `SnoLab_Mix_Design_C${input.fck28}_${lang.toUpperCase()}_${Date.now().toString().substring(8)}.xlsx`;
+  a.style.display = 'none';
+  document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(downloadUrl);
+  window.setTimeout(() => {
+    a.remove();
+    URL.revokeObjectURL(downloadUrl);
+  }, 1000);
 };
