@@ -163,6 +163,14 @@ export interface MixDesignInput {
   hwcWaterKgM3?: number;
   hwcWaterBinderRatio?: number;
 
+  // Specialized roller-compacted concrete inputs.
+  rccOptimumMoisturePercent?: number;
+  rccMaxDryDensityKgM3?: number;
+  rccCementContentKgM3?: number;
+  rccSandFractionPercent?: number;
+  rccFinesPassing75umPercent?: number;
+  rccCompactionTargetPercent?: number;
+
   priceFiber?: number;
   priceSpecialBinder?: number;
   materialsDatabase?: EngineeringMaterial[];
