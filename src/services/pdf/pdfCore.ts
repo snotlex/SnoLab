@@ -44,9 +44,9 @@ export function createPdfDocument(): jsPDF {
   });
   doc.setProperties({
     creator: "SnoLab Concrete Mix & Materials LIMS Engine",
-    title: "Official Engineering Laboratory Report",
-    author: "SnoLab ISO/IEC 17025 Engine",
-    subject: "Civil Engineering Materials & Concrete Formulation Certificate"
+    title: "SnoLab Engineering Calculation Report",
+    author: "SnoLab Engineering Materials Laboratory",
+    subject: "Civil Engineering Materials & Concrete Formulation Report"
   });
   return doc;
 }
