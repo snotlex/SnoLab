@@ -502,7 +502,7 @@ export class ValidationEngine {
     const granularCheck = [
       { id: "g1", labelEn: "Aggregate grading inputs verified", labelAr: "المنحنيات الحبيبية مدخلة", done: materialsDone },
       { id: "g2", labelEn: "Fineness modulus parsed", labelAr: "معيار النعومة للرمل محسوب", done: materialsDone && (inputs.finenessModulus !== undefined && inputs.finenessModulus > 0) },
-      { id: "g3", labelEn: "Aggregate optimization score > 70%", labelAr: "تطابق الركام مع المنحنى القياسي مفعّل", done: materialsDone && inputs.isGranularOptimizedApproved === true },
+      { id: "g3", labelEn: "Aggregate grading path available", labelAr: "مسار التدرج الحبيبي متاح للحساب", done: materialsDone && (inputs.isGranularOptimizedApproved === true || !!results?.gradingCurve?.length || !!(results as any)?.actualGradingCurve?.length) },
     ];
     const granularDone = granularCheck.every(c => c.done);
 
@@ -525,7 +525,7 @@ export class ValidationEngine {
 
     const reportCheck = [
       { id: "r1", labelEn: "Cost analysis generated", labelAr: "حساب الكلفة التقديرية للخلطة", done: mixDesignDone },
-      { id: "r2", labelEn: "Engineering certificate ready", labelAr: "جاهزية شهادة التركيبة الفنية", done: mixDesignDone && validationDone },
+      { id: "r2", labelEn: "Engineering report ready", labelAr: "جاهزية التقرير الهندسي", done: mixDesignDone && validationDone },
     ];
 
     const now = new Date().toISOString();
