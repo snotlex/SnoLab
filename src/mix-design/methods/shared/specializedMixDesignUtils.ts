@@ -35,7 +35,7 @@ function byIdOrName(database: MaterialRecord[], id?: string, name?: string): Mat
   if (name) {
     const normalized = String(name).trim().toLowerCase();
     return database.find((m) =>
-      [m?.name, m?.englishName, m?.frenchName]
+      [m?.name, m?.materialName, m?.englishName, m?.frenchName, m?.nameAr, m?.nameFr, m?.nameEn]
         .filter(Boolean)
         .some((candidate: unknown) => String(candidate).trim().toLowerCase() === normalized)
     );
