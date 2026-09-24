@@ -140,6 +140,9 @@ export class MixDesignEngine {
       name: method.metadata.name,
       version: method.metadata.version
     };
+    // Keep the legacy top-level methodName field synchronized with the
+    // registered strategy so reports/tests never receive an undefined label.
+    result.methodName = result.methodName || method.metadata.name;
     // Some legacy/corrected calculation layers already provide a richer
     // applicability result (for example C45/C60 and concrete-type aliases).
     // Preserve that domain-specific result instead of overwriting it with the
