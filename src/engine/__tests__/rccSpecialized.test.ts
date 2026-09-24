@@ -33,7 +33,8 @@ const rccInput = (): MixDesignInput => ({
   materialsDatabase: [
     { id: "cement-rcc", category: "CEMENT", materialName: "CEM I 42.5" },
     { id: "sand-rcc", category: "AGGREGATE", materialName: "Crushed sand" },
-    { id: "gravel-rcc", category: "AGGREGATE", materialName: "Crushed gravel" }
+    { id: "gravel-rcc", category: "AGGREGATE", materialName: "Crushed gravel" },
+    { id: "water-rcc", category: "WATER", materialName: "Potable water", density: 1000 }
   ]
 });
 
@@ -50,6 +51,7 @@ describe("RCC specialized mix design", () => {
     expect(result.waterKg).toBeCloseTo(110.25, 4);
     expect(result.wcRatio).toBeCloseTo(110.25 / 325, 6);
     expect(result.absoluteVolumeCheck.deviationPercent).toBeLessThan(2);
+    expect(result.materialSuitability?.status).toBe("approved");
   });
 
   it("blocks RCC when the laboratory moisture-density inputs are missing", () => {

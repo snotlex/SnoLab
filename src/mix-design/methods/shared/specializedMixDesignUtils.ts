@@ -35,7 +35,7 @@ function byIdOrName(database: MaterialRecord[], id?: string, name?: string): Mat
   if (name) {
     const normalized = String(name).trim().toLowerCase();
     return database.find((m) =>
-      [m?.name, m?.englishName, m?.frenchName]
+      [m?.name, m?.materialName, m?.englishName, m?.frenchName, m?.nameAr, m?.nameFr, m?.nameEn]
         .filter(Boolean)
         .some((candidate: unknown) => String(candidate).trim().toLowerCase() === normalized)
     );
@@ -81,7 +81,44 @@ export function resolveSpecializedMaterials(
     )
   };
 
+  // Some legacy/local-project records retain only a category and materialName
+  // for utility constituents. Resolve a unique water record in that case,
+  // while keeping cement/aggregate roles name- or ID-driven to avoid ambiguity.
+  if (hasRepository && !materials.water) {
+    const waterCandidates = database.filter((m) => {
+      const category = String(m?.category || "").trim().toLowerCase();
+      return category === "water" || category.includes("water") || category.includes("ماء") || category.includes("eau");
+    });
+    if (waterCandidates.length === 1) {
+      materials.water = waterCandidates[0];
+    }
+  }
+
   if (hasRepository) {
+    // Legacy/local projects may not persist role-specific IDs or names.
+    // Recover unambiguous role names from the material record itself before
+    // declaring the specialized calculation blocked.
+    const roleCandidates = (keywords: string[]) => database.filter((m) => {
+      const haystack = [
+        m?.name, m?.materialName, m?.englishName, m?.frenchName,
+        m?.nameAr, m?.nameFr, m?.nameEn
+      ].filter(Boolean).join(" ").toLowerCase();
+      return keywords.some((keyword) => haystack.includes(keyword));
+    });
+
+    if (!materials.cement) {
+      const candidates = roleCandidates(["cement", "ciment", "اسمنت", "إسمنت"]);
+      if (candidates.length === 1) materials.cement = candidates[0];
+    }
+    if (!materials.sand) {
+      const candidates = roleCandidates(["sand", "sable", "رمل", "رمال"]);
+      if (candidates.length === 1) materials.sand = candidates[0];
+    }
+    if (!materials.gravel) {
+      const candidates = roleCandidates(["gravel", "coarse", "granulat", "حصى", "ركام خشن"]);
+      if (candidates.length === 1) materials.gravel = candidates[0];
+    }
+
     if (!materials.cement) errors.push(roleMessage("cement / إسمنت", language));
     if (!materials.sand) errors.push(roleMessage("fine aggregate / رمال", language));
     if (requireCoarseAggregate && !materials.gravel) {
@@ -194,8 +231,8 @@ export function makeSpecializedResult(
       weight: data.admixtureKg
     }] : [],
     airContentPercent: input.airContent || 0,
-    wcRatio: data.waterBinderRatio,
-    waterCementRatio: data.waterBinderRatio,
+    wcRatio: data.cementKg > 0 ? data.waterKg / data.cementKg : 0,
+    waterCementRatio: data.cementKg > 0 ? data.waterKg / data.cementKg : 0,
     freshDensityKgM3: data.freshDensityKgM3,
     totalFreshDensity: totalFresh,
     totalBatchWeight: totalFresh,
@@ -238,7 +275,7 @@ export function makeSpecializedResult(
       }] : []
     },
     ratios: {
-      waterCementRatio: data.waterBinderRatio,
+      waterCementRatio: data.cementKg > 0 ? data.waterKg / data.cementKg : undefined,
       waterBinderRatio: data.waterBinderRatio,
       sandAggregateRatio:
         data.fineAggregateKg + data.coarseAggregateKg > 0
