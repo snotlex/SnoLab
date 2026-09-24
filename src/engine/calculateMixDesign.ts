@@ -19,9 +19,15 @@ export function calculateMixDesign(input: MixDesignInput): MixDesignResult {
       ? "auto"
       : requestedMethodId;
 
-  return mixDesignEngine.calculate({
+  const result = mixDesignEngine.calculate({
     methodId,
     input,
     context: { language: "ar" }
   });
+
+  // Legacy consumers and reports use the top-level methodName field.
+  // Keep it synchronized even when a specialized strategy only populates
+  // the structured method metadata.
+  result.methodName = result.methodName || result.method?.name || methodId;
+  return result;
 }
