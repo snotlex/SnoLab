@@ -122,14 +122,6 @@ export interface MixDesignInput {
   sccSuperplasticizerDosage?: number;
   sccScmReplacementPercent?: number;
   // SCC fresh-property / EFNARC-oriented proportioning controls.
-  sccPowderKgM3?: number;
-  sccPowderVolumeL?: number;
-  sccWaterKgM3?: number;
-  sccWaterPowderRatioByVolume?: number;
-  sccCoarseAggregateVolumeFraction?: number;
-  sccTargetSlumpFlowMm?: number;
-  sccSuperplasticizerDosage?: number;
-  sccScmReplacementPercent?: number;
 
   // Specialized lightweight concrete proportioning inputs.
   targetDensity?: number;
