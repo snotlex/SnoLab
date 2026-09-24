@@ -74,13 +74,21 @@ export function validateCalculationLogic(
   const gravelDry = results ? (results.gravelWeightDry ?? results.coarseAggregateKg) : undefined;
   const designWater = results ? (results.designWater ?? results.waterContentActual ?? results.waterKg) : undefined;
 
-  // Granular Engineering Center Integration Validation Checks
-  const hasRequiredMaterials = 
+  const resolvedMaterialIds = results?.resolvedMaterialIds || {};
+  const cementId = inputs?.selectedCementId || resolvedMaterialIds.selectedCementId;
+  const sandId = inputs?.selectedSandId || resolvedMaterialIds.selectedSandId;
+  const gravelId = inputs?.selectedGravelId || resolvedMaterialIds.selectedGravelId;
+  const waterId = inputs?.selectedWaterId || resolvedMaterialIds.selectedWaterId;
+
+  // Granular Engineering Center Integration Validation Checks.
+  // Aggregate optimization approval is an optional enhancement; the calculation
+  // may legally use the Dreux pivot fallback or material-grading optimization.
+  const hasRequiredMaterials =
     !inputs || (
-      (inputs.selectedCementId === undefined || !!inputs.selectedCementId) && 
-      (inputs.selectedSandId === undefined || !!inputs.selectedSandId) && 
-      (inputs.selectedGravelId === undefined || !!inputs.selectedGravelId) && 
-      (inputs.selectedWaterId === undefined || !!inputs.selectedWaterId)
+      (inputs.selectedCementId === undefined && !cementId || inputs.selectedCementId !== undefined && !!cementId) &&
+      (inputs.selectedSandId === undefined && !sandId || inputs.selectedSandId !== undefined && !!sandId) &&
+      (inputs.selectedGravelId === undefined && !gravelId || inputs.selectedGravelId !== undefined && !!gravelId) &&
+      (inputs.selectedWaterId === undefined && !waterId || inputs.selectedWaterId !== undefined && !!waterId)
     );
 
   if (!hasRequiredMaterials) {
@@ -116,11 +124,11 @@ export function validateCalculationLogic(
     criticalErrors.push("properties_missing");
   }
 
-  if (inputs && inputs.isGranularOptimizedApproved !== undefined && !inputs.isGranularOptimizedApproved) {
-    criticalErrors.push("granular_optimization_not_approved");
+  if (inputs?.isGranularOptimizedApproved === false) {
+    warnings.push("granular_optimization_not_approved");
   }
 
-  if (inputs && inputs.isGranularOptimizedApproved && inputs.approvedRatios) {
+  if (inputs && inputs.isGranularOptimizedApproved === true && inputs.approvedRatios) {
     let sum = 0;
     for (const val of Object.values(inputs.approvedRatios)) {
       sum += parseFloat(val as string) || 0;
@@ -130,15 +138,24 @@ export function validateCalculationLogic(
     }
   }
 
-  if (inputs && inputs.isGranularOptimizedApproved) {
+  if (inputs?.isGranularOptimizedApproved === true) {
     if (!inputs.approvedGradingCurve || inputs.approvedGradingCurve.length === 0 || inputs.approvedGradingCurve.some((pt: any) => pt.passing === undefined || isNaN(pt.passing) || pt.passing < 0 || pt.passing > 100)) {
       criticalErrors.push("particle_size_distribution_invalid");
     }
   }
 
-  const isGpc = inputs && inputs.concreteType === "GPC";
-  const activeBinder = isGpc 
-    ? (results.totalBinder ?? (results.cementitiousMaterials ? (results.cementitiousMaterials.flyAsh + results.cementitiousMaterials.slag) : undefined))
+  const concreteCode = String(typeof inputs?.concreteType === "string"
+    ? inputs.concreteType
+    : inputs?.concreteType?.code || "").toUpperCase();
+  const isGpc = concreteCode === "GPC" || concreteCode.includes("GEOPOLYMER") || concreteCode.includes("GEO-POLYMER");
+  const isHighPerformance = ["HSC", "HPC", "UHPC", "BFUP"].includes(concreteCode);
+  const isScc = concreteCode === "SCC";
+  const isPervious = concreteCode === "PERVIOUS";
+  const isLightweight = concreteCode === "LWC";
+  const isHeavyweight = concreteCode === "HWC";
+
+  const activeBinder = isGpc
+    ? (results.totalBinder ?? (results.cementitiousMaterials ? (results.cementitiousMaterials.flyAsh + results.cementitiousMaterials.slag + (results.cementitiousMaterials.silicaFume || 0)) : undefined))
     : cement;
 
   const missingInputs = 
@@ -152,7 +169,7 @@ export function validateCalculationLogic(
     isInvalidNum(gravelDry) || gravelDry <= 0 ||
     isInvalidNum(designWater) || designWater <= 0;
 
-  if (missingInputs || !hasRequiredMaterials || !hasRequiredProperties || (inputs && inputs.isGranularOptimizedApproved !== undefined && !inputs.isGranularOptimizedApproved)) {
+  if (missingInputs || !hasRequiredMaterials || !hasRequiredProperties) {
     if (missingInputs && !criticalErrors.includes("missing")) {
       criticalErrors.push("missing");
     }
@@ -172,9 +189,16 @@ export function validateCalculationLogic(
 
   const totalAdmixtureWeight = (results.admixtureWeights || []).reduce((acc: number, item: any) => acc + (item.weight || 0), 0);
   
-  const totalBinderWeightForSum = isGpc 
-    ? ((results.cementitiousMaterials?.flyAsh ?? 0) + (results.cementitiousMaterials?.slag ?? 0) + (results.cementitiousMaterials?.silicaFume ?? 0))
-    : cement;
+  const totalBinderWeightForSum =
+    isGpc || (results.totalBinder !== undefined)
+      ? (results.totalBinder ?? (
+          (results.cementitiousMaterials?.flyAsh ?? 0) +
+          (results.cementitiousMaterials?.slag ?? 0) +
+          (results.cementitiousMaterials?.silicaFume ?? 0) +
+          (results.specialBinderKg ?? 0) +
+          (results.cementWeight ?? results.cementKg ?? 0)
+        ))
+      : (cement ?? 0);
     
   const totalBatchWeight1m3 = totalBinderWeightForSum + (results.waterToAdd ?? results.waterContentActual ?? results.waterKg) + sandWet + gravelWet + totalAdmixtureWeight;
 
@@ -196,22 +220,36 @@ export function validateCalculationLogic(
 
   // 3. Water addition check
   const totalFreeSurfaceWater = results.totalFreeSurfaceWater ?? 0;
-  if (waterToAdd < 0 || totalFreeSurfaceWater > designWater) {
+  if (waterToAdd < 0) {
     criticalErrors.push("moisture_water");
+  } else if (totalFreeSurfaceWater > designWater) {
+    warnings.push("moisture_water_surface_exceeds_batch_water");
   }
 
   // 4. Water to cement ratio (W/C)
   const effectiveWater = results.effectiveWater ?? results.waterContentActual ?? results.waterKg;
   const waterCementRatio = effectiveWater / activeBinder;
+  const minimumWc =
+    concreteCode === "UHPC" || concreteCode === "BFUP" ? 0.15 :
+    isHighPerformance ? 0.18 :
+    isScc ? 0.20 :
+    isGpc ? 0.20 :
+    0.25;
 
-  if (waterCementRatio < 0.25 || waterCementRatio > 0.75) {
+  if (waterCementRatio < minimumWc || waterCementRatio > 0.75) {
     criticalErrors.push("wc_ratio");
   } else if (waterCementRatio >= 0.60 && waterCementRatio <= 0.75) {
     warnings.push("wc_high");
   }
 
-  // 5. Cement quantity limits
-  if (activeBinder < 150 || activeBinder > 700) {
+  // 5. Binder quantity limits, aligned with the selected concrete family.
+  const binderMax =
+    concreteCode === "UHPC" || concreteCode === "BFUP" ? 1000 :
+    isHighPerformance ? 1000 :
+    isLightweight ? 650 :
+    700;
+
+  if (activeBinder < 150 || activeBinder > binderMax) {
     criticalErrors.push("cement_range");
   } else {
     if (activeBinder < 250) {
@@ -227,14 +265,27 @@ export function validateCalculationLogic(
     criticalErrors.push("water_range");
   }
 
-  // 7. Total batch weight per m3 limits
-  if (totalBatchWeight1m3 < 1800 || totalBatchWeight1m3 > 2700) {
+  // 7. Total batch weight per m3 limits.
+  const batchMin =
+    isLightweight ? 1400 :
+    isPervious ? 1600 :
+    1800;
+  const batchMax =
+    isHeavyweight ? 4000 :
+    isLightweight ? 2200 :
+    3000;
+
+  if (totalBatchWeight1m3 < batchMin || totalBatchWeight1m3 > batchMax) {
     criticalErrors.push("weight_range");
   }
 
-  // 8. Aggregates dry weight and ratios
+  // 8. Aggregate split limits are type-specific. Pervious concrete is the
+  // important exception: a low sand fraction is intentional, not a defect.
   const sandRatio = sandDry / (sandDry + gravelDry);
-  if (sandDry <= 0 || gravelDry <= 0 || sandRatio < 0.25 || sandRatio > 0.60) {
+  const sandMin = isPervious ? 0.0 : 0.25;
+  const sandMax = isPervious ? 0.15 : (isScc ? 0.60 : 0.70);
+
+  if (sandDry <= 0 || gravelDry <= 0 || sandRatio < sandMin || sandRatio > sandMax) {
     criticalErrors.push("sand_ratio");
   }
 
@@ -254,10 +305,10 @@ export function validateCalculationLogic(
     moistureGravel < 0 || 
     sandAbsorption < 0 || 
     gravelAbsorption < 0 ||
-    moistureSand > 20 || 
-    moistureGravel > 10 || 
-    sandAbsorption > 10 || 
-    gravelAbsorption > 8;
+    moistureSand > 20 ||
+    moistureGravel > 20 ||
+    sandAbsorption > 10 ||
+    gravelAbsorption > 10;
 
   if (moistureOutRange) {
     criticalErrors.push("moisture_range");
