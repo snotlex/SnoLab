@@ -143,11 +143,19 @@ describe("Dreux calculation and diagnostic regression checks", () => {
   });
 
   it("does not apply the normal 25% minimum sand fraction to pervious concrete", () => {
+    // Build the numeric baseline with a supported NSC calculation, then
+    // evaluate the PERVIOUS diagnostics contract against that prepared result.
     const input = validInput({
+      concreteType: "NSC",
+      slump: 8,
+      fck28: 25,
+    });
+    const perviousInput = {
+      ...input,
       concreteType: "PERVIOUS",
       slump: 2,
       fck28: 15,
-    });
+    };
 
     const baseResult = calculateDreuxGorisse(input) as any;
     const perviousResult = {
@@ -174,7 +182,7 @@ describe("Dreux calculation and diagnostic regression checks", () => {
     };
 
     const gate = validateCalculationLogic(
-      { ...input, concreteType: "PERVIOUS", slump: 2 },
+      perviousInput,
       perviousResult
     );
 
