@@ -48,13 +48,16 @@ export function calculateDreuxGorisseCorrected(
   rawInput: MixDesignInput,
   language: Language = "ar"
 ): CorrectedResult {
-  const input: any = { ...rawInput };
-  const materials = Array.isArray(input.materialsDatabase) ? input.materialsDatabase : [];
+  const materials = Array.isArray(rawInput.materialsDatabase) ? rawInput.materialsDatabase : [];
+  // Recover material IDs for migrated/legacy projects that retained the visible
+  // material name but lost selected*Id. This still uses the live material library
+  // as the source of truth and only links when the match is unique.
+  const input: any = relinkLegacyMaterialIds(rawInput, materials);
 
   // Resolve the selected material library first. Project inputs remain a fallback,
   // but a populated approved library is the primary source of truth.
   const resolved = materials.length
-    ? DreuxInputResolver.resolve(rawInput, materials, language)
+    ? DreuxInputResolver.resolve(input, materials, language)
     : undefined;
 
   const resolvedInput: any = { ...input };
@@ -261,7 +264,21 @@ export function calculateDreuxGorisseCorrected(
     baseResult.isValid = false;
     baseResult.valid = false;
     baseResult.engineStatus = "blocked";
+  } else if (baseResult.isValid !== false) {
+    baseResult.engineStatus =
+      baseResult.warnings?.length
+        ? "valid_with_warnings"
+        : "valid";
   }
+
+  // Make the actual material linkage visible to downstream diagnostics/reporting,
+  // even when the original persisted project used legacy name-only material fields.
+  (baseResult as any).resolvedMaterialIds = {
+    selectedCementId: input.selectedCementId,
+    selectedSandId: input.selectedSandId,
+    selectedGravelId: input.selectedGravelId,
+    selectedWaterId: input.selectedWaterId,
+  };
 
   const actualCurve = grading?.actualGradingCurve;
 
@@ -288,6 +305,75 @@ export function calculateDreuxGorisseCorrected(
   }
 
   return baseResult;
+}
+
+function relinkLegacyMaterialIds(
+  rawInput: MixDesignInput,
+  materials: any[]
+): MixDesignInput {
+  if (!materials.length) return { ...rawInput };
+
+  const linked: any = { ...rawInput };
+
+  const normalize = (value: any): string =>
+    String(value ?? "")
+      .trim()
+      .toLowerCase()
+      .replace(/[\s_\-\/]+/g, "")
+      .replace(/[()\[\]{}.,:;]+/g, "");
+
+  const categoryMatches = (material: any, role: "cement" | "sand" | "gravel" | "water"): boolean => {
+    const category = normalize(material?.category ?? material?.type);
+    if (role === "cement") return category.includes("cement") || category.includes("إسمنت") || category.includes("cementitious");
+    if (role === "sand") return category.includes("sand") || category.includes("رمال") || category.includes("sable");
+    if (role === "gravel") return category.includes("gravel") || category.includes("حصى") || category.includes("aggregate") || category.includes("gravillon");
+    return category.includes("water") || category.includes("ماء") || category.includes("مياه");
+  };
+
+  const labels = {
+    cement: [rawInput.cementType],
+    sand: [rawInput.sandType],
+    gravel: [rawInput.gravelType],
+    water: [rawInput.selectedWaterName],
+  } as const;
+
+  const idFields = {
+    cement: "selectedCementId",
+    sand: "selectedSandId",
+    gravel: "selectedGravelId",
+    water: "selectedWaterId",
+  } as const;
+
+  for (const role of Object.keys(idFields) as Array<keyof typeof idFields>) {
+    if (linked[idFields[role]]) continue;
+    const label = labels[role].find(Boolean);
+    const normalizedLabel = normalize(label);
+    if (!normalizedLabel) continue;
+
+    const candidates = materials.filter((material) => categoryMatches(material, role));
+    const exact = candidates.filter((material) =>
+      [material?.name, material?.englishName, material?.frenchName, material?.Name]
+        .map(normalize)
+        .includes(normalizedLabel)
+    );
+
+    let match = exact.length === 1 ? exact[0] : undefined;
+    if (!match) {
+      const fuzzy = candidates.filter((material) => {
+        const names = [material?.name, material?.englishName, material?.frenchName, material?.Name]
+          .map(normalize)
+          .filter(Boolean);
+        return names.some((name) => name === normalizedLabel || name.includes(normalizedLabel) || normalizedLabel.includes(name));
+      });
+      if (fuzzy.length === 1) match = fuzzy[0];
+    }
+
+    if (match?.id) {
+      linked[idFields[role]] = match.id;
+    }
+  }
+
+  return linked as MixDesignInput;
 }
 
 function applyAdmixtureRows(input: any): void {
@@ -524,17 +610,25 @@ function refreshMoistureAndBatchData(result: CorrectedResult, input: any): void 
   const admix = (result.admixtureWeights || []).reduce((s, a) => s + a.weight, 0);
   const fiber = Number((result as any).fiberKg || input.fiberDosageKgM3 || 0);
   const specialBinder = Number((result as any).specialBinderKg ?? result.designSSD?.specialBinderKg ?? 0);
-  result.totalFreshDensity =
+  // Fresh density is the actual as-batched mass per 1 m³: wet aggregates +
+  // batch water + all binders/admixtures/fibres. Do not use dry aggregates
+  // together with effective water, or the diagnostic mass balance becomes false.
+  const totalBinderMass =
     cement +
     Number(result.flyAshKg || 0) +
     Number(result.slagKg || 0) +
     Number(result.silicaFumeKg || 0) +
-    sandDry +
-    gravelDry +
-    effectiveWater +
-    admix +
-    fiber +
     specialBinder;
+  const totalBatchMass =
+    totalBinderMass +
+    Number(result.sandWeightWet || sandDry) +
+    Number(result.gravelWeightWet || gravelDry) +
+    Number(correction.waterToAddKg || 0) +
+    admix +
+    fiber;
+
+  result.totalFreshDensity = totalBatchMass;
+  (result as any).totalBatchWeight = totalBatchMass;
 
   result.effectiveWater = effectiveWater;
   result.waterContentActual = effectiveWater;
