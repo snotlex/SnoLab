@@ -3,6 +3,18 @@ import { MixDesignInput } from "./types";
 export type MixDesignRouteSupport = "active" | "planned";
 export type MixDesignRouteMode = "direct" | "hybrid" | "specialized";
 
+type ConcreteMixDesignRouteDefinition = {
+  support: MixDesignRouteSupport;
+  mode: MixDesignRouteMode;
+  methodId?: string;
+  nameAr: string;
+  nameFr: string;
+  nameEn: string;
+  reasonAr: string;
+  reasonFr: string;
+  reasonEn: string;
+};
+
 export interface ConcreteMixDesignRoute {
   concreteType: string;
   methodId: string;
@@ -17,7 +29,7 @@ export interface ConcreteMixDesignRoute {
   reasonEn: string;
 }
 
-const ROUTES: Record<string, Omit<ConcreteMixDesignRoute, "concreteType" | "methodId" | "autoSelected">> = {
+const ROUTES: Record<string, ConcreteMixDesignRouteDefinition> = {
   NSC: {
     support: "active",
     mode: "direct",
@@ -98,7 +110,7 @@ const ROUTES: Record<string, Omit<ConcreteMixDesignRoute, "concreteType" | "meth
     reasonAr: "لا ينبغي تقديم حساب HSC النهائي بواسطة معادلات درو-غوريس التقليدية وحدها.",
     reasonFr: "Le dosage final HSC ne doit pas être présenté comme un simple calcul Dreux-Gorisse.",
     reasonEn: "Final HSC design should not be presented as a plain Dreux-Gorisse calculation."
-  } as any,
+  },
   HPC: {
     support: "planned",
     mode: "specialized",
@@ -120,7 +132,7 @@ const ROUTES: Record<string, Omit<ConcreteMixDesignRoute, "concreteType" | "meth
     reasonAr: "SCC تحتاج تصميمًا يعتمد على حجم العجينة والمسحوق واختبارات التدفق ومقاومة الانفصال.",
     reasonFr: "Le SCC nécessite un dosage basé sur la pâte/poudre, l'écoulement et la stabilité.",
     reasonEn: "SCC requires paste/powder, flow, and stability-based mix design."
-  } as any,
+  },
   LWC: {
     support: "planned",
     mode: "specialized",
@@ -131,7 +143,7 @@ const ROUTES: Record<string, Omit<ConcreteMixDesignRoute, "concreteType" | "meth
     reasonAr: "الركام الخفيف يتطلب حسابًا مستقلًا للامتصاص والترطيب المسبق والكثافة.",
     reasonFr: "Les granulats légers nécessitent un calcul spécifique d'absorption, pré-humidification et densité.",
     reasonEn: "Lightweight aggregates require dedicated absorption, pre-wetting, and density calculations."
-  } as any,
+  },
   HWC: {
     support: "planned",
     mode: "specialized",
@@ -142,7 +154,7 @@ const ROUTES: Record<string, Omit<ConcreteMixDesignRoute, "concreteType" | "meth
     reasonAr: "الركام الثقيل يتطلب توازنًا حجميًا وكثافة وترسيبًا خاصًا.",
     reasonFr: "Les granulats lourds nécessitent un bilan volumique, une densité et un contrôle de ségrégation spécifiques.",
     reasonEn: "Heavyweight aggregates require dedicated volumetric, density, and segregation controls."
-  } as any,
+  },
   RCC: {
     support: "planned",
     mode: "specialized",
@@ -153,7 +165,7 @@ const ROUTES: Record<string, Omit<ConcreteMixDesignRoute, "concreteType" | "meth
     reasonAr: "RCC تعتمد على الرطوبة المثلى والدمك بالطاقة لا على نموذج الهبوط التقليدي.",
     reasonFr: "Le BCR/RCC dépend de l'humidité optimale et de l'énergie de compactage plutôt que de l'affaissement classique.",
     reasonEn: "RCC depends on optimum moisture and compaction energy rather than conventional slump design."
-  } as any,
+  },
   SHOTCRETE: {
     support: "planned",
     mode: "specialized",
@@ -164,7 +176,7 @@ const ROUTES: Record<string, Omit<ConcreteMixDesignRoute, "concreteType" | "meth
     reasonAr: "الخرسانة المقذوفة تحتاج حسابات خاصة للمسرّع والارتداد والألياف.",
     reasonFr: "Le béton projeté nécessite des contrôles spécifiques des accélérateurs, rebond et fibres.",
     reasonEn: "Shotcrete requires dedicated accelerator, rebound, and fiber controls."
-  } as any,
+  },
   GPC: {
     support: "planned",
     mode: "specialized",
@@ -175,7 +187,7 @@ const ROUTES: Record<string, Omit<ConcreteMixDesignRoute, "concreteType" | "meth
     reasonAr: "GPC لا تعتمد على نظام ترطيب الإسمنت البورتلاندي في نموذج درو-غوريس.",
     reasonFr: "Le GPC ne repose pas sur le système d'hydratation du ciment Portland de Dreux-Gorisse.",
     reasonEn: "GPC does not use the Portland-cement hydration basis of Dreux-Gorisse."
-  } as any,
+  },
   SHC: {
     support: "planned",
     mode: "specialized",
@@ -186,7 +198,7 @@ const ROUTES: Record<string, Omit<ConcreteMixDesignRoute, "concreteType" | "meth
     reasonAr: "عامل المعالجة الذاتية يجب أن يدخل كعنصر تصميم مستقل مع تحقق التوافق والجرعة.",
     reasonFr: "L'agent auto-réparant doit être traité comme un constituant de conception indépendant avec contrôle de compatibilité et dosage.",
     reasonEn: "The self-healing agent must be treated as an independent design constituent with compatibility and dosage checks."
-  } as any,
+  },
   RAC: {
     support: "planned",
     mode: "specialized",
@@ -197,7 +209,7 @@ const ROUTES: Record<string, Omit<ConcreteMixDesignRoute, "concreteType" | "meth
     reasonAr: "الركام المعاد يتطلب تعويضات امتصاص وترطيب وفحص جودة إضافي.",
     reasonFr: "Les granulats recyclés nécessitent des corrections spécifiques d'absorption, pré-humidification et qualité.",
     reasonEn: "Recycled aggregates require dedicated absorption, pre-wetting, and quality corrections."
-  } as any,
+  },
   PERVIOUS: {
     support: "planned",
     mode: "specialized",
@@ -208,7 +220,7 @@ const ROUTES: Record<string, Omit<ConcreteMixDesignRoute, "concreteType" | "meth
     reasonAr: "الخرسانة المسامية تحتاج تصميمًا مستقلًا للمسامية والفراغات والنفاذية.",
     reasonFr: "Le béton drainant nécessite un dosage indépendant de la porosité, des vides et de la perméabilité.",
     reasonEn: "Pervious concrete requires dedicated porosity, void, and permeability design."
-  } as any,
+  },
   UHPC: {
     support: "planned",
     mode: "specialized",
@@ -219,7 +231,7 @@ const ROUTES: Record<string, Omit<ConcreteMixDesignRoute, "concreteType" | "meth
     reasonAr: "UHPC/BFUP تحتاج تصميمًا منفصلًا لهيكل الحبيبات الناعم جدًا والألياف والملدن.",
     reasonFr: "UHPC/BFUP nécessite un dosage séparé du squelette granulaire fin, des fibres et du superplastifiant.",
     reasonEn: "UHPC/BFUP requires a dedicated fine-powder skeleton, fiber, and superplasticizer design."
-  } as any,
+  },
   BFUP: {
     support: "planned",
     mode: "specialized",
@@ -230,7 +242,7 @@ const ROUTES: Record<string, Omit<ConcreteMixDesignRoute, "concreteType" | "meth
     reasonAr: "BFUP تحتاج تصميمًا منفصلًا لهيكل الحبيبات الدقيق جدًا والألياف.",
     reasonFr: "Le BFUP nécessite un dosage séparé du squelette fin et des fibres.",
     reasonEn: "BFUP requires a dedicated fine-powder and fiber design."
-  } as any,
+  },
   FRC: {
     support: "planned",
     mode: "specialized",
@@ -241,7 +253,7 @@ const ROUTES: Record<string, Omit<ConcreteMixDesignRoute, "concreteType" | "meth
     reasonAr: "تصميم FRC يجب أن يأخذ جرعة الألياف وتأثيرها على التشغيلية والمقاومة في مسار مستقل.",
     reasonFr: "Le FRC doit intégrer le dosage des fibres et leur effet sur l'ouvrabilité et les performances.",
     reasonEn: "FRC design must explicitly model fiber dosage and its effects on workability and performance."
-  } as any
+  }
 };
 
 const DEFAULT_ROUTE = ROUTES.NSC;
