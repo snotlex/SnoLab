@@ -57,15 +57,17 @@ export function validateSccInputs(
 
   const fck = Number(input.fck28);
   const dMax = Number(input.dMax);
-  const flow = Number((input as any).sccTargetSlumpFlowMm ?? ((input as any).slumpFlowMm) ?? 650);
-  const wb = Number((input as any).sccWaterBinderRatio ?? 0.38);
-  const water = Number((input as any).sccWaterKgM3 ?? 170);
+  const flow = Number((input as any).sccTargetSlumpFlowMm ?? (input as any).slumpFlowMm ?? 650);
+  const powder = Number((input as any).sccPowderKgM3 ?? 500);
+  const wpv = Number((input as any).sccWaterPowderRatioByVolume ?? 0.90);
+  const waterExplicit = Number((input as any).sccWaterKgM3 ?? NaN);
 
   if (!Number.isFinite(fck) || fck <= 0) errors.push({ code: "fck", severity: "error", field: "fck28", message: "SCC target strength must be > 0 MPa." });
   if (!Number.isFinite(dMax) || dMax <= 0 || dMax > 20) errors.push({ code: "dmax", severity: "error", field: "dMax", message: "SCC Dmax must be in the specialized calculation envelope (<= 20 mm)." });
-  if (!Number.isFinite(flow) || flow < 550 || flow > 850) errors.push({ code: "slump_flow", severity: "error", field: "sccTargetSlumpFlowMm", message: "Target slump flow must be between 550 and 850 mm for this SCC engine." });
-  if (!Number.isFinite(wb) || wb < 0.30 || wb > 0.45) errors.push({ code: "water_binder", severity: "error", field: "sccWaterBinderRatio", message: "SCC water/binder ratio must be between 0.30 and 0.45 in the current engine." });
-  if (!Number.isFinite(water) || water < 140 || water > 210) errors.push({ code: "water", severity: "error", field: "sccWaterKgM3", message: "SCC effective water must be between 140 and 210 kg/m3 in the current engine." });
+  if (!Number.isFinite(flow) || flow < 500 || flow > 850) errors.push({ code: "slump_flow", severity: "error", field: "sccTargetSlumpFlowMm", message: "Target slump flow must be within the supported SCC input envelope (500-850 mm)." });
+  if (!Number.isFinite(powder) || powder < 380 || powder > 600) errors.push({ code: "powder", severity: "error", field: "sccPowderKgM3", message: "SCC total powder must be between 380 and 600 kg/m3 for the initial EFNARC-oriented composition." });
+  if (!Number.isFinite(wpv) || wpv < 0.80 || wpv > 1.10) errors.push({ code: "water_powder_volume", severity: "error", field: "sccWaterPowderRatioByVolume", message: "SCC water/powder ratio by volume must be between 0.80 and 1.10 for the initial composition." });
+  if (Number.isFinite(waterExplicit) && (waterExplicit < 150 || waterExplicit > 210)) errors.push({ code: "water", severity: "error", field: "sccWaterKgM3", message: "SCC effective water should be between 150 and 210 kg/m3 for the initial composition." });
 
   const slump = Number(input.slump || 0);
   if (slump > 0 && slump > 30) {
