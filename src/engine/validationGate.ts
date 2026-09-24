@@ -86,11 +86,12 @@ export function validateCalculationLogic(
   // A migrated project may not retain selected*Id in its persisted input,
   // but the calculation engine can safely recover unique library links. The gate
   // must validate the effective resolved selection, not the legacy field shape.
+  const hasMaterialRepository =
+    Array.isArray(inputs?.materialsDatabase) && inputs.materialsDatabase.length > 0;
+
   const hasRequiredMaterials =
-    !!cementId &&
-    !!sandId &&
-    !!gravelId &&
-    !!waterId;
+    !hasMaterialRepository ||
+    (!!cementId && !!sandId && !!gravelId && !!waterId);
 
   if (!hasRequiredMaterials) {
     criticalErrors.push("materials_missing");
