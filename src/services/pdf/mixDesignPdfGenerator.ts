@@ -14,6 +14,8 @@ import {
 } from "./pdfCore";
 import { MixDesignPdfOptions, DEFAULT_LAB_PROFILE } from "./types";
 import { formatEngineeringValue } from "../../utils/unitFormatter";
+import { getCompleteInputRows, getCompleteResultRows } from "../../utils/reportData";
+import { drawGradingChart, drawStrengthEvolutionChart } from "./reportCharts";
 
 /**
  * Generates an official, publication-quality, multi-page vector PDF for a Concrete Mix Design.
@@ -531,7 +533,110 @@ export async function generateMixDesignPdf(
   currentY = (doc as any).lastAutoTable.finalY + 6;
 
   // =========================================================================
-  // 7. OFFICIAL LABORATORY SIGN-OFF & CERTIFICATION STAMP
+  // 7. VISUAL ENGINEERING ANALYSIS — NATIVE VECTOR CURVES
+  // =========================================================================
+  doc.addPage();
+  currentY = PDF_PAGE_MARGINS.top + 2;
+  currentY = drawSectionBanner(
+    doc,
+    currentY,
+    lang === "ar" ? "التحليل البياني والمنحنيات الهندسية" : lang === "fr" ? "ANALYSE GRAPHIQUE ET COURBES D'INGÉNIERIE" : "ENGINEERING GRAPHICAL ANALYSIS & CURVES",
+    "DREUX + MATERIAL BLEND"
+  );
+
+  const hasGrading = Array.isArray((result as any).gradingCurve) && (result as any).gradingCurve.length > 0;
+  const hasStrength = Array.isArray(result.strengthEvolution) && result.strengthEvolution.length > 0;
+
+  if (hasGrading) {
+    currentY = drawGradingChart(doc, result, {
+      startY: currentY,
+      title: lang === "ar" ? "منحنى التدرج: Dreux المستهدف مقابل التدرج الفعلي للخلطة" : lang === "fr" ? "Granulométrie : cible Dreux vs mélange réel" : "Grading: Dreux target vs actual blended curve",
+      showActual: true
+    });
+  } else {
+    autoTable(doc, {
+      ...theme,
+      startY: currentY,
+      body: [[lang === "ar" ? "لا توجد بيانات تدرج حبيبي كافية لإنشاء المنحنى." : "Insufficient grading data to generate the grading curve."]]
+    });
+    currentY = (doc as any).lastAutoTable.finalY + 5;
+  }
+
+  if (currentY + 78 > PDF_PAGE_MARGINS.pageHeight - PDF_PAGE_MARGINS.bottom) {
+    doc.addPage();
+    currentY = PDF_PAGE_MARGINS.top + 2;
+    currentY = drawSectionBanner(
+      doc,
+      currentY,
+      lang === "ar" ? "تطور المقاومة" : lang === "fr" ? "ÉVOLUTION DE LA RÉSISTANCE" : "STRENGTH DEVELOPMENT",
+      "PREDICTIVE / TRACEABLE"
+    );
+  }
+
+  if (hasStrength) {
+    currentY = drawStrengthEvolutionChart(doc, result, {
+      startY: currentY,
+      title: lang === "ar" ? "تطور مقاومة الضغط مع العمر" : lang === "fr" ? "Évolution de la résistance en compression" : "Compressive strength development"
+    });
+  }
+
+  // =========================================================================
+  // 8. APPENDIX A — COMPLETE MIX-PREPARATION INPUT REGISTER
+  // =========================================================================
+  doc.addPage();
+  currentY = PDF_PAGE_MARGINS.top + 2;
+  currentY = drawSectionBanner(
+    doc,
+    currentY,
+    lang === "ar" ? "الملحق أ — سجل جميع مدخلات تحضير الخلطة" : lang === "fr" ? "ANNEXE A — REGISTRE COMPLET DES ENTRÉES DE FORMULATION" : "APPENDIX A — COMPLETE MIX-PREPARATION INPUT REGISTER",
+    "SOURCE DATA"
+  );
+
+  const inputRows = getCompleteInputRows(input);
+  autoTable(doc, {
+    ...theme,
+    startY: currentY,
+    head: [[lang === "ar" ? "المعامل" : "Parameter", "Field / Path", lang === "ar" ? "القيمة" : "Value"]],
+    body: inputRows.map(row => [row.label, row.path || row.key, String(row.value)]),
+    columnStyles: {
+      0: { cellWidth: 67, fontStyle: "bold" },
+      1: { cellWidth: 58 },
+      2: { cellWidth: 48 }
+    },
+    styles: { overflow: "linebreak" }
+  });
+
+  // =========================================================================
+  // 9. APPENDIX B — COMPLETE RESULT REGISTER
+  // =========================================================================
+  doc.addPage();
+  currentY = PDF_PAGE_MARGINS.top + 2;
+  currentY = drawSectionBanner(
+    doc,
+    currentY,
+    lang === "ar" ? "الملحق ب — سجل جميع النتائج والمخرجات" : lang === "fr" ? "ANNEXE B — REGISTRE COMPLET DES RÉSULTATS" : "APPENDIX B — COMPLETE CALCULATION RESULT REGISTER",
+    "OUTPUT DATA"
+  );
+
+  const resultRows = getCompleteResultRows(result);
+  autoTable(doc, {
+    ...theme,
+    startY: currentY,
+    head: [[lang === "ar" ? "النتيجة" : "Result", "Field / Path", lang === "ar" ? "القيمة" : "Value"]],
+    body: resultRows.map(row => [row.label, row.path || row.key, String(row.value)]),
+    columnStyles: {
+      0: { cellWidth: 67, fontStyle: "bold" },
+      1: { cellWidth: 58 },
+      2: { cellWidth: 48 }
+    },
+    styles: { overflow: "linebreak" }
+  });
+
+  // =========================================================================
+  // 10. OFFICIAL REVIEW & RELEASE
+  // =========================================================================
+  // =========================================================================
+  // 10. OFFICIAL LABORATORY SIGN-OFF & CERTIFICATION STAMP
   // =========================================================================
   drawSignOffBlock(doc, currentY, {
     operatorName: project.engineer || "Senior Concrete Formulation Engineer",
@@ -545,7 +650,7 @@ export async function generateMixDesignPdf(
   // 8. FINALIZE RUNNING HEADERS, FOOTERS & PAGE NUMBERS ACROSS ALL PAGES
   // =========================================================================
   finalizeReportPages(doc, {
-    reportTitle: "CERTIFICAT DE FORMULATION DE BÉTON",
+    reportTitle: "SNOLAB — CONCRETE MIX DESIGN CALCULATION REPORT",
     reportSubtitle: `${fck !== undefined ? `C${fck}/${Math.round(fck * 1.25)}` : "Concrete Formulation"}${input.exposureClass ? ` - ${input.exposureClass}` : ""}`,
     reportRef: reportRef,
     date: dateStr,
