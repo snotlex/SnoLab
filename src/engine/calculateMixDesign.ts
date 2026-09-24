@@ -1,4 +1,4 @@
-import { MixDesignInput, MixDesignResult } from "./types";
+import { MixDesignInput, MixDesignResult } from "../mix-design/core/types";
 import { mixDesignEngine } from "../mix-design/core/MixDesignEngine";
 
 /**
