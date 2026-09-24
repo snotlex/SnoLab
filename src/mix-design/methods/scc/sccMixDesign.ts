@@ -121,6 +121,26 @@ export function calculateSccMix(
       Number(input.dosageFlyAsh || 0) + Number(input.dosageSlag || 0) + Number(input.dosageSilicaFume || 0))
   ));
   const scmKg = powderKg * scmPct / 100;
+  if (scmKg > 0 && Array.isArray(input.materialsDatabase) && input.materialsDatabase.length > 0 && !resolved.materials.scm) {
+    return makeSpecializedResult(input, {
+      methodId: "scc-specialized",
+      methodName: "SCC / Self-Compacting Concrete",
+      version: VERSION,
+      cementKg: 0, waterKg: 0, fineAggregateKg: 0, coarseAggregateKg: 0, admixtureKg: 0,
+      waterBinderRatio: 0, freshDensityKgM3: 0, absoluteVolumeL: 0,
+      warnings: ["SCM replacement was requested but no approved SCM was resolved from the material library."],
+      assumptions: [],
+      recommendations: ["Select an approved SCM material or set SCC SCM replacement to 0%."],
+      trace: [],
+      complianceChecks: [{
+        parameter: "scm_material",
+        requirement: "Approved SCM from material library when SCM replacement > 0%",
+        actual: "SCM material missing",
+        status: "non_compliant"
+      }],
+      lifecycle: "blocked"
+    });
+  }
   const cementKg = powderKg - scmKg;
   const powderVolumeL = Number.isFinite(powderVolumeTargetL) && powderVolumeTargetL > 0
     ? powderVolumeTargetL
