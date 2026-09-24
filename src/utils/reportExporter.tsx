@@ -535,7 +535,7 @@ img.chart{width:100%;height:auto;border:1px solid #E2E8F0}
 </div>
 
 <div class="page">
-  <div class="section">1. Mix-preparation inputs / المدخلات الكاملة</div>
+  <div class="section">${lang === "ar" ? "1. مدخلات تحضير الخلطة الكاملة" : "1. Complete mix-preparation inputs"}</div>
   ${htmlTable([lang==="ar"?"المدخل":"Input parameter","Path / field","Value"], inputTableRows)}
   <div class="section">2. Selected material records</div>
   ${htmlTable(["Material","Selected record","Density / SG","Key property"], materialRows)}
@@ -601,7 +601,7 @@ img.chart{width:100%;height:auto;border:1px solid #E2E8F0}
 </div>
 
 <div class="page">
-  <div class="section">7. Calculation trace / سجل الحساب</div>
+  <div class="section">${lang === "ar" ? "7. سجل الحساب" : "7. Calculation trace"}</div>
   ${traceRows.length ? htmlTable(["Step","Name","Formula","Result","Unit","Note"],traceRows) : "<div class='warn'>No calculation trace was stored.</div>"}
   <div class="section">8. Approval & release</div>
   <div class="meta">
