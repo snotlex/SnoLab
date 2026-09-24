@@ -1,7 +1,7 @@
 import React from "react";
 import * as XLSX from "xlsx";
 import { MixDesignResult, MixDesignInput } from "../types";
-import { buildReportFileName, formatReportValue, getCalculationStatusLabel, getCompleteInputRows, getCompleteResultRows, getGradingSeries, getStrengthSeries } from "./reportData";
+import { buildReportFileName, formatReportValue, getCalculationStatusLabel, getCompleteInputRows, getCompleteResultRows, getGradingSeries, getStrengthSeries, getSelectedMaterialSnapshots } from "./reportData";
 
 // QR Code SVG Generator representing the verified parameters
 export const QrCodeSvg: React.FC<{ text: string; size?: number }> = ({ text, size = 110 }) => {
@@ -444,14 +444,18 @@ export const handleExportWord = (
   const reportRef = buildReportFileName("MixDesignReport", input, lang, "doc").replace(/\.doc$/i, "").replace(/^SnoLab_MixDesignReport_/, "MX-");
   const date = new Date().toLocaleDateString(lang==="ar" ? "ar-DZ" : lang==="fr" ? "fr-DZ" : "en-US");
 
-  const materialRows = [
+  const selectedMaterialSnapshots = getSelectedMaterialSnapshots(input);\n\n  const materialRows = [
     ["Cement", input.selectedCementId || input.cementType || "—", input.cementDensity ?? "—", input.cementClassStrength ?? "—"],
     ["Fine aggregate", input.selectedSandId || input.sandType || "—", input.sandRelativeDensity ?? "—", input.finenessModulus ?? "—"],
     ["Coarse aggregate", input.selectedGravelId || input.gravelType || "—", input.gravelRelativeDensity ?? "—", input.dMax ?? "—"],
     ["Water", input.selectedWaterName || "Mixing water", 1.0, input.selectedWaterPH ?? "—"]
   ];
 
-  const formulaRows = [
+  const materialSnapshotRows = selectedMaterialSnapshots.flatMap(item => {
+    const r = getCompleteResultRows(item.material as any);
+    return r.slice(0, 45).map(row => [item.role, row.label, row.path || row.key, formatReportValue(row.value)]);
+  });
+\n  const formulaRows = [
     ["Cement", result.cementWeight, scale(result.cementWeight)],
     ["Effective water", result.waterContentActual, scale(result.waterContentActual)],
     ["Dry sand", result.sandWeightDry, scale(result.sandWeightDry)],
@@ -532,6 +536,7 @@ img.chart{width:100%;height:auto;border:1px solid #E2E8F0}
   ${htmlTable([lang==="ar"?"المدخل":"Input parameter","Path / field","Value"], inputTableRows)}
   <div class="section">2. Selected material records</div>
   ${htmlTable(["Material","Selected record","Density / SG","Key property"], materialRows)}
+  ${selectedMaterialSnapshots.length ? `<div class="section">Selected library material snapshots</div>${htmlTable(["Role","Property","Field","Value"], materialSnapshotRows)}` : ""}
 </div>
 
 <div class="page">
@@ -695,6 +700,22 @@ export const handleExportExcel = (
     ["Water",input.selectedWaterName||"Mixing water",1.0,"—",`pH=${input.selectedWaterPH??"—"}`]
   ];
   XLSX.utils.book_append_sheet(wb, makeSheet(materials,[26,38,22,30,36]), "03 Materials");
+  if (selectedMaterialSnapshots.length) {
+    const snapshotRows = [
+      ["Selected SnoLab library material snapshots"],
+      ["Role","Material","Property","Field","Value"],
+      ...selectedMaterialSnapshots.flatMap(item =>
+        getCompleteResultRows(item.material as any).slice(0, 60).map(row => [
+          item.role,
+          item.material.name || item.material.englishName || item.material.MaterialID || "—",
+          row.label,
+          row.path || row.key,
+          formatReportValue(row.value)
+        ])
+      )
+    ];
+    XLSX.utils.book_append_sheet(wb, makeSheet(snapshotRows,[26,34,42,52,70]), "03B Material Snapshots");
+  }
 
   const formula = [
     ["SnoLab — Mix Formula / Batching"],
