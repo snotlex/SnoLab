@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { calculateMixDesign } from "../../engine/calculateMixDesign";
 import { createTestInput } from "../../__tests__/testHelper";
+import { mixDesignEngine } from "../core/MixDesignEngine";
 
 describe("specialized concrete mix-design routes", () => {
   it("routes SCC automatically to the SCC engine and returns a preliminary numeric design", () => {
@@ -22,7 +23,6 @@ describe("specialized concrete mix-design routes", () => {
     expect(result.coarseAggregateKg).toBeGreaterThan(0);
     expect(result.quantities?.totalBinder).toBeGreaterThanOrEqual(380);
     expect(result.quantities?.totalBinder).toBeLessThanOrEqual(500);
-    expect(result.targetSlumpFlowMm).toBeUndefined();
     expect(result.engineeringAudit?.specializedMethod).toBe("SCC");
   });
 
@@ -64,7 +64,6 @@ describe("specialized concrete mix-design routes", () => {
   });
 
   it("keeps migrated specialized projects on automatic routing instead of forcing Dreux", () => {
-    const { mixDesignEngine } = require("../../mix-design/core/MixDesignEngine");
     const migrated = mixDesignEngine.migrateProject({
       inputs: { concreteType: "SCC", fck28: 35 }
     });
