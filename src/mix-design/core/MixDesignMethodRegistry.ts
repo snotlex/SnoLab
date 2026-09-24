@@ -1,6 +1,8 @@
 import { MixDesignMethod } from "./MixDesignMethod";
 import { MethodNotFoundException, DuplicateMethodRegistrationError } from "./errors";
 import { dreuxGorisseMethod } from "../methods/dreux-gorisse/DreuxGorisseMethod";
+import { sccSpecializedMethod } from "../methods/scc/SccSpecializedMethod";
+import { perviousSpecializedMethod } from "../methods/pervious/PerviousSpecializedMethod";
 
 export class MixDesignMethodRegistry {
   private static instance: MixDesignMethodRegistry;
@@ -9,6 +11,8 @@ export class MixDesignMethodRegistry {
   private constructor() {
     // Automatically register default built-in methods
     this.register(dreuxGorisseMethod);
+    this.register(sccSpecializedMethod);
+    this.register(perviousSpecializedMethod);
   }
 
   public static getInstance(): MixDesignMethodRegistry {
