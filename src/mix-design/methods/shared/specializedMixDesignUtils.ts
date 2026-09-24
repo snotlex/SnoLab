@@ -142,9 +142,11 @@ export function makeSpecializedResult(
     trace: Array<{ stepId: string; label: string; formula?: string; inputs: Record<string, any>; output: any; unit?: string }>;
     complianceChecks: Array<{ parameter: string; requirement: string; actual: string; status: "compliant" | "warning" | "non_compliant" }>;
     lifecycle?: "valid" | "valid_with_warnings" | "needs_trial_mix" | "blocked";
+    referenceFilledVolumeL?: number;
   }
 ): MixDesignResult {
-  const absoluteVolumeError = Math.abs(data.absoluteVolumeL - 1000);
+  const referenceFilledVolumeL = data.referenceFilledVolumeL ?? 1000;
+  const absoluteVolumeError = Math.abs(data.absoluteVolumeL - referenceFilledVolumeL);
   const status = data.lifecycle === "blocked" ? "not-supported" : "success";
   const fiberWeight = data.fiberKg || 0;
   const totalBinder = data.cementKg + (data.scmKg || 0);
