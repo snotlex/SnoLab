@@ -240,9 +240,11 @@ export function calculateRacMix(input: MixDesignInput, language: "ar" | "fr" | "
   if (!validation.isValid || resolved.errors.length) {
     return blocked(input, "recycled-aggregate-specialized", "Recycled Aggregate Concrete", ["Complete recycled aggregate replacement, absorption and pre-saturation inputs."], [...validation.errors.map(e => e.message), ...resolved.errors]);
   }
-  const cement = num(input, "racCementKgM3", num(input, "cementWeight", 350));
+  const requestedWb = num(input, "racWaterBinderRatio");
   const water = num(input, "racWaterKgM3", 160);
-  const wb = num(input, "racWaterBinderRatio");
+  const suppliedCement = num(input, "racCementKgM3");
+  const cement = suppliedCement > EPS ? suppliedCement : water / requestedWb;
+  const wb = water / cement;
   const totalCoarse = num(input, "racCoarseAggregateKgM3");
   const replacement = num(input, "racReplacementPercent") / 100;
   const absorption = num(input, "racRecycledAbsorptionPercent");
@@ -263,7 +265,9 @@ export function calculateRacMix(input: MixDesignInput, language: "ar" | "fr" | "
   const absorptionCapacity = recycledKg * absorption / 100;
   const prewetWater = absorptionCapacity * preSat;
   const moisture = num(input, "moistureGravel");
-  const freeSurface = recycledKg * Math.max(0, moisture - absorption) / 100;
+  const freeSurfaceRecycled = recycledKg * Math.max(0, moisture - absorption) / 100;
+  const freeSurfaceVirgin = virginKg * Math.max(0, moisture - num(input, "gravelAbsorption")) / 100;
+  const freeSurface = freeSurfaceRecycled + freeSurfaceVirgin;
   const waterToAdd = Math.max(0, water + prewetWater - freeSurface);
   const density = cement + water + sandKg + virginKg + recycledKg + admixtureKg;
 
@@ -469,7 +473,7 @@ abstract class Phase2MethodBase implements MixDesignMethod {
 export class GpcSpecializedMethod extends Phase2MethodBase {
   public readonly metadata: MixDesignMethodMetadata = {
     id: "geopolymer-specialized", name: "Geopolymer Concrete", shortName: "GPC", version: VERSION,
-    description: "Activator/precursor and absolute-volume starting proportioning for geopolymer concrete.", references: ["ACI 232.2R", "ASTM C618"], supportedLanguages: ["ar", "fr", "en"], status: "active"
+    description: "Activator/precursor and absolute-volume starting proportioning for geopolymer concrete.", references: ["ASTM C618 for qualifying pozzolanic precursor materials where applicable", "Project-specific geopolymer mix-design and curing specification"], supportedLanguages: ["ar", "fr", "en"], status: "active"
   };
   isApplicable(i: MixDesignInput): ApplicabilityResult { return checkGpcApplicability(i); }
   validateInputs(i: MixDesignInput): ValidationResult { return validateGpcInputs(i); }
