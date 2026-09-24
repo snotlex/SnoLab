@@ -296,9 +296,9 @@ export function calculateSccMix(
     targetSlumpFlowMm: flow,
     totalPowderKgM3: powderKg,
     waterPowderVolumeRatio: actualWpv,
-    coarseAggregateVolumeFraction,
+    coarseVolumeFraction,
     pasteVolumeL,
-    sandAggregateMassShare
+    sandMassShare
   };
   result.materialSuitability = {
     status: "approved",
