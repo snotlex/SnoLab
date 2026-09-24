@@ -95,6 +95,30 @@ export function resolveSpecializedMaterials(
   }
 
   if (hasRepository) {
+    // Legacy/local projects may not persist role-specific IDs or names.
+    // Recover unambiguous role names from the material record itself before
+    // declaring the specialized calculation blocked.
+    const roleCandidates = (keywords: string[]) => database.filter((m) => {
+      const haystack = [
+        m?.name, m?.materialName, m?.englishName, m?.frenchName,
+        m?.nameAr, m?.nameFr, m?.nameEn
+      ].filter(Boolean).join(" ").toLowerCase();
+      return keywords.some((keyword) => haystack.includes(keyword));
+    });
+
+    if (!materials.cement) {
+      const candidates = roleCandidates(["cement", "ciment", "اسمنت", "إسمنت"]);
+      if (candidates.length === 1) materials.cement = candidates[0];
+    }
+    if (!materials.sand) {
+      const candidates = roleCandidates(["sand", "sable", "رمل", "رمال"]);
+      if (candidates.length === 1) materials.sand = candidates[0];
+    }
+    if (!materials.gravel) {
+      const candidates = roleCandidates(["gravel", "coarse", "granulat", "حصى", "ركام خشن"]);
+      if (candidates.length === 1) materials.gravel = candidates[0];
+    }
+
     if (!materials.cement) errors.push(roleMessage("cement / إسمنت", language));
     if (!materials.sand) errors.push(roleMessage("fine aggregate / رمال", language));
     if (requireCoarseAggregate && !materials.gravel) {
