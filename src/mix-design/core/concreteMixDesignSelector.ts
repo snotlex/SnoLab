@@ -123,7 +123,7 @@ const ROUTES: Record<string, ConcreteMixDesignRouteDefinition> = {
     reasonEn: "HPC requires a dedicated binder, admixture, and durability model."
   },
   SCC: {
-    support: "planned",
+    support: "active",
     mode: "specialized",
     methodId: "scc-specialized",
     nameAr: "محرك SCC متخصص",
@@ -211,7 +211,7 @@ const ROUTES: Record<string, ConcreteMixDesignRouteDefinition> = {
     reasonEn: "Recycled aggregates require dedicated absorption, pre-wetting, and quality corrections."
   },
   PERVIOUS: {
-    support: "planned",
+    support: "active",
     mode: "specialized",
     methodId: "pervious-specialized",
     nameAr: "محرك الخرسانة المسامية",

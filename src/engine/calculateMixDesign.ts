@@ -1,5 +1,6 @@
 import { MixDesignInput, MixDesignResult } from "../mix-design/core/types";
 import { mixDesignEngine } from "../mix-design/core/MixDesignEngine";
+import { selectConcreteMixDesignRoute } from "../mix-design/core/concreteMixDesignSelector";
 
 /**
  * Unified mix-design router.
@@ -10,7 +11,13 @@ import { mixDesignEngine } from "../mix-design/core/MixDesignEngine";
  * concrete from being silently calculated by an unrelated method.
  */
 export function calculateMixDesign(input: MixDesignInput): MixDesignResult {
-  const methodId = input.methodId || "auto";
+  const autoRoute = selectConcreteMixDesignRoute(input, "auto");
+  const requestedMethodId = input.methodId;
+  const methodId =
+    !requestedMethodId ||
+    (requestedMethodId === "dreux-gorisse" && autoRoute.mode === "specialized" && autoRoute.support === "active")
+      ? "auto"
+      : requestedMethodId;
 
   return mixDesignEngine.calculate({
     methodId,
