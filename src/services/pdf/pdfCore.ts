@@ -434,6 +434,7 @@ export function finalizeReportPages(
     date?: string;
     labProfile?: LabProfile;
     isDraft?: boolean;
+    logoDataUrl?: string;
   }
 ) {
   const totalPages = doc.getNumberOfPages();
