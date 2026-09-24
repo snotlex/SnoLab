@@ -9,6 +9,7 @@ export interface ResolvedSpecializedMaterials {
   water?: MaterialRecord;
   admixture?: MaterialRecord;
   scm?: MaterialRecord;
+  quartzPowder?: MaterialRecord;
   lightweightAggregate?: MaterialRecord;
   heavyweightAggregate?: MaterialRecord;
 }
@@ -67,6 +68,7 @@ export function resolveSpecializedMaterials(
     water: byIdOrName(database, input.selectedWaterId, input.selectedWaterName),
     admixture: byIdOrName(database, input.selectedAdmixtureId, input.selectedAdmixtureName),
     scm: byIdOrName(database, input.selectedScmId, input.selectedScmName),
+    quartzPowder: byIdOrName(database, input.selectedQuartzPowderId, input.selectedQuartzPowderName),
     lightweightAggregate: byIdOrName(
       database,
       input.selectedLightweightAggregateId,
