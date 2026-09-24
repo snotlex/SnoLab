@@ -222,7 +222,7 @@ const ROUTES: Record<string, ConcreteMixDesignRouteDefinition> = {
     reasonEn: "Pervious concrete requires dedicated porosity, void, and permeability design."
   },
   UHPC: {
-    support: "planned",
+    support: "active",
     mode: "specialized",
     methodId: "uhpc-specialized",
     nameAr: "محرك UHPC/BFUP متخصص",
@@ -233,7 +233,7 @@ const ROUTES: Record<string, ConcreteMixDesignRouteDefinition> = {
     reasonEn: "UHPC/BFUP requires a dedicated fine-powder skeleton, fiber, and superplasticizer design."
   },
   BFUP: {
-    support: "planned",
+    support: "active",
     mode: "specialized",
     methodId: "uhpc-specialized",
     nameAr: "محرك UHPC/BFUP متخصص",
