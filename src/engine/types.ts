@@ -119,6 +119,14 @@ export interface MixDesignInput {
   lwcWaterBinderRatio?: number;
   lwcPrewetDegreePercent?: number;
 
+  // Specialized UHPC / BFUP proportioning inputs.
+  uhpcWaterBinderRatio?: number;
+  bfupWaterBinderRatio?: number;
+  uhpcFiberVolumePercent?: number;
+  bfupFiberVolumePercent?: number;
+  uhpcQuartzPowderKgM3?: number;
+  bfupQuartzPowderKgM3?: number;
+
   // Specialized heavyweight concrete proportioning inputs.
   hwcTargetDensityKgM3?: number;
   hwcWaterKgM3?: number;
