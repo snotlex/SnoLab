@@ -222,7 +222,7 @@ const ROUTES: Record<string, ConcreteMixDesignRouteDefinition> = {
     reasonEn: "Pervious concrete requires dedicated porosity, void, and permeability design."
   },
   UHPC: {
-    support: "active",
+    support: "planned",
     mode: "specialized",
     methodId: "uhpc-specialized",
     nameAr: "محرك UHPC/BFUP متخصص",
@@ -269,7 +269,7 @@ function normalizeConcreteType(value: unknown): string {
     .trim()
     .toUpperCase()
     .normalize("NFD")
-    .replace(/[\\u0300-\\u036f]/g, "");
+    .replace(/[\u0300-\u036f]/g, "");
 
   if (ROUTES[normalized]) return normalized;
 
@@ -281,7 +281,6 @@ function normalizeConcreteType(value: unknown): string {
     ["LIGHTWEIGHT CONCRETE", "LWC"],
     ["LIGHTWEIGHT BETON", "LWC"],
     ["LIGHTWEIGHT", "LWC"],
-    ["BETON LEGER", "LWC"],
     ["BETON LEGER", "LWC"],
     ["HEAVYWEIGHT CONCRETE", "HWC"],
     ["HEAVYWEIGHT", "HWC"],
