@@ -338,17 +338,17 @@ export class MixDesignEngine {
     
     const updatedInputs = {
       ...project.inputs,
-      methodId: project.inputs?.methodId || "dreux-gorisse",
+      methodId: project.inputs?.methodId || project.methodId || "auto",
       selectedMethod: project.inputs?.selectedMethod || "dreux"
     };
 
     return {
       ...project,
-      methodId: project.methodId || "dreux-gorisse",
+      methodId: project.methodId || "auto",
       methodVersion: project.methodVersion || "1.0.0",
       inputs: updatedInputs,
       calculationMethod: {
-        id: project.calculationMethod?.id || project.methodId || "dreux-gorisse",
+        id: project.calculationMethod?.id || project.methodId || "auto",
         version: project.calculationMethod?.version || "1.0.0"
       }
     };
