@@ -145,6 +145,13 @@ export interface MixDesignInput {
   hwcWaterKgM3?: number;
   hwcWaterBinderRatio?: number;
 
+  // Specialized fiber-reinforced concrete proportioning inputs.
+  frcWaterBinderRatio?: number;
+  frcWaterKgM3?: number;
+  frcFiberVolumePercent?: number;
+  frcCoarseAggregateVolumeFraction?: number;
+  frcSuperplasticizerDosage?: number;
+
   priceFiber?: number;
   priceSpecialBinder?: number;
   admixtures?: any[];

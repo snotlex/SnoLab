@@ -169,6 +169,13 @@ export interface MixDesignInput {
   uhpcQuartzPowderKgM3?: number;
   bfupQuartzPowderKgM3?: number;
 
+  // Specialized fiber-reinforced concrete proportioning inputs.
+  frcWaterBinderRatio?: number;
+  frcWaterKgM3?: number;
+  frcFiberVolumePercent?: number;
+  frcCoarseAggregateVolumeFraction?: number;
+  frcSuperplasticizerDosage?: number;
+
   // Specialized heavyweight concrete proportioning inputs.
   hwcTargetDensityKgM3?: number;
   hwcWaterKgM3?: number;
