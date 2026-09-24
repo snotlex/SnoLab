@@ -600,9 +600,9 @@ function interpolatePassing(points: DreuxGranulometryPoint[], size: number): num
     const b = points[i];
     if (size <= b.sieveSize) {
       const la = Math.log10(Math.max(a.sieveSize, 0.001));
-      const lb = Math.log10(Math.max(b.sieveSize, 0.001));
+      const logUpper = Math.log10(Math.max(b.sieveSize, 0.001));
       const lx = Math.log10(Math.max(size, 0.001));
-      const t = lb === la ? 0 : (lx - la) / (lb - la);
+      const t = logUpper === la ? 0 : (lx - la) / (logUpper - la);
       return a.percentPassing + (b.percentPassing - a.percentPassing) * t;
     }
   }
