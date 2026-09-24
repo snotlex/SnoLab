@@ -19,7 +19,7 @@ function mapPctY(percent: number, top: number, height: number): number {
 export function drawGradingChart(
   doc: jsPDF,
   result: MixDesignResult,
-  options: { title?: string; showActual?: boolean } = {}
+  options: { title?: string; showActual?: boolean; startY?: number } = {}
 ): number {
   const series = getGradingSeries(result);
   const { left, contentWidth } = PDF_PAGE_MARGINS;
@@ -108,7 +108,7 @@ export function drawGradingChart(
 export function drawStrengthEvolutionChart(
   doc: jsPDF,
   result: MixDesignResult,
-  options: { title?: string } = {}
+  options: { title?: string; startY?: number } = {}
 ): number {
   const series = getStrengthSeries(result);
   if (!series.length) return PDF_PAGE_MARGINS.top + 4;
