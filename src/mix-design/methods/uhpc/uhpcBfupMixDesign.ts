@@ -71,6 +71,7 @@ export function calculateUhpcBfupMix(input: MixDesignInput, language:"ar"|"fr"|"
   const sandDensity=materialDensityKgM3(mats.materials.sand,Number(input.sandRelativeDensity||2.65)*1000);
   const silicaDensity=materialDensityKgM3(mats.materials.scm,Number(input.selectedScmDensity||2200));
   const admixtureDensity=materialDensityKgM3(mats.materials.admixture,Number(input.selectedAdmixtureDensity||1080));
+  const quartzDensity=materialDensityKgM3(mats.materials.quartzPowder,Number(input.quartzPowderDensity||2650));
   const fiberDensity=materialDensityKgM3(fiber,Number(input.fiberDensity||7850));
   const fck=Number(input.fck28);
   const vf=clamp(Number((input as any).uhpcFiberVolumePercent ?? (input as any).bfupFiberVolumePercent ?? (t==="BFUP"?2:1.5)),1,3);
@@ -83,7 +84,7 @@ export function calculateUhpcBfupMix(input: MixDesignInput, language:"ar"|"fr"|"
   const water=binder*wb; const spPct=clamp(Number(input.dosageSuper||2.2),1.5,4); const spKg=binder*spPct/100;
   const quartzKg=clamp(Number((input as any).uhpcQuartzPowderKgM3 ?? (t==="BFUP"?binder*0.30:binder*0.25)),100,260);
   const fiberKg=vf/100*fiberDensity; const airPct=clamp(Number(input.airContent||1.5),0.5,3);
-  const vC=cementKg/cementDensity*1000; const vSF=sfKg/silicaDensity*1000; const vQ=quartzKg/2650*1000; const vW=water; const vSP=spKg/admixtureDensity*1000; const vF=fiberKg/fiberDensity*1000; const vAir=airPct*10;
+  const vC=cementKg/cementDensity*1000; const vSF=sfKg/silicaDensity*1000; const vQ=quartzKg/quartzDensity*1000; const vW=water; const vSP=spKg/admixtureDensity*1000; const vF=fiberKg/fiberDensity*1000; const vAir=airPct*10;
   const vSand=1000-vC-vSF-vQ-vW-vSP-vF-vAir; const sandKg=vSand/1000*sandDensity;
   const correction=computeMoistureBatch(sandKg,Number(input.moistureSand||0),Number(input.sandAbsorption||materialProperty(mats.materials.sand,["absorption","Absorption"],0)||0));
   const waterToAdd=Math.max(0,water-correction.freeSurfaceWater+correction.absorptionDeficit);
