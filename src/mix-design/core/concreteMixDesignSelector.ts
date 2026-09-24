@@ -222,7 +222,7 @@ const ROUTES: Record<string, ConcreteMixDesignRouteDefinition> = {
     reasonEn: "Pervious concrete requires dedicated porosity, void, and permeability design."
   },
   UHPC: {
-    support: "planned",
+    support: "active",
     mode: "specialized",
     methodId: "uhpc-specialized",
     nameAr: "محرك UHPC/BFUP متخصص",
@@ -259,11 +259,67 @@ const ROUTES: Record<string, ConcreteMixDesignRouteDefinition> = {
 const DEFAULT_ROUTE = ROUTES.NSC;
 
 function normalizeConcreteType(value: unknown): string {
-  if (typeof value === "string") return value.trim().toUpperCase();
-  if (value && typeof value === "object") {
-    const candidate = value as Record<string, unknown>;
-    return String(candidate.code || candidate.concreteType || "NSC").trim().toUpperCase();
+  const raw = value && typeof value === "object"
+    ? String((value as Record<string, unknown>).code || (value as Record<string, unknown>).concreteType || "NSC")
+    : typeof value === "string"
+      ? value
+      : "NSC";
+
+  const normalized = raw
+    .trim()
+    .toUpperCase()
+    .normalize("NFD")
+    .replace(/[\\u0300-\\u036f]/g, "");
+
+  if (ROUTES[normalized]) return normalized;
+
+  const aliases: Array<[string, string]> = [
+    ["SELF-COMPACTING CONCRETE (SCC)", "SCC"],
+    ["SELF-COMPACTING CONCRETE", "SCC"],
+    ["SELF COMPACTING CONCRETE", "SCC"],
+    ["BAP", "SCC"],
+    ["LIGHTWEIGHT CONCRETE", "LWC"],
+    ["LIGHTWEIGHT BETON", "LWC"],
+    ["LIGHTWEIGHT", "LWC"],
+    ["BETON LEGER", "LWC"],
+    ["BETON LEGER", "LWC"],
+    ["HEAVYWEIGHT CONCRETE", "HWC"],
+    ["HEAVYWEIGHT", "HWC"],
+    ["BETON LOURD", "HWC"],
+    ["PERVIOUS CONCRETE", "PERVIOUS"],
+    ["DRAINING CONCRETE", "PERVIOUS"],
+    ["BETON DRAINANT", "PERVIOUS"],
+    ["BÉTON RECYCLÉ", "RAC"],
+    ["BETON RECYCLE", "RAC"],
+    ["RECYCLED AGGREGATE CONCRETE", "RAC"],
+    ["RECYCLED", "RAC"],
+    ["MASS CONCRETE", "MASS"],
+    ["MASSIVE CONCRETE POUR", "MASS"],
+    ["BETON DE MASSE", "MASS"],
+    ["MASS", "MASS"],
+    ["ROLLER COMPACTED CONCRETE", "RCC"],
+    ["BCR", "RCC"],
+    ["SHOTCRETE", "SHOTCRETE"],
+    ["BETON PROJETE", "SHOTCRETE"],
+    ["GEOPOLYMER CONCRETE", "GPC"],
+    ["GEOPOLYMER", "GPC"],
+    ["BETON GEOPOLYMERE", "GPC"],
+    ["SELF-HEALING CONCRETE", "SHC"],
+    ["SELF HEALING CONCRETE", "SHC"],
+    ["BETON AUTO-REPARANT", "SHC"],
+    ["FIBER REINFORCED CONCRETE", "FRC"],
+    ["FIBRE REINFORCED CONCRETE", "FRC"],
+    ["BETON FIBRE", "FRC"],
+    ["ULTRA-HIGH-PERFORMANCE CONCRETE", "UHPC"],
+    ["ULTRA HIGH PERFORMANCE CONCRETE", "UHPC"],
+    ["BFUP", "BFUP"],
+    ["UHPC", "UHPC"]
+  ];
+
+  for (const [alias, code] of aliases) {
+    if (normalized === alias || normalized.includes(alias)) return code;
   }
+
   return "NSC";
 }
 
