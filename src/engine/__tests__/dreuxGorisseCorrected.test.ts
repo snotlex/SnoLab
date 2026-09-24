@@ -164,7 +164,7 @@ describe("Dreux-Gorisse corrected calculation layer", () => {
     expect(result.engineeringAudit?.granularOptimization.source).toBe("material-grading");
     expect(result.engineeringAudit?.granularOptimization.sampleCount).toBeGreaterThanOrEqual(3);
     expect(result.actualGradingCurve?.length).toBeGreaterThan(0);
-    expect(result.engineeringAudit?.granularOptimization.rmse).toBeFinite();
+    expect(Number.isFinite(result.engineeringAudit?.granularOptimization.rmse)).toBe(true);
     expect(result.sandPercent + result.gravelPercent).toBeCloseTo(100, 6);
   });
 
