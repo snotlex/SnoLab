@@ -10,7 +10,8 @@ import {
   getStandardTableTheme, 
   finalizeReportPages,
   PDF_COLORS,
-  PDF_PAGE_MARGINS
+  PDF_PAGE_MARGINS,
+  loadPublicImageDataUrl
 } from "./pdfCore";
 import { MixDesignPdfOptions, DEFAULT_LAB_PROFILE } from "./types";
 import { formatEngineeringValue } from "../../utils/unitFormatter";
@@ -695,7 +696,8 @@ export async function generateMixDesignPdf(
     reportSubtitle: `${fck !== undefined ? `C${fck}/${Math.round(fck * 1.25)}` : "Concrete Formulation"}${input.exposureClass ? ` - ${input.exposureClass}` : ""}`,
     reportRef: reportRef,
     date: dateStr,
-    labProfile: lab
+    labProfile: lab,
+    logoDataUrl
   });
 
   return doc;
