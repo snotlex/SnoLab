@@ -134,7 +134,7 @@ const ROUTES: Record<string, ConcreteMixDesignRouteDefinition> = {
     reasonEn: "SCC requires paste/powder, flow, and stability-based mix design."
   },
   LWC: {
-    support: "planned",
+    support: "active",
     mode: "specialized",
     methodId: "lightweight-specialized",
     nameAr: "محرك الخرسانة خفيفة الوزن",
