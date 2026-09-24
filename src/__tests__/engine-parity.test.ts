@@ -161,32 +161,40 @@ describe("Dreux-Gorisse Engine Parity & Integration Tests", () => {
     expect(explicitDreux.methodApplicability?.level).toBe("limited");
   });
 
-  it("Lightweight concrete across all paths must be limited", () => {
+  it("Lightweight concrete uses the specialized engine for automatic routing", () => {
     const input = getBaseInput({ concreteType: "Lightweight" });
-    const paths = [
-      calculateDreuxGorisse(input),
-      calculateMixDesign(input as any),
-      calculateByMethod("dreux-gorisse", input)
-    ];
+    const directDreux = calculateDreuxGorisse(input);
+    const automatic = calculateMixDesign(input as any);
+    const explicitDreux = calculateByMethod("dreux-gorisse", input);
 
-    for (const res of paths) {
-      expect(res.isValid).toBe(true);
-      expect(res.methodApplicability?.level).toBe("limited");
-    }
+    expect(directDreux.isValid).toBe(true);
+    expect(directDreux.methodApplicability?.level).toBe("limited");
+
+    expect(automatic.isValid).toBe(false);
+    expect(automatic.status).toBe("not-supported");
+    expect(automatic.methodId).toBe("lightweight-specialized");
+    expect(automatic.calculationStatus).toBe("blocked");
+
+    expect(explicitDreux.isValid).toBe(true);
+    expect(explicitDreux.methodApplicability?.level).toBe("limited");
   });
 
-  it("Recycled aggregate concrete across all paths must be limited", () => {
+  it("Recycled aggregate concrete does not silently fall back to Dreux in automatic routing", () => {
     const input = getBaseInput({ concreteType: "Recycled" });
-    const paths = [
-      calculateDreuxGorisse(input),
-      calculateMixDesign(input as any),
-      calculateByMethod("dreux-gorisse", input)
-    ];
+    const directDreux = calculateDreuxGorisse(input);
+    const automatic = calculateMixDesign(input as any);
+    const explicitDreux = calculateByMethod("dreux-gorisse", input);
 
-    for (const res of paths) {
-      expect(res.isValid).toBe(true);
-      expect(res.methodApplicability?.level).toBe("limited");
-    }
+    expect(directDreux.isValid).toBe(true);
+    expect(directDreux.methodApplicability?.level).toBe("limited");
+
+    expect(automatic.isValid).toBe(false);
+    expect(automatic.status).toBe("not-supported");
+    expect(automatic.methodId).toBe("recycled-aggregate-specialized");
+    expect(automatic.calculationStatus).toBe("blocked");
+
+    expect(explicitDreux.isValid).toBe(true);
+    expect(explicitDreux.methodApplicability?.level).toBe("limited");
   });
 
   it("Mass concrete across all paths must be limited", () => {

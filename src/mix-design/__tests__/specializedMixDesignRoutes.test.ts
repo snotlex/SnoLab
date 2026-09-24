@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { calculateMixDesign } from "../../engine/calculateMixDesign";
 import { createTestInput } from "../../__tests__/testHelper";
 import { mixDesignEngine } from "../core/MixDesignEngine";
+import { getConcreteTypeRouteTable, selectConcreteMixDesignRoute } from "../core/concreteMixDesignSelector";
 
 describe("specialized concrete mix-design routes", () => {
   it("routes SCC automatically to the SCC engine and returns a preliminary numeric design", () => {
@@ -47,6 +48,33 @@ describe("specialized concrete mix-design routes", () => {
     expect(result.engineeringAudit?.specializedMethod).toBe("PERVIOUS");
     expect(result.cementKg).toBeGreaterThan(0);
     expect(result.waterKg).toBeGreaterThan(0);
+  });
+
+
+  it("activates the specialized engines that are already registered in SnoLab", () => {
+    const routes = getConcreteTypeRouteTable();
+    const byType = new Map(routes.map((route) => [route.concreteType, route]));
+
+    for (const [type, methodId] of [
+      ["HSC", "hsc-hpc-specialized"],
+      ["HPC", "hsc-hpc-specialized"],
+      ["SCC", "scc-specialized"],
+      ["LWC", "lightweight-specialized"],
+      ["HWC", "heavyweight-specialized"],
+      ["PERVIOUS", "pervious-specialized"]
+    ] as const) {
+      expect(byType.get(type)?.support).toBe("active");
+      expect(byType.get(type)?.methodId).toBe(methodId);
+    }
+  });
+
+  it("normalizes common concrete-type aliases before automatic routing", () => {
+    expect(selectConcreteMixDesignRoute({ concreteType: "Self-Compacting Concrete (SCC)" }).methodId).toBe("scc-specialized");
+    expect(selectConcreteMixDesignRoute({ concreteType: "Lightweight Béton" }).methodId).toBe("lightweight-specialized");
+    expect(selectConcreteMixDesignRoute({ concreteType: "Heavyweight Concrete" }).methodId).toBe("heavyweight-specialized");
+    expect(selectConcreteMixDesignRoute({ concreteType: "Pervious Concrete" }).methodId).toBe("pervious-specialized");
+    expect(selectConcreteMixDesignRoute({ concreteType: "Béton de masse" }).methodId).toBe("dreux-gorisse");
+    expect(selectConcreteMixDesignRoute({ concreteType: "Béton recyclé" }).methodId).toBe("recycled-aggregate-specialized");
   });
 
   it("does not fall back to Dreux for an unsupported specialized family", () => {
