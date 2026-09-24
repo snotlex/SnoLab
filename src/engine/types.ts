@@ -108,6 +108,9 @@ export interface MixDesignInput {
   selectedScmReplacementPercent?: number;
   selectedScmWaterDemandFactor?: number;
   selectedScmPozzolanicIndex?: number;
+  selectedQuartzPowderId?: string;
+  selectedQuartzPowderName?: string;
+  quartzPowderDensity?: number;
 
   // Specialized lightweight concrete proportioning inputs.
   targetDensity?: number;
