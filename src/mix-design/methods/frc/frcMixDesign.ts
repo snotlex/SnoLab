@@ -54,7 +54,7 @@ export function validateFrcInputs(input: MixDesignInput, language: "ar" | "fr" |
 }
 
 export function calculateFrcMix(input: MixDesignInput, language: "ar" | "fr" | "en" = "ar"): MixDesignResult {
-  const resolved = resolveSpecializedMaterials(input, language, true);
+  const resolved = resolveSpecializedMaterials(input, language, false);
   const fiber = fiberMaterial(input);
   const db = Array.isArray(input.materialsDatabase) ? input.materialsDatabase : [];
   const hasRepo = db.length > 0;
