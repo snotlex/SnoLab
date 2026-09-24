@@ -167,7 +167,7 @@ const ROUTES: Record<string, ConcreteMixDesignRouteDefinition> = {
     reasonEn: "RCC depends on optimum moisture and compaction energy rather than conventional slump design."
   },
   SHOTCRETE: {
-    support: "planned",
+    support: "active",
     mode: "specialized",
     methodId: "shotcrete-specialized",
     nameAr: "محرك الخرسانة المقذوفة",
@@ -178,7 +178,7 @@ const ROUTES: Record<string, ConcreteMixDesignRouteDefinition> = {
     reasonEn: "Shotcrete requires dedicated accelerator, rebound, and fiber controls."
   },
   GPC: {
-    support: "planned",
+    support: "active",
     mode: "specialized",
     methodId: "geopolymer-specialized",
     nameAr: "محرك الخرسانة الجيوبوليمرية",
@@ -189,7 +189,7 @@ const ROUTES: Record<string, ConcreteMixDesignRouteDefinition> = {
     reasonEn: "GPC does not use the Portland-cement hydration basis of Dreux-Gorisse."
   },
   SHC: {
-    support: "planned",
+    support: "active",
     mode: "specialized",
     methodId: "self-healing-specialized",
     nameAr: "محرك الخرسانة ذاتية المعالجة",
@@ -200,7 +200,7 @@ const ROUTES: Record<string, ConcreteMixDesignRouteDefinition> = {
     reasonEn: "The self-healing agent must be treated as an independent design constituent with compatibility and dosage checks."
   },
   RAC: {
-    support: "planned",
+    support: "active",
     mode: "specialized",
     methodId: "recycled-aggregate-specialized",
     nameAr: "محرك الركام المعاد تدويره",
