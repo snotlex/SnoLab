@@ -10,6 +10,7 @@ export type LaboratoryResultStatus =
   | "Approved"
   | "Rejected"
   | "Superseded";
+export type LaboratoryVerificationStatus = "VERIFIED" | "NEEDS_REVIEW" | "INCORRECT" | "INCOMPLETE";
 
 export type LaboratorySampleStatus =
   | "Received"
@@ -131,6 +132,7 @@ export interface LaboratoryTestDefinition<TData extends Record<string, unknown> 
   revision: number;
   active: boolean;
   validateEngineering?: (data: TData) => ValidationIssue[];
+  independentCalculate?: (data: TData) => { result: number | string; unit?: string } | undefined;
   calculate: (data: TData) => {
     result: number | string;
     unit?: string;
@@ -154,6 +156,8 @@ export interface LaboratoryTestRun<TData extends Record<string, unknown> = Recor
   result?: { value: number | string; unit?: string };
   validation: ValidationReport;
   status: LaboratoryResultStatus;
+  verificationStatus?: LaboratoryVerificationStatus;
+  verificationIssues?: ValidationIssue[];
   approval?: ApprovalRecord;
   createdAt: string;
   updatedAt: string;

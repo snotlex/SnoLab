@@ -5,6 +5,7 @@ import type {
   LaboratoryTestRun,
   LaboratoryStandardReference
 } from "../types/laboratoryDomain";
+import { verifyLaboratoryCalculation } from "./laboratoryVerification";
 
 function issue(
   level: ValidationIssue["level"],
@@ -131,6 +132,13 @@ export function executeDefinedLaboratoryTest<TData extends Record<string, unknow
       };
     }
     const warning = validation.issues.some(item => item.severity === "warning");
+    const verification = verifyLaboratoryCalculation(
+      definition,
+      params.rawData,
+      { result: calculation.result, unit: calculation.unit || definition.resultUnit },
+      calculation.trace,
+      { independentCalculate: definition.independentCalculate }
+    );
     return {
       id: params.runId,
       projectId: params.projectId,
@@ -146,6 +154,8 @@ export function executeDefinedLaboratoryTest<TData extends Record<string, unknow
       result: { value: calculation.result, unit: calculation.unit || definition.resultUnit },
       validation,
       status: warning ? "Warning" : "Calculated",
+      verificationStatus: verification.status,
+      verificationIssues: verification.issues,
       createdAt: now,
       updatedAt: now
     };
