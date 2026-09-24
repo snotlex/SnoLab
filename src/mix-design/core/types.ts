@@ -70,6 +70,8 @@ export interface CalculationTraceStep {
 }
 
 export interface MixDesignResult extends LegacyResult {
+  methodId?: string;
+  status?: "success" | "not-supported" | "needs-data" | "needs-trial-mix" | "blocked";
   method: {
     id: string;
     name: string;
