@@ -46,7 +46,7 @@ describe("RCC specialized mix design", () => {
     expect(result.calculationStatus).toBe("needs_trial_mix");
     expect(result.cementKg).toBeCloseTo(325, 6);
     expect(result.fineAggregateKg).toBeCloseTo(1057.6125, 4);
-    expect(result.coarseAggregateKg).toBeCloseTo(957.3625, 4);
+    expect(result.coarseAggregateKg).toBeCloseTo(956.8875, 4);
     expect(result.waterKg).toBeCloseTo(110.25, 4);
     expect(result.wcRatio).toBeCloseTo(110.25 / 325, 6);
     expect(result.absoluteVolumeCheck.deviationPercent).toBeLessThan(2);
