@@ -145,7 +145,13 @@ export class MixDesignEngine {
       result.methodApplicability = applicabilityView;
     }
 
-    if (applicability.level === "limited") {
+    if (
+      applicability.level === "limited" &&
+      result.isValid !== false &&
+      result.valid !== false &&
+      result.engineStatus !== "blocked" &&
+      result.calculationStatus !== "blocked"
+    ) {
       result.calculationStatus = "needs_trial_mix";
       result.engineStatus = "needs_trial_mix";
       result.warnings = [
