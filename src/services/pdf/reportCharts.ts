@@ -70,7 +70,7 @@ export function drawGradingChart(
     }
   }
 
-  const drawPath = (points: [number, number][], color: number[]) => {
+  const drawPath = (points: [number, number][], color: [number, number, number]) => {
     if (!points.length) return;
     doc.setDrawColor(...color);
     doc.setLineWidth(0.9);
@@ -106,7 +106,7 @@ export function drawGradingChart(
 export function drawStrengthEvolutionChart(
   doc: jsPDF,
   result: MixDesignResult,
-  options: { title?: string; startY?: number } = {}
+  options: { title?: string; startY?: number; fck28?: number } = {}
 ): number {
   const series = getStrengthSeries(result);
   if (!series.length) return PDF_PAGE_MARGINS.top + 4;
@@ -121,7 +121,7 @@ export function drawStrengthEvolutionChart(
   const plotH = chartH - 25;
   const maxStrength = Math.max(
     10,
-    Math.ceil(Math.max(...series.map(s => s.strength), Number(result.fck28 || 0)) / 10) * 10
+    Math.ceil(Math.max(...series.map(s => s.strength), Number(options.fck28 || 0)) / 10) * 10
   );
   const minAge = Math.min(...series.map(s => s.age));
   const maxAge = Math.max(...series.map(s => s.age));
@@ -173,14 +173,14 @@ export function drawStrengthEvolutionChart(
     doc.text(`${series[idx].age} d`, px, plotTop + plotH + 5, { align: "center" });
   });
 
-  if (Number.isFinite(Number(result.fck28))) {
-    const fy = y(Number(result.fck28));
+  if (Number.isFinite(Number(options.fck28))) {
+    const fy = y(Number(options.fck28));
     doc.setDrawColor(...PDF_COLORS.warning);
     doc.setLineWidth(0.6);
     doc.line(plotLeft, fy, plotLeft + plotW, fy);
     doc.setFontSize(5.2);
     doc.setTextColor(...PDF_COLORS.warning);
-    doc.text(`fck target = ${Number(result.fck28).toFixed(1)} MPa`, plotLeft + 3, fy - 1.5);
+    doc.text(`fck target = ${Number(options.fck28).toFixed(1)} MPa`, plotLeft + 3, fy - 1.5);
   }
 
   return top + chartH + 5;
