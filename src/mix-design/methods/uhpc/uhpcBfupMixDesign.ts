@@ -63,6 +63,7 @@ export function calculateUhpcBfupMix(input: MixDesignInput, language:"ar"|"fr"|"
   if(db.length&&fiber&&!isSteelFiber(fiber)) return blocked(["Selected fiber must be steel for the current UHPC/BFUP engine."],[{parameter:"fiber_compatibility",requirement:"Steel fiber",actual:"Selected fiber is not steel.",status:"non_compliant"}]);
   if(db.length&&!isSilicaFume(mats.materials.scm)) return blocked(["Select an approved silica-fume SCM."],[{parameter:"scm_compatibility",requirement:"Silica fume",actual:"Selected SCM is not silica fume.",status:"non_compliant"}]);
   if(db.length&&!isSuperplasticizer(mats.materials.admixture)) return blocked(["Select an approved superplasticizer."],[{parameter:"admixture_compatibility",requirement:"Superplasticizer",actual:"Selected admixture is not a superplasticizer.",status:"non_compliant"}]);
+  if(db.length&&!mats.materials.quartzPowder) return blocked(["Select an approved ultra-fine quartz powder material for UHPC/BFUP."],[{parameter:"quartz_powder_material",requirement:"Approved quartz powder",actual:"Quartz powder material not found in the active material repository.",status:"non_compliant"}]);
   const quartzOk=db.length?isQuartz(mats.materials.sand):true;
   if(!quartzOk) return blocked(["Select an approved high-purity quartz/siliceous fine aggregate for UHPC/BFUP."],[{parameter:"quartz_sand",requirement:"Quartz/siliceous fine aggregate",actual:"Selected sand is not identified as quartz/siliceous.",status:"non_compliant"}]);
 
@@ -118,7 +119,7 @@ export function calculateUhpcBfupMix(input: MixDesignInput, language:"ar"|"fr"|"
     complianceChecks:checks,lifecycle:blockedLifecycle?"blocked":"needs_trial_mix"
   });
   result.waterToAdd=waterToAdd; result.batchWaterToAdd=waterToAdd; result.sandWeightWet=correction.wetKg; result.sandTotalMoistureWater=correction.moistureWater; result.totalFreeSurfaceWater=correction.freeSurfaceWater; result.totalAbsorptionDeficit=correction.absorptionDeficit;
-  result.quartzPowderKg=quartzKg; result.quartzPowderDensity=2650; result.steelFiberKg=fiberKg; result.steelFiberVolumePercent=vf; result.steelFiberDensity=fiberDensity;
+  result.quartzPowderKg=quartzKg; result.quartzPowderDensity=quartzDensity; result.steelFiberKg=fiberKg; result.steelFiberVolumePercent=vf; result.steelFiberDensity=fiberDensity;
   result.engineeringAudit={specializedMethod:t,framework:"ACI 239R-18 / AFGC-oriented UHPC/BFUP starting proportioning",targetStrengthMPa:fck,binderKgM3:binder,waterBinderRatio:wb,silicaFumePercent:sfPct,quartzPowderKgM3:quartzKg,steelFiberKgM3:fiberKg,steelFiberVolumePercent:vf,coarseAggregateUsed:false,mandatoryTrialMix:true};
   result.materialSuitability={status:blockedLifecycle?"blocked":"approved",missingMaterials:[],invalidMaterials:[],incompatibleMaterials:blockedLifecycle?["UHPC/BFUP numerical envelope or volume closure"]:[],warnings:[],recommendations:["Laboratory trial-mix verification is mandatory."]};
   return result as MixDesignResult;
