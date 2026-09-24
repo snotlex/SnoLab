@@ -258,9 +258,9 @@ export function calculateRacMix(input: MixDesignInput, language: "ar" | "fr" | "
   const admixtureKg = Math.max(0, num(input, "racSuperplasticizerDosage") / 100 * cement);
   const admixtureDensity = materialDensityKgM3(resolved.materials.admixture, 1100);
   const air = Math.max(0.5, Math.min(6, num(input, "airContent", 2)));
-  const volume = baseVolume(cement, cementDensity, 0, 2200, water, admixtureKg, admixtureDensity, 0, sandDensity, virginKg, virginDensity, air)
+  const fixedVolume = baseVolume(cement, cementDensity, 0, 2200, water, admixtureKg, admixtureDensity, 0, sandDensity, virginKg, virginDensity, air)
     + recycledKg / recycledDensity * 1000;
-  const sandKg = solveSand(volume - recycledKg / recycledDensity * 1000, virginKg, sandDensity);
+  const sandKg = solveSand(fixedVolume, 0, sandDensity);
   const finalVolume = baseVolume(cement, cementDensity, 0, 2200, water, admixtureKg, admixtureDensity, sandKg, sandDensity, virginKg, virginDensity, air) + recycledKg / recycledDensity * 1000;
   const absorptionCapacity = recycledKg * absorption / 100;
   const prewetWater = absorptionCapacity * preSat;
