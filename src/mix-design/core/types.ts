@@ -107,4 +107,9 @@ export interface MixDesignResult extends LegacyResult {
   internalWarnings?: CalculationMessage[];
   trace: CalculationTraceStep[];
   calculatedAt: string;
+
+  // Engineering lifecycle state used by the concrete-type router and reports.
+  calculationStatus?: "valid" | "valid_with_warnings" | "needs_data" | "needs_trial_mix" | "blocked";
+  engineStatus?: "valid" | "valid_with_warnings" | "needs_data" | "needs_trial_mix" | "blocked";
+  confidenceLevel?: "high" | "medium" | "low" | "preliminary";
 }
