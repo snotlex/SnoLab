@@ -1,5 +1,5 @@
 import { MixDesignInput, MixDesignResult, MaterialQuantity, CalculationTraceStep } from "../../core/types";
-import { calculateDreuxGorisseCore } from "../../../engine/dreuxGorisseCore";
+import { calculateDreuxGorisseCorrected } from "../../../engine/dreuxGorisseCorrected";
 import { validateDreuxGorisseInputs } from "./dreuxGorisseValidation";
 import { checkDreuxGorisseApplicability } from "./dreuxGorisseApplicability";
 
@@ -17,8 +17,10 @@ export function calculateDreuxGorisse(
     selectedMethod: "dreux" as const
   };
 
-  // Run the trusted core legacy engine
-  const coreResult = calculateDreuxGorisseCore(coercedInput as any, language);
+  // Run the corrected single-source calculation layer.
+  // It resolves material-library inputs, uses grading data when available,
+  // protects the W/C contract, and blocks silent engineering caps.
+  const coreResult = calculateDreuxGorisseCorrected(coercedInput as any, language);
 
   // Map admixtures
   const admixtures: MaterialQuantity[] = (coreResult.admixtureWeights || []).map((adm: any, index: number) => ({
