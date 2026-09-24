@@ -3,6 +3,7 @@ import { MethodNotFoundException, DuplicateMethodRegistrationError } from "./err
 import { dreuxGorisseMethod } from "../methods/dreux-gorisse/DreuxGorisseMethod";
 import { sccSpecializedMethod } from "../methods/scc/SccSpecializedMethod";
 import { perviousSpecializedMethod } from "../methods/pervious/PerviousSpecializedMethod";
+import { hscHpcSpecializedMethod } from "../methods/hsc-hpc/HscHpcSpecializedMethod";
 
 export class MixDesignMethodRegistry {
   private static instance: MixDesignMethodRegistry;
@@ -13,6 +14,7 @@ export class MixDesignMethodRegistry {
     this.register(dreuxGorisseMethod);
     this.register(sccSpecializedMethod);
     this.register(perviousSpecializedMethod);
+    this.register(hscHpcSpecializedMethod);
   }
 
   public static getInstance(): MixDesignMethodRegistry {
