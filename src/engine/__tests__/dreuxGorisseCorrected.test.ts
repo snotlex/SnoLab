@@ -179,7 +179,8 @@ describe("Dreux-Gorisse corrected calculation layer", () => {
     expect(result.cementLimitExceeded).toBe(true);
     expect(result.isValid).toBe(false);
     expect(result.engineStatus).toBe("blocked");
-    expect(result.cementWeight).toBeGreaterThan(550);
+    expect(result.cementWeight).toBeLessThanOrEqual(550);
+    expect(result.actualCementUsed).toBeCloseTo(result.cementWeight, 8);
   });
 
   it("applies the classical Dreux K corrections and correct pivot X for Dmax", () => {
