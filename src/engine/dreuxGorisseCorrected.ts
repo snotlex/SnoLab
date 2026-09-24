@@ -247,17 +247,17 @@ export function calculateDreuxGorisseCorrected(
   baseResult.errors = [
     ...new Set([
       ...(baseResult.errors || []),
-      ...validationResult.errors.map(e => e.message)
+      ...validationResult.errors.map(e => e.messageAr)
     ])
   ];
   baseResult.warnings = [
     ...new Set([
       ...(baseResult.warnings || []),
-      ...validationResult.warnings.map(w => w.message)
+      ...validationResult.warnings.map(w => w.messageAr)
     ])
   ];
 
-  if (!validationResult.isValid || baseResult.cementLimitExceeded) {
+  if (!validationResult.valid || baseResult.cementLimitExceeded) {
     baseResult.isValid = false;
     baseResult.valid = false;
     baseResult.engineStatus = "blocked";
@@ -504,9 +504,9 @@ function refreshMoistureAndBatchData(result: CorrectedResult, input: any): void 
   result.waterWeightWet = correction.waterToAddKg;
   result.aggregateFreeWater = correction.totalFreeSurfaceWaterKg - correction.totalAbsorptionDeficitKg;
   result.totalAggregateMoistureWater =
-    correction.fineAggregate.moistureWaterKg + correction.coarseAggregate.moistureWaterKg;
-  result.sandTotalMoistureWater = correction.fineAggregate.moistureWaterKg;
-  result.gravelTotalMoistureWater = correction.coarseAggregate.moistureWaterKg;
+    correction.sandTotalMoistureWater + correction.gravelTotalMoistureWater;
+  result.sandTotalMoistureWater = correction.sandTotalMoistureWater;
+  result.gravelTotalMoistureWater = correction.gravelTotalMoistureWater;
   result.totalFreeSurfaceWater = correction.totalFreeSurfaceWaterKg;
   result.sandFreeSurfaceWater = correction.fineAggregate.freeSurfaceWaterKg;
   result.gravelFreeSurfaceWater = correction.coarseAggregate.freeSurfaceWaterKg;
@@ -517,8 +517,8 @@ function refreshMoistureAndBatchData(result: CorrectedResult, input: any): void 
     sandDry * sandAbs / 100 + gravelDry * gravelAbs / 100;
   result.sandAbsorptionWater = sandDry * sandAbs / 100;
   result.gravelAbsorptionWater = gravelDry * gravelAbs / 100;
-  result.sandMoistureWater = correction.fineAggregate.moistureWaterKg;
-  result.gravelMoistureWater = correction.coarseAggregate.moistureWaterKg;
+  result.sandMoistureWater = correction.sandTotalMoistureWater;
+  result.gravelMoistureWater = correction.gravelTotalMoistureWater;
 
   const cement = Number(result.cementWeight || 0);
   const admix = (result.admixtureWeights || []).reduce((s, a) => s + a.weight, 0);
@@ -538,7 +538,7 @@ function refreshMoistureAndBatchData(result: CorrectedResult, input: any): void 
 
   result.effectiveWater = effectiveWater;
   result.waterContentActual = effectiveWater;
-  result.totalBinder = Number(result.totalBinder ?? scm);
+  result.totalBinder = Number(result.totalBinder ?? (cement + Number(result.flyAshKg || 0) + Number(result.slagKg || 0) + Number(result.silicaFumeKg || 0) + specialBinder));
   result.totalAggregateVolume = Number(result.totalAggregateVolume || 0);
 
   // Recompute the cost because the wet aggregate masses changed.
