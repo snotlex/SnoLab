@@ -41,7 +41,8 @@ export async function generateMixDesignPdf(
   const concreteTypeLabel = isCementless
     ? (lang === "ar" ? "خرسانة جيوبوليمرية خالية من الإسمنت" : lang === "en" ? "Cementless Geopolymer Concrete" : "Béton géopolymère sans ciment")
     : (input.concreteType || (lang === "ar" ? "خرسانة تقليدية" : "Conventional Concrete"));
-  const logoDataUrl = await loadPublicImageDataUrl("/brand/snolab-official-light.png");\n  const reportTitle = lang === "ar" 
+  const logoDataUrl = await loadPublicImageDataUrl("/brand/snolab-official-light.png");
+  const reportTitle = lang === "ar" 
     ? "شهادة دراسة وتركيب الخلطة الخرسانية"
     : lang === "en"
     ? "Concrete Mix Design Formulation Certificate"
