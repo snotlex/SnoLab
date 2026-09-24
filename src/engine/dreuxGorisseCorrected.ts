@@ -124,6 +124,37 @@ export function calculateDreuxGorisseCorrected(
 
   const baseResult = calculateDreuxGorisseCore(resolvedInput, language) as CorrectedResult;
 
+  // When the preparation stage explicitly selects materials from the project
+  // library, a partially-resolved/invalid material set must never silently fall
+  // back to hard-coded engineering defaults.
+  const hasSelectedLibraryMaterials =
+    materials.length > 0 &&
+    [
+      input.selectedCementId,
+      input.selectedSandId,
+      input.selectedGravelId,
+      input.selectedWaterId,
+    ].some(Boolean);
+
+  if (
+    hasSelectedLibraryMaterials &&
+    resolved &&
+    !resolved.trace.isFullyResolved
+  ) {
+    baseResult.isValid = false;
+    baseResult.valid = false;
+    baseResult.engineStatus = "needs_data";
+    baseResult.errors = [
+      ...(baseResult.errors || []),
+      localized(
+        language,
+        "لا يمكن اعتماد الخلطة: بعض خصائص المواد المختارة مفقودة أو غير صالحة. أكمل بيانات مكتبة المواد قبل الحساب النهائي.",
+        "The mix cannot be accepted: one or more selected material properties are missing or invalid. Complete the material-library data before final calculation.",
+        "La formulation ne peut pas être validée : une ou plusieurs propriétés des matériaux sélectionnés sont manquantes ou invalides. Complétez la bibliothèque des matériaux avant le calcul final."
+      )
+    ];
+  }
+
   // Normalize the meaning of these fields. In the result contract W/C must mean
   // effective water divided by actual cementitious cement, while W/B is separate.
   const correctedWc = safeRatio(
