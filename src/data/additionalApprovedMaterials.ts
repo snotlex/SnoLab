@@ -28,6 +28,14 @@ export const ADDITIONAL_APPROVED_MATERIALS: EngineeringMaterial[] = [
     admixtureType: "silica_fume", recommendedDosage: 8, waterReduction: 0, compatibilityNotes: "تتطلب ضبط الماء والملدن الفائق وتجارب توافق.", engineeringData: { density: 2200, maxReplacementPercent: 15 }
   },
   {
+    id: "SYS-SCM-QP-001", name: "مسحوق كوارتز فائق النعومة", englishName: "Ultra-Fine Quartz Powder",
+    type: "quartz_powder", category: "إضافات معدنية", materialType: "مسحوق معدني", density: 2650, maxReplacementPercent: 30,
+    quality: "مرجع صناعي نموذجي لخلطات UHPC/BFUP", uses: "UHPC وBFUP والخلطات الدقيقة عالية الأداء",
+    desc: "مسحوق كوارتزي ناعم لملء الفراغات بين حبيبات الرمل والسيليكا وتحسين تراص المصفوفة الدقيقة.",
+    rating: 4.6, provenance: "مرجع صناعي UHPC", status: "نشط", materialSource: "system", isSystem: true,
+    engineeringData: { density: 2650, maxReplacementPercent: 30, particleSizeMicronMax: 150 }
+  },
+  {
     id: "SYS-SCM-FA-001", name: "الرماد المتطاير فئة F", englishName: "Class F Fly Ash",
     type: "fly_ash", category: "إضافات معدنية", materialType: "إضافات معدنية", density: 2300, maxReplacementPercent: 30,
     quality: "مرجع نظامي نموذجي وفق EN 450-1", uses: "الخرسانة الكتلية والخرسانة المستدامة وتحسين التشغيلية",
