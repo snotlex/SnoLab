@@ -431,7 +431,7 @@ export function calculateLwcMix(
       parameter: "target_density",
       requirement: "1400-2000 kg/m3",
       actual: `${designFreshDensity.toFixed(1)} kg/m3 (batch ${batchFreshDensity.toFixed(1)} kg/m3 after moisture/prewetting)`,
-      status: achievedFreshDensity >= 1400 && achievedFreshDensity <= 2000 && Math.abs(densityError) <= 75
+      status: designFreshDensity >= 1400 && designFreshDensity <= 2000 && Math.abs(densityError) <= 75
         ? "compliant"
         : "non_compliant"
     },
