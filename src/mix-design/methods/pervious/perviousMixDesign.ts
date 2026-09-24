@@ -125,6 +125,33 @@ export function calculatePerviousMix(
     Math.max(15, Number((input as any).perviousTargetVoidContent ?? input.approvedVoidRatio ?? 20))
   );
 
+  if (Array.isArray(input.materialsDatabase) && input.materialsDatabase.length > 0 && aggregateBulkDensity <= 0) {
+    return makeSpecializedResult(input, {
+      methodId: "pervious-specialized",
+      methodName: "Pervious Concrete",
+      version: VERSION,
+      cementKg: 0,
+      waterKg: 0,
+      fineAggregateKg: 0,
+      coarseAggregateKg: 0,
+      admixtureKg: 0,
+      waterBinderRatio: 0,
+      freshDensityKgM3: 0,
+      absoluteVolumeL: 0,
+      warnings: ["The selected coarse aggregate is missing a validated bulk density required by the pervious void-structure calculation."],
+      assumptions: [],
+      recommendations: ["Run/attach the aggregate bulk-density laboratory test and synchronize the validated property to the material library."],
+      trace: [],
+      complianceChecks: [{
+        parameter: "aggregate_bulk_density",
+        requirement: "Validated bulk density required",
+        actual: "Missing",
+        status: "non_compliant"
+      }],
+      lifecycle: "blocked"
+    });
+  }
+
   const aggregateBulk = aggregateBulkDensity > 0 ? aggregateBulkDensity : 1450;
   const aggregateVoidFraction = Math.max(0.10, Math.min(0.60, 1 - aggregateBulk / gravelDensity));
   const targetPasteVolumeFraction = Math.min(
@@ -204,7 +231,7 @@ export function calculatePerviousMix(
   );
 
   const estimatedFreshDensity =
-    cementKg + scmKg + fineKg + coarseKg + waterToAdd + admixtureKg;
+    cementKg + scmKg + sandCorrection.wetKg + gravelCorrection.wetKg + waterToAdd + admixtureKg;
 
   const warnings = [
     "Pervious concrete is controlled by connected void structure and permeability, not slump-based conventional concrete criteria.",
