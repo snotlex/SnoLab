@@ -18,10 +18,10 @@ export const DEFAULT_LAB_PROFILE: LabProfile = {
   name: "SNOLAB ENGINEERING MATERIALS LABORATORY",
   nameFr: "LABORATOIRE D'ESSAIS ET D'INGÉNIERIE DES MATÉRIAUX - SNOLAB",
   nameAr: "مخبر سنولاب لهندسة وتوصيف مواد البناء",
-  accreditation: "ISO/IEC 17025:2017 ACCREDITED FACILITY #SN-DZ-2026",
-  department: "DEPARTMENT OF CIVIL ENGINEERING & QUALITY CONTROL",
-  address: "Centre de Recherche & Contrôle Technique de la Construction",
-  contact: "contact@snolab-engineering.com | www.snolab-engineering.com",
+  accreditation: "ENGINEERING CALCULATION REPORT • REVIEW & TRIAL MIX REQUIRED",
+  department: "CONCRETE FORMULATION & MATERIALS CONTROL",
+  address: "Project-specific laboratory / engineering record",
+  contact: "SnoLab local report • revision-controlled document",
   logoText: "SNOLAB"
 };
 
