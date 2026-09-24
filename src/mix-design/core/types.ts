@@ -70,6 +70,8 @@ export interface CalculationTraceStep {
 }
 
 export interface MixDesignResult extends LegacyResult {
+  methodId?: string;
+  status?: "success" | "not-supported" | "needs-data" | "needs-trial-mix" | "blocked";
   method: {
     id: string;
     name: string;
@@ -107,4 +109,9 @@ export interface MixDesignResult extends LegacyResult {
   internalWarnings?: CalculationMessage[];
   trace: CalculationTraceStep[];
   calculatedAt: string;
+
+  // Engineering lifecycle state used by the concrete-type router and reports.
+  calculationStatus?: "valid" | "valid_with_warnings" | "needs_data" | "needs_trial_mix" | "blocked";
+  engineStatus?: "valid" | "valid_with_warnings" | "needs_data" | "needs_trial_mix" | "blocked";
+  confidenceLevel?: "high" | "medium" | "low" | "preliminary";
 }

@@ -491,18 +491,24 @@ export class ValidationEngine {
     const warnings = gateResult.warnings || [];
 
     // Formulate checklists for each step of the engineering state
+    const resolvedMaterialIds = (results as any)?.resolvedMaterialIds || {};
+    const effectiveCementId = inputs.selectedCementId || resolvedMaterialIds.selectedCementId;
+    const effectiveSandId = inputs.selectedSandId || resolvedMaterialIds.selectedSandId;
+    const effectiveGravelId = inputs.selectedGravelId || resolvedMaterialIds.selectedGravelId;
+    const effectiveWaterId = inputs.selectedWaterId || resolvedMaterialIds.selectedWaterId;
+
     const materialsCheck = [
-      { id: "m1", labelEn: "Selected Cement constituent", labelAr: "تحديد إسمنت المشروع", done: !!inputs.selectedCementId },
-      { id: "m2", labelEn: "Selected Sand constituent", labelAr: "تحديد الرمل المعتمد", done: !!inputs.selectedSandId },
-      { id: "m3", labelEn: "Selected Gravel constituent", labelAr: "تحديد الحصى المرخص", done: !!inputs.selectedGravelId },
-      { id: "m4", labelEn: "Selected Water constituent", labelAr: "تحديد مياه الخلط", done: !!inputs.selectedWaterId },
+      { id: "m1", labelEn: "Selected Cement constituent", labelAr: "تحديد إسمنت المشروع", done: !!effectiveCementId },
+      { id: "m2", labelEn: "Selected Sand constituent", labelAr: "تحديد الرمل المعتمد", done: !!effectiveSandId },
+      { id: "m3", labelEn: "Selected Gravel constituent", labelAr: "تحديد الحصى المرخص", done: !!effectiveGravelId },
+      { id: "m4", labelEn: "Selected Water constituent", labelAr: "تحديد مياه الخلط", done: !!effectiveWaterId },
     ];
     const materialsDone = materialsCheck.every(c => c.done);
 
     const granularCheck = [
       { id: "g1", labelEn: "Aggregate grading inputs verified", labelAr: "المنحنيات الحبيبية مدخلة", done: materialsDone },
       { id: "g2", labelEn: "Fineness modulus parsed", labelAr: "معيار النعومة للرمل محسوب", done: materialsDone && (inputs.finenessModulus !== undefined && inputs.finenessModulus > 0) },
-      { id: "g3", labelEn: "Aggregate optimization score > 70%", labelAr: "تطابق الركام مع المنحنى القياسي مفعّل", done: materialsDone && inputs.isGranularOptimizedApproved === true },
+      { id: "g3", labelEn: "Aggregate grading path available", labelAr: "مسار التدرج الحبيبي متاح للحساب", done: materialsDone && (inputs.isGranularOptimizedApproved === true || !!results?.gradingCurve?.length || !!(results as any)?.actualGradingCurve?.length) },
     ];
     const granularDone = granularCheck.every(c => c.done);
 
@@ -525,7 +531,7 @@ export class ValidationEngine {
 
     const reportCheck = [
       { id: "r1", labelEn: "Cost analysis generated", labelAr: "حساب الكلفة التقديرية للخلطة", done: mixDesignDone },
-      { id: "r2", labelEn: "Engineering certificate ready", labelAr: "جاهزية شهادة التركيبة الفنية", done: mixDesignDone && validationDone },
+      { id: "r2", labelEn: "Engineering report ready", labelAr: "جاهزية التقرير الهندسي", done: mixDesignDone && validationDone },
     ];
 
     const now = new Date().toISOString();
@@ -539,7 +545,7 @@ export class ValidationEngine {
     const engineeringState: EngineeringState = {
       materials: {
         step: "materials",
-        status: getStatus(materialsDone, !!inputs.selectedCementId),
+        status: getStatus(materialsDone, !!effectiveCementId),
         updatedAt: now,
         checklist: materialsCheck,
       },

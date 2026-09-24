@@ -5,7 +5,20 @@ export type MethodImplementationStatus =
   | "needs-engineering-review";
 
 export type MixDesignMethodId =
-  | "dreux-gorisse";
+  | "dreux-gorisse"
+  | "auto"
+  | "hsc-hpc-specialized"
+  | "scc-specialized"
+  | "lightweight-specialized"
+  | "heavyweight-specialized"
+  | "rcc-specialized"
+  | "shotcrete-specialized"
+  | "geopolymer-specialized"
+  | "self-healing-specialized"
+  | "recycled-aggregate-specialized"
+  | "pervious-specialized"
+  | "uhpc-specialized"
+  | "fiber-reinforced-specialized";
 
 export type MethodCategory =
   | "complete-design"

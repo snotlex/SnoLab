@@ -65,6 +65,16 @@ export function checkDreuxGorisseApplicability(
       recommendations.push("يلزم تحديد نسبة الرطوبة المثلى باختبار بروكتور المعدل وإجراء خلطات رص تجريبية.");
       break;
 
+    case "PERVIOUS":
+    case "FRC":
+    case "RAC":
+    case "SHC":
+    case "BFUP":
+      level = "not_applicable";
+      reasons.push(`نوع الخرسانة ${concreteType} يتطلب محرك تصميم متخصصًا ولا يجب اعتماد حساب درو-غوريس التقليدي وحده.`);
+      recommendations.push("استخدم المحرك المتخصص لهذا النوع أو انتظر تفعيله قبل إصدار تصميم نهائي.");
+      break;
+
     case "SHOTCRETE":
       level = "limited";
       reasons.push("الخرسانة المرشوشة (Shotcrete): ترتبط بنسب ارتداد الركام وإضافة مسرعات شك فورية وألياف تسليح.");

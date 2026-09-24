@@ -142,18 +142,22 @@ describe("Dreux-Gorisse Engine Parity & Integration Tests", () => {
     expect(paths[2].status).not.toBe("success");
   });
 
-  it("SCC across all paths must be limited", () => {
+  it("SCC must use the specialized route for automatic calculation", () => {
     const input = getBaseInput({ concreteType: "SCC" });
-    const paths = [
-      calculateDreuxGorisse(input),
-      calculateMixDesign(input as any),
-      calculateByMethod("dreux-gorisse", input)
-    ];
+    const directDreux = calculateDreuxGorisse(input);
+    const automatic = calculateMixDesign(input as any);
+    const explicitDreux = calculateByMethod("dreux-gorisse", input);
 
-    for (const res of paths) {
-      expect(res.isValid).toBe(true);
-      expect(res.methodApplicability?.level).toBe("limited");
-    }
+    expect(directDreux.isValid).toBe(true);
+    expect(directDreux.methodApplicability?.level).toBe("limited");
+
+    expect(automatic.isValid).toBe(false);
+    expect(automatic.status).toBe("not-supported");
+    expect(automatic.methodId).toBe("scc-specialized");
+    expect(automatic.calculationStatus).toBe("blocked");
+
+    expect(explicitDreux.isValid).toBe(true);
+    expect(explicitDreux.methodApplicability?.level).toBe("limited");
   });
 
   it("Lightweight concrete across all paths must be limited", () => {
