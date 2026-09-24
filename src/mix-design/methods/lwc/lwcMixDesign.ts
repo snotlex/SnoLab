@@ -72,8 +72,12 @@ export function validateLwcInputs(
   const dMax = Number(input.dMax);
   const wb = Number((input as any).lwcWaterBinderRatio ?? NaN);
   const prewet = Number((input as any).lwcPrewetDegreePercent ?? 75);
-  const lwcDensity = Number((input as any).lightweightAggregateDensity ?? NaN);
-  const lwcAbsorption = Number((input as any).lightweightAggregateAbsorption ?? NaN);
+  const lwcDensity =
+    Number((input as any).lightweightAggregateDensity) ||
+    Number(materialProperty(resolved.materials.lightweightAggregate, ["density", "ssdDensity", "specificGravity"], 0) || 0);
+  const lwcAbsorption =
+    Number((input as any).lightweightAggregateAbsorption) ||
+    Number(materialProperty(resolved.materials.lightweightAggregate, ["absorption", "Absorption"], 0) || 0);
 
   if (!Number.isFinite(density) || density < 1400 || density > 2000) {
     errors.push({
@@ -173,6 +177,38 @@ export function calculateLwcMix(
         parameter: "lightweight_material",
         requirement: "Approved lightweight aggregate",
         actual: "Missing",
+        status: "non_compliant"
+      }],
+      lifecycle: "blocked"
+    });
+  }
+
+  if (
+    lightweightMaterial &&
+    Array.isArray(input.materialsDatabase) &&
+    input.materialsDatabase.length > 0 &&
+    String(lightweightMaterial.category || "").trim() !== "ركام خفيف"
+  ) {
+    return makeSpecializedResult(input, {
+      methodId: "lightweight-specialized",
+      methodName: "Structural Lightweight Concrete",
+      version: VERSION,
+      cementKg: 0,
+      waterKg: 0,
+      fineAggregateKg: 0,
+      coarseAggregateKg: 0,
+      admixtureKg: 0,
+      waterBinderRatio: 0,
+      freshDensityKgM3: 0,
+      absoluteVolumeL: 0,
+      warnings: [],
+      assumptions: [],
+      recommendations: ["Select a material whose library category is 'ركام خفيف' for the LWC aggregate role."],
+      trace: [],
+      complianceChecks: [{
+        parameter: "lightweight_material_category",
+        requirement: "ركام خفيف",
+        actual: String(lightweightMaterial.category || "unknown"),
         status: "non_compliant"
       }],
       lifecycle: "blocked"
