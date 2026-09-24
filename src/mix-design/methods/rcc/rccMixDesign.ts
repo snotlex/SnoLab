@@ -1,3 +1,5 @@
+import { resolveSpecializedMaterials } from "../shared/specializedMixDesignUtils";
+
 import {
   MixDesignInput,
   ApplicabilityResult,
@@ -83,6 +85,10 @@ export function validateRccInputs(
 ): ValidationResult {
   const errors: ValidationError[] = [];
   const warnings: ValidationError[] = [];
+  const resolvedMaterials = resolveSpecializedMaterials(input, language, false, false, true);
+  for (const error of resolvedMaterials.errors) {
+    errors.push({ code: "RCC_MATERIAL_RESOLUTION", severity: "error", field: "materialsDatabase", message: error });
+  }
 
   const required: Array<[keyof MixDesignInput, string]> = [
     ["rccWaterKgM3", message(language, "ماء RCC الكلي", "Eau totale RCC", "RCC total water")],
@@ -420,16 +426,18 @@ export function calculateRccMix(
       ? "Starting RCC proportions pass numerical moisture/volume diagnostics and require laboratory trial verification."
       : "Starting RCC proportions require adjustment or laboratory verification before acceptance.",
     materialSuitability: {
-      status: "diagnostic_only",
+      status: Array.isArray(input.materialsDatabase) && input.materialsDatabase.length > 0 ? "approved" : "warning",
       missingMaterials: [],
       invalidMaterials: [],
       incompatibleMaterials: [],
       warnings: [
-        "Material properties used by the RCC calculation must come from the approved material library.",
+        ...(Array.isArray(input.materialsDatabase) && input.materialsDatabase.length > 0 ? [] : [
+          "RCC calculation was executed without a populated material repository; production use requires approved project materials."
+        ]),
         "Aggregate moisture/absorption values directly affect the added batch-water correction."
       ],
       recommendations: [
-        "Keep selected aggregate, cement and SCM records linked to the project for traceability."
+        "Keep selected aggregate, cement, water and SCM records linked to the project for traceability."
       ]
     },
     isValid: true,
