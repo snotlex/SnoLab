@@ -387,11 +387,11 @@ const gradingChartSvg = (result: MixDesignResult, lang: "ar" | "fr" | "en", widt
   </svg>`;
 };
 
-const strengthChartSvg = (result: MixDesignResult, lang: "ar" | "fr" | "en", width = 760, height = 300) => {
+const strengthChartSvg = (result: MixDesignResult, lang: "ar" | "fr" | "en", width = 760, height = 300, fck28?: number) => {
   const series = getStrengthSeries(result);
   if (!series.length) return "";
   const left=55,right=24,top=28,bottom=48,plotW=width-left-right,plotH=height-top-bottom;
-  const max=Math.max(10, Math.ceil(Math.max(...series.map(p=>p.strength), Number(result.fck28||0))/10)*10);
+  const max=Math.max(10, Math.ceil(Math.max(...series.map(p=>p.strength), Number(fck28 || 0))/10)*10);
   const minAge=Math.min(...series.map(p=>p.age)), maxAge=Math.max(...series.map(p=>p.age));
   const x=(a:number)=>left+((a-minAge)/Math.max(1,maxAge-minAge))*plotW;
   const y=(s:number)=>top+(1-Math.max(0,Math.min(max,s))/max)*plotH;
@@ -558,7 +558,7 @@ img.chart{width:100%;height:auto;border:1px solid #E2E8F0}
   <div class="section">Primary results</div>
   ${htmlTable(["Result","Value","Unit"],[
     ["Effective W/C",wc??"—",""],
-    ["Water/Binder",result.waterBinderRatio??"—",""],
+    ["Water/Binder",((result as any).waterBinderRatio ?? result.designSSD?.waterCementitiousRatio)??"—",""],
     ["Cement used",result.actualCementUsed??result.cementWeight??"—","kg/m³"],
     ["Theoretical cement demand",result.theoreticalCementDemand??"—","kg/m³"],
     ["Sand fraction",result.sandPercent??"—","%"],
@@ -572,7 +572,7 @@ img.chart{width:100%;height:auto;border:1px solid #E2E8F0}
 <div class="page">
   <div class="section">4. Grading & engineering curves</div>
   ${gradingChartSvg(result,lang) ? `<div>${gradingChartSvg(result,lang)}</div>` : "<div class='warn'>No grading series were available for export.</div>"}
-  ${strengthChartSvg(result,lang) ? `<div style="margin-top:14px">${strengthChartSvg(result,lang)}</div>` : ""}
+  ${strengthChartSvg(result,lang,760,300,input.fck28) ? `<div style="margin-top:14px">${strengthChartSvg(result,lang,760,300,input.fck28)}</div>` : ""}
   <div class="section">Curve data</div>
   ${htmlTable(["Sieve / age","Target","Actual / strength","Unit"],[
     ...grading.map(p=>[`${p.size} mm`,p.targetPassing,p.actualPassing??"—","% passing"]),
@@ -649,6 +649,7 @@ export const handleExportExcel = (
   const resultRows = getCompleteResultRows(result);
   const grading = getGradingSeries(result);
   const strength = getStrengthSeries(result);
+  const selectedMaterialSnapshots = getSelectedMaterialSnapshots(input);
   const wb = XLSX.utils.book_new();
 
   const makeSheet = (rows: any[][], widths: number[] = [34,30,28,24]) => {
@@ -680,7 +681,7 @@ export const handleExportExcel = (
     ["fck,28",input.fck28,"MPa"],
     ["fcm,28",result.fcm28,"MPa"],
     ["W/C",wc,""],
-    ["W/B",result.waterBinderRatio??"—",""],
+    ["W/B",((result as any).waterBinderRatio ?? result.designSSD?.waterCementitiousRatio)??"—",""],
     ["Dmax",input.dMax,"mm"],
     ["Slump",input.slump,"cm"],
     ["Batch volume",batchVolume,"m³"],
@@ -735,7 +736,7 @@ export const handleExportExcel = (
     ["Fine aggregate fraction",result.sandPercent,"—","%","Blend fraction"],
     ["Coarse aggregate fraction",result.gravelPercent,"—","%","Blend fraction"],
     ["Effective W/C",wc,"—","","Water / cement"],
-    ["Water/Binder",result.waterBinderRatio??"—","—","","Water / total binder"],
+    ["Water/Binder",((result as any).waterBinderRatio ?? result.designSSD?.waterCementitiousRatio)??"—","—","","Water / total binder"],
     ["Fresh density",result.totalFreshDensity,"—","kg/m³","Calculated value"]
   ];
   (result.admixtureWeights||[]).forEach(a=>formula.push([`Admixture — ${a.name}`,a.weight,a.weight*batchVolume,"kg", "Structured admixture"]));
