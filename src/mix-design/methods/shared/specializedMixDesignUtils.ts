@@ -165,6 +165,8 @@ export function makeSpecializedResult(
     implementationStatus: "complete",
     isStandaloneCompleteMethod: true,
     cementKg: data.cementKg,
+    scmKg: data.scmKg || 0,
+    fiberKg: data.fiberKg || 0,
     waterKg: data.waterKg,
     fineAggregateKg: data.fineAggregateKg,
     coarseAggregateKg: data.coarseAggregateKg,
