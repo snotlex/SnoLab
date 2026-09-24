@@ -31,7 +31,7 @@ export function checkFrcApplicability(input: MixDesignInput): ApplicabilityResul
 export function validateFrcInputs(input: MixDesignInput, language: "ar" | "fr" | "en" = "ar"): ValidationResult {
   const errors: any[] = [];
   const warnings: any[] = [];
-  const resolved = resolveSpecializedMaterials(input, language, true);
+  const resolved = resolveSpecializedMaterials(input, language, false);
   errors.push(...resolved.errors.map((message) => ({ code: "material_resolution", severity: "error", field: "materialsDatabase", message })));
 
   const fiber = fiberMaterial(input);
@@ -39,7 +39,12 @@ export function validateFrcInputs(input: MixDesignInput, language: "ar" | "fr" |
   const hasRepo = db.length > 0;
   const wb = Number((input as any).frcWaterBinderRatio ?? 0.40);
   const water = Number((input as any).frcWaterKgM3 ?? 160);
-  const fiberVol = Number((input as any).frcFiberVolumePercent ?? input.fiberDosageKgM3 && input.fiberDensity ? (Number(input.fiberDosageKgM3) / Number(input.fiberDensity)) * 100 : 0);
+  const fiberVol = Number(
+    (input as any).frcFiberVolumePercent ??
+      (Number(input.fiberDosageKgM3 || 0) > 0 && Number(input.fiberDensity || 0) > 0
+        ? (Number(input.fiberDosageKgM3) / Number(input.fiberDensity)) * 100
+        : 0)
+  );
   if (!Number.isFinite(wb) || wb <= 0 || wb > 0.70) errors.push({ code: "water_binder", severity: "error", field: "frcWaterBinderRatio", message: "FRC water/binder ratio must be > 0 and <= 0.70 for the current initial design envelope." });
   if (!Number.isFinite(water) || water <= 0 || water > 220) errors.push({ code: "water", severity: "error", field: "frcWaterKgM3", message: "FRC effective water must be within 0-220 kg/m3 for the current initial proportioning envelope." });
   if (!Number.isFinite(fiberVol) || fiberVol < 0 || fiberVol > 5) errors.push({ code: "fiber_volume", severity: "error", field: "frcFiberVolumePercent", message: "Fiber volume must be between 0 and 5% for the current initial FRC proportioning envelope." });
@@ -53,6 +58,16 @@ export function calculateFrcMix(input: MixDesignInput, language: "ar" | "fr" | "
   const fiber = fiberMaterial(input);
   const db = Array.isArray(input.materialsDatabase) ? input.materialsDatabase : [];
   const hasRepo = db.length > 0;
+  if (hasRepo && Number((input as any).frcSuperplasticizerDosage ?? input.dosageSuper ?? 0) > 0 && !resolved.materials.admixture) {
+    return makeSpecializedResult(input, {
+      methodId: "fiber-reinforced-specialized", methodName: "Fiber-Reinforced Concrete", version: VERSION,
+      cementKg: 0, waterKg: 0, fineAggregateKg: 0, coarseAggregateKg: 0, admixtureKg: 0, fiberKg: 0,
+      waterBinderRatio: 0, freshDensityKgM3: 0, absoluteVolumeL: 0,
+      warnings: ["An approved superplasticizer is required when FRC admixture dosage is greater than zero."],
+      assumptions: [], recommendations: ["Select an approved superplasticizer or set the FRC superplasticizer dosage to zero."], trace: [],
+      complianceChecks: [{ parameter: "admixture", requirement: "Approved superplasticizer when dosage > 0", actual: "Material missing", status: "non_compliant" }], lifecycle: "blocked"
+    });
+  }
   const fiberVolPercent = Number((input as any).frcFiberVolumePercent ?? (
     Number(input.fiberDosageKgM3 || 0) > 0 && Number(input.fiberDensity || 0) > 0
       ? Number(input.fiberDosageKgM3) / Number(input.fiberDensity) * 100
