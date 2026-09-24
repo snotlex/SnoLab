@@ -9,6 +9,7 @@ import { hwcSpecializedMethod } from "../methods/hwc/HwcSpecializedMethod";
 import { uhpcBfupSpecializedMethod } from "../methods/uhpc/UhpcBfupSpecializedMethod";
 import { rccSpecializedMethod } from "../methods/rcc/RccSpecializedMethod";
 import { frcSpecializedMethod } from "../methods/frc/FrcSpecializedMethod";
+import { gpcSpecializedMethod, racSpecializedMethod, shcSpecializedMethod, shotcreteSpecializedMethod } from "../methods/phase2/Phase2SpecializedMethods";
 
 export class MixDesignMethodRegistry {
   private static instance: MixDesignMethodRegistry;
@@ -25,6 +26,10 @@ export class MixDesignMethodRegistry {
     this.register(uhpcBfupSpecializedMethod);
     this.register(rccSpecializedMethod);
     this.register(frcSpecializedMethod);
+    this.register(gpcSpecializedMethod);
+    this.register(racSpecializedMethod);
+    this.register(shcSpecializedMethod);
+    this.register(shotcreteSpecializedMethod);
   }
 
   public static getInstance(): MixDesignMethodRegistry {
