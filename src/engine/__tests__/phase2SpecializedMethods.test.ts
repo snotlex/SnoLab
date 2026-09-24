@@ -13,7 +13,8 @@ const materials = [
   { id: "sand-1", name: "Sand", category: "fine aggregate", density: 2.65 },
   { id: "gravel-1", name: "Gravel", category: "coarse aggregate", density: 2.65 },
   { id: "scm-1", name: "Fly ash precursor", category: "SCM", density: 2.20 },
-  { id: "adm-1", name: "Activator / admixture", category: "admixture", density: 1.40 }
+  { id: "adm-1", name: "Activator / admixture", category: "admixture", density: 1.40 },
+  { id: "water-1", name: "Water", category: "water", density: 1.00 }
 ];
 
 function input(extra: Record<string, unknown>) {
@@ -38,6 +39,7 @@ function input(extra: Record<string, unknown>) {
     selectedCementId: "cement-1",
     selectedSandId: "sand-1",
     selectedGravelId: "gravel-1",
+    selectedWaterId: "water-1",
     selectedWaterName: "Water",
     selectedScmId: "scm-1",
     selectedAdmixtureId: "adm-1",
