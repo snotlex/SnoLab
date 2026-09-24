@@ -400,13 +400,18 @@ function buildActualCurve(
     ...targetPoints.map(p => p.size)
   ]).filter(s => s > 0 && s <= Number(input.dMax));
 
-  const actualGradingCurve = sizes.map(size => ({
-    size,
-    passing:
-      (sandPercent / 100) * interpolatePassing(sandCurve, size) +
-      (gravelPercent / 100) * interpolatePassing(gravelCurve, size),
-    targetPassing: interpolateTarget(targetPoints, size),
-  }));
+  const hasMaterialGradation =
+    sandCurve.length >= 3 && gravelCurve.length >= 3;
+
+  const actualGradingCurve = hasMaterialGradation
+    ? sizes.map(size => ({
+        size,
+        passing:
+          (sandPercent / 100) * interpolatePassing(sandCurve, size) +
+          (gravelPercent / 100) * interpolatePassing(gravelCurve, size),
+        targetPassing: interpolateTarget(targetPoints, size),
+      }))
+    : [];
 
   return {
     source:
@@ -483,7 +488,6 @@ function refreshMoistureAndBatchData(result: CorrectedResult, input: any): void 
   result.gravelMoistureWater = correction.coarseAggregate.moistureWaterKg;
 
   const cement = Number(result.cementWeight || 0);
-  const scm = Number(result.totalBinder || cement);
   const admix = (result.admixtureWeights || []).reduce((s, a) => s + a.weight, 0);
   const fiber = Number((result as any).fiberKg || input.fiberDosageKgM3 || 0);
   const specialBinder = Number((result as any).specialBinderKg || 0);
@@ -506,16 +510,16 @@ function refreshMoistureAndBatchData(result: CorrectedResult, input: any): void 
 
   // Recompute the cost because the wet aggregate masses changed.
   const prices = {
-    priceCement: Number(input.priceCement ?? 0),
-    priceSand: Number(input.priceSand ?? 0),
-    priceGravel: Number(input.priceGravel ?? 0),
-    priceSuper: Number(input.priceSuper ?? 0),
-    priceAir: Number(input.priceAir ?? 0),
-    priceRetarder: Number(input.priceRetarder ?? 0),
-    priceAccelerator: Number(input.priceAccelerator ?? 0),
-    priceSilicaFume: Number(input.priceSilicaFume ?? 0),
-    priceFlyAsh: Number(input.priceFlyAsh ?? 0),
-    priceSlag: Number(input.priceSlag ?? 0),
+    priceCement: Number(input.priceCement ?? 17),
+    priceSand: Number(input.priceSand ?? 2.5),
+    priceGravel: Number(input.priceGravel ?? 2.8),
+    priceSuper: Number(input.priceSuper ?? 120),
+    priceAir: Number(input.priceAir ?? 95),
+    priceRetarder: Number(input.priceRetarder ?? 85),
+    priceAccelerator: Number(input.priceAccelerator ?? 110),
+    priceSilicaFume: Number(input.priceSilicaFume ?? 60),
+    priceFlyAsh: Number(input.priceFlyAsh ?? 35),
+    priceSlag: Number(input.priceSlag ?? 30),
     priceLabor: Number(input.priceLabor ?? 0),
     priceWater: Number(input.priceWater ?? 0),
     priceFiber: Number(input.priceFiber ?? 0),
