@@ -219,6 +219,7 @@ export function calculateDreuxGorisseCore(input: MixDesignInput | DreuxGorisseIn
   const slump = input.slump;
   const aggregateType = input.aggregateType;
   const aggregateQuality = input.aggregateQuality;
+  const finenessModulus = Number(input.finenessModulus);
   const hasPumping = !!input.hasPumping;
   const sandRelativeDensity = input.sandRelativeDensity;
   let gravelRelativeDensity = input.gravelRelativeDensity;
