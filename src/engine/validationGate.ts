@@ -83,13 +83,14 @@ export function validateCalculationLogic(
   // Granular Engineering Center Integration Validation Checks.
   // Aggregate optimization approval is an optional enhancement; the calculation
   // may legally use the Dreux pivot fallback or material-grading optimization.
+  // A migrated project may not retain selected*Id in its persisted input,
+  // but the calculation engine can safely recover unique library links. The gate
+  // must validate the effective resolved selection, not the legacy field shape.
   const hasRequiredMaterials =
-    !inputs || (
-      (inputs.selectedCementId === undefined && !cementId || inputs.selectedCementId !== undefined && !!cementId) &&
-      (inputs.selectedSandId === undefined && !sandId || inputs.selectedSandId !== undefined && !!sandId) &&
-      (inputs.selectedGravelId === undefined && !gravelId || inputs.selectedGravelId !== undefined && !!gravelId) &&
-      (inputs.selectedWaterId === undefined && !waterId || inputs.selectedWaterId !== undefined && !!waterId)
-    );
+    !!cementId &&
+    !!sandId &&
+    !!gravelId &&
+    !!waterId;
 
   if (!hasRequiredMaterials) {
     criticalErrors.push("materials_missing");
