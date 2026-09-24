@@ -48,6 +48,7 @@ import {
 import { runSieveAnalysisPhase2 } from "../../services/laboratoryTestDefinitions";
 import { createSieveMaterialUpdateProposals, createSpecificGravityMaterialUpdateProposals, createBulkDensityMaterialUpdateProposals, createMoistureMaterialUpdateProposals, createSandEquivalentMaterialUpdateProposals, createSandBulkingMaterialUpdateProposals, createLosAngelesMaterialUpdateProposals, createMicroDevalMaterialUpdateProposals, createFlakinessMaterialUpdateProposals, createMethyleneBlueMaterialUpdateProposals, createCementSpecificGravityMaterialUpdateProposals, createBlaineMaterialUpdateProposals, createCementSettingTimeMaterialUpdateProposals, createCementSoundnessMaterialUpdateProposals, createCementMortarStrengthMaterialUpdateProposals, createCementNormalConsistencyMaterialUpdateProposals } from "../../services/laboratoryMaterialUpdateProposals";
 import { runAggregateSpecificGravityPhase2, runAggregateBulkDensityPhase2, runAggregateMoisturePhase2, runSandEquivalentPhase2, runSandBulkingPhase2, runLosAngelesPhase2, runMicroDevalPhase2, runFlakinessPhase2, runMethyleneBluePhase2, runCementSpecificGravityPhase2, runBlaineFinenessPhase2, runCementSettingTimePhase2, runCementSoundnessPhase2, runCementMortarStrengthPhase2, runCementNormalConsistencyPhase2 } from "../../services/laboratoryTestDefinitions";
+import { getCompatibleMaterials, validateTestMaterialCompatibility, compatibilityMessage } from "../../services/laboratoryMaterialCompatibility";
 
 interface NewTestWizardProps {
   isOpen: boolean;
@@ -99,6 +100,10 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
       category: "عام"
     } as EngineeringMaterial;
   }, [materials, selectedMaterialId]);
+  const compatibility = useMemo(
+    () => validateTestMaterialCompatibility(selectedTestDefId, currentMaterial),
+    [selectedTestDefId, currentMaterial]
+  );
 
   // Inputs State
   const [inputsState, setInputsState] = useState<Record<string, any>>(() => {
@@ -110,6 +115,8 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
     setSelectedTestDefId(testDef.id);
     setSelectedCategory(testDef.category);
     setInputsState(JSON.parse(JSON.stringify(testDef.defaultInputs)));
+    const compatible = getCompatibleMaterials(testDef.id, materials);
+    setSelectedMaterialId(compatible[0]?.id || "");
   };
 
   // Filter tests by category and search
@@ -129,7 +136,7 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
 
   // Filter materials for picker
   const filteredMaterials = useMemo(() => {
-    return materials.filter(m => {
+    return getCompatibleMaterials(selectedTestDefId, materials).filter(m => {
       if (matCategoryFilter !== "all" && m.category !== matCategoryFilter) return false;
       if (matSearchQuery.trim()) {
         const q = matSearchQuery.toLowerCase();
@@ -139,7 +146,7 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
       }
       return true;
     });
-  }, [materials, matCategoryFilter, matSearchQuery]);
+  }, [materials, selectedTestDefId, matCategoryFilter, matSearchQuery]);
 
   const sievePhase2Result = useMemo(() => {
     if (selectedTestDefId !== "AGG_SIEVE") return null;
@@ -540,6 +547,7 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
   if (!isOpen) return null;
 
   const handleSave = () => {
+    if (!compatibility.compatible) return;
     const testRecordId = `TEST-${currentTestDef.category.toUpperCase().slice(0, 3)}-${Date.now().toString().slice(-6)}`;
     const updateProposals = selectedTestDefId === "AGG_SIEVE" && sievePhase2Result
       ? createSieveMaterialUpdateProposals({
@@ -873,6 +881,12 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
                   </option>
                 ))}
               </select>
+
+              {!compatibility.compatible && (
+                <div className="p-3 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 text-xs font-bold text-red-700 dark:text-red-300">
+                  {compatibilityMessage(compatibility, language === "fr" ? "fr" : language === "ar" ? "ar" : "en")}
+                </div>
+              )}
 
               {/* Selected Material Preview Card */}
               <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-[11px] space-y-1">
@@ -1424,7 +1438,8 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
             <button
               type="button"
               onClick={handleSave}
-              className="flex items-center gap-2 px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-2xl shadow-lg shadow-emerald-500/20 transition-all cursor-pointer"
+              disabled={!compatibility.compatible}
+              className="flex items-center gap-2 px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-400 disabled:cursor-not-allowed text-white text-xs font-black rounded-2xl shadow-lg shadow-emerald-500/20 transition-all cursor-pointer"
             >
               <Save className="w-4 h-4" />
               {language === "ar" ? "💾 اعتماد التجربة ومزامنة الخواص مع المادة" : "Save Test & Sync to Material"}

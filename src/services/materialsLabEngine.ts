@@ -9,6 +9,7 @@ import {
 } from "../types/laboratoryTypes";
 import { EngineeringMaterial } from "../types";
 import { assertCatalogTestScope } from "./laboratoryScopeGovernance";
+import { validateTestMaterialCompatibility, compatibilityMessage } from "./laboratoryMaterialCompatibility";
 
 // ============================================================================
 // 1. MASTER CATALOG OF LABORATORY TESTS (6 CATEGORIES)
@@ -700,6 +701,23 @@ export function executeLaboratoryTest(
   inputs: Record<string, any>,
   material: EngineeringMaterial
 ): TestExecutionResult {
+  const compatibility = validateTestMaterialCompatibility(testType, material);
+  if (!compatibility.compatible) {
+    return {
+      results: {},
+      status: "FAIL",
+      score: 0,
+      interpretation: compatibilityMessage(compatibility, "ar"),
+      complianceDetails: [{
+        parameter: "Test–Material compatibility",
+        measured: `${material.category} / ${material.type}`,
+        limit: "Compatible classified material",
+        status: "FAIL",
+        note: compatibility.reason
+      }],
+      syncedProperties: {}
+    };
+  }
   const testDef = MASTER_TEST_CATALOG.find(t => t.id === testType);
   if (testDef) assertCatalogTestScope(testDef, "materials");
 
