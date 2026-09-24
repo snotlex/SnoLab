@@ -27,32 +27,32 @@ const LOCALIZED_MESSAGES: Record<"ar" | "fr" | "en", Record<string, { title: str
       action: "الإجراء المقترح: يرجى مراجعة وتعديل قيم الأوزان للأركام والإسمنت والمياه المضافة لمنع وجود نتائج سالبة غير منطقية."
     },
     moisture_water: {
-      title: "لا يمكن إنشاء التقرير لأن رطوبة الركام أكبر من ماء التصميم. يجب تعديل الرطوبة أو إعادة حساب الخلطة.",
-      action: "الإجراء المقترح: يرجى الاتجاه لتخفيض نسبة رطوبة الرمل أو الحصى، أو إقرار ماء تصميم أساسي أكبر لتفادي المياه الحرة الفائضة عن الحاجة."
+      title: "لا يمكن إنشاء التقرير لأن ماء الخلط الفعلي بعد تصحيح رطوبة وامتصاص الركام أصبح سالباً.",
+      action: "الإجراء المقترح: راجع ماء التصميم، رطوبة الركام وامتصاصه، ثم أعد حساب ماء الدفعة الفعلي بعد التصحيح."
     },
     wc_ratio: {
-      title: "لا يمكن إنشاء التقرير لأن نسبة الماء إلى الإسمنت خارج الحدود المنطقية.",
-      action: "الإجراء المقترح: يرجى ضبط كمية ماء التصميم الإجمالي أو الإسمنت للتأكد من المحافظة على نسبة W/C عيارية تتراوح بين 0.25 و 0.75 لتحقيق الانضغاط والحدود الهندسية المقبولة."
+      title: "لا يمكن إنشاء التقرير لأن نسبة W/C خارج الحدود المطبقة على نوع الخرسانة المحدد.",
+      action: "الإجراء المقترح: راجع ماء الخلط الفعال وكمية الإسمنت/الرابط. يطبق SnoLab حدًا سفليًا مختلفًا للخرسانة عالية الأداء وSCC وGPC، مع حد علوي 0.75."
     },
     cement_range: {
-      title: "لا يمكن إنشاء التقرير لأن كمية الإسمنت خارج المجال المنطقي للخرسانة العادية.",
-      action: "الإجراء المقترح: تدوين وزن إسمنت ملائم بين 150 كجم/م³ و 700 كجم/م³ للخرسانات العادية."
+      title: "لا يمكن إنشاء التقرير لأن كمية الإسمنت/الرابط خارج المجال المطبق على نوع الخرسانة.",
+      action: "الإجراء المقترح: راجع محتوى الإسمنت أو الرابط الفعال. حدود الخلطات عالية الأداء والخرسانة خفيفة/ثقيلة الوزن تختلف عن الخرسانة العادية."
     },
     water_range: {
       title: "لا يمكن إنشاء التقرير لأن كمية ماء التصميم خارج المجال المنطقي.",
       action: "الإجراء المقترح: يرجى صياغة ماء تصميم يتراوح بين 80 و 300 لتر/م³ لتفادي الجفاف الشديد أو الإفراط غير المقبول في تميع العينات."
     },
     weight_range: {
-      title: "لا يمكن إنشاء التقرير لأن الوزن الإجمالي للتشغيلة خارج المجال المنطقي للخرسانة العادية.",
-      action: "الإجراء المقترح: يرجى تعديل أوزان المواد الجافة (الإسمنت والرمل والحصى والماء المضاف) ليبقى وزن المتر المكعب العادي بين 1800 و 2700 كجم/م³."
+      title: "لا يمكن إنشاء التقرير لأن الكتلة الطازجة المحسوبة خارج المجال المطبق على نوع الخرسانة.",
+      action: "الإجراء المقترح: راجع الكثافات والكميات الرطبة والجافة وماء الدفعة. الحدود تختلف للخرسانة خفيفة الوزن، ثقيلة الوزن والمسامية."
     },
     sand_ratio: {
-      title: "لا يمكن إنشاء التقرير لأن توزيع الرمل والحصى غير منطقي.",
-      action: "الإجراء المقترح: يجب ضبط وتعديل تدرج ونسب سحب الركام بحيث لا تقل نسبة الرمل الكلية عن 25% ولا تزيد عن 60% من الركام الكلي."
+      title: "لا يمكن إنشاء التقرير لأن نسبة الركام الناعم إلى الخشن غير متوافقة مع نوع الخرسانة.",
+      action: "الإجراء المقترح: راجع نسب التدرج الحبيبي. الخرسانة العادية تحتاج مجالًا اعتياديًا، بينما الخرسانة المسامية تسمح بنسبة رمل منخفضة جدًا عمدًا."
     },
     moisture_range: {
-      title: "لا يمكن إنشاء التقرير لأن قيم الرطوبة أو الامتصاص خارج المجال المنطقي.",
-      action: "الإجراء المقترح: يرجى ضبط نسب الرطوبة لتكون رطوبة الرمل (أقل من 20٪)، رطوبة الحصى (أقل من 10٪)، والامتصاص قياسياً ومطابقاً للواقع."
+      title: "لا يمكن إنشاء التقرير لأن الرطوبة أو الامتصاص خارج الحدود الفيزيائية المسموح بها.",
+      action: "الإجراء المقترح: راجع رطوبة الرمل والحصى والامتصاص. الحدود الحالية للفحص هي حتى 20% للرطوبة وحتى 10% للامتصاص، مع مراعاة بيانات المادة الفعلية."
     },
     contradiction: {
       title: "لا يمكن إنشاء التقرير بسبب تناقض بين الوزن الجاف والوزن الرطب للركام.",
@@ -131,8 +131,8 @@ const LOCALIZED_MESSAGES: Record<"ar" | "fr" | "en", Record<string, { title: str
       action: "الإجراء المقترح: يرجى تعبئة جميع الخصائص الفيزيائية للمواد المحددة في مستودع المواد."
     },
     granular_optimization_not_approved: {
-      title: "لم يتم اعتماد تحسين تدرج الحبيبات في مركز الهندسة الحبيبية.",
-      action: "الإجراء المقترح: يرجى الانتقال إلى مركز الهندسة الحبيبية، والتحقق من تدرج الركام ثم الضغط على زر 'اعتماد ونقل البيانات'."
+      title: "تحسين التدرج الحبيبي لم يُعتمد بعد — وهذا تحذير وليس مانعًا للحساب.",
+      action: "الإجراء المقترح: يمكن للمحرك استخدام تدرج المواد أو نقطة Dreux الاحتياطية. اعتمد التحسين الحبيبي لاحقًا عندما تتوفر منحنيات الركام."
     },
     aggregate_percentages_not_100: {
       title: "مجموع نسب خلط الركام لا يساوي 100%.",
@@ -463,17 +463,23 @@ const resolveWarningMessage = (warn: string, lang: "ar" | "fr" | "en") => {
     ar: {
       wc_high: "نسبة الماء إلى الإسمنت مرتفعة وقد تؤثر على المقاومة والمتانة.",
       cement_low: "كمية الإسمنت منخفضة وقد لا تحقق المتانة المطلوبة.",
-      cement_high: "كمية الإسمنت مرتفعة وقد تسبب حرارة إماهة عالية أو انكماشاً."
+      cement_high: "كمية الإسمنت مرتفعة وقد تسبب حرارة إماهة عالية أو انكماشاً.",
+      granular_optimization_not_approved: "تحسين التدرج الحبيبي لم يُعتمد بعد؛ تم الحساب باستخدام تدرج المواد أو نقطة Dreux الاحتياطية.",
+      moisture_water_surface_exceeds_batch_water: "مياه السطح الحرة الناتجة من رطوبة الركام مرتفعة بالنسبة لماء الدفعة؛ تمت مراجعة التصحيح بدل حظر الحساب آليًا."
     },
     en: {
       wc_high: "The W/C ratio is high and could affect compressive strength and durability.",
       cement_low: "Low cement dosage may not achieve sufficient structural durability.",
-      cement_high: "High cement dosage is flagged; potential risk of mass thermal cracks or shrinkage."
+      cement_high: "High cement dosage is flagged; potential risk of mass thermal cracks or shrinkage.",
+      granular_optimization_not_approved: "Granular optimization is not approved yet; calculation can still use material grading or the Dreux fallback.",
+      moisture_water_surface_exceeds_batch_water: "Aggregate free surface water is high relative to batch water; moisture correction was flagged for review rather than blocking calculation."
     },
     fr: {
       wc_high: "Le rapport E/C est élevé, ce qui pourrait compromettre la résistance et la durabilité.",
       cement_low: "Le dosage en ciment est faible et pourrait ne pas garantir la durabilité requise.",
-      cement_high: "Dosage élevé en ciment ; risque d'élévation thermique ou de retrait fissurant."
+      cement_high: "Dosage élevé en ciment ; risque d'élévation thermique ou de retrait fissurant.",
+      granular_optimization_not_approved: "L'optimisation granulaire n'est pas encore approuvée ; le calcul peut utiliser la granulométrie réelle des matériaux ou le fallback Dreux.",
+      moisture_water_surface_exceeds_batch_water: "L'eau libre de surface des granulats est élevée par rapport à l'eau de gâchage ; la correction d'humidité est signalée pour revue sans bloquer automatiquement."
     }
   };
   const langDict = dictionary[lang] || dictionary["en"];
