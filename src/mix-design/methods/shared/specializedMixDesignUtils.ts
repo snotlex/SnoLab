@@ -8,6 +8,7 @@ export interface ResolvedSpecializedMaterials {
   gravel?: MaterialRecord;
   water?: MaterialRecord;
   admixture?: MaterialRecord;
+  scm?: MaterialRecord;
 }
 
 export interface SpecializedMaterialResolution {
@@ -48,7 +49,8 @@ function roleMessage(role: string, language: "ar" | "fr" | "en"): string {
 export function resolveSpecializedMaterials(
   input: MixDesignInput,
   language: "ar" | "fr" | "en" = "ar",
-  requireAdmixture = false
+  requireAdmixture = false,
+  requireScm = false
 ): SpecializedMaterialResolution {
   const database = Array.isArray(input.materialsDatabase) ? input.materialsDatabase as MaterialRecord[] : [];
   const hasRepository = database.length > 0;
@@ -60,7 +62,8 @@ export function resolveSpecializedMaterials(
     sand: byIdOrName(database, input.selectedSandId, input.sandType),
     gravel: byIdOrName(database, input.selectedGravelId, input.gravelType),
     water: byIdOrName(database, input.selectedWaterId, input.selectedWaterName),
-    admixture: byIdOrName(database, input.selectedAdmixtureId, input.selectedAdmixtureName)
+    admixture: byIdOrName(database, input.selectedAdmixtureId, input.selectedAdmixtureName),
+    scm: byIdOrName(database, input.selectedScmId, input.selectedScmName)
   };
 
   if (hasRepository) {
@@ -69,6 +72,7 @@ export function resolveSpecializedMaterials(
     if (!materials.gravel) errors.push(roleMessage("coarse aggregate / حصى", language));
     if (!materials.water) errors.push(roleMessage("water / ماء", language));
     if (requireAdmixture && !materials.admixture) errors.push(roleMessage("superplasticizer / ملدن فائق", language));
+    if (requireScm && !materials.scm) errors.push(roleMessage("SCM / إضافة معدنية", language));
   }
 
   const checkDensity = (material: MaterialRecord | undefined, role: string, fallback?: number) => {
@@ -161,6 +165,8 @@ export function makeSpecializedResult(
     implementationStatus: "complete",
     isStandaloneCompleteMethod: true,
     cementKg: data.cementKg,
+    scmKg: data.scmKg || 0,
+    fiberKg: data.fiberKg || 0,
     waterKg: data.waterKg,
     fineAggregateKg: data.fineAggregateKg,
     coarseAggregateKg: data.coarseAggregateKg,
