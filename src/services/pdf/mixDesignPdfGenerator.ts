@@ -14,7 +14,7 @@ import {
 } from "./pdfCore";
 import { MixDesignPdfOptions, DEFAULT_LAB_PROFILE } from "./types";
 import { formatEngineeringValue } from "../../utils/unitFormatter";
-import { getCompleteInputRows, getCompleteResultRows } from "../../utils/reportData";
+import { getCompleteInputRows, getCompleteResultRows, getSelectedMaterialSnapshots } from "../../utils/reportData";
 import { drawGradingChart, drawStrengthEvolutionChart } from "./reportCharts";
 
 /**
@@ -581,7 +581,50 @@ export async function generateMixDesignPdf(
   }
 
   // =========================================================================
-  // 8. APPENDIX A — COMPLETE MIX-PREPARATION INPUT REGISTER
+  // 8. APPENDIX A — SELECTED MATERIAL-LIBRARY SNAPSHOTS
+  // =========================================================================
+  doc.addPage();
+  currentY = PDF_PAGE_MARGINS.top + 2;
+  currentY = drawSectionBanner(
+    doc,
+    currentY,
+    lang === "ar" ? "الملحق أ — نسخ المواد المختارة من مكتبة المواد" : lang === "fr" ? "ANNEXE A — PROFILS DES MATÉRIAUX SÉLECTIONNÉS" : "APPENDIX A — SELECTED MATERIAL-LIBRARY SNAPSHOTS",
+    "MATERIAL SOURCE"
+  );
+
+  const selectedMaterialSnapshots = getSelectedMaterialSnapshots(input);
+  if (selectedMaterialSnapshots.length) {
+    const snapshotRows = selectedMaterialSnapshots.flatMap(item =>
+      getCompleteResultRows(item.material as any).slice(0, 60).map(row => [
+        item.role,
+        row.label,
+        row.path || row.key,
+        String(row.value)
+      ])
+    );
+    autoTable(doc, {
+      ...theme,
+      startY: currentY,
+      head: [["Role", "Material property", "Field / Path", "Value"]],
+      body: snapshotRows,
+      columnStyles: {
+        0: { cellWidth: 31, fontStyle: "bold" },
+        1: { cellWidth: 55 },
+        2: { cellWidth: 51 },
+        3: { cellWidth: 45 }
+      },
+      styles: { overflow: "linebreak" }
+    });
+  } else {
+    autoTable(doc, {
+      ...theme,
+      startY: currentY,
+      body: [[lang === "ar" ? "لم يتم العثور على نسخ المواد في مكتبة المواد ضمن بيانات التصدير." : "No selected library material snapshots were available in the export payload."]]
+    });
+  }
+
+  // =========================================================================
+  // 9. APPENDIX B — COMPLETE MIX-PREPARATION INPUT REGISTER
   // =========================================================================
   doc.addPage();
   currentY = PDF_PAGE_MARGINS.top + 2;
@@ -607,7 +650,7 @@ export async function generateMixDesignPdf(
   });
 
   // =========================================================================
-  // 9. APPENDIX B — COMPLETE RESULT REGISTER
+  // 10. APPENDIX C — COMPLETE RESULT REGISTER
   // =========================================================================
   doc.addPage();
   currentY = PDF_PAGE_MARGINS.top + 2;
@@ -633,7 +676,7 @@ export async function generateMixDesignPdf(
   });
 
   // =========================================================================
-  // 10. OFFICIAL REVIEW & RELEASE
+  // 11. OFFICIAL REVIEW & RELEASE
   // =========================================================================
   currentY = (doc as any).lastAutoTable?.finalY ? (doc as any).lastAutoTable.finalY + 6 : currentY;
   drawSignOffBlock(doc, currentY, {
@@ -645,7 +688,7 @@ export async function generateMixDesignPdf(
   });
 
   // =========================================================================
-  // 11. FINALIZE RUNNING HEADERS, FOOTERS & PAGE NUMBERS ACROSS ALL PAGES
+  // 12. FINALIZE RUNNING HEADERS, FOOTERS & PAGE NUMBERS ACROSS ALL PAGES
   // =========================================================================
   finalizeReportPages(doc, {
     reportTitle: "SNOLAB — CONCRETE MIX DESIGN CALCULATION REPORT",
