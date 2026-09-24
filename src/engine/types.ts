@@ -112,6 +112,16 @@ export interface MixDesignInput {
   selectedQuartzPowderName?: string;
   quartzPowderDensity?: number;
 
+  // Specialized SCC / self-compacting concrete initial proportioning inputs.
+  sccPowderKgM3?: number;
+  sccPowderVolumeL?: number;
+  sccWaterKgM3?: number;
+  sccWaterPowderRatioByVolume?: number;
+  sccCoarseAggregateVolumeFraction?: number;
+  sccTargetSlumpFlowMm?: number;
+  sccSuperplasticizerDosage?: number;
+  sccScmReplacementPercent?: number;
+
   // Specialized lightweight concrete proportioning inputs.
   targetDensity?: number;
   lwcTargetDensityKgM3?: number;
