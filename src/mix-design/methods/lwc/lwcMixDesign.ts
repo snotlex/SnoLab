@@ -363,7 +363,15 @@ export function calculateLwcMix(
     fineVolumeM3 * 1000 +
     lightweightDryKg / lightweightDensity * 1000;
 
-  const achievedFreshDensity =
+  const designFreshDensity =
+    cementKg +
+    scmKg +
+    fineAggregateKg +
+    lightweightDryKg +
+    water +
+    admixtureKg;
+
+  const batchFreshDensity =
     cementKg +
     scmKg +
     sandCorrection.wetKg +
@@ -372,7 +380,7 @@ export function calculateLwcMix(
     admixtureKg +
     prewetWaterToAdd;
 
-  const densityError = achievedFreshDensity - targetDensity;
+  const densityError = designFreshDensity - targetDensity;
   const lifecycle =
     binderOutOfRange ||
     fineAggregateKg <= 0 ||
@@ -386,7 +394,7 @@ export function calculateLwcMix(
     {
       parameter: "target_density",
       requirement: "1400-2000 kg/m3",
-      actual: `${achievedFreshDensity.toFixed(1)} kg/m3`,
+      actual: `${designFreshDensity.toFixed(1)} kg/m3 (batch ${batchFreshDensity.toFixed(1)} kg/m3 after moisture/prewetting)`,
       status: achievedFreshDensity >= 1400 && achievedFreshDensity <= 2000 && Math.abs(densityError) <= 75
         ? "compliant"
         : "non_compliant"
@@ -471,7 +479,7 @@ export function calculateLwcMix(
     admixtureName: String(materials.materials.admixture?.name || input.selectedAdmixtureName || "Superplasticizer"),
     scmKg,
     waterBinderRatio: wb,
-    freshDensityKgM3: achievedFreshDensity,
+    freshDensityKgM3: designFreshDensity,
     absoluteVolumeL: totalFilledVolumeL,
     warnings,
     assumptions,
@@ -558,7 +566,8 @@ export function calculateLwcMix(
   result.lightweightPrewetDegreePercent = prewetDegree;
   result.lightweightPrewetWaterKgM3 = prewetWaterToAdd;
   result.targetFreshDensityKgM3 = targetDensity;
-  result.achievedFreshDensityKgM3 = achievedFreshDensity;
+  result.achievedFreshDensityKgM3 = designFreshDensity;
+  result.batchFreshDensityKgM3 = batchFreshDensity;
   result.sandWeightDry = fineAggregateKg;
   result.gravelWeightDry = lightweightDryKg;
   result.sandWeightWet = sandCorrection.wetKg;
@@ -571,7 +580,8 @@ export function calculateLwcMix(
     specializedMethod: "LWC",
     framework: "ACI 211.2-oriented weight/volume proportioning with lightweight-aggregate moisture/prewetting control",
     targetFreshDensityKgM3: targetDensity,
-    achievedFreshDensityKgM3: achievedFreshDensity,
+    achievedFreshDensityKgM3: designFreshDensity,
+    batchFreshDensityKgM3: batchFreshDensity,
     waterBinderRatio: wb,
     binderKgM3: binder,
     lightweightAggregateDensityKgM3: lightweightDensity,
