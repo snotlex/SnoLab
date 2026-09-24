@@ -292,6 +292,7 @@ export function calculateSccMix(
     totalPowderKgM3: powderKg,
     waterPowderVolumeRatio: actualWpv,
     coarseVolumeFraction,
+    coarseAggregateVolumeFraction: coarseVolumeFraction,
     pasteVolumeL,
     sandMassShare
   };
