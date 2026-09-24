@@ -646,6 +646,7 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
       testTitleFr: currentTestDef.titleFr,
       testTitleEn: currentTestDef.titleEn,
       category: currentTestDef.category,
+      laboratoryArea: "materials",
       materialId: currentMaterial.id,
       materialName: currentMaterial.name,
       materialCategory: currentMaterial.category,

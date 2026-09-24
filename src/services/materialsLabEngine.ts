@@ -8,6 +8,7 @@ import {
   SieveStepResult
 } from "../types/laboratoryTypes";
 import { EngineeringMaterial } from "../types";
+import { assertCatalogTestScope } from "./laboratoryScopeGovernance";
 
 // ============================================================================
 // 1. MASTER CATALOG OF LABORATORY TESTS (6 CATEGORIES)
@@ -700,6 +701,7 @@ export function executeLaboratoryTest(
   material: EngineeringMaterial
 ): TestExecutionResult {
   const testDef = MASTER_TEST_CATALOG.find(t => t.id === testType);
+  if (testDef) assertCatalogTestScope(testDef, "materials");
 
   switch (testType) {
     // ------------------------------------------------------------------------

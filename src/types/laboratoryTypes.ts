@@ -8,6 +8,7 @@ export type LabCategory =
   | "admixtures"
   | "additives"
   | "fibers";
+export type LaboratoryArea = "materials" | "concrete";
 
 export type TestStatus = "PASS" | "WARNING" | "FAIL";
 
@@ -96,6 +97,7 @@ export interface MaterialTestRecord {
   testTitleFr: string;
   testTitleEn: string;
   category: LabCategory;
+  laboratoryArea?: LaboratoryArea;
   materialId: string;
   materialName: string;
   materialCategory: string;
@@ -131,6 +133,7 @@ export interface MaterialTestRecord {
 export interface LabTestDefinition {
   id: string;
   category: LabCategory;
+  laboratoryArea?: LaboratoryArea;
   titleAr: string;
   titleFr: string;
   titleEn: string;
