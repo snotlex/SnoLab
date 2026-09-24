@@ -444,7 +444,9 @@ export const handleExportWord = (
   const reportRef = buildReportFileName("MixDesignReport", input, lang, "doc").replace(/\.doc$/i, "").replace(/^SnoLab_MixDesignReport_/, "MX-");
   const date = new Date().toLocaleDateString(lang==="ar" ? "ar-DZ" : lang==="fr" ? "fr-DZ" : "en-US");
 
-  const selectedMaterialSnapshots = getSelectedMaterialSnapshots(input);\n\n  const materialRows = [
+  const selectedMaterialSnapshots = getSelectedMaterialSnapshots(input);
+
+  const materialRows = [
     ["Cement", input.selectedCementId || input.cementType || "—", input.cementDensity ?? "—", input.cementClassStrength ?? "—"],
     ["Fine aggregate", input.selectedSandId || input.sandType || "—", input.sandRelativeDensity ?? "—", input.finenessModulus ?? "—"],
     ["Coarse aggregate", input.selectedGravelId || input.gravelType || "—", input.gravelRelativeDensity ?? "—", input.dMax ?? "—"],
@@ -455,7 +457,8 @@ export const handleExportWord = (
     const r = getCompleteResultRows(item.material as any);
     return r.slice(0, 45).map(row => [item.role, row.label, row.path || row.key, formatReportValue(row.value)]);
   });
-\n  const formulaRows = [
+
+  const formulaRows = [
     ["Cement", result.cementWeight, scale(result.cementWeight)],
     ["Effective water", result.waterContentActual, scale(result.waterContentActual)],
     ["Dry sand", result.sandWeightDry, scale(result.sandWeightDry)],
