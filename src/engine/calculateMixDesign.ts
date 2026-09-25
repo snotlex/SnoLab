@@ -1,6 +1,7 @@
 import { MixDesignInput, MixDesignResult } from "../mix-design/core/types";
 import { mixDesignEngine } from "../mix-design/core/MixDesignEngine";
 import { selectConcreteMixDesignRoute } from "../mix-design/core/concreteMixDesignSelector";
+import { normalizeMixDesignResult } from "../mix-design/shared/resultNormalization";
 
 /**
  * Unified mix-design router.
@@ -19,11 +20,11 @@ export function calculateMixDesign(input: MixDesignInput): MixDesignResult {
       ? "auto"
       : requestedMethodId;
 
-  const result = mixDesignEngine.calculate({
+  const result = normalizeMixDesignResult(mixDesignEngine.calculate({
     methodId,
     input,
     context: { language: "ar" }
-  });
+  }), input) as MixDesignResult;
 
   // Legacy consumers and reports use the top-level methodName field.
   // Keep it synchronized even when a specialized strategy only populates
