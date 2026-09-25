@@ -169,10 +169,12 @@ export function evaluateMaterialCompatibility(
   let perfDetailsFr = "Bonne adéquation avec la performance cible.";
 
   if (role === "cement") {
-    const rawStrength = material.strengthClass !== undefined 
-      ? Number(material.strengthClass) 
-      : (material.cementClass !== undefined ? Number(material.cementClass) : undefined);
+    const strengthSource = material.strengthClass !== undefined ? material.strengthClass : material.cementClass;
+    const strengthMatch = strengthSource !== undefined ? String(strengthSource).match(/(?:^|\s)(\d+(?:\.\d+)?)(?:\s|$)/) : null;
+    const rawStrength = strengthMatch ? Number(strengthMatch[1]) : (strengthSource !== undefined ? Number(strengthSource) : undefined);
     const strengthClass = rawStrength !== undefined && !isNaN(rawStrength) ? rawStrength : undefined;
+    const minimumForTarget = fck !== undefined && fck >= 40 ? 42.5 : 32.5;
+    const cementName = `${material.name || ""} ${material.englishName || ""}`.toLowerCase();
     if (concreteType === "UHPC" || concreteType === "BFUP") {
       if (strengthClass !== undefined && strengthClass >= 52.5) {
         perfScore = 20;
@@ -192,10 +194,21 @@ export function evaluateMaterialCompatibility(
         warnings.push(`رتبة الإسمنت ${strengthClass !== undefined ? strengthClass : "غير المحددة"} قد تتطلب كمية إسمنت مرتفعة جداً لتحقيق ${fck !== undefined ? fck + " MPa" : "المقاومة المطلوبة"}.`);
       }
     } else {
-      perfScore = strengthClass !== undefined ? 20 : 15;
-      perfDetailsAr = strengthClass !== undefined 
-        ? `رتبة الإسمنت (${strengthClass}) ملائمة للمقاومة المستهدفة${fck !== undefined ? ` (${fck} MPa)` : ""}.`
-        : "رتبة الإسمنت غير محددة في بيانات المادة.";
+      if (strengthClass === undefined) {
+        perfScore = 6;
+        warnings.push("رتبة الإسمنت غير محددة؛ لا يمكن اعتماد ملاءمته للمقاومة المستهدفة.");
+        perfDetailsAr = "رتبة الإسمنت غير محددة في بيانات المادة.";
+      } else if (strengthClass < minimumForTarget) {
+        perfScore = 8;
+        warnings.push(`رتبة الإسمنت ${strengthClass} أقل من الرتبة الإرشادية ${minimumForTarget} للمقاومة المستهدفة${fck !== undefined ? ` (${fck} MPa)` : ""}.`);
+        perfDetailsAr = `رتبة الإسمنت (${strengthClass}) أدنى من الرتبة المطلوبة تقريبياً (${minimumForTarget}).`;
+      } else {
+        perfScore = 20;
+        const blendedNote = cementName.includes("cem ii/b-l") || cementName.includes("cem ii")
+          ? " إسمنت مركب CEM II/B-L مناسب عادةً للخرسانة العادية حتى نحو 40 MPa عند تحقق فئة التعرض والاعتماد المخبري."
+          : "";
+        perfDetailsAr = `رتبة الإسمنت (${strengthClass}) ملائمة للمقاومة المستهدفة${fck !== undefined ? ` (${fck} MPa)` : ""}.${blendedNote}`;
+      }
     }
   } else if (role === "sand") {
     const fm = material.finenessModulus;

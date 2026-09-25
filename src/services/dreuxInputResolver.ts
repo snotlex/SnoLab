@@ -127,8 +127,8 @@ export interface ResolvedFineAggregate {
   specificGravity: number; // e.g. 2.62
   ssdDensity: number;
   bulkDensity: number;
-  absorption: number; // %
-  moisture: number; // %
+  absorption?: number; // %
+  moisture?: number; // %
   sandEquivalent: number;
   gradationData: DreuxGranulometryPoint[];
   source: string;
@@ -143,8 +143,8 @@ export interface ResolvedCoarseAggregate {
   specificGravity: number; // e.g. 2.66
   ssdDensity: number;
   bulkDensity: number;
-  absorption: number; // %
-  moisture: number; // %
+  absorption?: number; // %
+  moisture?: number; // %
   particleShape: string;
   aggregateType: AggregateType;
   aggregateQuality: AggregateQuality;
@@ -451,7 +451,7 @@ export class DreuxInputResolver {
                            inputs.sandAbsorption;
     const sandMoisture = parseNumeric(getMaterialPropValue(sandMat, "moisture")) ?? 
                          parseNumeric(sandMat?.moisture) ?? 
-                         inputs.moistureSand ?? 0;
+                         inputs.moistureSand;
     const sandSE = parseNumeric(getMaterialPropValue(sandMat, "sandEquivalent")) ?? 
                    parseNumeric(sandMat?.sandEquivalent);
     const sandDmax = parseNumeric(getMaterialPropValue(sandMat, "dMax")) ?? 
@@ -495,7 +495,7 @@ export class DreuxInputResolver {
       materialId: sandMat?.id,
       materialName: sandMat?.name,
       value: { absorption: sandAbsorption, moisture: sandMoisture },
-      formattedValue: `Abs: ${sandAbsorption !== undefined ? sandAbsorption.toFixed(1) : 0}%, Moisture: ${sandMoisture.toFixed(1)}%`,
+      formattedValue: `Abs: ${sandAbsorption !== undefined ? sandAbsorption.toFixed(1) : "MISSING"}%, Moisture: ${sandMoisture !== undefined ? sandMoisture.toFixed(1) : "MISSING"}%`,
       unit: "%",
       source: sandMat ? "Material Library" : "Field Input",
       required: false,
@@ -513,7 +513,7 @@ export class DreuxInputResolver {
       specificGravity: sandSG || 0,
       ssdDensity: sandSsdDensity,
       bulkDensity: sandBulkDensity,
-      absorption: sandAbsorption || 0,
+      absorption: sandAbsorption,
       moisture: sandMoisture,
       sandEquivalent: sandSE,
       gradationData: sandGradation,
@@ -569,7 +569,7 @@ export class DreuxInputResolver {
                              inputs.gravelAbsorption;
     const gravelMoisture = parseNumeric(getMaterialPropValue(gravelMat, "moisture")) ?? 
                            parseNumeric(gravelMat?.moisture) ?? 
-                           inputs.moistureGravel ?? 0;
+                           inputs.moistureGravel;
     const gravelDmin = parseNumeric(getMaterialPropValue(gravelMat, "dMin")) ?? 
                        parseNumeric(gravelMat?.dMin);
     const gravelLA = parseNumeric(getMaterialPropValue(gravelMat, "losAngelesAbrasion")) ?? 
@@ -647,7 +647,7 @@ export class DreuxInputResolver {
       specificGravity: gravelSG || 0,
       ssdDensity: gravelSsdDensity,
       bulkDensity: gravelBulkDensity,
-      absorption: gravelAbsorption || 0,
+      absorption: gravelAbsorption,
       moisture: gravelMoisture,
       particleShape: shapeStr || "angular",
       aggregateType: aggType || AggregateType.CONCASSE,

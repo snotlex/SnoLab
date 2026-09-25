@@ -752,8 +752,8 @@ export function calculateDreuxGorisseCore(input: MixDesignInput | DreuxGorisseIn
   }
 
   // 9. Moisture Contributions and Free-Water SSD Corrections
-  const sandAbs = input.sandAbsorption !== undefined ? input.sandAbsorption : 1.5;
-  let gravelAbs = input.gravelAbsorption !== undefined ? input.gravelAbsorption : 0.8;
+  const sandAbs = input.sandAbsorption !== undefined ? input.sandAbsorption : 0;
+  let gravelAbs = input.gravelAbsorption !== undefined ? input.gravelAbsorption : 0;
   if (input.selectedLightweightAggregateId && input.lightweightAggregateAbsorption !== undefined) {
     gravelAbs = input.lightweightAggregateAbsorption;
   } else if (input.selectedHeavyweightAggregateId && input.heavyweightAggregateAbsorption !== undefined) {

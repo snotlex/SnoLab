@@ -239,6 +239,41 @@ export class DreuxPreCalculationValidator {
       actionAr: gravelSGValid ? "لا يوجد" : "أدخل الكثافة الحقيقية أو النوعية للحصى في مستودع المواد"
     });
 
+    // 4. AGGREGATE MOISTURE / ABSORPTION CHECKS
+    // These values must be explicit because they directly change batch water and wet aggregate weights.
+    const sandAbsorption = resolved.fineAggregate.absorption;
+    const sandMoisture = resolved.fineAggregate.moisture;
+    const gravelAbsorption = resolved.coarseAggregate.absorption;
+    const gravelMoisture = resolved.coarseAggregate.moisture;
+    const aggregateFieldChecks = [
+      { property: "Sand Absorption", propertyAr: "امتصاص الرمل", propertyId: "PROP_SND_ABSORPTION", value: sandAbsorption, materialId: resolved.fineAggregate.materialId, materialName: resolved.fineAggregate.name, materialRole: "sand" as const, action: "Enter sand absorption from the approved laboratory result", actionAr: "أدخل امتصاص الرمل من نتيجة المختبر المعتمدة" },
+      { property: "Sand Moisture", propertyAr: "رطوبة الرمل", propertyId: "PROP_SND_MOISTURE", value: sandMoisture, materialId: resolved.fineAggregate.materialId, materialName: resolved.fineAggregate.name, materialRole: "sand" as const, action: "Enter current sand moisture for the batch", actionAr: "أدخل رطوبة الرمل الحالية للدفعة" },
+      { property: "Gravel Absorption", propertyAr: "امتصاص الحصى", propertyId: "PROP_GRV_ABSORPTION", value: gravelAbsorption, materialId: resolved.coarseAggregate.materialId, materialName: resolved.coarseAggregate.name, materialRole: "gravel" as const, action: "Enter gravel absorption from the approved laboratory result", actionAr: "أدخل امتصاص الحصى من نتيجة المختبر المعتمدة" },
+      { property: "Gravel Moisture", propertyAr: "رطوبة الحصى", propertyId: "PROP_GRV_MOISTURE", value: gravelMoisture, materialId: resolved.coarseAggregate.materialId, materialName: resolved.coarseAggregate.name, materialRole: "gravel" as const, action: "Enter current gravel moisture for the batch", actionAr: "أدخل رطوبة الحصى الحالية للدفعة" }
+    ];
+    for (const check of aggregateFieldChecks) {
+      const upperLimit = check.property.includes("Absorption") ? 10 : 20;
+      const valid = check.value !== undefined && Number.isFinite(check.value) && check.value >= 0 && check.value <= upperLimit;
+      items.push({
+        property: check.property,
+        propertyAr: check.propertyAr,
+        propertyId: check.propertyId,
+        materialId: check.materialId,
+        materialName: check.materialName,
+        materialRole: check.materialRole,
+        value: check.value,
+        formattedValue: check.value === undefined ? "None" : `${check.value}%`,
+        unit: "%",
+        source: "Material Library / Field Input",
+        requiredFor: "Moisture correction and water-to-add calculation",
+        requiredForAr: "تصحيح رطوبة الركام وحساب ماء الإضافة",
+        status: valid ? "Valid" : (check.value === undefined ? "Missing" : "Invalid"),
+        statusAr: valid ? "صالح" : (check.value === undefined ? "مفقود" : "غير صالح"),
+        action: valid ? "None" : check.action,
+        actionAr: valid ? "لا يوجد" : check.actionAr
+      });
+    }
+
     // 4. WATER CHECKS
     // -------------------------------------------------------------------------
     const waterHasId = Boolean(resolved.water.materialId);

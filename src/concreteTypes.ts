@@ -33,7 +33,7 @@ export const CONCRETE_TYPE_CONFIGS: Record<string, ConcreteTypeConfig> = {
         return !nameLower.includes("جيوبوليمر") && !engLower.includes("geopolymer") && !nameLower.includes("bacterial");
       }
       if (cat === "حصى") {
-        return (m.density || 2600) >= 2000 && (m.density || 2600) <= 2900;
+        return m.density !== undefined && m.density >= 2000 && m.density <= 2900;
       }
       if (cat === "رمال") {
         const nameLower = (m.name || "").toLowerCase();
