@@ -129,6 +129,65 @@ export interface RecommendationPlanResult {
   eligibleMaterialsCount: number;
 }
 
+export interface RecommendedDosagePlan {
+  waterBinderRatio: number;
+  waterBinderRange: [number, number];
+  binderKgM3: number;
+  waterKgM3: number;
+  sandRatioPercent: number;
+  sandKgM3: number;
+  coarseAggregateKgM3: number;
+  mineralAdmixture?: { materialId: string; materialName: string; replacementPercent: number; replacementRange: [number, number] };
+  chemicalAdmixture?: { materialId: string; materialName: string; dosagePercent: number; dosageRange: [number, number] };
+  fiber?: { materialId: string; materialName: string; dosageKgM3: number; dosageRange: [number, number] };
+  warnings: string[];
+}
+
+export function buildRecommendedDosagePlan(
+  result: RecommendationPlanResult,
+  inputs: { concreteType?: string; targetStrength?: number; slumpCm?: number }
+): RecommendedDosagePlan {
+  const type = String(inputs.concreteType || result.requirementPlan.concreteType || "NSC").toUpperCase();
+  const strength = Number(inputs.targetStrength || result.requirementPlan.targetStrength || 25);
+  const binderKgM3 = type === "UHPC" || type === "BFUP" ? 850 : type === "SCC" ? 420 : strength >= 50 ? 400 : 340;
+  const waterBinderRatio = type === "UHPC" || type === "BFUP" ? 0.20 : type === "SCC" ? 0.38 : strength >= 50 ? 0.34 : 0.48;
+  const waterKgM3 = Math.round(binderKgM3 * waterBinderRatio);
+  const sandRatioPercent = type === "SCC" ? 48 : type === "UHPC" || type === "BFUP" ? 55 : 38;
+  const totalAggregate = 1000;
+  const sandKgM3 = Math.round(totalAggregate * sandRatioPercent / 100);
+  const coarseAggregateKgM3 = type === "UHPC" || type === "BFUP" ? 0 : totalAggregate - sandKgM3;
+  const warnings: string[] = ["هذه جرعات أولية مرجعية وليست اعتمادًا مخبريًا نهائيًا؛ يجب إجراء خلطات تجريبية."];
+  const plan: RecommendedDosagePlan = {
+    waterBinderRatio,
+    waterBinderRange: [Math.max(0.18, waterBinderRatio - 0.04), Math.min(0.60, waterBinderRatio + 0.04)],
+    binderKgM3,
+    waterKgM3,
+    sandRatioPercent,
+    sandKgM3,
+    coarseAggregateKgM3,
+    warnings
+  };
+  const scm = result.recommendedSet.scm;
+  if (scm) {
+    const max = Number(scm.maxReplacementPercent || 15);
+    const replacementPercent = type === "UHPC" || type === "BFUP" ? Math.min(15, max) : type === "HSC" || type === "HPC" ? Math.min(10, max) : Math.min(20, max);
+    plan.mineralAdmixture = { materialId: scm.id, materialName: scm.name, replacementPercent, replacementRange: [Math.max(0, replacementPercent - 3), replacementPercent + 3 <= max ? replacementPercent + 3 : max] };
+  }
+  const admixture = result.recommendedSet.admixture;
+  if (admixture) {
+    const max = Number(admixture.recommendedDosage || 2);
+    const dosagePercent = Math.min(max, type === "SCC" || type === "UHPC" || type === "BFUP" ? max : Math.min(1.0, max));
+    plan.chemicalAdmixture = { materialId: admixture.id, materialName: admixture.name, dosagePercent, dosageRange: [Math.max(0.1, dosagePercent * 0.7), max] };
+  }
+  const fiber = result.recommendedSet.fiber;
+  if (fiber || type === "FRC") {
+    if (fiber) plan.fiber = { materialId: fiber.id, materialName: fiber.name, dosageKgM3: Number(fiber.fiberDosageKgM3 || 25), dosageRange: [15, 40] };
+    else warnings.push("نوع الخرسانة يتطلب أليافًا، لكن لا توجد ألياف مكتملة ومؤهلة في قاعدة المواد.");
+  }
+  if (inputs.slumpCm !== undefined && inputs.slumpCm >= 18 && !plan.chemicalAdmixture) warnings.push("الهطول مرتفع؛ يوصى بتوفير ملدن فائق مؤهل قبل قبول الخلطة.");
+  return plan;
+}
+
 // ============================================================================
 // DECISION AUDIT & LOGGING REPOSITORY (localStorage backed with quota recovery)
 // ============================================================================
@@ -839,5 +898,30 @@ export function applyRecommendedMaterialToInputs(
     }
   }
 
+  return updated;
+}
+
+export function applyRecommendedPackageToInputs(
+  prevInputs: MixDesignInput,
+  result: RecommendationPlanResult,
+  dosagePlan: RecommendedDosagePlan
+): MixDesignInput {
+  let updated = { ...prevInputs };
+  const roles: SupportedMaterialRole[] = ["cement", "sand", "gravel", "water", "admixture", "scm", "fiber", "specialBinder", "lightweightAggregate", "heavyweightAggregate"];
+  for (const role of roles) {
+    const material = result.recommendedSet[role];
+    if (material) updated = applyRecommendedMaterialToInputs(updated, role, material);
+  }
+  if (dosagePlan.chemicalAdmixture) updated.dosageSuper = dosagePlan.chemicalAdmixture.dosagePercent;
+  if (dosagePlan.mineralAdmixture) {
+    const type = String(result.recommendedSet.scm?.type || "").toLowerCase();
+    if (type === "silica_fume") updated.dosageSilicaFume = dosagePlan.mineralAdmixture.replacementPercent;
+    else if (type === "fly_ash") updated.dosageFlyAsh = dosagePlan.mineralAdmixture.replacementPercent;
+    else if (type === "slag") updated.dosageSlag = dosagePlan.mineralAdmixture.replacementPercent;
+    updated.selectedScmReplacementPercent = dosagePlan.mineralAdmixture.replacementPercent;
+  }
+  if (dosagePlan.fiber) updated.fiberDosageKgM3 = dosagePlan.fiber.dosageKgM3;
+  updated.internalWcOverride = dosagePlan.waterBinderRatio;
+  updated.useManualWcOverride = false;
   return updated;
 }

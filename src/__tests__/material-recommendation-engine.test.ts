@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { determineMaterialRequirements } from "../services/materialRequirementEngine";
 import { evaluateMaterialCompatibility } from "../services/materialCompatibilityEngine";
-import { generateMaterialRecommendations } from "../services/materialRecommendationEngine";
+import { buildRecommendedDosagePlan, generateMaterialRecommendations, applyRecommendedPackageToInputs } from "../services/materialRecommendationEngine";
 import { recordEngineerApproval, getStoredApprovals } from "../services/materialApprovalService";
 import { EngineeringMaterial } from "../types";
 
@@ -429,6 +429,30 @@ describe("Material Recommendation Engine", () => {
     expect(incompleteMat).toBeDefined();
     expect(incompleteMat?.tier).toBe("not_eligible");
     expect(incompleteMat?.eligibility.eligible).toBe(false);
+  });
+
+  it("derives bounded, explainable dosage ranges for SCC and applies the accepted package", () => {
+    const inputs: any = { concreteType: "SCC", mixDesignMethod: "dreux", targetStrength: 40, maxAggregateSize: 15, slumpCm: 22, hasPumping: true };
+    const result = generateMaterialRecommendations(mockMaterials, inputs);
+    const dosage = buildRecommendedDosagePlan(result, inputs);
+
+    expect(dosage.waterBinderRatio).toBeGreaterThan(0.25);
+    expect(dosage.waterBinderRatio).toBeLessThan(0.50);
+    expect(dosage.waterBinderRange[0]).toBeLessThanOrEqual(dosage.waterBinderRatio);
+    expect(dosage.waterBinderRange[1]).toBeGreaterThanOrEqual(dosage.waterBinderRatio);
+    if (dosage.mineralAdmixture) {
+      expect(dosage.mineralAdmixture.replacementPercent).toBeLessThanOrEqual(Number(result.recommendedSet.scm?.maxReplacementPercent || 100));
+    }
+    const applied = applyRecommendedPackageToInputs({ dosageSuper: 0, dosageSilicaFume: 0, dosageFlyAsh: 0, dosageSlag: 0, ...inputs } as any, result, dosage);
+    expect(applied.internalWcOverride).toBe(dosage.waterBinderRatio);
+    expect(applied.useManualWcOverride).toBe(false);
+  });
+
+  it("does not create a false eligible recommendation when required data is absent", () => {
+    const result = generateMaterialRecommendations(mockMaterials, { concreteType: "HSC", mixDesignMethod: "dreux", targetStrength: 60, maxAggregateSize: 20 });
+    expect(result.dataSufficiency.isSufficient).toBe(true);
+    expect(result.roleGroups.cement.topCandidate?.eligibility.eligible).toBe(true);
+    expect(result.roleGroups.gravel.ineligible.every(candidate => !candidate.eligibility.eligible)).toBe(true);
   });
 });
 

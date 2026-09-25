@@ -36,6 +36,7 @@ import { checkMixCompliance } from "./mix-design-methods/complianceChecker";
 import { MixDesignMethodId } from "./mix-design-methods/types";
 import { MaterialPropertiesCard } from "./components/MaterialPropertiesCard";
 import { BatchMaterialPropertiesModal } from "./components/BatchMaterialPropertiesModal";
+import { SmartMaterialRecommendationPanel } from "./components/materials/SmartMaterialRecommendationPanel";
 import { MaterialsIntegrationAudit } from "./components/MaterialsIntegrationAudit";
 import { validateCalculationLogic } from "./engine/validationGate";
 import { EngineeringCore, ProjectSession } from "./engine/EngineeringCore";
@@ -6417,6 +6418,14 @@ export default function App() {
 
                       return (
                         <>
+                          <SmartMaterialRecommendationPanel
+                            inputs={inputs}
+                            setInputs={setInputs}
+                            materials={materialsDatabase}
+                            activeProject={activeProject}
+                            language={language}
+                          />
+
                           {/* قسم حالة/تحقق المواد في مرحلة تحضير الخلطة */}
                           <div className={`p-4 rounded-2xl border transition-all ${
                             mixMaterialsPropertiesSummary.totalMissingRequired > 0
