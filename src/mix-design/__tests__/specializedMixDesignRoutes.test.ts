@@ -91,6 +91,18 @@ describe("specialized concrete mix-design routes", () => {
     expect(result.calculationStatus).toBe("blocked");
   });
 
+  it("does not silently reinterpret an unknown concrete type as NSC", () => {
+    const route = selectConcreteMixDesignRoute({ concreteType: "Experimental-Concrete-X" });
+    expect(route.concreteType).toBe("UNSUPPORTED");
+    expect(route.support).toBe("planned");
+    expect(route.methodId).toBe("unsupported-concrete-type");
+
+    const result: any = calculateMixDesign(createTestInput({ concreteType: "Experimental-Concrete-X" }));
+    expect(result.isValid).toBe(false);
+    expect(result.calculationStatus).toBe("blocked");
+    expect(result.methodId).toBe("unsupported-concrete-type");
+  });
+
   it("keeps migrated specialized projects on automatic routing instead of forcing Dreux", () => {
     const migrated = mixDesignEngine.migrateProject({
       inputs: { concreteType: "SCC", fck28: 35 }

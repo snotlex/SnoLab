@@ -21,6 +21,8 @@ import {
 import { GradingChart } from "./components/GradingChart";
 import { InteractiveTooltip } from "./components/InteractiveTooltip";
 import { resolveMaterials } from "./utils/resolveMaterials";
+import { calculateMixDesign } from "./engine/calculateMixDesign";
+import { selectConcreteMixDesignRoute } from "./mix-design/core/concreteMixDesignSelector";
 import { MixVersioningPanel } from "./components/MixVersioningPanel";
 import { LandingPage } from "./components/LandingPage";
 import { WelcomeBanner } from "./components/WelcomeBanner";
@@ -2574,8 +2576,35 @@ export default function App() {
     };
   }, [inputs, currency, materialsDatabase, resolvedDreuxInputs]);
 
-  // Live calculated results from utils.ts Dreux-Gorisse solver
+  // Live calculated results routed by concrete type. Dreux remains the baseline
+  // for NSC/structural hybrid routes; specialized types use their registered engine.
   const results = useMemo(() => {
+    const route = selectConcreteMixDesignRoute(normalizedInputsForCalc, "auto");
+
+    if (route.mode === "specialized") {
+      const specializedResult = calculateMixDesign(normalizedInputsForCalc) as any;
+      const calculationSteps = Array.isArray(specializedResult.calculationSteps)
+        ? specializedResult.calculationSteps.map((step: any) => step.label || step.message || String(step))
+        : [];
+      return {
+        ...specializedResult,
+        detailedSteps: specializedResult.detailedSteps || calculationSteps,
+        gradingCurve: specializedResult.gradingCurve || [],
+        strengthEvolution: specializedResult.strengthEvolution || [],
+        standardsCompliance: specializedResult.standardsCompliance || specializedResult.compliance?.checks || [],
+        cementitiousMaterials: specializedResult.cementitiousMaterials || {
+          cement: specializedResult.cementKg || 0,
+          flyAsh: 0,
+          slag: 0,
+          silicaFume: specializedResult.scmKg || 0
+        },
+        costBreakdown: specializedResult.costBreakdown || [],
+        calculationMode: "specialized",
+        dreuxPreCalcReport,
+        dreuxInputTrace: resolvedDreuxInputs.trace
+      };
+    }
+
     // If Dreux pre-calculation validation blocked the run, return structured diagnostic report
     if (!dreuxPreCalcReport.canCalculate) {
       const errorMsg = language === "ar"

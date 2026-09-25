@@ -257,6 +257,17 @@ const ROUTES: Record<string, ConcreteMixDesignRouteDefinition> = {
 };
 
 const DEFAULT_ROUTE = ROUTES.NSC;
+const UNSUPPORTED_ROUTE: ConcreteMixDesignRouteDefinition = {
+  support: "planned",
+  mode: "specialized",
+  methodId: "unsupported-concrete-type",
+  nameAr: "نوع خرسانة غير مدعوم",
+  nameFr: "Type de béton non pris en charge",
+  nameEn: "Unsupported concrete type",
+  reasonAr: "نوع الخرسانة غير معروف في سجل المحركات؛ لا يمكن إصدار تصميم رقمي آمن.",
+  reasonFr: "Le type de béton n'est pas enregistré; aucun dosage numérique sûr ne peut être émis.",
+  reasonEn: "The concrete type is not registered; no safe numerical mix design can be issued."
+};
 
 function normalizeConcreteType(value: unknown): string {
   const raw = value && typeof value === "object"
@@ -319,7 +330,7 @@ function normalizeConcreteType(value: unknown): string {
     if (normalized === alias || normalized.includes(alias)) return code;
   }
 
-  return "NSC";
+  return raw.trim() ? "UNSUPPORTED" : "NSC";
 }
 
 export function selectConcreteMixDesignRoute(
@@ -327,7 +338,7 @@ export function selectConcreteMixDesignRoute(
   requestedMethodId?: string
 ): ConcreteMixDesignRoute {
   const concreteType = normalizeConcreteType(input?.concreteType);
-  const base = ROUTES[concreteType] || DEFAULT_ROUTE;
+  const base = concreteType === "UNSUPPORTED" ? UNSUPPORTED_ROUTE : (ROUTES[concreteType] || DEFAULT_ROUTE);
   const explicit = Boolean(requestedMethodId && requestedMethodId !== "auto");
 
   return {

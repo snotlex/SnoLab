@@ -22,6 +22,10 @@ export class MixDesignEngine {
     const methodId = route.methodId;
     const isAutomaticRoute = requestedMethodId === "auto";
 
+    if (route.concreteType === "UNSUPPORTED") {
+      return this.buildUnavailableRouteResult(input, route, context.language);
+    }
+
     // Automatic routing is deliberately conservative: if SnoLab does not yet
     // have the specialized engine for the concrete family, do not silently
     // substitute Dreux-Gorisse and present the output as a final design.
