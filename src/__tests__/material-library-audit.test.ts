@@ -105,6 +105,17 @@ describe("Material Property Schema & Completeness System", () => {
     expect(Array.isArray(report.results)).toBe(true);
   });
 
+  it("should ship every system material with a complete and valid schema profile", () => {
+    const incompleteOrInvalid = SEEDED_MATERIALS.flatMap(material => {
+      const audit = auditMaterial(material);
+      const missing = audit.evaluatedProperties.filter(property => property.status === "missing");
+      return missing.length || audit.invalidProperties.length
+        ? [{ id: material.id, missing: missing.map(property => property.key), invalid: audit.invalidProperties.map(property => property.definition.key) }]
+        : [];
+    });
+    expect(incompleteOrInvalid).toEqual([]);
+  });
+
   it("should safely normalize materials without deleting user data or inventing fake numbers", () => {
     const rawMaterial: Partial<EngineeringMaterial> = {
       id: "user-mat-custom",

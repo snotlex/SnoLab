@@ -1780,9 +1780,11 @@ export const MATERIAL_PROPERTY_SCHEMAS: Record<SupportedMaterialRole, MaterialPr
       categoryKey: "scm",
       isRequired: (material) => {
         const type = String(material?.admixtureType || material?.type || "").toLowerCase();
-        return type !== "slag" && !type.includes("ggbs");
+        return type !== "slag" && !type.includes("ggbs") && type !== "quartz_powder";
       },
-      validate: (val) => validateNumericRange(val, 60, 150, "معامل الفعالية البوزولانية (28 يوم)", "Indice d'Activité Pouzzolanique (IAP)", "Pozzolanic Activity Index (28d)", "%", false)
+      validate: (val, material) => String(material?.type || "").toLowerCase() === "quartz_powder" && val === 0
+        ? { isValid: true }
+        : validateNumericRange(val, 60, 150, "معامل الفعالية البوزولانية (28 يوم)", "Indice d'Activité Pouzzolanique (IAP)", "Pozzolanic Activity Index (28d)", "%", false)
     },
     {
       key: "waterDemandFactor",
