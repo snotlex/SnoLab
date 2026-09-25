@@ -61,7 +61,6 @@ import { ProjectTopBarControls } from "./components/ProjectTopBarControls";
 import { ProjectFileManagerModal } from "./components/ProjectFileManagerModal";
 import { LocalProjectVault } from "./components/LocalProjectVault";
 import { SettingsPanel } from "./components/SettingsPanel";
-import { MixPreparationRecommendationsPanel } from "./components/materials/MixPreparationRecommendationsPanel";
 
 // Lazy-loaded heavy panels for core bundle size optimization
 const LaboratoryDashboard = React.lazy(() => import("./components/materials-lab/LaboratoryDashboard").then(m => ({ default: m.LaboratoryDashboard })));
@@ -2386,102 +2385,6 @@ export default function App() {
       }));
       setSelectedMaterialForInfo(name);
     }
-  };
-
-  const handleApplyRecommendations = (rec: any) => {
-    // 1. Dynamic lookup for Cement
-    // Find first cement in materialsDatabase whose name/englishName matches the key
-    let matchedCement = materialsDatabase.find(m => m.category === "إسمنت" && (
-      (rec.cementTypeKey === "cem_52_5" && m.name.includes("52.5")) ||
-      (rec.cementTypeKey === "cem_42_5" && m.name.includes("42.5")) ||
-      (rec.cementTypeKey === "cem_32_5" && m.name.includes("32.5")) ||
-      (rec.cementTypeKey === "cem_ii_a" && (m.name.includes("CEM II") || m.name.includes("II/A"))) ||
-      (rec.cementTypeKey === "cem_ii_b" && (m.name.includes("CEM II") || m.name.includes("II/B")))
-    ));
-    if (!matchedCement) {
-      matchedCement = materialsDatabase.find(m => m.category === "إسمنت");
-    }
-
-    const cementName = matchedCement ? matchedCement.name : "CEM I 42.5";
-    const cementDens = matchedCement ? matchedCement.density : 0;
-    const cementPrice = matchedCement ? matchedCement.price : 18.0;
-
-    // 2. Dynamic lookup for Sand
-    let matchedSand = materialsDatabase.find(m => m.category === "رمال" && (
-      (rec.sandTypeKey === "fine_sand" && m.name.includes("ناعم")) ||
-      (rec.sandTypeKey === "medium_sand" && m.name.includes("متوسط")) ||
-      (rec.sandTypeKey === "coarse_sand" && m.name.includes("خشن")) ||
-      (rec.sandTypeKey === "river_sand" && (m.name.includes("نهر") || m.englishName.includes("River"))) ||
-      (rec.sandTypeKey === "quarry_sand" && (m.name.includes("محجر") || m.name.includes("كسارة") || m.englishName.includes("Crushed"))) ||
-      (rec.sandTypeKey === "siliceous_sand" && (m.name.includes("سيليسي") || m.englishName.includes("Silica"))) ||
-      (rec.sandTypeKey === "calcareous_sand" && (m.name.includes("كلسي") || m.englishName.includes("Calcareous")))
-    ));
-    if (!matchedSand) {
-      matchedSand = materialsDatabase.find(m => m.category === "رمال");
-    }
-
-    const sandName = matchedSand ? matchedSand.name : "رمل متوسط (Medium Sand)";
-    const sandDens = matchedSand ? matchedSand.density : 0;
-    const sandPrice = matchedSand ? matchedSand.price : 6.0;
-
-    // 3. Dynamic lookup for Gravel
-    let matchedGravel = materialsDatabase.find(m => m.category === "حصى" && (
-      (rec.aggregateTypeKey === "gravel_3_8" && m.name.includes("3/8")) ||
-      (rec.aggregateTypeKey === "gravel_8_15" && m.name.includes("8/15")) ||
-      (rec.aggregateTypeKey === "gravel_15_25" && m.name.includes("15/25")) ||
-      (rec.aggregateTypeKey === "gravel_25_40" && m.name.includes("25/40")) ||
-      (rec.aggregateTypeKey === "gravel_basalt" && (m.name.includes("بازلت") || m.englishName.includes("Basalt"))) ||
-      (rec.aggregateTypeKey === "gravel_calcareous" && (m.name.includes("كلس") || m.englishName.includes("Calcite") || m.englishName.includes("Calcareous"))) ||
-      (rec.aggregateTypeKey === "gravel_river" && (m.name.includes("نهري") || m.englishName.includes("River"))) ||
-      (rec.aggregateTypeKey === "gravel_crushed" && (m.name.includes("مكسر") || m.englishName.includes("Crushed")))
-    ));
-    if (!matchedGravel) {
-      matchedGravel = materialsDatabase.find(m => m.category === "حصى");
-    }
-
-    const gravelName = matchedGravel ? matchedGravel.name : "حصى 8/15";
-    const gravelDens = matchedGravel ? (matchedGravel.density || matchedGravel.specificGravity || 0) : 0;
-    const gravelPrice = matchedGravel ? matchedGravel.price : 8.0;
-
-    const sandAbsorption = matchedSand ? (matchedSand.absorption !== undefined ? matchedSand.absorption : 1.5) : 1.5;
-    const sandMoisture = matchedSand ? (matchedSand.moisture !== undefined ? matchedSand.moisture : 0) : 0;
-    const gravelAbsorption = matchedGravel ? (matchedGravel.absorption !== undefined ? matchedGravel.absorption : 0.8) : 0.8;
-    const gravelMoisture = matchedGravel ? (matchedGravel.moisture !== undefined ? matchedGravel.moisture : 0) : 0;
-    const gravelShape = matchedGravel?.particleShape === "مكسر" || matchedGravel?.particleShape === "زاوي" ? AggregateType.CONCASSE : AggregateType.ROULE;
-
-    setInputs(prev => ({
-      ...prev,
-      fck28: rec.targetStrength,
-      cementType: cementName,
-      cementClassStrength: rec.cementTypeKey === "cem_52_5" ? 52.5 : rec.cementTypeKey === "cem_32_5" || rec.cementTypeKey === "cem_ii_b" ? 32.5 : 42.5,
-      cementDensity: prev.autoDensities ? cementDens : prev.cementDensity,
-      priceCement: cementPrice !== undefined ? cementPrice : prev.priceCement,
-      selectedCementId: matchedCement ? matchedCement.id : prev.selectedCementId,
-      dMax: rec.targetDmax,
-      slump: rec.targetSlump,
-      airContent: rec.targetAirContent,
-      dosageSuper: rec.dosageSuper,
-      dosageAir: rec.dosageAir,
-      dosageRetarder: rec.dosageRetarder,
-      dosageAccelerator: rec.dosageAccelerator,
-      dosageSilicaFume: rec.dosageSilicaFume,
-      dosageFlyAsh: rec.dosageFlyAsh,
-      dosageSlag: rec.dosageSlag,
-      sandType: sandName,
-      sandRelativeDensity: prev.autoDensities ? sandDens : prev.sandRelativeDensity,
-      priceSand: sandPrice !== undefined ? sandPrice : prev.priceSand,
-      selectedSandId: matchedSand ? matchedSand.id : prev.selectedSandId,
-      sandAbsorption: prev.autoDensities ? sandAbsorption : prev.sandAbsorption,
-      moistureSand: sandMoisture,
-      finenessModulus: matchedSand?.finenessModulus || prev.finenessModulus,
-      gravelType: gravelName,
-      gravelRelativeDensity: prev.autoDensities ? gravelDens : prev.gravelRelativeDensity,
-      priceGravel: gravelPrice !== undefined ? gravelPrice : prev.priceGravel,
-      selectedGravelId: matchedGravel ? matchedGravel.id : prev.selectedGravelId,
-      gravelAbsorption: prev.autoDensities ? gravelAbsorption : prev.gravelAbsorption,
-      moistureGravel: gravelMoisture,
-      aggregateType: gravelShape
-    }));
   };
 
   // Centralized Dreux-Gorisse Input Resolution
@@ -6597,16 +6500,6 @@ export default function App() {
                               )}
                             </div>
                           </div>
-
-                          {/* Smart Engineering Material Recommendation System */}
-                          <MixPreparationRecommendationsPanel
-                            inputs={inputs}
-                            setInputs={setInputs}
-                            materials={materialsDatabase}
-                            onUpdateMaterials={setMaterialsDatabase}
-                            language={language}
-                            onOpenLabTest={() => setActiveSidebarTab("materials_lab")}
-                          />
 
                           {/* Section A: Basic Constituents */}
                           <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-1.5">

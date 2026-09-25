@@ -21,7 +21,7 @@ export function MaterialsIntegrationAudit() {
     { nameAr: "قائمة مواصفات الحصى القديمة (MATERIAL_SPECS - Gravel)", count: 9, file: "MaterialPropertiesCard.tsx" },
     { nameAr: "مصفوفة القوائم الثابتة للرمال السائبة (sandPresets)", count: 4, file: "App.tsx" },
     { nameAr: "مصفوفة القوائم الثابتة للحصى السائب (gravelPresets)", count: 6, file: "App.tsx" },
-    { nameAr: "معايرات الإسمنت المحمية ثابتة التلقيم", count: 6, file: "App.tsx (handleApplyRecommendations)" },
+    { nameAr: "معايرات المواد مرتبطة بقوائم المستودع", count: 6, file: "App.tsx (material selectors)" },
   ];
 
   const legacyFiles = [
