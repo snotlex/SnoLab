@@ -1,5 +1,6 @@
 import express from "express";
 import path from "path";
+import crypto from "crypto";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, ThinkingLevel, Type } from "@google/genai";
 import dotenv from "dotenv";
@@ -8,7 +9,87 @@ import nodemailer from "nodemailer";
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
+app.disable("x-powered-by");
+app.use((_req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  next();
+});
+const PORT = Number(process.env.PORT || 3000);
+const ADMIN_API_TOKEN = process.env.ADMIN_API_TOKEN?.trim() || "";
+const PUBLIC_APP_URL = (process.env.PUBLIC_APP_URL || "").trim().replace(/\/$/, "");
+
+if (!Number.isInteger(PORT) || PORT < 1 || PORT > 65535) {
+  throw new Error(`Invalid PORT value: ${process.env.PORT}`);
+}
+if (process.env.NODE_ENV === "production" && !PUBLIC_APP_URL) {
+  throw new Error("PUBLIC_APP_URL is required in production");
+}
+
+const requestWindows = new Map<string, { count: number; resetAt: number }>();
+function rateLimit(options: { windowMs: number; max: number; name: string }) {
+  return (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const now = Date.now();
+    const key = `${options.name}:${req.ip}`;
+    const current = requestWindows.get(key);
+    if (!current || current.resetAt <= now) {
+      requestWindows.set(key, { count: 1, resetAt: now + options.windowMs });
+      return next();
+    }
+    current.count += 1;
+    if (current.count > options.max) {
+      res.setHeader("Retry-After", Math.ceil((current.resetAt - now) / 1000));
+      return res.status(429).json({ success: false, error: "RATE_LIMITED", message: "Too many requests. Please try again later." });
+    }
+    return next();
+  };
+}
+
+function safeEqual(a: string, b: string): boolean {
+  const aBuffer = Buffer.from(a);
+  const bBuffer = Buffer.from(b);
+  return aBuffer.length === bBuffer.length && crypto.timingSafeEqual(aBuffer, bBuffer);
+}
+
+function requireAdmin(req: express.Request, res: express.Response, next: express.NextFunction) {
+  if (!ADMIN_API_TOKEN) {
+    return res.status(503).json({ success: false, error: "ADMIN_AUTH_NOT_CONFIGURED", message: "Administrative API authentication is not configured." });
+  }
+  const authorization = req.get("authorization") || "";
+  const token = authorization.startsWith("Bearer ") ? authorization.slice(7).trim() : "";
+  if (!token || !safeEqual(token, ADMIN_API_TOKEN)) {
+    return res.status(401).json({ success: false, error: "UNAUTHORIZED" });
+  }
+  return next();
+}
+
+function isValidEmail(value: unknown): value is string {
+  return typeof value === "string" && value.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function escapeHtml(value: unknown): string {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function sanitizeEmailHtml(value: unknown): string | undefined {
+  if (typeof value !== "string" || value.length === 0 || value.length > 200_000) return undefined;
+  return value
+    .replace(/<\s*(script|iframe|object|embed|form|style)[^>]*>[\s\S]*?<\/\s*\1\s*>/gi, "")
+    .replace(/\s+on[a-z]+\s*=\s*(?:\"[^\"]*\"|'[^']*'|[^\s>]+)/gi, "")
+    .replace(/(href|src)\s*=\s*(?:\"|')?\s*javascript:[^\"'\s>]+(?:\"|')?/gi, "$1=\"#\"");
+}
+
+const adminRateLimit = rateLimit({ windowMs: 5 * 60_000, max: 20, name: "admin" });
+const aiRateLimit = rateLimit({ windowMs: 60_000, max: 20, name: "ai" });
+app.use("/api/admin", requireAdmin, adminRateLimit);
+app.use(["/api/concrete-advisor", "/api/extract-pdf-materials", "/api/concrete-visualize", "/api/material-visualize", "/api/material-advisor"], aiRateLimit);
 
 app.use(express.json({ limit: "15mb" }));
 app.use(express.urlencoded({ limit: "15mb", extended: true }));
@@ -1451,8 +1532,10 @@ class EmailQueueSystem {
           pass: smtpPassword,
         },
         tls: {
-          rejectUnauthorized: false
-        }
+          rejectUnauthorized: true
+        },
+        disableFileAccess: true,
+        disableUrlAccess: true
       });
 
       try {
@@ -1588,19 +1671,17 @@ export const emailQueue = new EmailQueueSystem();
 // API: Send Account Activation Email Notification (Resilient Queue-based)
 app.post("/api/admin/send-activation-email", async (req, res) => {
   const { userId, email, displayName } = req.body;
-
-  if (!userId || !email) {
+  if (typeof userId !== "string" || userId.length > 200 || !isValidEmail(email)) {
     return res.status(400).json({ success: false, error: "Missing required user parameters" });
   }
-
+  if (displayName !== undefined && (typeof displayName !== "string" || displayName.length > 160)) {
+    return res.status(400).json({ success: false, error: "Invalid displayName" });
+  }
   // Generate HTML Email
   const currentYear = new Date().getFullYear();
-  const userName = displayName || "SNO Engineer";
-  
+  const userName = escapeHtml(displayName || "SNO Engineer");
   // Dynamically derive platform login URL
-  const loginUrl = process.env.NODE_ENV === "production"
-    ? `https://${req.get("host")}/`
-    : "http://localhost:3000/";
+  const loginUrl = PUBLIC_APP_URL || `http://localhost:${PORT}/`;
 
   const htmlContent = `<!DOCTYPE html>
 <html>
@@ -2214,19 +2295,31 @@ app.post("/api/admin/send-activation-email", async (req, res) => {
 // API: General Resilient Email Sending Endpoint (supports all current and future email types without limits)
 app.post("/api/admin/send-email", async (req, res) => {
   const { to, subject, html, emailType, userId, userName, maxAttempts } = req.body;
-
-  if (!to || !subject || !html) {
+  const safeHtml = sanitizeEmailHtml(html);
+  if (!isValidEmail(to) || typeof subject !== "string" || subject.length === 0 || subject.length > 300 || !safeHtml) {
     return res.status(400).json({ success: false, error: "Missing parameters 'to', 'subject', or 'html'" });
   }
-
+  if (emailType !== undefined && (typeof emailType !== "string" || emailType.length > 100)) {
+    return res.status(400).json({ success: false, error: "Invalid emailType" });
+  }
+  if (userId !== undefined && (typeof userId !== "string" || userId.length > 200)) {
+    return res.status(400).json({ success: false, error: "Invalid userId" });
+  }
+  if (userName !== undefined && (typeof userName !== "string" || userName.length > 160)) {
+    return res.status(400).json({ success: false, error: "Invalid userName" });
+  }
+  const parsedMaxAttempts = maxAttempts === undefined ? 3 : Number(maxAttempts);
+  if (!Number.isInteger(parsedMaxAttempts) || parsedMaxAttempts < 1 || parsedMaxAttempts > 3) {
+    return res.status(400).json({ success: false, error: "maxAttempts must be an integer between 1 and 3" });
+  }
   const result = await emailQueue.addJob({
     to,
     subject,
-    html,
+    html: safeHtml,
     emailType: emailType || "System Notification",
     userId,
     userName,
-    maxAttempts: maxAttempts ? Number(maxAttempts) : 3
+    maxAttempts: parsedMaxAttempts
   });
 
   if (result.success) {

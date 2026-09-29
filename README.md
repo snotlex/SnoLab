@@ -95,11 +95,21 @@ PORT=3000
 # Node Environment
 NODE_ENV=development
 
+# Required to access /api/admin/* endpoints (generate with: openssl rand -hex 32)
+ADMIN_API_TOKEN=replace_with_a_long_random_token
+
+# Explicit public URL used by activation emails
+PUBLIC_APP_URL=http://localhost:3000
+
 # Google Gemini API Key (Secret key used server-side for AI engineering recommendations)
 GEMINI_API_KEY=your_gemini_api_key_here
 ```
 
 *Note: Do not prefix `GEMINI_API_KEY` with `VITE_` as it is kept strictly secure on the Node.js Express server backend.*
+
+### Administrative API security
+
+All `/api/admin/*` routes require `Authorization: Bearer <ADMIN_API_TOKEN>`. The server fails closed with `503` when the token is not configured and returns `401` for missing or invalid tokens. Keep the token only in the server environment, never in frontend code or committed files. Set `PUBLIC_APP_URL` in production so activation links do not depend on an untrusted `Host` header.
 
 ---
 
