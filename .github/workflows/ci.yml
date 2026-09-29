@@ -42,5 +42,11 @@ jobs:
       - name: Run test suite
         run: npm test
 
+      - name: Run server security smoke tests
+        run: npm run test:security
+
+      - name: Run API load smoke test
+        run: npm run test:load
+
       - name: Production build
         run: npm run build

@@ -135,6 +135,13 @@ ADMIN_API_TOKEN=local-test-token npm run test:security
 
 The smoke suite starts an isolated development server and checks the health endpoint, security headers, missing/invalid/valid admin tokens, email input validation, and admin rate limiting. It does not send a real email because SMTP credentials are not provided by the test command.
 
+Run the lightweight API load smoke test:
+```bash
+npm run test:load
+```
+
+It runs concurrent health and authenticated admin requests for a short bounded period, reports p95 latency, and fails on network errors or HTTP 5xx responses. The test also accepts `LOAD_SMOKE_CONCURRENCY`, `LOAD_SMOKE_DURATION_MS`, and `LOAD_SMOKE_PORT` for controlled staging runs. Both smoke tests run automatically in GitHub Actions.
+
 ### Test Scope
 - `dreuxGorisseCore.ts`: Validates mathematical calculations, $W/C$ curves, and Bolomey adjustments.
 - `methodApplicabilityGate.ts`: Tests the strict structural applicability borders.
