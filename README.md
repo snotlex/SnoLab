@@ -128,6 +128,13 @@ To run the tests:
 npm test
 ```
 
+Run the server security smoke tests separately:
+```bash
+ADMIN_API_TOKEN=local-test-token npm run test:security
+```
+
+The smoke suite starts an isolated development server and checks the health endpoint, security headers, missing/invalid/valid admin tokens, email input validation, and admin rate limiting. It does not send a real email because SMTP credentials are not provided by the test command.
+
 ### Test Scope
 - `dreuxGorisseCore.ts`: Validates mathematical calculations, $W/C$ curves, and Bolomey adjustments.
 - `methodApplicabilityGate.ts`: Tests the strict structural applicability borders.
