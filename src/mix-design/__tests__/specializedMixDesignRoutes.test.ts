@@ -103,6 +103,19 @@ describe("specialized concrete mix-design routes", () => {
     expect(result.methodId).toBe("unsupported-concrete-type");
   });
 
+  it("blocks a specialized design when its engineering contract inputs are missing", () => {
+    const result: any = calculateMixDesign(createTestInput({
+      concreteType: "SCC",
+      enforceInputContract: true,
+      fck28: 35,
+      dMax: 16
+    }));
+    expect(result.isValid).toBe(false);
+    expect(result.calculationStatus).toBe("blocked");
+    expect(result.methodId).toBe("scc-specialized");
+    expect(result.calculationNotes.join(" ")).toContain("sccTargetSlumpFlowMm");
+  });
+
   it("keeps migrated specialized projects on automatic routing instead of forcing Dreux", () => {
     const migrated = mixDesignEngine.migrateProject({
       inputs: { concreteType: "SCC", fck28: 35 }

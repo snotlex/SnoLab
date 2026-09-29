@@ -23,6 +23,7 @@ import { InteractiveTooltip } from "./components/InteractiveTooltip";
 import { resolveMaterials } from "./utils/resolveMaterials";
 import { calculateMixDesign } from "./engine/calculateMixDesign";
 import { selectConcreteMixDesignRoute } from "./mix-design/core/concreteMixDesignSelector";
+import { getMixDesignContract } from "./mix-design/core/mixDesignContracts";
 import { MixVersioningPanel } from "./components/MixVersioningPanel";
 import { LandingPage } from "./components/LandingPage";
 import { WelcomeBanner } from "./components/WelcomeBanner";
@@ -2486,7 +2487,10 @@ export default function App() {
     const route = selectConcreteMixDesignRoute(normalizedInputsForCalc, "auto");
 
     if (route.mode === "specialized") {
-      const specializedResult = calculateMixDesign(normalizedInputsForCalc) as any;
+      const specializedResult = calculateMixDesign({
+        ...normalizedInputsForCalc,
+        enforceInputContract: true
+      }) as any;
       const calculationSteps = Array.isArray(specializedResult.calculationSteps)
         ? specializedResult.calculationSteps.map((step: any) => step.label || step.message || String(step))
         : [];
@@ -6121,6 +6125,52 @@ export default function App() {
                           <option value="UHPC">{t("type_UHPC")}</option>
                           <option value="BFUP">{t("type_BFUP")}</option>
                         </select>
+
+                        {(() => {
+                          const contract = getMixDesignContract(String(inputs.concreteType || "NSC").toUpperCase());
+                          if (!contract || contract.concreteType === "NSC") return null;
+                          const coreKeys = new Set([
+                            "fck28", "dMax", "cementType", "cementClassStrength", "cementDensity",
+                            "moistureSand", "moistureGravel", "airContent", "slump"
+                          ]);
+                          const specializedKeys = contract.requiredInputs.filter((key) => !coreKeys.has(String(key)));
+                          const label = (key: string) => key
+                            .replace(/([A-Z])/g, " $1")
+                            .replace(/^./, (char) => char.toUpperCase());
+                          return (
+                            <div className="mt-3 p-3 rounded-lg border border-blue-500/20 bg-blue-500/5 space-y-2 text-right">
+                              <div className="text-[11px] font-black text-blue-600 dark:text-blue-300">
+                                {language === "ar" ? `مدخلات محرك ${contract.methodId} الإلزامية` : `${contract.methodId} required inputs`}
+                              </div>
+                              <div className="text-[9px] text-slate-500 dark:text-slate-400">
+                                {contract.engineeringFramework} — {language === "ar" ? "لا تستخدم قيمًا افتراضية" : "No silent defaults"}
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                {specializedKeys.map((key) => {
+                                  const field = String(key);
+                                  const isText = field.endsWith("Type") || field.endsWith("Method") || field === "fiberType" || field === "shcHealingAgentType";
+                                  const value = (inputs as any)[field];
+                                  return (
+                                    <label key={field} className="text-[9px] font-bold text-slate-600 dark:text-slate-300">
+                                      <span className="block mb-1">{label(field)}</span>
+                                      <input
+                                        type={isText ? "text" : "number"}
+                                        step={isText ? undefined : "any"}
+                                        value={value ?? ""}
+                                        onChange={(event) => setInputs(prev => ({
+                                          ...prev,
+                                          [field]: isText ? event.target.value : (event.target.value === "" ? undefined : Number(event.target.value))
+                                        }))}
+                                        className="w-full rounded border border-blue-500/20 bg-white dark:bg-slate-950 p-2 text-[10px] outline-none focus:border-blue-500"
+                                        placeholder={language === "ar" ? "مطلوب" : "Required"}
+                                      />
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })()}
 
                         {(() => {
                           const meta = CONCRETE_TYPES_CATALOG.find(t => t.code === (inputs.concreteType || "NSC"));

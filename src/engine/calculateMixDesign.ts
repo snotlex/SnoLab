@@ -2,15 +2,9 @@ import { MixDesignInput, MixDesignResult } from "../mix-design/core/types";
 import { mixDesignEngine } from "../mix-design/core/MixDesignEngine";
 import { selectConcreteMixDesignRoute } from "../mix-design/core/concreteMixDesignSelector";
 import { normalizeMixDesignResult } from "../mix-design/shared/resultNormalization";
+import { getMixDesignContract } from "../mix-design/core/mixDesignContracts";
 
-/**
- * Unified mix-design router.
- *
- * When methodId is absent, SnoLab now performs conservative automatic routing
- * from concreteType to the registered method. This keeps Dreux-Gorisse as the
- * active baseline for its supported families while preventing specialized
- * concrete from being silently calculated by an unrelated method.
- */
+/** Unified mix-design router with concrete-specific automatic routing. */
 export function calculateMixDesign(input: MixDesignInput): MixDesignResult {
   const autoRoute = selectConcreteMixDesignRoute(input, "auto");
   const requestedMethodId = input.methodId;
@@ -23,12 +17,9 @@ export function calculateMixDesign(input: MixDesignInput): MixDesignResult {
   const result = normalizeMixDesignResult(mixDesignEngine.calculate({
     methodId,
     input,
-    context: { language: "ar" }
+    context: { language: "ar", strict: false }
   }), input) as MixDesignResult;
 
-  // Legacy consumers and reports use the top-level methodName field.
-  // Keep it synchronized even when a specialized strategy only populates
-  // the structured method metadata.
   const methodLabels: Record<string, string> = {
     "dreux-gorisse": "Dreux-Gorisse",
     "rcc-specialized": "RCC / BCR Specialized",
@@ -45,11 +36,16 @@ export function calculateMixDesign(input: MixDesignInput): MixDesignResult {
     "shotcrete-specialized": "Shotcrete Specialized"
   };
   const structuredName = result.method?.name;
-  result.methodName =
-    result.methodName &&
-    result.methodName !== "auto" &&
-    result.methodName !== result.methodId
-      ? result.methodName
-      : methodLabels[result.methodId] || structuredName || result.methodId || methodId;
+  result.methodName = result.methodName && result.methodName !== "auto" && result.methodName !== result.methodId
+    ? result.methodName
+    : methodLabels[result.methodId] || structuredName || result.methodId || methodId;
+
+  const contract = getMixDesignContract(autoRoute.concreteType);
+  if (contract) {
+    result.calculationMethod = contract.methodId;
+    result.engineVersion = result.method?.version;
+    result.engineeringFramework = contract.engineeringFramework;
+    result.trialMixRequired = contract.trialMixRequired;
+  }
   return result;
 }

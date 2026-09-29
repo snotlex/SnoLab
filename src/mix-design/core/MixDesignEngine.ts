@@ -2,6 +2,7 @@ import { MixDesignRequest, MixDesignResult, CalculationContext, MixDesignInput }
 import { MixDesignMethodRegistry } from "./MixDesignMethodRegistry";
 import { MethodValidationException, MethodNotFoundException, UnsupportedMethodVersionError } from "./errors";
 import { selectConcreteMixDesignRoute } from "./concreteMixDesignSelector";
+import { getMixDesignContract, missingContractInputs } from "./mixDesignContracts";
 
 export class MixDesignEngine {
   private registry: MixDesignMethodRegistry;
@@ -24,6 +25,25 @@ export class MixDesignEngine {
 
     if (route.concreteType === "UNSUPPORTED") {
       return this.buildUnavailableRouteResult(input, route, context.language);
+    }
+
+    if (input.enforceInputContract) {
+      const contract = getMixDesignContract(route.concreteType);
+      const missing = contract ? missingContractInputs(input, contract) : [];
+      if (contract && missing.length > 0) {
+        const missingMessage = context.language === "ar"
+          ? `المدخلات الهندسية التالية مطلوبة لمحرك ${contract.methodId}: ${missing.join(", ")}.`
+          : context.language === "fr"
+            ? `Les entrées suivantes sont obligatoires pour ${contract.methodId}: ${missing.join(", ")}.`
+            : `The following engineering inputs are required for ${contract.methodId}: ${missing.join(", ")}.`;
+        return this.buildUnavailableRouteResult(input, {
+          ...route,
+          support: "planned",
+          reasonAr: missingMessage,
+          reasonFr: missingMessage,
+          reasonEn: missingMessage
+        }, context.language);
+      }
     }
 
     // Automatic routing is deliberately conservative: if SnoLab does not yet

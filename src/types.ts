@@ -23,6 +23,7 @@ export interface Admixture {
 }
 
 export interface MixDesignInput {
+  enforceInputContract?: boolean;
   bypassSuitabilityGate?: boolean; // Bypass suitability check for legacy math unit tests
   fck28: number;            // المقاومة القياسية المميزة المطلوبة بعد 28 يوماً (MPa)
   controlClass: "high" | "normal" | "low"; // درجة التحكم بالموقع لحساب الانحراف المعياري (Margin)
@@ -161,6 +162,12 @@ export interface MixDesignInput {
   sccWaterPowderRatioByVolume?: number;
   sccCoarseAggregateVolumeFraction?: number;
   sccTargetSlumpFlowMm?: number;
+  sccT500Seconds?: number;
+  sccVFunnelSeconds?: number;
+  sccLBoxRatio?: number;
+  sccJRingDifferenceMm?: number;
+  sccSegregationResistancePercent?: number;
+  sccVmaDosage?: number;
   sccSuperplasticizerDosage?: number;
   sccScmReplacementPercent?: number;
 
@@ -178,6 +185,11 @@ export interface MixDesignInput {
   bfupFiberVolumePercent?: number;
   uhpcQuartzPowderKgM3?: number;
   bfupQuartzPowderKgM3?: number;
+  hscWaterKgM3?: number;
+  hscWaterBinderRatio?: number;
+  hpcWaterKgM3?: number;
+  hpcWaterBinderRatio?: number;
+  hpcCoarseAggregateVolumeFraction?: number;
 
   // Specialized fiber-reinforced concrete proportioning inputs.
   frcWaterBinderRatio?: number;
@@ -185,6 +197,46 @@ export interface MixDesignInput {
   frcFiberVolumePercent?: number;
   frcCoarseAggregateVolumeFraction?: number;
   frcSuperplasticizerDosage?: number;
+
+  // Phase-2 specialized engine inputs.
+  gpcPrecursorKgM3?: number;
+  gpcActivatorLiquidKgM3?: number;
+  gpcWaterKgM3?: number;
+  gpcWaterBinderRatio?: number;
+  gpcActivatorToPrecursorRatio?: number;
+  gpcCoarseAggregateVolumeFraction?: number;
+  racCementKgM3?: number;
+  racWaterKgM3?: number;
+  racWaterBinderRatio?: number;
+  racCoarseAggregateKgM3?: number;
+  racReplacementPercent?: number;
+  racRecycledAggregateDensityKgM3?: number;
+  racRecycledAbsorptionPercent?: number;
+  racPreSaturationPercent?: number;
+  racSuperplasticizerDosage?: number;
+  shcCementKgM3?: number;
+  shcWaterKgM3?: number;
+  shcWaterBinderRatio?: number;
+  shcHealingAgentDosageKgM3?: number;
+  shcHealingAgentDensityKgM3?: number;
+  shcHealingAgentType?: string;
+  shcCoarseAggregateVolumeFraction?: number;
+  shcSuperplasticizerDosage?: number;
+  shotcreteWaterKgM3?: number;
+  shotcreteWaterBinderRatio?: number;
+  shotcreteCementFraction?: number;
+  shotcreteAcceleratorPercent?: number;
+  shotcreteSuperplasticizerPercent?: number;
+  shotcreteCoarseAggregateVolumeFraction?: number;
+  shotcreteExecutionMethod?: "wet" | "dry";
+  shotcreteReboundPercent?: number;
+  shotcreteEarlyStrengthMPa?: number;
+
+  perviousTargetVoidContentPercent?: number;
+  perviousTargetPermeabilityMmPerS?: number;
+  perviousPasteVolumePercent?: number;
+  perviousWaterBinderRatio?: number;
+  perviousCompactionMethod?: string;
 
   // Specialized heavyweight concrete proportioning inputs.
   hwcTargetDensityKgM3?: number;

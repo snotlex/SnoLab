@@ -1,6 +1,7 @@
 import { MixDesignMethodId } from "../mix-design-methods/types";
 
 export interface MixDesignInput {
+  enforceInputContract?: boolean;      // User-facing strict gate; legacy unit tests may omit it
   bypassSuitabilityGate?: boolean;   // Bypass suitability check for legacy math unit tests
   fck28: number;                     // Target compressive strength in MPa
   controlClass: "high" | "normal" | "low";  // Site control class
@@ -119,6 +120,12 @@ export interface MixDesignInput {
   sccWaterPowderRatioByVolume?: number;
   sccCoarseAggregateVolumeFraction?: number;
   sccTargetSlumpFlowMm?: number;
+  sccT500Seconds?: number;
+  sccVFunnelSeconds?: number;
+  sccLBoxRatio?: number;
+  sccJRingDifferenceMm?: number;
+  sccSegregationResistancePercent?: number;
+  sccVmaDosage?: number;
   sccSuperplasticizerDosage?: number;
   sccScmReplacementPercent?: number;
   // SCC fresh-property / EFNARC-oriented proportioning controls.
@@ -137,6 +144,11 @@ export interface MixDesignInput {
   bfupFiberVolumePercent?: number;
   uhpcQuartzPowderKgM3?: number;
   bfupQuartzPowderKgM3?: number;
+  hscWaterKgM3?: number;
+  hscWaterBinderRatio?: number;
+  hpcWaterKgM3?: number;
+  hpcWaterBinderRatio?: number;
+  hpcCoarseAggregateVolumeFraction?: number;
 
   // Specialized roller-compacted concrete (RCC/BCR) proportioning inputs.
   // These are intentionally laboratory/project inputs: RCC water is governed by
@@ -186,6 +198,9 @@ export interface MixDesignInput {
   shotcreteAcceleratorPercent?: number;
   shotcreteSuperplasticizerPercent?: number;
   shotcreteCoarseAggregateVolumeFraction?: number;
+  shotcreteExecutionMethod?: "wet" | "dry";
+  shotcreteReboundPercent?: number;
+  shotcreteEarlyStrengthMPa?: number;
 
   // Specialized fiber-reinforced concrete proportioning inputs.
   frcWaterBinderRatio?: number;
@@ -193,6 +208,13 @@ export interface MixDesignInput {
   frcFiberVolumePercent?: number;
   frcCoarseAggregateVolumeFraction?: number;
   frcSuperplasticizerDosage?: number;
+
+  // Pervious concrete void/permeability design inputs.
+  perviousTargetVoidContentPercent?: number;
+  perviousTargetPermeabilityMmPerS?: number;
+  perviousPasteVolumePercent?: number;
+  perviousWaterBinderRatio?: number;
+  perviousCompactionMethod?: string;
 
   priceFiber?: number;
   priceSpecialBinder?: number;
@@ -209,6 +231,10 @@ export interface MethodApplicability {
 
 export interface MixDesignResult {
   methodName: string;
+  calculationMethod?: string;
+  engineVersion?: string;
+  engineeringFramework?: string;
+  trialMixRequired?: boolean;
   cementKg: number;
   waterKg: number;
   fineAggregateKg: number;
