@@ -2174,23 +2174,23 @@ export default function App() {
   const getOriginalValueForProperty = (property: string): number => {
     if (property === "cementDensity") {
       const mat = materialsDatabase.find(m => m.id === inputs.selectedCementId);
-      return mat?.density || 0;
+      return mat?.density ?? Number.NaN;
     }
     if (property === "sandRelativeDensity") {
       const mat = materialsDatabase.find(m => m.id === inputs.selectedSandId);
-      return mat?.density || mat?.specificGravity || 0;
+      return mat?.density ?? mat?.specificGravity ?? Number.NaN;
     }
     if (property === "gravelRelativeDensity") {
       const mat = materialsDatabase.find(m => m.id === inputs.selectedGravelId);
-      return mat?.density || mat?.specificGravity || 0;
+      return mat?.density ?? mat?.specificGravity ?? Number.NaN;
     }
     if (property === "sandAbsorption") {
       const mat = materialsDatabase.find(m => m.id === inputs.selectedSandId);
-      return mat?.absorption !== undefined ? mat.absorption : 0;
+      return mat?.absorption ?? Number.NaN;
     }
     if (property === "gravelAbsorption") {
       const mat = materialsDatabase.find(m => m.id === inputs.selectedGravelId);
-      return mat?.absorption !== undefined ? mat.absorption : 0;
+      return mat?.absorption ?? Number.NaN;
     }
     if (property === "dMax") {
       const mat = materialsDatabase.find(m => m.id === inputs.selectedGravelId);
@@ -5934,175 +5934,11 @@ export default function App() {
                           value={inputs.concreteType || "NSC"}
                           onChange={(e) => {
                             const val = e.target.value.toUpperCase();
-                            const activeConfig = CONCRETE_TYPE_CONFIGS[val];
                             setInputs(prev => {
                               let next = { ...prev, concreteType: val };
 
-                              // Reset any selected materials that are incompatible with the new Concrete Type!
-                              const materialsList = materialsDatabase || [];
-                              
-                              // Check selected cement
-                              if (next.selectedCementId) {
-                                const cementMat = materialsList.find(m => m.id === next.selectedCementId);
-                                if (!cementMat || !activeConfig || !activeConfig.isMaterialCompatible(cementMat)) {
-                                  next.selectedCementId = "";
-                                  next.cementType = "";
-                                  next.cementDensity = 0;
-                                  next.priceCement = 0;
-                                }
-                              }
-                              // Check selected sand
-                              if (next.selectedSandId) {
-                                const sandMat = materialsList.find(m => m.id === next.selectedSandId);
-                                if (!sandMat || !activeConfig || !activeConfig.isMaterialCompatible(sandMat)) {
-                                  next.selectedSandId = "";
-                                  next.sandType = "";
-                                  next.sandRelativeDensity = 0;
-                                  next.priceSand = 0;
-                                  next.sandAbsorption = 0;
-                                  next.moistureSand = 0;
-                                }
-                              }
-                              // Check selected gravel
-                              if (next.selectedGravelId) {
-                                const gravelMat = materialsList.find(m => m.id === next.selectedGravelId);
-                                if (!gravelMat || !activeConfig || !activeConfig.isMaterialCompatible(gravelMat)) {
-                                  next.selectedGravelId = "";
-                                  next.gravelType = "";
-                                  next.gravelRelativeDensity = 0;
-                                  next.priceGravel = 0;
-                                  next.gravelAbsorption = 0;
-                                  next.moistureGravel = 0;
-                                }
-                              }
-                              // Check selected water
-                              if (next.selectedWaterId) {
-                                const waterMat = materialsList.find(m => m.id === next.selectedWaterId);
-                                if (!waterMat || !activeConfig || !activeConfig.isMaterialCompatible(waterMat)) {
-                                  next.selectedWaterId = "";
-                                  next.waterType = "";
-                                  next.priceWater = 0;
-                                }
-                              }
-                              // Check SCM
-                              if (next.selectedScmId) {
-                                const scmMat = materialsList.find(m => m.id === next.selectedScmId);
-                                if (!scmMat || !activeConfig || !activeConfig.isMaterialCompatible(scmMat)) {
-                                  next.selectedScmId = "";
-                                  next.scmType = "";
-                                  next.priceScm = 0;
-                                  next.scmDensity = 0;
-                                }
-                              }
-                              // Check Fiber
-                              if (next.selectedFiberId) {
-                                const fiberMat = materialsList.find(m => m.id === next.selectedFiberId);
-                                if (!fiberMat || !activeConfig || !activeConfig.isMaterialCompatible(fiberMat)) {
-                                  next.selectedFiberId = "";
-                                  next.fiberType = "";
-                                  next.priceFiber = 0;
-                                  next.fiberDensity = 0;
-                                }
-                              }
-                              // Check Special Binder
-                              if (next.selectedSpecialBinderId) {
-                                const specialBinderMat = materialsList.find(m => m.id === next.selectedSpecialBinderId);
-                                if (!specialBinderMat || !activeConfig || !activeConfig.isMaterialCompatible(specialBinderMat)) {
-                                  next.selectedSpecialBinderId = "";
-                                  next.specialBinderType = "";
-                                  next.priceSpecialBinder = 0;
-                                  next.specialBinderDensity = 0;
-                                }
-                              }
-
-                              // Pre-populate required SCM or other defaults if required
-                              if (activeConfig) {
-                                // If GPC, automatically switch cement to preset-geopolymer-binder if compatible
-                                if (val === "GPC") {
-                                  const geoBinder = materialsList.find(m => m.id === "preset-geopolymer-binder");
-                                  if (geoBinder && activeConfig.isMaterialCompatible(geoBinder)) {
-                                    next.selectedCementId = geoBinder.id;
-                                    next.cementType = geoBinder.name;
-                                    next.cementDensity = geoBinder.density;
-                                    next.priceCement = geoBinder.price || 30;
-                                    next.cementClassStrength = 42.5;
-                                  }
-                                }
-
-                                // Auto-select first compatible material for required categories if nothing is selected
-                                activeConfig.requiredCategories.forEach(cat => {
-                                  if (cat === "إسمنت" && !next.selectedCementId) {
-                                    const compatibleCement = materialsList.find(m => (m.category === "إسمنت" || m.category === "مجلدات خاصة") && isApprovedAndActive(m) && activeConfig.isMaterialCompatible(m));
-                                    if (compatibleCement) {
-                                      next.selectedCementId = compatibleCement.id;
-                                      next.cementType = compatibleCement.name;
-                                      next.cementDensity = compatibleCement.density;
-                                      next.priceCement = compatibleCement.price || 17;
-                                      const strClass = compatibleCement.strengthClass || compatibleCement.cementClassStrength;
-                                      next.cementClassStrength = strClass ? parseFloat(strClass) : 42.5;
-                                    }
-                                  }
-                                  if (cat === "رمال" && !next.selectedSandId) {
-                                    const compatibleSand = materialsList.find(m => m.category === "رمال" && isApprovedAndActive(m) && activeConfig.isMaterialCompatible(m));
-                                    if (compatibleSand) {
-                                      next.selectedSandId = compatibleSand.id;
-                                      next.sandType = compatibleSand.name;
-                                      next.sandRelativeDensity = compatibleSand.density || compatibleSand.specificGravity || 0;
-                                      next.priceSand = compatibleSand.price || 2.5;
-                                      next.sandAbsorption = compatibleSand.absorption || 0;
-                                      next.moistureSand = compatibleSand.moisture || 0;
-                                      next.finenessModulus = compatibleSand.finenessModulus || 0;
-                                    }
-                                  }
-                                  if ((cat === "حصى" || cat === "ركام خفيف" || cat === "ركام ثقيل") && !next.selectedGravelId) {
-                                    const compatibleGravel = materialsList.find(m => (m.category === "حصى" || m.category === "ركام خفيف" || m.category === "ركام ثقيل") && isApprovedAndActive(m) && activeConfig.isMaterialCompatible(m));
-                                    if (compatibleGravel) {
-                                      next.selectedGravelId = compatibleGravel.id;
-                                      next.gravelType = compatibleGravel.name;
-                                      next.gravelRelativeDensity = compatibleGravel.density || compatibleGravel.specificGravity || 0;
-                                      next.priceGravel = compatibleGravel.price || 3.5;
-                                      next.gravelAbsorption = compatibleGravel.absorption || 0;
-                                      next.moistureGravel = compatibleGravel.moisture || 0;
-                                      next.dMax = compatibleGravel.dMax !== undefined ? compatibleGravel.dMax : next.dMax;
-                                    }
-                                  }
-                                  if (cat === "ماء" && !next.selectedWaterId) {
-                                    const compatibleWater = materialsList.find(m => m.category === "ماء" && isApprovedAndActive(m) && activeConfig.isMaterialCompatible(m));
-                                    if (compatibleWater) {
-                                      next.selectedWaterId = compatibleWater.id;
-                                      next.waterType = compatibleWater.name;
-                                      next.priceWater = compatibleWater.price || 0.1;
-                                    }
-                                  }
-                                  if (cat === "إضافات معدنية" && !next.selectedScmId) {
-                                    const compatibleScm = materialsList.find(m => (m.category === "إضافات معدنية" || m.category === "مواد مالئة") && isApprovedAndActive(m) && activeConfig.isMaterialCompatible(m));
-                                    if (compatibleScm) {
-                                      next.selectedScmId = compatibleScm.id;
-                                      next.scmType = compatibleScm.name;
-                                      next.priceScm = compatibleScm.price || 5;
-                                      next.scmDensity = compatibleScm.density || 2200;
-                                    }
-                                  }
-                                  if (cat === "ألياف" && !next.selectedFiberId) {
-                                    const compatibleFiber = materialsList.find(m => m.category === "ألياف" && isApprovedAndActive(m) && activeConfig.isMaterialCompatible(m));
-                                    if (compatibleFiber) {
-                                      next.selectedFiberId = compatibleFiber.id;
-                                      next.fiberType = compatibleFiber.name;
-                                      next.priceFiber = compatibleFiber.price || 25;
-                                      next.fiberDensity = compatibleFiber.density || 7850;
-                                    }
-                                  }
-                                  if (cat === "مجلدات خاصة" && !next.selectedSpecialBinderId) {
-                                    const compatibleSB = materialsList.find(m => m.category === "مجلدات خاصة" && isApprovedAndActive(m) && activeConfig.isMaterialCompatible(m));
-                                    if (compatibleSB) {
-                                      next.selectedSpecialBinderId = compatibleSB.id;
-                                      next.specialBinderType = compatibleSB.name;
-                                      next.priceSpecialBinder = compatibleSB.price || 30;
-                                      next.specialBinderDensity = compatibleSB.density || 1400;
-                                    }
-                                  }
-                                });
-                              }
+                              // Changing the concrete type must never replace or invent a material selection.
+                              // The active material selectors and recommendation engine report what is missing.
 
                               return next;
                             });
@@ -6457,14 +6293,15 @@ export default function App() {
                       const currentConcrete = inputs.concreteType || "NSC";
 
                       // Get all materials matching the role so user can select and complete missing properties directly
-                      const cementList = getAvailableMaterialsForRole(materialsDatabase, "cement");
-                      const sandList = getAvailableMaterialsForRole(materialsDatabase, "sand");
-                      const gravelList = getAvailableMaterialsForRole(materialsDatabase, "gravel");
-                      const waterList = getAvailableMaterialsForRole(materialsDatabase, "water");
-                      const admixtureList = getAvailableMaterialsForRole(materialsDatabase, "admixture");
-                      const scmList = getAvailableMaterialsForRole(materialsDatabase, "scm");
-                      const fiberList = getAvailableMaterialsForRole(materialsDatabase, "fiber");
-                      const specialBinderList = getAvailableMaterialsForRole(materialsDatabase, "specialBinder");
+                      const materialFilterContext = [currentMethod, currentConcrete, activeProject] as const;
+                      const cementList = getAvailableMaterialsForRole(materialsDatabase, "cement", ...materialFilterContext);
+                      const sandList = getAvailableMaterialsForRole(materialsDatabase, "sand", ...materialFilterContext);
+                      const gravelList = getAvailableMaterialsForRole(materialsDatabase, "gravel", ...materialFilterContext);
+                      const waterList = getAvailableMaterialsForRole(materialsDatabase, "water", ...materialFilterContext);
+                      const admixtureList = getAvailableMaterialsForRole(materialsDatabase, "admixture", ...materialFilterContext);
+                      const scmList = getAvailableMaterialsForRole(materialsDatabase, "scm", ...materialFilterContext);
+                      const fiberList = getAvailableMaterialsForRole(materialsDatabase, "fiber", ...materialFilterContext);
+                      const specialBinderList = getAvailableMaterialsForRole(materialsDatabase, "specialBinder", ...materialFilterContext);
 
                       return (
                         <>
@@ -6474,6 +6311,15 @@ export default function App() {
                             materials={materialsDatabase}
                             activeProject={activeProject}
                             language={language}
+                          />
+                          <CalculationValidationGatePanel
+                            validation={validationGate}
+                            onNavigateToInputs={() => setActiveSidebarTab("calculator")}
+                            language={language}
+                            setActiveSidebarTab={setActiveSidebarTab}
+                            materialsDatabase={materialsDatabase}
+                            inputs={inputs}
+                            onOpenBatchModal={() => setIsBatchPropertiesModalOpen(true)}
                           />
 
                           {/* قسم حالة/تحقق المواد في مرحلة تحضير الخلطة */}
@@ -6677,15 +6523,19 @@ export default function App() {
                                         return;
                                       }
                                       const matchedMat = validation.material;
-                                      const dens = matchedMat ? (matchedMat.density || matchedMat.specificGravity || 0) : 0;
-                                      const price = matchedMat?.price || 2.5;
-                                      const abs = matchedMat ? (matchedMat.absorption !== undefined ? matchedMat.absorption : 0) : 0;
-                                      const moist = matchedMat ? (matchedMat.moisture !== undefined ? matchedMat.moisture : 0) : 0;
+                                      const dens = matchedMat?.density ?? matchedMat?.specificGravity;
+                                      const price = matchedMat?.price;
+                                      const abs = matchedMat?.absorption;
+                                      const moist = matchedMat?.moisture;
+                                      if (!matchedMat || typeof dens !== "number" || !Number.isFinite(dens) || dens <= 0 || typeof abs !== "number" || !Number.isFinite(abs) || abs < 0 || typeof moist !== "number" || !Number.isFinite(moist) || moist < 0 || typeof matchedMat.finenessModulus !== "number" || !Number.isFinite(matchedMat.finenessModulus)) {
+                                        alert(language === "ar" ? "لا يمكن اختيار هذا الرمل: الكثافة والامتصاص والرطوبة ومعامل النعومة يجب أن تكون مسجلة في مكتبة المواد." : "This sand cannot be selected: density, absorption, moisture, and fineness modulus must be recorded in the material library.");
+                                        return;
+                                      }
                                       setInputs(prev => ({
                                         ...prev,
                                         sandType: matchedMat ? matchedMat.name : prev.sandType,
                                         sandRelativeDensity: dens,
-                                        priceSand: price,
+                                        ...(price !== undefined ? { priceSand: price } : {}),
                                         sandAbsorption: abs,
                                         moistureSand: moist,
                                         finenessModulus: matchedMat?.finenessModulus || prev.finenessModulus,
@@ -6754,11 +6604,15 @@ export default function App() {
                                         return;
                                       }
                                       const matchedMat = validation.material;
-                                      const dens = matchedMat ? (matchedMat.density || matchedMat.specificGravity || 0) : 0;
-                                      const price = matchedMat?.price || 2.8;
-                                      const abs = matchedMat ? (matchedMat.absorption !== undefined ? matchedMat.absorption : 0) : 0;
-                                      const moist = matchedMat ? (matchedMat.moisture !== undefined ? matchedMat.moisture : 0) : 0;
-                                      const maxS = matchedMat?.dMax !== undefined ? matchedMat.dMax : inputs.dMax;
+                                      const dens = matchedMat?.density ?? matchedMat?.specificGravity;
+                                      const price = matchedMat?.price;
+                                      const abs = matchedMat?.absorption;
+                                      const moist = matchedMat?.moisture;
+                                      if (!matchedMat || typeof dens !== "number" || !Number.isFinite(dens) || dens <= 0 || typeof abs !== "number" || !Number.isFinite(abs) || abs < 0 || typeof moist !== "number" || !Number.isFinite(moist) || moist < 0 || typeof matchedMat.dMax !== "number" || !Number.isFinite(matchedMat.dMax) || matchedMat.dMax <= 0) {
+                                        alert(language === "ar" ? "لا يمكن اختيار هذا الركام: الكثافة والامتصاص والرطوبة وDmax يجب أن تكون مسجلة في مكتبة المواد." : "This aggregate cannot be selected: density, absorption, moisture, and Dmax must be recorded in the material library.");
+                                        return;
+                                      }
+                                      const maxS = matchedMat.dMax;
                                       const shape = matchedMat?.particleShape === "مكسر" || matchedMat?.particleShape === "زاوي" ? AggregateType.CONCASSE : AggregateType.ROULE;
                                       
                                       let qualityVal = AggregateQuality.STANDARD;
@@ -6791,7 +6645,7 @@ export default function App() {
                                         ...prev,
                                         gravelType: matchedMat ? matchedMat.name : prev.gravelType,
                                         gravelRelativeDensity: dens,
-                                        priceGravel: price,
+                                        ...(price !== undefined ? { priceGravel: price } : {}),
                                         gravelAbsorption: abs,
                                         moistureGravel: moist,
                                         dMax: maxS,
@@ -6974,7 +6828,11 @@ export default function App() {
                                           }
                                           const matchedMat = validation.material;
                                           if (matchedMat) {
-                                            const recDos = matchedMat.recommendedDosage || 1.0;
+                                            const recDos = matchedMat.recommendedDosage;
+                                            if (typeof recDos !== "number" || !Number.isFinite(recDos) || recDos <= 0) {
+                                              alert(language === "ar" ? "لا يمكن اختيار هذه المادة: الجرعة الموصى بها غير مسجلة في مكتبة المواد." : "This material cannot be selected: its recommended dosage is missing from the material library.");
+                                              return;
+                                            }
                                             let dosSuper = 0;
                                             let dosAir = 0;
                                             let dosRetarder = 0;
@@ -6992,10 +6850,10 @@ export default function App() {
                                               dosageAir: dosAir || prev.dosageAir,
                                               dosageRetarder: dosRetarder || prev.dosageRetarder,
                                               dosageAccelerator: dosAcc || prev.dosageAccelerator,
-                                              priceSuper: matchedMat.admixtureType === "superplasticizer" ? (matchedMat.price || prev.priceSuper) : prev.priceSuper,
-                                              priceAir: matchedMat.admixtureType === "air_entraining" ? (matchedMat.price || prev.priceAir) : prev.priceAir,
-                                              priceRetarder: matchedMat.admixtureType === "retarder" ? (matchedMat.price || prev.priceRetarder) : prev.priceRetarder,
-                                              priceAccelerator: matchedMat.admixtureType === "accelerator" ? (matchedMat.price || prev.priceAccelerator) : prev.priceAccelerator
+                                              priceSuper: matchedMat.admixtureType === "superplasticizer" ? (matchedMat.price ?? prev.priceSuper) : prev.priceSuper,
+                                              priceAir: matchedMat.admixtureType === "air_entraining" ? (matchedMat.price ?? prev.priceAir) : prev.priceAir,
+                                              priceRetarder: matchedMat.admixtureType === "retarder" ? (matchedMat.price ?? prev.priceRetarder) : prev.priceRetarder,
+                                              priceAccelerator: matchedMat.admixtureType === "accelerator" ? (matchedMat.price ?? prev.priceAccelerator) : prev.priceAccelerator
                                             }));
                                           }
                                         }}
@@ -7050,9 +6908,13 @@ export default function App() {
                                           }
                                           const matchedMat = validation.material;
                                           if (matchedMat) {
-                                            const dens = matchedMat.density || 2200;
-                                            const recDos = matchedMat.recommendedDosage || 15;
-                                            const price = matchedMat.price || 0;
+                                            const dens = matchedMat.density;
+                                            const recDos = matchedMat.recommendedDosage;
+                                            if (typeof dens !== "number" || !Number.isFinite(dens) || dens <= 0 || typeof recDos !== "number" || !Number.isFinite(recDos) || recDos <= 0) {
+                                              alert(language === "ar" ? "لا يمكن اختيار هذه المادة: الكثافة والجرعة الموصى بها يجب أن تكونا مسجلتين في مكتبة المواد." : "This material cannot be selected: density and recommended dosage must be recorded in the material library.");
+                                              return;
+                                            }
+                                            const price = matchedMat.price;
                                             
                                             const scmNameLower = (matchedMat.name || "").toLowerCase();
                                             const scmEngLower = (matchedMat.englishName || "").toLowerCase();
@@ -7069,9 +6931,9 @@ export default function App() {
                                               dosageSilicaFume: isSilica ? recDos : prev.dosageSilicaFume,
                                               dosageFlyAsh: isFlyAsh ? recDos : prev.dosageFlyAsh,
                                               dosageSlag: isSlag ? recDos : prev.dosageSlag,
-                                              priceSilicaFume: isSilica ? (price || prev.priceSilicaFume) : prev.priceSilicaFume,
-                                              priceFlyAsh: isFlyAsh ? (price || prev.priceFlyAsh) : prev.priceFlyAsh,
-                                              priceSlag: isSlag ? (price || prev.priceSlag) : prev.priceSlag
+                                              priceSilicaFume: isSilica ? (price ?? prev.priceSilicaFume) : prev.priceSilicaFume,
+                                              priceFlyAsh: isFlyAsh ? (price ?? prev.priceFlyAsh) : prev.priceFlyAsh,
+                                              priceSlag: isSlag ? (price ?? prev.priceSlag) : prev.priceSlag
                                             }));
                                           }
                                         }}
@@ -7125,10 +6987,18 @@ export default function App() {
                                           }
                                           const matchedMat = validation.material;
                                           if (matchedMat) {
-                                            const dens = matchedMat.density || 7850;
-                                            const recDos = matchedMat.recommendedDosage || (matchedMat as any).fiberDosageKgM3 || 25;
-                                            const price = matchedMat.price || 250;
-                                            const fType = matchedMat.fiberType || (matchedMat as any).type || "steel";
+                                            const dens = matchedMat.density;
+                                            const recDos = (matchedMat as any).fiberDosageKgM3 ?? matchedMat.recommendedDosage;
+                                            if (typeof dens !== "number" || !Number.isFinite(dens) || dens <= 0 || typeof recDos !== "number" || !Number.isFinite(recDos) || recDos <= 0) {
+                                              alert(language === "ar" ? "لا يمكن اختيار هذه المادة: كثافة الألياف وجرعتها يجب أن تكونا مسجلتين في مكتبة المواد." : "This material cannot be selected: fiber density and dosage must be recorded in the material library.");
+                                              return;
+                                            }
+                                            const price = matchedMat.price;
+                                            const fType = matchedMat.fiberType ?? (matchedMat as any).type;
+                                            if (!fType) {
+                                              alert(language === "ar" ? "لا يمكن اختيار هذه المادة: نوع الألياف غير مسجل في مكتبة المواد." : "This material cannot be selected: fiber type is missing from the material library.");
+                                              return;
+                                            }
 
                                             setInputs(prev => ({
                                               ...prev,
@@ -7136,7 +7006,7 @@ export default function App() {
                                               selectedFiberName: matchedMat.name,
                                               fiberDensity: dens,
                                               fiberDosageKgM3: recDos,
-                                              priceFiber: price,
+                                              ...(price !== undefined ? { priceFiber: price } : {}),
                                               fiberType: fType,
                                               concreteType: prev.concreteType === "NSC" ? "FRC" : prev.concreteType
                                             }));
@@ -7191,14 +7061,18 @@ export default function App() {
                                           }
                                           const matchedMat = validation.material;
                                           if (matchedMat) {
-                                            const dens = matchedMat.density || 2900;
-                                            const price = matchedMat.price || 35;
+                                            const dens = matchedMat.density ?? matchedMat.specificGravity;
+                                            if (typeof dens !== "number" || !Number.isFinite(dens) || dens <= 0) {
+                                              alert(language === "ar" ? "لا يمكن اختيار هذا الرابط: كثافته غير مسجلة في مكتبة المواد." : "This binder cannot be selected: its density is missing from the material library.");
+                                              return;
+                                            }
+                                            const price = matchedMat.price;
                                             setInputs(prev => ({
                                               ...prev,
                                               selectedSpecialBinderId: selectedId,
                                               selectedSpecialBinderName: matchedMat.name,
                                               specialBinderDensity: dens,
-                                              priceSpecialBinder: price,
+                                              ...(price !== undefined ? { priceSpecialBinder: price } : {}),
                                               concreteType: matchedMat.name?.includes("جيوبوليمر") || matchedMat.name?.includes("Geopolymer") ? "GPC" : prev.concreteType
                                             }));
                                           }

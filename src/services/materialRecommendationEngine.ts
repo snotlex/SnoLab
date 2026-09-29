@@ -37,6 +37,39 @@ export type { MaterialCompatibilityResult };
 import { isMaterialEligible, MaterialEligibilityResult } from "./materialEligibilityService";
 import { isUserMaterial } from "../engine/suitabilityGate";
 
+export interface MaterialRecommendationScore {
+  materialId: string;
+  role: string;
+  score: number;
+  status: "recommended" | "conditional" | "incompatible" | "insufficient_data";
+  reasons: string[];
+  missingProperties: string[];
+  failedRules: string[];
+}
+
+export function toMaterialRecommendationScore(result: MaterialCompatibilityResult): MaterialRecommendationScore {
+  const eligibility = result.eligibility;
+  const status: MaterialRecommendationScore["status"] = eligibility.incompatibleWithConcreteType
+    ? "incompatible"
+    : eligibility.missingProperties.length > 0 || eligibility.invalidProperties.length > 0
+      ? "insufficient_data"
+      : result.tier === "recommended" && eligibility.eligible
+        ? "recommended"
+        : "conditional";
+  return {
+    materialId: result.material.id,
+    role: result.role,
+    score: result.compatibilityScore,
+    status,
+    reasons: [result.justificationAr, ...result.warnings].filter(Boolean),
+    missingProperties: [...eligibility.missingProperties],
+    failedRules: [
+      ...(eligibility.invalidProperties || []).map(property => property.key),
+      ...(eligibility.incompatibleWithConcreteType ? ["CONCRETE_TYPE_COMPATIBILITY"] : [])
+    ]
+  };
+}
+
 // ============================================================================
 // TYPES & INTERFACES
 // ============================================================================
@@ -169,20 +202,29 @@ export function buildRecommendedDosagePlan(
   };
   const scm = result.recommendedSet.scm;
   if (scm) {
-    const max = Number(scm.maxReplacementPercent || 15);
-    const replacementPercent = type === "UHPC" || type === "BFUP" ? Math.min(15, max) : type === "HSC" || type === "HPC" ? Math.min(10, max) : Math.min(20, max);
-    plan.mineralAdmixture = { materialId: scm.id, materialName: scm.name, replacementPercent, replacementRange: [Math.max(0, replacementPercent - 3), replacementPercent + 3 <= max ? replacementPercent + 3 : max] };
+    const max = Number(scm.maxReplacementPercent);
+    if (Number.isFinite(max) && max > 0) {
+      const replacementPercent = type === "UHPC" || type === "BFUP" ? Math.min(15, max) : type === "HSC" || type === "HPC" ? Math.min(10, max) : Math.min(20, max);
+      plan.mineralAdmixture = { materialId: scm.id, materialName: scm.name, replacementPercent, replacementRange: [Math.max(0, replacementPercent - 3), replacementPercent + 3 <= max ? replacementPercent + 3 : max] };
+    } else {
+      warnings.push(`لا يمكن تحديد جرعة ${scm.name} لأن الحد الأقصى للاستبدال غير مسجل في مكتبة المواد.`);
+    }
   }
   const admixture = result.recommendedSet.admixture;
   if (admixture) {
-    const max = Number(admixture.recommendedDosage || 2);
-    const dosagePercent = Math.min(max, type === "SCC" || type === "UHPC" || type === "BFUP" ? max : Math.min(1.0, max));
-    plan.chemicalAdmixture = { materialId: admixture.id, materialName: admixture.name, dosagePercent, dosageRange: [Math.max(0.1, dosagePercent * 0.7), max] };
+    const max = Number(admixture.recommendedDosage);
+    if (Number.isFinite(max) && max > 0) {
+      const dosagePercent = Math.min(max, type === "SCC" || type === "UHPC" || type === "BFUP" ? max : Math.min(1.0, max));
+      plan.chemicalAdmixture = { materialId: admixture.id, materialName: admixture.name, dosagePercent, dosageRange: [Math.max(0.1, dosagePercent * 0.7), max] };
+    } else {
+      warnings.push(`لا يمكن تحديد جرعة ${admixture.name} لأن الجرعة الموصى بها غير مسجلة في مكتبة المواد.`);
+    }
   }
   const fiber = result.recommendedSet.fiber;
   if (fiber || type === "FRC") {
-    if (fiber) plan.fiber = { materialId: fiber.id, materialName: fiber.name, dosageKgM3: Number(fiber.fiberDosageKgM3 || 25), dosageRange: [15, 40] };
-    else warnings.push("نوع الخرسانة يتطلب أليافًا، لكن لا توجد ألياف مكتملة ومؤهلة في قاعدة المواد.");
+    const dosage = fiber ? Number((fiber as any).fiberDosageKgM3) : Number.NaN;
+    if (fiber && Number.isFinite(dosage) && dosage > 0) plan.fiber = { materialId: fiber.id, materialName: fiber.name, dosageKgM3: dosage, dosageRange: [dosage * 0.6, dosage * 1.4] };
+    else warnings.push(fiber ? `لا يمكن تحديد جرعة ${fiber.name} لأن جرعة الألياف غير مسجلة في مكتبة المواد.` : "نوع الخرسانة يتطلب أليافًا، لكن لا توجد ألياف مكتملة ومؤهلة في قاعدة المواد.");
   }
   if (inputs.slumpCm !== undefined && inputs.slumpCm >= 18 && !plan.chemicalAdmixture) warnings.push("الهطول مرتفع؛ يوصى بتوفير ملدن فائق مؤهل قبل قبول الخلطة.");
   return plan;
@@ -747,8 +789,9 @@ export function applyRecommendedMaterialToInputs(
   material: EngineeringMaterial
 ): MixDesignInput {
   const updated: MixDesignInput = { ...prevInputs };
-  const dens = material.density || material.specificGravity || 0;
-  const price = material.price || 0;
+  const rawDensity = material.density ?? material.Density ?? material.specificGravity ?? material.SpecificGravity;
+  const dens = typeof rawDensity === "number" && Number.isFinite(rawDensity) && rawDensity > 0 ? rawDensity : undefined;
+  const price = typeof material.price === "number" && Number.isFinite(material.price) && material.price > 0 ? material.price : undefined;
   const abs = material.absorption !== undefined ? material.absorption : undefined;
   const moist = material.moisture !== undefined ? material.moisture : undefined;
 
@@ -758,26 +801,26 @@ export function applyRecommendedMaterialToInputs(
       const strClass = !isNaN(Number(parsedStr)) ? parsedStr : prevInputs.cementClassStrength;
       updated.selectedCementId = material.id;
       updated.cementType = material.name;
-      if (dens > 0) {
+      if (dens !== undefined) {
         updated.cementDensity = dens > 1000 ? dens : dens * 1000;
       }
       if (strClass !== undefined) {
         updated.cementClassStrength = strClass;
       }
-      if (price > 0) updated.priceCement = price;
+      if (price !== undefined) updated.priceCement = price;
       break;
     }
 
     case "sand": {
       updated.selectedSandId = material.id;
       updated.sandType = material.name;
-      if (dens > 0) {
+      if (dens !== undefined) {
         updated.sandRelativeDensity = dens > 10 ? dens / 1000 : dens;
       }
       if (abs !== undefined) updated.sandAbsorption = abs;
       if (moist !== undefined) updated.moistureSand = moist;
       if (material.finenessModulus) updated.finenessModulus = material.finenessModulus;
-      if (price > 0) updated.priceSand = price;
+      if (price !== undefined) updated.priceSand = price;
       break;
     }
 
@@ -805,7 +848,7 @@ export function applyRecommendedMaterialToInputs(
 
       updated.selectedGravelId = material.id;
       updated.gravelType = material.name;
-      if (dens > 0) {
+      if (dens !== undefined) {
         updated.gravelRelativeDensity = dens > 10 ? dens / 1000 : dens;
       }
       if (abs !== undefined) updated.gravelAbsorption = abs;
@@ -813,7 +856,7 @@ export function applyRecommendedMaterialToInputs(
       if (material.dMax) updated.dMax = material.dMax;
       updated.aggregateType = shape;
       updated.aggregateQuality = qualityVal;
-      if (price > 0) updated.priceGravel = price;
+      if (price !== undefined) updated.priceGravel = price;
       break;
     }
 
@@ -829,7 +872,7 @@ export function applyRecommendedMaterialToInputs(
       if (chloride !== undefined) updated.selectedWaterChlorideContent = chloride;
       if (sulphate !== undefined) updated.selectedWaterSulphateContent = sulphate;
       if (temp !== undefined) updated.selectedWaterTemperature = temp;
-      if (price > 0) updated.priceWater = price;
+      if (price !== undefined) updated.priceWater = price;
       break;
     }
 
@@ -837,23 +880,23 @@ export function applyRecommendedMaterialToInputs(
       const wr = material.waterReduction;
       updated.selectedAdmixtureId = material.id;
       updated.selectedAdmixtureName = material.name;
-      if (dens > 0) {
+      if (dens !== undefined) {
         updated.selectedAdmixtureDensity = dens > 10 ? dens / 1000 : dens;
       }
       if (wr !== undefined) {
         updated.selectedAdmixtureWaterReduction = wr;
       }
-      if (price > 0) updated.priceSuper = price;
+      if (price !== undefined) updated.priceSuper = price;
       break;
     }
 
     case "scm": {
       updated.selectedScmId = material.id;
       updated.selectedScmName = material.name;
-      if (dens > 0) {
+      if (dens !== undefined) {
         updated.selectedScmDensity = dens > 100 ? dens : dens * 1000;
       }
-      if (price > 0) updated.priceSilicaFume = price;
+      if (price !== undefined) updated.priceSilicaFume = price;
       break;
     }
 
@@ -861,28 +904,28 @@ export function applyRecommendedMaterialToInputs(
       updated.selectedFiberId = material.id;
       updated.selectedFiberName = material.name;
       if (material.fiberType) updated.fiberType = material.fiberType;
-      if (dens > 0) {
+      if (dens !== undefined) {
         updated.fiberDensity = dens > 100 ? dens : dens * 1000;
       }
       if ((material as any).tensileStrength) updated.fiberTensileStrengthMPa = (material as any).tensileStrength;
-      if (price > 0) updated.priceFiber = price;
+      if (price !== undefined) updated.priceFiber = price;
       break;
     }
 
     case "specialBinder": {
       updated.selectedSpecialBinderId = material.id;
       updated.selectedSpecialBinderName = material.name;
-      if (dens > 0) {
+      if (dens !== undefined) {
         updated.specialBinderDensity = dens > 100 ? dens : dens * 1000;
       }
-      if (price > 0) updated.priceSpecialBinder = price;
+      if (price !== undefined) updated.priceSpecialBinder = price;
       break;
     }
 
     case "lightweightAggregate": {
       updated.selectedLightweightAggregateId = material.id;
       updated.selectedLightweightAggregateName = material.name;
-      if (dens > 0) updated.lightweightAggregateDensity = dens;
+      if (dens !== undefined) updated.lightweightAggregateDensity = dens;
       if (abs !== undefined) updated.lightweightAggregateAbsorption = abs;
       if (moist !== undefined) updated.lightweightAggregateMoisture = moist;
       break;
@@ -891,7 +934,7 @@ export function applyRecommendedMaterialToInputs(
     case "heavyweightAggregate": {
       updated.selectedHeavyweightAggregateId = material.id;
       updated.selectedHeavyweightAggregateName = material.name;
-      if (dens > 0) updated.heavyweightAggregateDensity = dens;
+      if (dens !== undefined) updated.heavyweightAggregateDensity = dens;
       if (abs !== undefined) updated.heavyweightAggregateAbsorption = abs;
       if (moist !== undefined) updated.heavyweightAggregateMoisture = moist;
       break;
