@@ -58,6 +58,7 @@ import { evaluateEngineeringGate } from "./services/engineeringVerificationEngin
 import { SnoLabLogo } from "./components/SnoLabLogo";
 import { STRUCTURAL_ELEMENTS, getStructuralElementById } from "./data/structuralElements";
 import { getMaterialBundle } from "./data/materialLibraryExpansion";
+import { SEEDED_MATERIALS } from "./data/seededMaterials";
 import { useProjectStorage } from "./services/storage/ProjectContext";
 import { useProjectWorkflow, ProjectStageNumber } from "./services/workflow/ProjectWorkflowController";
 import { ProjectTopBarControls } from "./components/ProjectTopBarControls";
@@ -552,6 +553,16 @@ export const enrichMaterials = (mats: EngineeringMaterial[]): EngineeringMateria
   return enriched;
 };
 
+/** Keep the built-in system catalogue visible even when an older local database exists. */
+const mergeSeededMaterials = (stored: EngineeringMaterial[], deletedMap: Record<string, number> = {}) => {
+  const existing = enrichMaterials(stored);
+  const existingIds = new Set(existing.map(material => material.id));
+  const seeded = enrichMaterials(SEEDED_MATERIALS).filter(material => {
+    return !existingIds.has(material.id) && deletedMap[material.id] === undefined;
+  });
+  return [...existing, ...seeded];
+};
+
 export default function App() {
   const { language, setLanguage, t, isRtl, dir } = useLanguage();
   const {
@@ -722,9 +733,9 @@ export default function App() {
   }, [materialTestRecords]);
 
   const [materialsDatabase, setMaterialsDatabase] = useState<EngineeringMaterial[]>(() => {
+    let deletedMap: Record<string, number> = {};
     try {
       const saved = localStorage.getItem("mixwizard_materials_db");
-      let deletedMap: Record<string, number> = {};
       try {
         const savedDel = localStorage.getItem("mixwizard_deleted_materials");
         if (savedDel) {
@@ -736,7 +747,7 @@ export default function App() {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          return enrichMaterials(parsed).filter(m => {
+          return mergeSeededMaterials(parsed, deletedMap).filter(m => {
             const delTime = deletedMap[m.id];
             if (delTime !== undefined) {
               const updatedAt = m.updatedAt ? (typeof m.updatedAt === "number" ? m.updatedAt : new Date(m.updatedAt).getTime()) : 0;
@@ -751,7 +762,7 @@ export default function App() {
     } catch (e) {
       console.error("Failed to parse materials database from localStorage", e);
     }
-    return []; // Start completely empty
+    return mergeSeededMaterials([], deletedMap);
   });
 
   // Listen for external sidebar tab switches (from diagnostics or alerts)
@@ -897,7 +908,7 @@ export default function App() {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          const filtered = enrichMaterials(parsed).filter(m => {
+          const filtered = mergeSeededMaterials(parsed, Object.fromEntries(deletedMaterialIdsRef.current)).filter(m => {
             const delTime = deletedMaterialIdsRef.current.get(m.id);
             if (delTime !== undefined) {
               const updatedAt = m.updatedAt ? (typeof m.updatedAt === "number" ? m.updatedAt : new Date(m.updatedAt).getTime()) : 0;
@@ -912,7 +923,7 @@ export default function App() {
     } catch (e) {
       console.error("Failed to parse materials database from localStorage", e);
     }
-    setMaterialsDatabase([]);
+    setMaterialsDatabase(mergeSeededMaterials([], Object.fromEntries(deletedMaterialIdsRef.current)));
   }, []);
 
   // Handle addition, editing, duplication, and archiving/deleting of materials

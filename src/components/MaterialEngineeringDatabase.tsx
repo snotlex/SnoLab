@@ -406,7 +406,7 @@ export function MaterialEngineeringDatabase({
   };
   
   // Tab state: "system" vs "user"
-  const [activeSourceTab, setActiveSourceTab] = useState<"system" | "user">("user");
+  const [activeSourceTab, setActiveSourceTab] = useState<"system" | "user">("system");
 
   // Filter states for System Materials
   const [systemSearchQuery, setSystemSearchQuery] = useState(() => {
