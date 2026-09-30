@@ -563,6 +563,36 @@ export interface MethodApplicability {
   recommendations: string[];
 }
 
+export type MaterialBatchStatus = "قيد الفحص" | "مقبولة" | "مقبولة بشروط" | "مرفوضة" | "مؤرشفة";
+
+export interface MaterialBatchRecord {
+  id: string;
+  materialId: string;
+  batchNumber: string;
+  supplierName?: string;
+  supplierContact?: string;
+  quarryName?: string;
+  sourceLocation?: string;
+  receivedDate?: string;
+  sampledDate?: string;
+  expiryDate?: string;
+  quantity?: number;
+  quantityUnit?: "kg" | "ton" | "m³" | "L";
+  status: MaterialBatchStatus;
+  moisture?: number;
+  absorption?: number;
+  ssdDensity?: number;
+  propertyOverrides?: Record<string, any>;
+  laboratoryTestIds?: string[];
+  lastValidatedTestId?: string;
+  validationDate?: string;
+  approvedBy?: string;
+  approvalNotes?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface EngineeringMaterial {
   id: string; // Material ID
   name: string; // Material Name Arabic
@@ -630,6 +660,9 @@ export interface EngineeringMaterial {
   admixtureType?: "superplasticizer" | "plasticizer" | "retarder" | "accelerator" | "air_entraining" | "silica_fume" | "fly_ash" | "slag" | "custom" | string;
   recommendedDosage?: number; // recommended dosage (% of cement weight)
   waterReduction?: number; // reduction capabilities (%)
+  healingAgentDosageKgM3?: number; // self-healing agent dosage used by the SHC specialized method
+  healingAgentDensityKgM3?: number; // validated density of the self-healing agent
+  healingAgentType?: string; // crystalline, bacterial capsules, mineral, or project-specific mechanism
   settingModification?: "تسريع" | "تأخير" | "تعديل المسامات" | "لا يوجد" | string; // setting effect
   settingTimeImpact?: number; // Setting time impact in minutes (+ for delay, - for acceleration)
   compatibilityNotes?: string; // Compatibility warning
@@ -755,6 +788,9 @@ export interface EngineeringMaterial {
   propertySources?: Record<string, any>; // maps propertyKey -> MaterialPropertySource
   propertyHistory?: Record<string, any[]>; // maps propertyKey -> MaterialPropertyHistoryEntry[]
   laboratoryTests?: string[]; // IDs of laboratory tests linked to this material
+  materialBatches?: MaterialBatchRecord[];
+  activeBatchId?: string;
+  latestValidatedBatchId?: string;
   sieveAnalysisDetail?: any; // GranulometricCurveData
   foisonnement?: number; // % foisonnement (bulking factor)
   microDeval?: number; // % MDE coefficient

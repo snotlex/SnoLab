@@ -57,6 +57,7 @@ import { inspectMixMaterialProperties } from "./services/materialPropertySchema"
 import { evaluateEngineeringGate } from "./services/engineeringVerificationEngine";
 import { SnoLabLogo } from "./components/SnoLabLogo";
 import { STRUCTURAL_ELEMENTS, getStructuralElementById } from "./data/structuralElements";
+import { getMaterialBundle } from "./data/materialLibraryExpansion";
 import { useProjectStorage } from "./services/storage/ProjectContext";
 import { useProjectWorkflow, ProjectStageNumber } from "./services/workflow/ProjectWorkflowController";
 import { ProjectTopBarControls } from "./components/ProjectTopBarControls";
@@ -2596,7 +2597,8 @@ export default function App() {
       ...inputs,
       currentProject,
       currentClient,
-      currentPlant
+      currentPlant,
+      materialsDatabase
     }, results, language);
   }, [inputs, results, language, currentProject, currentClient, currentPlant]);
 
@@ -5961,6 +5963,41 @@ export default function App() {
                           <option value="UHPC">{t("type_UHPC")}</option>
                           <option value="BFUP">{t("type_BFUP")}</option>
                         </select>
+
+                        {(() => {
+                          const bundle = getMaterialBundle(String(inputs.concreteType || "NSC"));
+                          if (bundle.length === 0) return null;
+                          const categoryOf = (material: any) => String(material.category || material.type || "");
+                          const applyBundle = () => {
+                            const next: any = {};
+                            const pick = (predicate: (material: any) => boolean) => bundle.find(predicate);
+                            const cement = pick(material => categoryOf(material).includes("إسمنت"));
+                            const sand = pick(material => categoryOf(material).includes("رمال"));
+                            const gravel = pick(material => categoryOf(material).includes("حصى"));
+                            const admixture = pick(material => categoryOf(material).includes("إضافات كيميائية"));
+                            const scm = pick(material => categoryOf(material).includes("إضافات معدنية"));
+                            const fiber = pick(material => categoryOf(material).includes("ألياف"));
+                            if (cement) Object.assign(next, { selectedCementId: cement.id, cementType: cement.cementClass || cement.name, cementDensity: cement.density, cementClassStrength: Number(cement.strengthClass) || inputs.cementClassStrength });
+                            if (sand) Object.assign(next, { selectedSandId: sand.id, sandType: sand.name, sandRelativeDensity: sand.specificGravity || ((sand.density || 0) / 1000), finenessModulus: sand.finenessModulus, sandAbsorption: sand.absorption, moistureSand: sand.moisture });
+                            if (gravel) Object.assign(next, { selectedGravelId: gravel.id, gravelType: gravel.name, gravelRelativeDensity: gravel.specificGravity || ((gravel.density || 0) / 1000), dMax: gravel.dMax, gravelAbsorption: gravel.absorption, moistureGravel: gravel.moisture });
+                            if (admixture) Object.assign(next, { selectedAdmixtureId: admixture.id, selectedAdmixtureName: admixture.name, selectedAdmixtureDensity: admixture.density, selectedAdmixtureWaterReduction: admixture.waterReduction });
+                            if (scm) Object.assign(next, { selectedScmId: scm.id });
+                            if (fiber) Object.assign(next, { selectedFiberId: fiber.id, selectedFiberName: fiber.name });
+                            setInputs(prev => ({ ...prev, ...next }));
+                          };
+                          return (
+                            <div className="mt-3 p-3 rounded-lg border border-indigo-500/20 bg-indigo-500/5 space-y-2 text-right">
+                              <div className="flex items-center justify-between gap-2">
+                                <button type="button" onClick={applyBundle} className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-black">{language === "ar" ? "تطبيق الحزمة على الخلطة" : "Apply bundle to mix"}</button>
+                                <div className="text-[11px] font-black text-indigo-700 dark:text-indigo-300">{language === "ar" ? "حزمة مواد مقترحة لهذا النوع" : "Recommended material bundle"}</div>
+                              </div>
+                              <div className="flex flex-wrap gap-1.5 justify-end">
+                                {bundle.map(material => <span key={material.id} className="px-2 py-1 rounded-full bg-white/80 dark:bg-slate-950/60 border border-indigo-500/10 text-[9px] text-slate-600 dark:text-slate-300">{material.name}</span>)}
+                              </div>
+                              <p className="text-[9px] text-slate-500">{language === "ar" ? "الحزمة لا تستبدل الاختيارات تلقائياً؛ راجع الدفعات ونتائج المختبر قبل الاعتماد." : "The bundle does not silently replace selections; review batches and laboratory results before approval."}</p>
+                            </div>
+                          );
+                        })()}
 
                         {(() => {
                           const contract = getMixDesignContract(String(inputs.concreteType || "NSC").toUpperCase());

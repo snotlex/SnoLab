@@ -114,6 +114,10 @@ const LOCALIZED_MESSAGES: Record<"ar" | "fr" | "en", Record<string, { title: str
       title: "لا يمكن حساب الخلطة قبل إدخال مواد المشروع في مستودع المواد وتفعيلها.",
       action: "الإجراء المقترح: أدخل مواد المشروع أولًا في مستودع المواد: الإسمنت، الرمل، الحصى، ومياه الخلط. لا يمكن تشغيل الحساب قبل إدخال الخصائص الحقيقية للمواد."
     },
+    material_batch_invalid: {
+      title: "دفعة مادة الموقع غير صالحة أو تفتقد خصائص ضرورية للحساب.",
+      action: "الإجراء المقترح: راجع رقم الدفعة، حالة القبول، الرطوبة، الامتصاص وكثافة SSD، ثم اعتمد نتائج المختبر قبل إصدار الخلطة."
+    },
     material_diagnostic_only: {
       title: "الحساب هندسي تشخيصي وتجريبي فقط بسبب عدم تحديد مواد أساسية معتمدة من مستودع المواد.",
       action: "الإجراء المقترح: يرجى الانتقال إلى خطوة اختيار المواد وتعيين الإسمنت، الرمل، الحصى، والماء من المستودع لتفعيل اعتماد التصميم وحفظ التقرير."
@@ -259,6 +263,10 @@ const LOCALIZED_MESSAGES: Record<"ar" | "fr" | "en", Record<string, { title: str
     material_blocked: {
       title: "The report cannot be generated because unapproved, rejected, or inactive materials are used in the mix.",
       action: "Recommended Action: Review the materials repository and assign approved, active basic constituents to this formulation."
+    },
+    material_batch_invalid: {
+      title: "The selected site material batch is invalid or lacks required calculation properties.",
+      action: "Recommended Action: Review the lot status, moisture, absorption and SSD density, then approve laboratory results before issuing the mix."
     },
     material_diagnostic_only: {
       title: "Calculation is diagnostic and experimental only because approved basic materials have not been selected from the repository.",
@@ -406,6 +414,10 @@ const LOCALIZED_MESSAGES: Record<"ar" | "fr" | "en", Record<string, { title: str
       title: "Le rapport ne peut pas être généré car des matériaux non approuvés, rejetés ou inactifs sont utilisés.",
       action: "Action recommandée : Veuillez revoir le référentiel des matériaux et sélectionner des composants approuvés et actifs."
     },
+    material_batch_invalid: {
+      title: "Le lot de matériau du chantier est invalide ou incomplet pour le calcul.",
+      action: "Action recommandée : Vérifiez le statut du lot, l'humidité, l'absorption et la masse SSD avant d'approuver les résultats du laboratoire."
+    },
     material_diagnostic_only: {
       title: "Les calculs sont uniquement diagnostiques et expérimentaux car aucun matériau de base approuvé n'a été sélectionné.",
       action: "Action recommandée : Veuillez associer un ciment, un sable, un gravier et de l'eau issus du référentiel des matériaux approuvés pour activer la validation et sauvegarder le rapport."
@@ -465,21 +477,24 @@ const resolveWarningMessage = (warn: string, lang: "ar" | "fr" | "en") => {
       cement_low: "كمية الإسمنت منخفضة وقد لا تحقق المتانة المطلوبة.",
       cement_high: "كمية الإسمنت مرتفعة وقد تسبب حرارة إماهة عالية أو انكماشاً.",
       granular_optimization_not_approved: "تحسين التدرج الحبيبي لم يُعتمد بعد؛ تم الحساب باستخدام تدرج المواد أو نقطة Dreux الاحتياطية.",
-      moisture_water_surface_exceeds_batch_water: "مياه السطح الحرة الناتجة من رطوبة الركام مرتفعة بالنسبة لماء الدفعة؛ تمت مراجعة التصحيح بدل حظر الحساب آليًا."
+      moisture_water_surface_exceeds_batch_water: "مياه السطح الحرة الناتجة من رطوبة الركام مرتفعة بالنسبة لماء الدفعة؛ تمت مراجعة التصحيح بدل حظر الحساب آليًا.",
+      material_batch_pending: "توجد دفعة موقع قيد الفحص أو مادة مختارة بلا دفعة معتمدة؛ الحساب مرجعي ويحتاج اعتماد المختبر قبل التنفيذ."
     },
     en: {
       wc_high: "The W/C ratio is high and could affect compressive strength and durability.",
       cement_low: "Low cement dosage may not achieve sufficient structural durability.",
       cement_high: "High cement dosage is flagged; potential risk of mass thermal cracks or shrinkage.",
       granular_optimization_not_approved: "Granular optimization is not approved yet; calculation can still use material grading or the Dreux fallback.",
-      moisture_water_surface_exceeds_batch_water: "Aggregate free surface water is high relative to batch water; moisture correction was flagged for review rather than blocking calculation."
+      moisture_water_surface_exceeds_batch_water: "Aggregate free surface water is high relative to batch water; moisture correction was flagged for review rather than blocking calculation.",
+      material_batch_pending: "A site batch is pending testing or a selected material has no approved batch; the calculation remains reference-based until laboratory approval."
     },
     fr: {
       wc_high: "Le rapport E/C est élevé, ce qui pourrait compromettre la résistance et la durabilité.",
       cement_low: "Le dosage en ciment est faible et pourrait ne pas garantir la durabilité requise.",
       cement_high: "Dosage élevé en ciment ; risque d'élévation thermique ou de retrait fissurant.",
       granular_optimization_not_approved: "L'optimisation granulaire n'est pas encore approuvée ; le calcul peut utiliser la granulométrie réelle des matériaux ou le fallback Dreux.",
-      moisture_water_surface_exceeds_batch_water: "L'eau libre de surface des granulats est élevée par rapport à l'eau de gâchage ; la correction d'humidité est signalée pour revue sans bloquer automatiquement."
+      moisture_water_surface_exceeds_batch_water: "L'eau libre de surface des granulats est élevée par rapport à l'eau de gâchage ; la correction d'humidité est signalée pour revue sans bloquer automatiquement.",
+      material_batch_pending: "Un lot de chantier est en attente d'essai ou un matériau n'a pas de lot approuvé ; le calcul reste basé sur la référence jusqu'à validation du laboratoire."
     }
   };
   const langDict = dictionary[lang] || dictionary["en"];

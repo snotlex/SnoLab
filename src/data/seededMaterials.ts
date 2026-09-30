@@ -1,5 +1,6 @@
 import { EngineeringMaterial } from '../types';
 import { ADDITIONAL_APPROVED_MATERIALS } from './additionalApprovedMaterials';
+import { EXPANDED_REFERENCE_MATERIALS } from './materialLibraryExpansion';
 
 export const SEEDED_MATERIALS: EngineeringMaterial[] = [
   {
@@ -17042,7 +17043,8 @@ export const SEEDED_MATERIALS: EngineeringMaterial[] = [
     },
     "specificGravity": 1.25
   },
-  ...ADDITIONAL_APPROVED_MATERIALS
+  ...ADDITIONAL_APPROVED_MATERIALS,
+  ...EXPANDED_REFERENCE_MATERIALS
 ];
 
 // Ensure all 53 SEEDED_MATERIALS are VALIDATED, COMPLETE, READY, and USABLE IN MIX DESIGN

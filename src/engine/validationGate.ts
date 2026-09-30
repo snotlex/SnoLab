@@ -1,5 +1,6 @@
 import { MixDesignInput, MixDesignResult } from "./types";
 import { validateConcreteType } from "../concreteTypes";
+import { validateMaterialBatchForConcreteType } from "../services/materialBatchService";
 
 export interface ValidationGateResult {
   isValidForReport: boolean;
@@ -155,6 +156,26 @@ export function validateCalculationLogic(
   const isPervious = concreteCode === "PERVIOUS";
   const isLightweight = concreteCode === "LWC";
   const isHeavyweight = concreteCode === "HWC";
+
+  const selectedMaterialIds = [
+    inputs?.selectedCementId,
+    inputs?.selectedSandId,
+    inputs?.selectedGravelId,
+    inputs?.selectedAdmixtureId,
+    inputs?.selectedScmId,
+    inputs?.selectedFiberId,
+    inputs?.selectedLightweightAggregateId,
+    inputs?.selectedHeavyweightAggregateId
+  ].filter(Boolean);
+  const batchIssues = (inputs?.materialsDatabase || [])
+    .filter((material: any) => selectedMaterialIds.includes(material.id))
+    .flatMap((material: any) => validateMaterialBatchForConcreteType(material, concreteCode));
+  if (batchIssues.some(issue => issue.severity === "error")) {
+    criticalErrors.push("material_batch_invalid");
+  }
+  if (batchIssues.some(issue => issue.severity === "warning")) {
+    warnings.push("material_batch_pending");
+  }
 
   const activeBinder = isGpc
     ? (results.totalBinder ?? (results.cementitiousMaterials ? (results.cementitiousMaterials.flyAsh + results.cementitiousMaterials.slag + (results.cementitiousMaterials.silicaFume || 0)) : undefined))

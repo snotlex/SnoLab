@@ -2,6 +2,7 @@ import React from "react";
 import * as XLSX from "xlsx";
 import { MixDesignResult, MixDesignInput } from "../types";
 import { buildReportFileName, formatReportValue, getCalculationStatusLabel, getCompleteInputRows, getCompleteResultRows, getGradingSeries, getStrengthSeries, getSelectedMaterialSnapshots } from "./reportData";
+import { getActiveMaterialBatch } from "../services/materialBatchService";
 
 // QR Code SVG Generator representing the verified parameters
 export const QrCodeSvg: React.FC<{ text: string; size?: number }> = ({ text, size = 110 }) => {
@@ -455,7 +456,15 @@ export const handleExportWord = (
 
   const materialSnapshotRows = selectedMaterialSnapshots.flatMap(item => {
     const r = getCompleteResultRows(item.material as any);
-    return r.slice(0, 45).map(row => [item.role, row.label, row.path || row.key, formatReportValue(row.value)]);
+    const batch = getActiveMaterialBatch(item.material as any);
+    const batchRows = batch ? [
+      [item.role, "Site batch / lot", "materialBatches.batchNumber", batch.batchNumber],
+      [item.role, "Batch status", "materialBatches.status", batch.status],
+      [item.role, "Batch moisture %", "materialBatches.moisture", formatReportValue(batch.moisture ?? "—")],
+      [item.role, "Batch absorption %", "materialBatches.absorption", formatReportValue(batch.absorption ?? "—")],
+      [item.role, "Batch SSD density", "materialBatches.ssdDensity", formatReportValue(batch.ssdDensity ?? "—")]
+    ] : [[item.role, "Site batch / lot", "materialBatches", "Not linked"]];
+    return [...batchRows, ...r.slice(0, 45).map(row => [item.role, row.label, row.path || row.key, formatReportValue(row.value)])];
   });
 
   const formulaRows = [
@@ -794,4 +803,3 @@ export const handleExportExcel = (
   a.click();
   window.setTimeout(()=>{a.remove();URL.revokeObjectURL(url)},1000);
 };
-

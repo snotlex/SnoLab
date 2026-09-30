@@ -74,6 +74,7 @@ import { MaterialBulkCompletionModal } from "./materials/MaterialBulkCompletionM
 import { CompletenessChecker } from "../services/import/CompletenessChecker";
 import { ExportService } from "../services/ExportService";
 import { MaterialService } from "../services/MaterialService";
+import { getActiveMaterialBatch, upsertMaterialBatch } from "../services/materialBatchService";
 import * as XLSX from "xlsx";
 
 interface MaterialEngineeringDatabaseProps {
@@ -745,7 +746,22 @@ export function MaterialEngineeringDatabase({
             setSelectedCategory(mat.category);
           }
           setSelectedMaterialId(matId);
-          setFormState({ ...mat });
+          const batch = getActiveMaterialBatch(mat);
+          setFormState({ ...mat, ...(batch ? {
+            batchId: batch.id,
+            batchNumber: batch.batchNumber,
+            batchStatus: batch.status,
+            batchReceivedDate: batch.receivedDate,
+            batchSampledDate: batch.sampledDate,
+            batchQuantity: batch.quantity,
+            batchMoisture: batch.moisture,
+            batchAbsorption: batch.absorption,
+            batchSsdDensity: batch.ssdDensity,
+            moisture: batch.moisture ?? mat.moisture,
+            absorption: batch.absorption ?? mat.absorption,
+            ssdDensity: batch.ssdDensity ?? mat.ssdDensity,
+            batchNotes: batch.notes
+          } : {}) } as any);
           setIsEditing(true);
           setIsAdding(false);
         }
@@ -2891,7 +2907,22 @@ export function MaterialEngineeringDatabase({
   // Open Edit click
   const handleEditClick = () => {
     if (!activeMaterial) return;
-    setFormState({ ...activeMaterial });
+    const batch = getActiveMaterialBatch(activeMaterial);
+    setFormState({ ...activeMaterial, ...(batch ? {
+      batchId: batch.id,
+      batchNumber: batch.batchNumber,
+      batchStatus: batch.status,
+      batchReceivedDate: batch.receivedDate,
+      batchSampledDate: batch.sampledDate,
+      batchQuantity: batch.quantity,
+      batchMoisture: batch.moisture,
+      batchAbsorption: batch.absorption,
+      batchSsdDensity: batch.ssdDensity,
+      moisture: batch.moisture ?? activeMaterial.moisture,
+      absorption: batch.absorption ?? activeMaterial.absorption,
+      ssdDensity: batch.ssdDensity ?? activeMaterial.ssdDensity,
+      batchNotes: batch.notes
+    } : {}) } as any);
     setIsEditing(true);
     setIsAdding(false);
   };
@@ -3121,6 +3152,27 @@ export function MaterialEngineeringDatabase({
     }
 
     const matchedType = mapCategoryToType(formState.category || "إسمنت");
+    const attachEditedBatch = (material: EngineeringMaterial): EngineeringMaterial => {
+      const batchNumber = String((formState as any).batchNumber || "").trim();
+      if (!batchNumber) return material;
+      return upsertMaterialBatch(material, {
+        id: (formState as any).batchId,
+        batchNumber,
+        supplierName: formState.supplierName,
+        supplierContact: formState.supplierContact,
+        quarryName: formState.quarryName,
+        receivedDate: (formState as any).batchReceivedDate,
+        sampledDate: (formState as any).batchSampledDate,
+        expiryDate: (formState as any).batchExpiryDate,
+        quantity: Number((formState as any).batchQuantity) || undefined,
+        quantityUnit: (formState as any).batchQuantityUnit || "ton",
+        status: (formState as any).batchStatus || "قيد الفحص",
+        moisture: formState.moisture,
+        absorption: formState.absorption,
+        ssdDensity: formState.ssdDensity || formState.density,
+        notes: (formState as any).batchNotes
+      });
+    };
 
     // 1. Dynamic UID Generator: MAT-SND-XXXXX, etc.
     const generateMaterialUID = (category: string) => {
@@ -3183,7 +3235,8 @@ export function MaterialEngineeringDatabase({
         readOnly: false
       };
 
-      onUpdateMaterials([newMat, ...materials]);
+      const materialWithBatch = attachEditedBatch(newMat);
+      onUpdateMaterials([materialWithBatch, ...materials]);
       setSelectedMaterialId(generatedId);
       setIsAdding(false);
       setActiveSourceTab("user");
@@ -3239,8 +3292,9 @@ export function MaterialEngineeringDatabase({
         };
 
         // Prepend new User Material; original System Material remains 100% untouched!
-        onUpdateMaterials([finalizedUserMat, ...materials]);
-        setSelectedMaterialId(finalizedUserMat.id);
+        const finalizedUserMatWithBatch = attachEditedBatch(finalizedUserMat);
+        onUpdateMaterials([finalizedUserMatWithBatch, ...materials]);
+        setSelectedMaterialId(finalizedUserMatWithBatch.id);
         setIsEditing(false);
         setActiveSourceTab("user");
         showToast(
@@ -3294,7 +3348,9 @@ export function MaterialEngineeringDatabase({
         name: `${existingMat.name} (الإصدار v${existingMat.version || 1})`,
       };
 
-      // Update primary material
+      // Update primary material. Dynamic engineering fields are mirrored to the
+      // top-level record so calculators, audits, imports, and legacy resolvers
+      // all observe the user's latest value consistently.
       const updatedPrimaryRecord: EngineeringMaterial = {
         ...existingMat,
         ...formState as any,
@@ -3315,10 +3371,45 @@ export function MaterialEngineeringDatabase({
         createdBy: existingMat.createdBy || "senoussi.s.t@gmail.com",
         createdDate: existingMat.createdDate || new Date().toISOString().split('T')[0]
       };
+      const editedEngineeringData = {
+        ...(existingMat.engineeringData || {}),
+        ...(formState.engineeringData || {})
+      };
+      const editedPropertyMetadata = {
+        ...(existingMat.propertyMetadata || {})
+      } as Record<string, any>;
+      for (const [key, value] of Object.entries(editedEngineeringData)) {
+        if (value === undefined || value === null || value === "") continue;
+        (updatedPrimaryRecord as any)[key] = value;
+        const currentMeta = editedPropertyMetadata[key] || {};
+        const oldValue = currentMeta.originalDefaultValue !== undefined
+          ? currentMeta.originalDefaultValue
+          : currentMeta.value !== undefined
+            ? currentMeta.value
+            : (existingMat as any)[key];
+        const previousHistory = Array.isArray(currentMeta.history) ? currentMeta.history : [];
+        const changed = String(oldValue ?? "") !== String(value ?? "");
+        editedPropertyMetadata[key] = {
+          ...currentMeta,
+          key,
+          value,
+          isEditable: true,
+          status: changed ? "user_edited" : (currentMeta.status || "default_reference"),
+          sourceType: changed ? "user_input" : (currentMeta.sourceType || "reference"),
+          sourceLabel: changed ? "تعديل يدوي (User Edit)" : (currentMeta.sourceLabel || "REFERENCE"),
+          originalDefaultValue: oldValue,
+          history: changed
+            ? [...previousHistory, { timestamp: new Date().toISOString(), value, sourceType: "user_input", note: "تعديل من محرر خصائص المواد" }]
+            : previousHistory
+        };
+      }
+      updatedPrimaryRecord.engineeringData = editedEngineeringData;
+      updatedPrimaryRecord.propertyMetadata = editedPropertyMetadata;
+      const updatedPrimaryRecordWithBatch = attachEditedBatch(updatedPrimaryRecord);
 
       const updatedList = materials.map(m => {
         if (m.id === activeMaterial.id) {
-          return updatedPrimaryRecord;
+          return updatedPrimaryRecordWithBatch;
         }
         return m;
       });
@@ -3404,7 +3495,7 @@ export function MaterialEngineeringDatabase({
       if (diffsList.length > 0) {
         setEditConfirmationData({
           existingMat,
-          updatedMat: updatedPrimaryRecord,
+          updatedMat: updatedPrimaryRecordWithBatch,
           oldVersionRecord,
           diffs: diffsList
         });
@@ -5608,6 +5699,43 @@ export function MaterialEngineeringDatabase({
                   />
                 </div>
               </div>
+            </div>
+
+            {/* SITE BATCH / LOT TRACEABILITY MODULE */}
+            <div className="p-3 bg-indigo-500/5 border border-indigo-500/15 rounded-xl space-y-2 text-right">
+              <p className="text-[10px] font-black text-indigo-600 flex items-center gap-1 justify-end">
+                <span>دفعة المادة المستخدمة في الموقع (Site Batch / Lot)</span>
+                <Layers size={12} />
+              </p>
+              <p className="text-[9px] text-slate-500">أدخل رقم الدفعة وقيمها الفعلية؛ ستستخدم هذه القيم بدلاً من المرجع العام عند التحقق والتصحيح المائي.</p>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[8.5px] text-slate-500 block mb-0.5">رقم الدفعة / Lot:</label>
+                  <input type="text" value={(formState as any).batchNumber || ""} onChange={(e) => setFormState(prev => ({ ...prev, batchNumber: e.target.value }))} className="w-full text-[11px] p-1.5 bg-white dark:bg-slate-950 border border-slate-200 rounded font-mono" placeholder="LOT-2026-001" />
+                </div>
+                <div>
+                  <label className="text-[8.5px] text-slate-500 block mb-0.5">حالة الدفعة:</label>
+                  <select value={(formState as any).batchStatus || "قيد الفحص"} onChange={(e) => setFormState(prev => ({ ...prev, batchStatus: e.target.value }))} className="w-full text-[11px] p-1.5 bg-white dark:bg-slate-950 border border-slate-200 rounded">
+                    <option value="قيد الفحص">قيد الفحص</option>
+                    <option value="مقبولة">مقبولة</option>
+                    <option value="مقبولة بشروط">مقبولة بشروط</option>
+                    <option value="مرفوضة">مرفوضة</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <div><label className="text-[8.5px] text-slate-500 block mb-0.5">تاريخ الاستلام:</label><input type="date" value={(formState as any).batchReceivedDate || ""} onChange={(e) => setFormState(prev => ({ ...prev, batchReceivedDate: e.target.value }))} className="w-full text-[10px] p-1.5 bg-white dark:bg-slate-950 border border-slate-200 rounded" /></div>
+                <div><label className="text-[8.5px] text-slate-500 block mb-0.5">تاريخ أخذ العينة:</label><input type="date" value={(formState as any).batchSampledDate || ""} onChange={(e) => setFormState(prev => ({ ...prev, batchSampledDate: e.target.value }))} className="w-full text-[10px] p-1.5 bg-white dark:bg-slate-950 border border-slate-200 rounded" /></div>
+                <div><label className="text-[8.5px] text-slate-500 block mb-0.5">الكمية (طن):</label><input type="number" min="0" step="0.01" value={(formState as any).batchQuantity || ""} onChange={(e) => setFormState(prev => ({ ...prev, batchQuantity: Number(e.target.value) || undefined }))} className="w-full text-[10px] p-1.5 bg-white dark:bg-slate-950 border border-slate-200 rounded font-mono" /></div>
+              </div>
+              {(formState.category === "رمال" || formState.category === "حصى" || formState.category === "ركام خفيف" || formState.category === "ركام ثقيل") && (
+                <div className="grid grid-cols-3 gap-2">
+                  <div><label className="text-[8.5px] text-slate-500 block mb-0.5">رطوبة الدفعة (%):</label><input type="number" min="0" step="0.01" value={(formState as any).batchMoisture ?? formState.moisture ?? ""} onChange={(e) => setFormState(prev => ({ ...prev, moisture: Number(e.target.value) || 0, batchMoisture: Number(e.target.value) || 0 }))} className="w-full text-[10px] p-1.5 bg-white dark:bg-slate-950 border border-slate-200 rounded font-mono" /></div>
+                  <div><label className="text-[8.5px] text-slate-500 block mb-0.5">امتصاص الدفعة (%):</label><input type="number" min="0" step="0.01" value={(formState as any).batchAbsorption ?? formState.absorption ?? ""} onChange={(e) => setFormState(prev => ({ ...prev, absorption: Number(e.target.value) || 0, batchAbsorption: Number(e.target.value) || 0 }))} className="w-full text-[10px] p-1.5 bg-white dark:bg-slate-950 border border-slate-200 rounded font-mono" /></div>
+                  <div><label className="text-[8.5px] text-slate-500 block mb-0.5">كثافة SSD (kg/m³):</label><input type="number" min="1" value={(formState as any).batchSsdDensity ?? formState.ssdDensity ?? formState.density ?? ""} onChange={(e) => setFormState(prev => ({ ...prev, ssdDensity: Number(e.target.value) || undefined, batchSsdDensity: Number(e.target.value) || undefined }))} className="w-full text-[10px] p-1.5 bg-white dark:bg-slate-950 border border-slate-200 rounded font-mono" /></div>
+                </div>
+              )}
+              <textarea value={(formState as any).batchNotes || ""} onChange={(e) => setFormState(prev => ({ ...prev, batchNotes: e.target.value }))} rows={2} className="w-full text-[10px] p-1.5 bg-white dark:bg-slate-950 border border-slate-200 rounded" placeholder="ملاحظات الدفعة أو شروط القبول..." />
             </div>
 
             {/* ADVANCED EMMS LABORATORY PROPERTIES MODULE */}

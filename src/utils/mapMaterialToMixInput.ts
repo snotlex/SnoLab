@@ -229,6 +229,8 @@ function getAdmixtureType(material: any): string | undefined {
     if (rLower === "air_entraining" || rLower === "حوابس الهواء" || rLower.includes("حابس") || rLower.includes("حبس")) return "air_entraining";
     if (rLower === "retarder" || rLower === "المبطيئات" || rLower.includes("مؤخر") || rLower.includes("مبط")) return "retarder";
     if (rLower === "accelerator" || rLower === "المسرعات" || rLower.includes("معجل") || rLower.includes("مسرع")) return "accelerator";
+    if (rLower === "alkaline_activator" || rLower.includes("alkaline") || rLower.includes("منشط قلوي") || rLower.includes("منشط")) return "alkaline_activator";
+    if (rLower === "self_healing" || rLower.includes("self-heal") || rLower.includes("معالجة ذاتية") || rLower.includes("التئام")) return "self_healing";
   }
   
   const nameLower = String(material.name || "").toLowerCase();
@@ -236,6 +238,8 @@ function getAdmixtureType(material: any): string | undefined {
   if (nameLower.includes("حابس") || nameLower.includes("air entrain") || nameLower.includes("air-entrain")) return "air_entraining";
   if (nameLower.includes("مؤخر") || nameLower.includes("retarder") || nameLower.includes("مبط")) return "retarder";
   if (nameLower.includes("معجل") || nameLower.includes("accelerator") || nameLower.includes("مسرع")) return "accelerator";
+  if (nameLower.includes("منشط قلوي") || nameLower.includes("alkaline activator") || nameLower.includes("geopolymer activator")) return "alkaline_activator";
+  if (nameLower.includes("معالجة ذاتية") || nameLower.includes("self-healing") || nameLower.includes("crystalline self")) return "self_healing";
 
   return undefined;
 }
@@ -377,6 +381,26 @@ export function mapMaterialToMixInput(material: any): Partial<MixDesignInput> {
         dosageAccelerator: dosage !== undefined ? dosage : 1.0
       };
       if (price !== undefined) patch.priceAccelerator = price;
+      return patch;
+    } else if (admType === "alkaline_activator") {
+      const patch: Partial<MixDesignInput> = {
+        selectedAdmixtureId: material.id,
+        selectedAdmixtureName: material.name,
+        concreteType: "GPC"
+      };
+      const dens = getDensity(material);
+      if (dens !== undefined) patch.selectedAdmixtureDensity = dens;
+      const ratio = findRawValue(material, ["activatorToPrecursorRatio", "gpcActivatorToPrecursorRatio"]);
+      if (ratio !== undefined) patch.gpcActivatorToPrecursorRatio = readNumber(ratio);
+      return patch;
+    } else if (admType === "self_healing") {
+      const patch: Partial<MixDesignInput> = { concreteType: "SHC" };
+      const agentDosage = findRawValue(material, ["healingAgentDosageKgM3", "dosageKgM3", "dosage_kg_m3"]);
+      const agentDensity = findRawValue(material, ["healingAgentDensityKgM3", "density", "Density"]);
+      const agentType = findRawValue(material, ["healingAgentType", "agentType", "type"]);
+      if (agentDosage !== undefined) patch.shcHealingAgentDosageKgM3 = readNumber(agentDosage);
+      if (agentDensity !== undefined) patch.shcHealingAgentDensityKgM3 = normalizeDensityKgM3(agentDensity);
+      if (agentType !== undefined) patch.shcHealingAgentType = String(agentType);
       return patch;
     }
   }
