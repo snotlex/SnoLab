@@ -467,17 +467,23 @@ function resolveGrading(
 
   if (sizes.length < 3) return undefined;
 
+  // Interpolation is independent of the candidate sand percentage.  Compute
+  // it once per sieve instead of walking both material curves and the target
+  // curve for every one of the 201 candidates below.  This changes the hot
+  // path from roughly O(candidate × sieve × curve) to O(sieve × curve +
+  // candidate × sieve), which matters for imported laboratory curves.
+  const sandPassing = sizes.map(size => interpolatePassing(sandCurve, size));
+  const gravelPassing = sizes.map(size => interpolatePassing(gravelCurve, size));
+  const targetPassing = sizes.map(size => interpolateTarget(targetPoints, size));
+
   let bestP = Number(result.sandPercent || 35);
   let bestRmse = Number.POSITIVE_INFINITY;
 
   for (let p = 0; p <= 100; p += 0.5) {
     const errors: number[] = [];
-    for (const size of sizes) {
-      const sandPassing = interpolatePassing(sandCurve, size);
-      const gravelPassing = interpolatePassing(gravelCurve, size);
-      const targetPassing = interpolateTarget(targetPoints, size);
-      const blendPassing = (p / 100) * sandPassing + (1 - p / 100) * gravelPassing;
-      errors.push(blendPassing - targetPassing);
+    for (let index = 0; index < sizes.length; index += 1) {
+      const blendPassing = (p / 100) * sandPassing[index] + (1 - p / 100) * gravelPassing[index];
+      errors.push(blendPassing - targetPassing[index]);
     }
 
     const rmse = Math.sqrt(
