@@ -73,7 +73,9 @@ describe("SnoLab Final Laboratory Verification Suite", () => {
       const res = executeLaboratoryTest("AGG_SIEVE", { totalWeight: 0, sieves: [] }, mockSand);
       // Let's inspect what materialsLabEngine returns for empty sieve
       expect(res.status).toBeDefined();
-      expect(res.results.dMax).toBeDefined();
+      expect(res.status).toBe("FAIL");
+      expect(res.results.dMax).toBeUndefined();
+      expect(res.results.finesContent).toBeUndefined();
     });
 
     it("1.5 materialsLabEngine executeLaboratoryTest('AGG_SPECIFIC_GRAVITY'): Empty / zero inputs", () => {
@@ -496,6 +498,9 @@ describe("SnoLab Final Laboratory Verification Suite", () => {
       
       // Let's log and assert whether it has unauthorized fallbacks
       console.log("[Engine Sieve Probe]", { dMaxResult, finesResult, status: res.status });
+      expect(res.status).toBe("WARNING");
+      expect(dMaxResult).toBeUndefined();
+      expect(finesResult).toBeUndefined();
       // In line 743 of materialsLabEngine.ts:
       // const dMax = dmaxRow ? dmaxRow.sieve : (isSand ? 4.0 : 20.0);
       // const finesContent = finesRow ? finesRow.percentPassing : 2.0;

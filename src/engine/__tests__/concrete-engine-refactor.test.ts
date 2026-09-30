@@ -194,6 +194,22 @@ describe("Concrete Mix Calculation Engine Refactor Suite", () => {
       expect(result.absoluteVolumeTotal).toBeDefined();
     });
 
+    it("should report fresh density from wet aggregate and batch water masses", () => {
+      const result = calculateDreuxGorisseCore(baseInput);
+      const typedResult = result as any;
+      const expected = typedResult.activeCementWeight + typedResult.flyAshKg + typedResult.slagKg + typedResult.silicaFumeKg +
+        result.sandWeightWet + result.gravelWeightWet + result.batchWaterToAdd +
+        result.admixtureWeights.reduce((sum, item) => sum + item.weight, 0) +
+        (typedResult.fiberKg || 0) + (typedResult.specialBinderKg || 0);
+
+      expect(result.totalFreshDensity).toBeCloseTo(expected, 8);
+      expect(result.totalFreshDensity).not.toBeCloseTo(
+        typedResult.activeCementWeight + typedResult.flyAshKg + typedResult.slagKg + typedResult.silicaFumeKg +
+        result.sandWeightDry + result.gravelWeightDry + result.effectiveWater,
+        1
+      );
+    });
+
     it("should guarantee no NaN or Infinity across all outputs", () => {
       const result = calculateDreuxGorisseCore(baseInput);
 

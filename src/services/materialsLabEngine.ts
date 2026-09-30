@@ -727,8 +727,26 @@ export function executeLaboratoryTest(
     // ------------------------------------------------------------------------
     case "AGG_SIEVE": {
       const sieves: { sieve: number; retained: number }[] = inputs.sieves || [];
-      const totalWeight: number = inputs.totalWeight || sieves.reduce((sum, s) => sum + (s.retained || 0), 0);
+      const totalWeight: number = inputs.totalWeight ?? sieves.reduce((sum, s) => sum + (s.retained || 0), 0);
       const isSand = inputs.materialType === "sand" || material.category === "رمال" || material.name.includes("رمل");
+
+      if (!Number.isFinite(totalWeight) || totalWeight <= 0 || sieves.length < 2 ||
+          sieves.some(s => !Number.isFinite(s.sieve) || s.sieve < 0 || !Number.isFinite(s.retained) || s.retained < 0)) {
+        return {
+          results: { totalWeight, sieveTable: [] },
+          status: "FAIL",
+          score: 0,
+          interpretation: "بيانات الغربلة ناقصة أو غير صالحة؛ لا يمكن اشتقاق منحنى أو خصائص حبيبية.",
+          complianceDetails: [{
+            parameter: "Sieve input validity",
+            measured: "غير صالح",
+            limit: "كتلة عينة موجبة وصفّان صالحان على الأقل",
+            status: "FAIL",
+            note: "أدخل كتلة العينة وجميع الكتل المحجوزة بوحدات موجبة أو صفرية."
+          }],
+          syncedProperties: {}
+        };
+      }
 
       let cumRet = 0;
       const stepResults: SieveStepResult[] = [];
@@ -755,56 +773,62 @@ export function executeLaboratoryTest(
           sumCumFm += found.cumulativePercentRetained;
         }
       });
-      const finenessModulus = parseFloat((sumCumFm / 100).toFixed(2));
+      const hasCompleteFmSeries = standardFmSieves.every(sz =>
+        stepResults.some(r => Math.abs(r.sieve - sz) < 0.0001)
+      );
+      const finenessModulus = hasCompleteFmSeries ? parseFloat((sumCumFm / 100).toFixed(2)) : undefined;
 
       // Dmax
       const sortedByDesc = [...stepResults].filter(r => r.sieve > 0).sort((a, b) => b.sieve - a.sieve);
       const dmaxRow = sortedByDesc.find(r => r.percentPassing >= 95);
-      const dMax = dmaxRow ? dmaxRow.sieve : (isSand ? 4.0 : 20.0);
+      const dMax = dmaxRow?.sieve;
 
       // Fines content (< 0.063 mm)
       const finesRow = stepResults.find(r => r.sieve <= 0.08);
-      const finesContent = finesRow ? finesRow.percentPassing : 2.0;
+      const finesContent = finesRow?.percentPassing;
 
       // Sand ratio (0/2 mm fraction)
       const sieve2 = stepResults.find(r => Math.abs(r.sieve - 2.0) < 0.05);
-      const sandRatio = sieve2 ? sieve2.percentPassing : (isSand ? 85 : 5);
+      const sandRatio = sieve2?.percentPassing;
 
       const compliance: ComplianceDetail[] = [];
       let status: TestStatus = "PASS";
 
       if (isSand) {
-        const isFmOptimal = finenessModulus >= 2.2 && finenessModulus <= 3.1;
-        const isFmBorderline = (finenessModulus >= 1.9 && finenessModulus < 2.2) || (finenessModulus > 3.1 && finenessModulus <= 3.4);
+        const isFmAvailable = finenessModulus !== undefined;
+        const isFmOptimal = isFmAvailable && finenessModulus >= 2.2 && finenessModulus <= 3.1;
+        const isFmBorderline = isFmAvailable && ((finenessModulus >= 1.9 && finenessModulus < 2.2) || (finenessModulus > 3.1 && finenessModulus <= 3.4));
         compliance.push({
           parameter: "معامل النعومة (Fineness Modulus FM)",
-          measured: finenessModulus,
+          measured: finenessModulus ?? "غير متوفر",
           limit: "2.20 - 3.10 (NF EN 12620 / ASTM C33)",
-          status: isFmOptimal ? "PASS" : isFmBorderline ? "WARNING" : "FAIL",
-          note: isFmOptimal ? "معامل نعومة مثالي يوفر تشغيلية ممتازة للخرسانة" : isFmBorderline ? "رمل ناعم جداً أو خشن نسبياً" : "خارج الحدود القياسية المعتمدة"
+          status: !isFmAvailable ? "WARNING" : isFmOptimal ? "PASS" : isFmBorderline ? "WARNING" : "FAIL",
+          note: !isFmAvailable ? "سلسلة المناخل القياسية غير مكتملة؛ لم يتم اختلاق FM." : isFmOptimal ? "معامل نعومة مثالي يوفر تشغيلية ممتازة للخرسانة" : isFmBorderline ? "رمل ناعم جداً أو خشن نسبياً" : "خارج الحدود القياسية المعتمدة"
         });
 
-        const isFinesGood = finesContent <= 3.0;
-        const isFinesWarn = finesContent > 3.0 && finesContent <= 6.0;
+        const isFinesAvailable = finesContent !== undefined;
+        const isFinesGood = isFinesAvailable && finesContent <= 3.0;
+        const isFinesWarn = isFinesAvailable && finesContent > 3.0 && finesContent <= 6.0;
         compliance.push({
           parameter: "نسبة المار عبر منخل 0.063 مم (المواد الناعمة)",
-          measured: `${finesContent}%`,
+          measured: isFinesAvailable ? `${finesContent}%` : "غير متوفر",
           limit: "≤ 3.0% (رمل طبيعي) / ≤ 5.0% (رمل مكسر)",
-          status: isFinesGood ? "PASS" : isFinesWarn ? "WARNING" : "FAIL",
-          note: isFinesGood ? "مطابق ونظيف تماماً" : "قد يزيد من استهلاك ماء الخلط"
+          status: !isFinesAvailable ? "WARNING" : isFinesGood ? "PASS" : isFinesWarn ? "WARNING" : "FAIL",
+          note: !isFinesAvailable ? "منخل المواد الناعمة غير موجود؛ لم يتم افتراض قيمة." : isFinesGood ? "مطابق ونظيف تماماً" : "قد يزيد من استهلاك ماء الخلط"
         });
 
         if (!isFmOptimal || !isFinesGood) {
-          status = (isFmBorderline || isFinesWarn) ? "WARNING" : "FAIL";
+          status = (isFmBorderline || isFinesWarn || !isFmAvailable || !isFinesAvailable) ? "WARNING" : "FAIL";
         }
       } else {
         compliance.push({
           parameter: "القطر الأقصى للحصى (Dmax)",
-          measured: `${dMax} mm`,
+          measured: dMax === undefined ? "غير متوفر" : `${dMax} mm`,
           limit: "حسب المخطط والمواصفة الإنشائية",
-          status: "PASS",
-          note: "متوافق مع تباعد قضبان التسليح والغطاء الخرساني"
+          status: dMax === undefined ? "WARNING" : "PASS",
+          note: dMax === undefined ? "المنحنى لا يصل إلى 95% مرور؛ لم يتم افتراض Dmax." : "متوافق مع تباعد قضبان التسليح والغطاء الخرساني"
         });
+        if (dMax === undefined) status = "WARNING";
       }
 
       const curveData: GranulometricCurveData = {
@@ -813,7 +837,7 @@ export function executeLaboratoryTest(
         dMax,
         finesContent,
         sandRatio,
-        classification: isSand ? `رمل ${finenessModulus > 2.8 ? 'خشن' : finenessModulus < 2.4 ? 'ناعم' : 'متوسط'}` : `حصى Dmax = ${dMax} mm`
+        classification: isSand ? `رمل ${finenessModulus === undefined ? 'غير محدد' : finenessModulus > 2.8 ? 'خشن' : finenessModulus < 2.4 ? 'ناعم' : 'متوسط'}` : `حصى Dmax = ${dMax === undefined ? 'غير محدد' : `${dMax} mm`}`
       };
 
       const score = status === "PASS" ? 95 : status === "WARNING" ? 78 : 45;
@@ -845,9 +869,9 @@ export function executeLaboratoryTest(
           cumRetained: s.cumulativePercentRetained
         })),
         syncedProperties: {
-          finenessModulus,
-          dMax,
-          finesContent,
+          ...(finenessModulus !== undefined ? { finenessModulus } : {}),
+          ...(dMax !== undefined ? { dMax } : {}),
+          ...(finesContent !== undefined ? { finesContent } : {}),
           gradationData: stepResults.map(s => ({ sieveSize: s.sieve, percentPassing: s.percentPassing }))
         }
       };

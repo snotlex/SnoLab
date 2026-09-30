@@ -822,9 +822,12 @@ export function calculateDreuxGorisseCore(input: MixDesignInput | DreuxGorisseIn
   steps.push(`• الماء الحر القادم من رطوبة الركامات والرمال الكلية (aggregateFreeWater) = ${aggregateFreeWater.toFixed(1)} لتر.`);
   steps.push(`• كمية المياه الفعلية المضاف للمخلط (batchWaterToAdd) = ${batchWaterToAdd.toFixed(1)} لتر/م³.`);
 
-  // Fresh concrete state densities (retains flawless conservation: Dry density + Free contribution)
+  // Fresh concrete density is the actual as-batched mass.  The aggregate scale
+  // weighs wet aggregate and the mixer adds batch water; using dry aggregate
+  // together with effective water under-reports density whenever moisture is
+  // present (and can disagree with the batch-correction layer).
   const totalFreshDensity = activeCementWeight + weightSilicaFume + weightFlyAsh + weightSlag +
-                            sandWeightDry + gravelWeightDry + effectiveWater + admixWeightsTotal +
+                            sandWeightWet + gravelWeightWet + batchWaterToAdd + admixWeightsTotal +
                             fiberDosageKgM3 + weightSpecialBinder;
 
   // 10. Strength curves age evolution (C1E standard)
