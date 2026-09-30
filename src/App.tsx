@@ -24,6 +24,7 @@ import { resolveMaterials } from "./utils/resolveMaterials";
 import { calculateMixDesign } from "./engine/calculateMixDesign";
 import { selectConcreteMixDesignRoute } from "./mix-design/core/concreteMixDesignSelector";
 import { getMixDesignContract } from "./mix-design/core/mixDesignContracts";
+import { getSpecializedInputDefinition, validateSpecializedInputValue, specializedInputErrorMessage } from "./mix-design/core/specializedInputDefinitions";
 import { MixVersioningPanel } from "./components/MixVersioningPanel";
 import { LandingPage } from "./components/LandingPage";
 import { WelcomeBanner } from "./components/WelcomeBanner";
@@ -1961,6 +1962,7 @@ export default function App() {
     priceWater: getInitialPrice("Water", 2) // Default water cost (DA/L)
   });
 
+  const [specializedInputErrors, setSpecializedInputErrors] = useState<Record<string, string>>({});
   const handleMethodChange = (newMethod: string) => {
     const fromMethod = inputs.selectedMethod || "dreux";
     if (fromMethod === newMethod) return;
@@ -6018,9 +6020,6 @@ export default function App() {
                             "moistureSand", "moistureGravel", "airContent", "slump"
                           ]);
                           const specializedKeys = contract.requiredInputs.filter((key) => !coreKeys.has(String(key)));
-                          const label = (key: string) => key
-                            .replace(/([A-Z])/g, " $1")
-                            .replace(/^./, (char) => char.toUpperCase());
                           return (
                             <div className="mt-3 p-3 rounded-lg border border-blue-500/20 bg-blue-500/5 space-y-2 text-right">
                               <div className="text-[11px] font-black text-blue-600 dark:text-blue-300">
@@ -6034,20 +6033,33 @@ export default function App() {
                                   const field = String(key);
                                   const isText = field.endsWith("Type") || field.endsWith("Method") || field === "fiberType" || field === "shcHealingAgentType";
                                   const value = (inputs as any)[field];
+                                  const definition = getSpecializedInputDefinition(field);
+                                  const fieldError = specializedInputErrors[field];
                                   return (
                                     <label key={field} className="text-[9px] font-bold text-slate-600 dark:text-slate-300">
-                                      <span className="block mb-1">{label(field)}</span>
+                                      <span className="block mb-1">{definition.label[language as "ar" | "fr" | "en"] || definition.label.en}</span>
                                       <input
                                         type={isText ? "text" : "number"}
-                                        step={isText ? undefined : "any"}
+                                        min={isText ? undefined : definition.min}
+                                        max={isText ? undefined : definition.max}
+                                        step={isText ? undefined : definition.step || "any"}
                                         value={value ?? ""}
-                                        onChange={(event) => setInputs(prev => ({
-                                          ...prev,
-                                          [field]: isText ? event.target.value : (event.target.value === "" ? undefined : Number(event.target.value))
-                                        }))}
-                                        className="w-full rounded border border-blue-500/20 bg-white dark:bg-slate-950 p-2 text-[10px] outline-none focus:border-blue-500"
+                                        onChange={(event) => {
+                                          const raw = event.target.value;
+                                          const nextValue = isText ? raw : (raw === "" ? undefined : Number(raw));
+                                          const error = validateSpecializedInputValue(field, nextValue);
+                                          setSpecializedInputErrors(prev => {
+                                            const next = { ...prev };
+                                            if (error) next[field] = error;
+                                            else delete next[field];
+                                            return next;
+                                          });
+                                          if (!error) setInputs(prev => ({ ...prev, [field]: nextValue }));
+                                        }}
+                                        className={`w-full rounded border ${fieldError ? "border-rose-500 ring-1 ring-rose-300" : "border-blue-500/20"} bg-white dark:bg-slate-950 p-2 text-[10px] outline-none focus:border-blue-500`}
                                         placeholder={language === "ar" ? "مطلوب" : "Required"}
                                       />
+                                      {fieldError && <span className="block mt-1 text-[9px] font-bold text-rose-600 dark:text-rose-400">{specializedInputErrorMessage(field, fieldError, language as "ar" | "fr" | "en")}</span>}
                                     </label>
                                   );
                                 })}

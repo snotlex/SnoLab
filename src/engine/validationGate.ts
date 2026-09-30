@@ -1,6 +1,8 @@
 import { MixDesignInput, MixDesignResult } from "./types";
 import { validateConcreteType } from "../concreteTypes";
 import { validateMaterialBatchForConcreteType } from "../services/materialBatchService";
+import { getMixDesignContract } from "../mix-design/core/mixDesignContracts";
+import { SPECIALIZED_INPUT_DEFINITIONS, validateSpecializedInputs } from "../mix-design/core/specializedInputDefinitions";
 
 export interface ValidationGateResult {
   isValidForReport: boolean;
@@ -156,6 +158,11 @@ export function validateCalculationLogic(
   const isPervious = concreteCode === "PERVIOUS";
   const isLightweight = concreteCode === "LWC";
   const isHeavyweight = concreteCode === "HWC";
+  const contract = getMixDesignContract(concreteCode);
+  const specializedKeys = (contract?.requiredInputs || []).map(String).filter(key => Object.prototype.hasOwnProperty.call(SPECIALIZED_INPUT_DEFINITIONS, key));
+  if (validateSpecializedInputs(inputs || {}, specializedKeys).length > 0) {
+    criticalErrors.push("specialized_input_invalid");
+  }
 
   const selectedMaterialIds = [
     inputs?.selectedCementId,

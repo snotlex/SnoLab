@@ -118,6 +118,10 @@ const LOCALIZED_MESSAGES: Record<"ar" | "fr" | "en", Record<string, { title: str
       title: "دفعة مادة الموقع غير صالحة أو تفتقد خصائص ضرورية للحساب.",
       action: "الإجراء المقترح: راجع رقم الدفعة، حالة القبول، الرطوبة، الامتصاص وكثافة SSD، ثم اعتمد نتائج المختبر قبل إصدار الخلطة."
     },
+    specialized_input_invalid: {
+      title: "توجد قيمة غير منطقية في مدخلات نوع الخرسانة المحدد.",
+      action: "الإجراء المقترح: أدخل القيم ضمن الحدود الهندسية الظاهرة بجانب كل مدخل، ثم أعد التحقق قبل إصدار التقرير."
+    },
     material_diagnostic_only: {
       title: "الحساب هندسي تشخيصي وتجريبي فقط بسبب عدم تحديد مواد أساسية معتمدة من مستودع المواد.",
       action: "الإجراء المقترح: يرجى الانتقال إلى خطوة اختيار المواد وتعيين الإسمنت، الرمل، الحصى، والماء من المستودع لتفعيل اعتماد التصميم وحفظ التقرير."
@@ -268,6 +272,10 @@ const LOCALIZED_MESSAGES: Record<"ar" | "fr" | "en", Record<string, { title: str
       title: "The selected site material batch is invalid or lacks required calculation properties.",
       action: "Recommended Action: Review the lot status, moisture, absorption and SSD density, then approve laboratory results before issuing the mix."
     },
+    specialized_input_invalid: {
+      title: "A specialized input contains an implausible value for the selected concrete type.",
+      action: "Recommended Action: Enter values within the engineering limits shown beside each field, then validate the design again."
+    },
     material_diagnostic_only: {
       title: "Calculation is diagnostic and experimental only because approved basic materials have not been selected from the repository.",
       action: "Recommended Action: Navigate to the materials selection step and assign cement, sand, gravel, and water from the repository to enable full validation and report saving."
@@ -417,6 +425,10 @@ const LOCALIZED_MESSAGES: Record<"ar" | "fr" | "en", Record<string, { title: str
     material_batch_invalid: {
       title: "Le lot de matériau du chantier est invalide ou incomplet pour le calcul.",
       action: "Action recommandée : Vérifiez le statut du lot, l'humidité, l'absorption et la masse SSD avant d'approuver les résultats du laboratoire."
+    },
+    specialized_input_invalid: {
+      title: "Une entrée spécialisée contient une valeur invraisemblable pour le type de béton choisi.",
+      action: "Action recommandée : Saisissez les valeurs dans les limites affichées à côté de chaque champ, puis relancez la validation."
     },
     material_diagnostic_only: {
       title: "Les calculs sont uniquement diagnostiques et expérimentaux car aucun matériau de base approuvé n'a été sélectionné.",
