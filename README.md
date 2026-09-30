@@ -142,6 +142,14 @@ npm run test:load
 
 It runs concurrent health and authenticated admin requests for a short bounded period, reports p95 latency, and fails on network errors or HTTP 5xx responses. The test also accepts `LOAD_SMOKE_CONCURRENCY`, `LOAD_SMOKE_DURATION_MS`, and `LOAD_SMOKE_PORT` for controlled staging runs. Both smoke tests run automatically in GitHub Actions.
 
+Run browser end-to-end tests after building the production bundle:
+```bash
+npm run build
+npm run test:e2e
+```
+
+The Playwright smoke flow checks the landing page, Arabic/English language switching, starting a new project, and a mobile viewport. CI installs Chromium, builds the production server, and runs the same flow headlessly.
+
 ### Test Scope
 - `dreuxGorisseCore.ts`: Validates mathematical calculations, $W/C$ curves, and Bolomey adjustments.
 - `methodApplicabilityGate.ts`: Tests the strict structural applicability borders.
