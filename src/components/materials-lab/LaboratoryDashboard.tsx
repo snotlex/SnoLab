@@ -41,6 +41,7 @@ import { NewTestWizard } from "./NewTestWizard";
 import { TestReportModal } from "./TestReportModal";
 import { MaterialComprehensiveReportModal } from "./MaterialComprehensiveReportModal";
 import { MaterialDossierSelectorModal } from "./MaterialDossierSelectorModal";
+import { LaboratorySessionPanel } from "./LaboratorySessionPanel";
 import { generateLabTestPdf } from "../../services/pdf/labTestPdfGenerator";
 
 const labText = (language: string, ar: string, fr: string, en: string) => language === "ar" ? ar : language === "fr" ? fr : en;
@@ -57,6 +58,8 @@ interface LaboratoryDashboardProps {
   onSaveTestRecord: (testRecord: MaterialTestRecord, syncedProps: Record<string, any>) => void;
   onDeleteTestRecord?: (testId: string) => void;
   onNavigateToMaterialsLibrary?: () => void;
+  projectId?: string;
+  projectName?: string;
   language?: "ar" | "fr" | "en";
 }
 
@@ -66,6 +69,8 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
   onSaveTestRecord,
   onDeleteTestRecord,
   onNavigateToMaterialsLibrary,
+  projectId,
+  projectName,
   language = "ar"
 }) => {
   // Navigation & Filter State
@@ -77,6 +82,7 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
   const [standardFilter, setStandardFilter] = useState("all");
   const [recordMaterialFilter, setRecordMaterialFilter] = useState("all");
   const [sampleIdFilter, setSampleIdFilter] = useState("");
+  const [showSessionCenter, setShowSessionCenter] = useState(false);
 
   // Modals
   const [isWizardOpen, setIsWizardOpen] = useState<boolean>(false);
@@ -260,6 +266,15 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
             >
               <FileText className="w-4 h-4 text-slate-950 stroke-[2.5]" />
               <span>{language === "ar" ? "📑 التقرير الأكاديمي الشامل للمواد" : "Academic Material Dossiers"}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowSessionCenter(value => !value)}
+              className="flex items-center gap-2 px-4 py-3 bg-indigo-500 hover:bg-indigo-400 text-white font-black rounded-2xl text-xs shadow-lg shadow-indigo-500/20 transition-all transform active:scale-95 cursor-pointer"
+            >
+              <Layers className="w-4 h-4" />
+              <span>{labText(language, "مركز الطلبات متعددة الاختبارات", "Centre des demandes multi-essais", "Multi-test request center")}</span>
             </button>
 
             {onNavigateToMaterialsLibrary && (
@@ -762,6 +777,15 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
           </div>
         )}
       </div>
+
+      {showSessionCenter && <LaboratorySessionPanel
+        materials={materials}
+        legacyTests={laboratoryTests}
+        projectId={projectId}
+        projectName={projectName}
+        language={language}
+        onOpenTest={handleLaunchTest}
+      />}
 
       {/* New Test Wizard Modal */}
       {isWizardOpen && (

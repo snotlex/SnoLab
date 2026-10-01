@@ -1,0 +1,154 @@
+import React, { useEffect, useMemo, useState } from "react";
+import { ClipboardList, Plus, Play, FlaskConical, ChevronDown, ChevronUp, Copy, ExternalLink, AlertTriangle, CheckCircle2, XCircle } from "lucide-react";
+import type { EngineeringMaterial } from "../../types";
+import type { MaterialTestRecord } from "../../types/laboratoryTypes";
+import type { LaboratorySession } from "../../types/laboratorySessionTypes";
+import {
+  addSessionSample,
+  addSessionTest,
+  addTestReplicate,
+  approveLaboratorySession,
+  canApproveLaboratorySession,
+  createLaboratorySession,
+  legacyRecordToLaboratorySession,
+  runReadyLaboratoryTests,
+  summarizeLaboratorySession,
+  validateLaboratorySession
+} from "../../services/laboratorySessionService";
+import { MASTER_TEST_CATALOG, executeLaboratoryTest } from "../../services/materialsLabEngine";
+import { getCompatibleMaterials } from "../../services/laboratoryMaterialCompatibility";
+
+interface LaboratorySessionPanelProps {
+  materials: EngineeringMaterial[];
+  legacyTests: MaterialTestRecord[];
+  language?: "ar" | "fr" | "en";
+  projectId?: string;
+  projectName?: string;
+  onOpenTest?: (testId: string, category: any, materialId?: string) => void;
+}
+
+const text = (language: string, ar: string, fr: string, en: string) => language === "ar" ? ar : language === "fr" ? fr : en;
+const STORAGE_KEY = "snolab_laboratory_sessions_v1";
+
+export const LaboratorySessionPanel: React.FC<LaboratorySessionPanelProps> = ({ materials, legacyTests, language = "ar", projectId, projectName, onOpenTest }) => {
+  const [sessions, setSessions] = useState<LaboratorySession[]>(() => {
+    try {
+      const saved = typeof window !== "undefined" ? window.localStorage.getItem(STORAGE_KEY) : null;
+      if (saved) return JSON.parse(saved) as LaboratorySession[];
+    } catch { /* use compatibility views below */ }
+    return legacyTests.slice(0, 12).map(legacyRecordToLaboratorySession);
+  });
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [requestNumber, setRequestNumber] = useState("");
+  const [sampleNumber, setSampleNumber] = useState("");
+  const [sampleCode, setSampleCode] = useState("");
+  const [materialId, setMaterialId] = useState(materials[0]?.id || "");
+  const [selectedTestIds, setSelectedTestIds] = useState<string[]>([]);
+  const [running, setRunning] = useState(false);
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions)); } catch { /* storage remains session-local */ }
+  }, [sessions]);
+
+  const activeSession = sessions.find(session => session.id === activeId) || sessions[0];
+  const activeSummary = activeSession ? summarizeLaboratorySession(activeSession) : null;
+  const selectedMaterial = materials.find(material => material.id === materialId);
+  const visibleCatalog = useMemo(() => MASTER_TEST_CATALOG.filter(test => getCompatibleMaterials(test.id, materials).some(material => material.id === materialId)).slice(0, 36), [materials, materialId]);
+
+  const createSession = () => {
+    if (!requestNumber.trim() || !sampleNumber.trim() || !sampleCode.trim() || !selectedMaterial || !selectedTestIds.length) {
+      setMessage(text(language, "أدخل رقم الطلب والعينة والمادة واختر اختبارًا واحدًا على الأقل.", "Renseignez la demande, l'échantillon, le matériau et au moins un essai.", "Enter request, sample, material, and at least one test."));
+      return;
+    }
+    try {
+      let next = createLaboratorySession({ requestNumber, projectId, projectName });
+      next = addSessionSample(next, { sampleNumber, sampleCode, materialId: selectedMaterial.id, materialName: selectedMaterial.name, materialCategory: selectedMaterial.category });
+      const sampleId = next.samples[0].id;
+      for (const testId of selectedTestIds) {
+        const definition = MASTER_TEST_CATALOG.find(test => test.id === testId);
+        if (!definition) continue;
+        next = addSessionTest(next, {
+          testType: definition.id,
+          testTitleAr: definition.titleAr,
+          testTitleFr: definition.titleFr,
+          testTitleEn: definition.titleEn,
+          standard: definition.standard,
+          materialId: selectedMaterial.id,
+          sampleId,
+          status: "DRAFT",
+          requiredReplicates: 1,
+          hasChart: ["AGG_SIEVE", "AGG_BULKING_SAND", "CEM_SETTING_TIME", "CEM_COMPRESSIVE_STRENGTH"].includes(definition.id)
+        });
+      }
+      setSessions(prev => [next, ...prev]);
+      setActiveId(next.id);
+      setShowCreate(false);
+      setMessage(text(language, "تم إنشاء الطلب وحفظ الاختبارات كعناصر مستقلة.", "La demande et ses essais indépendants sont enregistrés.", "Request and independent test items saved."));
+      setSelectedTestIds([]);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not create laboratory session.");
+    }
+  };
+
+  const addReplicate = (testId: string) => {
+    if (!activeSession) return;
+    try {
+      const next = addTestReplicate(activeSession, testId, { sampleId: activeSession.tests.find(test => test.id === testId)!.sampleId, status: "EMPTY", rawInputs: {} });
+      setSessions(prev => prev.map(session => session.id === next.id ? next : session));
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not add replicate."); }
+  };
+
+  const runReady = async () => {
+    if (!activeSession || running) return;
+    const validation = validateLaboratorySession(activeSession);
+    if (!validation.valid) {
+      setMessage(text(language, `لا يمكن التشغيل: ${validation.issues[0]?.message || "بيانات ناقصة"}`, `Exécution impossible : ${validation.issues[0]?.message || "données incomplètes"}`, `Cannot run: ${validation.issues[0]?.message || "incomplete data"}`));
+      return;
+    }
+    setRunning(true);
+    const result = await runReadyLaboratoryTests(activeSession, (item, replicate) => {
+      const material = materials.find(candidate => candidate.id === item.materialId);
+      if (!material || !Object.keys(replicate.rawInputs).length) return { testId: item.id, status: "BLOCKED" as const, error: "Measurement inputs are not entered." };
+      const calculated = executeLaboratoryTest(item.testType, replicate.rawInputs, material);
+      return { testId: item.id, status: calculated.status, record: { results: calculated.results, score: calculated.score } as MaterialTestRecord };
+    });
+    setSessions(prev => prev.map(session => session.id === result.session.id ? result.session : session));
+    setRunning(false);
+    setMessage(text(language, `تم تنفيذ ${result.results.length} عنصر مستقل دون إلغاء بقية الاختبارات.`, ` ${result.results.length} élément(s) exécuté(s) indépendamment.`, `${result.results.length} item(s) executed independently.`));
+  };
+
+  const approveActive = () => {
+    if (!activeSession) return;
+    const gate = canApproveLaboratorySession(activeSession);
+    if (!gate.allowed) {
+      setMessage(text(language, `منع الاعتماد: ${gate.reasons[0] || "الطلب غير مكتمل"}`, `Approbation refusée : ${gate.reasons[0] || "demande incomplète"}`, `Approval blocked: ${gate.reasons[0] || "request incomplete"}`));
+      return;
+    }
+    try {
+      const approved = approveLaboratorySession(activeSession, "مسؤول المختبر");
+      setSessions(prev => prev.map(session => session.id === approved.id ? approved : session));
+      setMessage(text(language, "تم اعتماد الطلب بعد التحقق من جميع الاختبارات.", "Demande approuvée après vérification des essais.", "Request approved after all tests passed review."));
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Approval failed."); }
+  };
+
+  const statusLabel = (status: string) => ({ DRAFT: text(language, "مسودة", "Brouillon", "Draft"), READY: text(language, "جاهز", "Prêt", "Ready"), RUNNING: text(language, "قيد التنفيذ", "En cours", "Running"), PASS: "PASS", WARNING: "WARNING", FAIL: "FAIL", BLOCKED: text(language, "محظور", "Bloqué", "Blocked") }[status] || status);
+
+  return <section className="rounded-3xl border border-indigo-200 bg-gradient-to-br from-indigo-50 via-white to-slate-50 p-4 shadow-sm dark:border-indigo-900/60 dark:from-indigo-950/30 dark:via-slate-900 dark:to-slate-950" dir={language === "ar" ? "rtl" : "ltr"}>
+    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+      <div>
+        <div className="flex items-center gap-2 text-indigo-700 dark:text-indigo-300"><ClipboardList className="h-5 w-5" /><span className="text-[11px] font-black uppercase tracking-wider">{text(language, "مركز الطلبات والجلسات المختبرية", "Centre des demandes et sessions", "Laboratory requests & sessions")}</span></div>
+        <h2 className="mt-1 text-xl font-black text-slate-900 dark:text-white">{activeSession?.requestNumber || text(language, "ابدأ طلبًا متعدد الاختبارات", "Créer une demande multi-essais", "Start a multi-test request")}</h2>
+        <p className="mt-1 text-xs text-slate-500">{text(language, "كل اختبار وعينة وتكرار يحتفظ بمدخلاته وحالته وسجل تدقيقه بشكل مستقل.", "Chaque essai, échantillon et répétition conserve ses données et son statut.", "Each test, sample, and replicate keeps independent inputs, status, and audit data.")}</p>
+      </div>
+      <div className="flex flex-wrap gap-2"><button type="button" onClick={() => setShowCreate(value => !value)} className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-black text-white hover:bg-indigo-700"><Plus className="h-4 w-4" />{text(language, "طلب جديد متعدد الاختبارات", "Nouvelle demande multi-essais", "New multi-test request")}</button>{activeSession && <><button type="button" disabled={running} onClick={runReady} className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-black text-white disabled:opacity-50"><Play className="h-4 w-4" />{running ? text(language, "جارٍ التنفيذ...", "Exécution...", "Running...") : text(language, "تشغيل الجاهز", "Exécuter les prêts", "Run ready tests")}</button><button type="button" onClick={approveActive} className="inline-flex items-center gap-2 rounded-xl border border-emerald-300 bg-white px-4 py-2 text-xs font-black text-emerald-700 dark:bg-slate-900"><CheckCircle2 className="h-4 w-4" />{text(language, "مراجعة واعتماد الطلب", "Revoir et approuver", "Review & approve")}</button></>}</div>
+    </div>
+
+    {showCreate && <div className="mt-4 rounded-2xl border border-indigo-200 bg-white p-4 dark:border-indigo-900 dark:bg-slate-900"><div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4"><label className="text-xs font-bold">{text(language, "رقم الطلب", "N° demande", "Request number")}<input value={requestNumber} onChange={event => setRequestNumber(event.target.value)} placeholder="LAB-2026-001" className="mt-1 w-full rounded-lg border p-2 text-xs dark:border-slate-700 dark:bg-slate-950" /></label><label className="text-xs font-bold">{text(language, "رقم العينة", "N° échantillon", "Sample number")}<input value={sampleNumber} onChange={event => setSampleNumber(event.target.value)} placeholder="AGG-001" className="mt-1 w-full rounded-lg border p-2 text-xs dark:border-slate-700 dark:bg-slate-950" /></label><label className="text-xs font-bold">{text(language, "رمز العينة", "Code échantillon", "Sample code")}<input value={sampleCode} onChange={event => setSampleCode(event.target.value)} placeholder="AGG-001-A" className="mt-1 w-full rounded-lg border p-2 text-xs dark:border-slate-700 dark:bg-slate-950" /></label><label className="text-xs font-bold">{text(language, "المادة", "Matériau", "Material")}<select value={materialId} onChange={event => setMaterialId(event.target.value)} className="mt-1 w-full rounded-lg border p-2 text-xs dark:border-slate-700 dark:bg-slate-950">{materials.map(material => <option key={material.id} value={material.id}>{material.name}</option>)}</select></label></div><div className="mt-4"><div className="mb-2 text-xs font-black">{text(language, "اختر عدة اختبارات", "Sélectionnez plusieurs essais", "Select multiple tests")}</div><div className="grid max-h-52 grid-cols-1 gap-2 overflow-auto md:grid-cols-2 lg:grid-cols-3">{visibleCatalog.map(test => <label key={test.id} className="flex cursor-pointer items-start gap-2 rounded-xl border border-slate-200 p-2 text-xs hover:border-indigo-400 dark:border-slate-700"><input type="checkbox" checked={selectedTestIds.includes(test.id)} onChange={event => setSelectedTestIds(prev => event.target.checked ? [...prev, test.id] : prev.filter(id => id !== test.id))} /><span><strong>{language === "ar" ? test.titleAr : language === "fr" ? test.titleFr : test.titleEn}</strong><span className="block text-[10px] text-slate-500">{test.id} · {test.standard}</span></span></label>)}</div></div><div className="mt-4 flex justify-end"><button type="button" onClick={createSession} className="rounded-xl bg-slate-900 px-4 py-2 text-xs font-black text-white dark:bg-white dark:text-slate-900">{text(language, "إنشاء الطلب", "Créer la demande", "Create request")}</button></div></div>}
+
+    {message && <div className="mt-3 flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200"><AlertTriangle className="h-4 w-4 shrink-0" />{message}</div>}
+    {sessions.length > 0 && <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-[240px_1fr]"><aside className="space-y-2">{sessions.map(session => { const summary = summarizeLaboratorySession(session); return <button key={session.id} type="button" onClick={() => setActiveId(session.id)} className={`w-full rounded-xl border p-3 text-start ${activeSession?.id === session.id ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-950/40" : "border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900"}`}><span className="block truncate text-xs font-black">{session.requestNumber}</span><span className="mt-1 block text-[10px] text-slate-500">{summary.totalTests} {text(language, "اختبارات", "essais", "tests")} · {summary.completionPercent}%</span><span className="mt-1 block text-[10px] font-bold text-indigo-600">{statusLabel(summary.status)}</span></button>; })}</aside><div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">{activeSession && activeSummary && <><div className="grid grid-cols-2 gap-2 sm:grid-cols-5">{[[text(language, "الكل", "Total", "Total"), activeSummary.totalTests, "text-slate-700"], [text(language, "مكتمل", "Terminés", "Done"), activeSummary.completedTests, "text-emerald-600"], [text(language, "جاهز", "Prêts", "Ready"), activeSummary.readyTests, "text-blue-600"], [text(language, "فاشل", "Échecs", "Failed"), activeSummary.failedTests, "text-rose-600"], [text(language, "محظور", "Bloqués", "Blocked"), activeSummary.blockedTests, "text-orange-600"]].map(([label, value, tone]) => <div key={String(label)} className="rounded-xl bg-slate-50 p-2 dark:bg-slate-950"><span className="block text-[10px] text-slate-500">{label}</span><strong className={`text-xl font-black ${tone}`}>{value}</strong></div>)}</div><div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800"><div className="h-full rounded-full bg-indigo-600 transition-all" style={{ width: `${activeSummary.completionPercent}%` }} /></div><div className="mt-4 space-y-2">{activeSession.tests.map(test => <div key={test.id} className="rounded-xl border border-slate-200 p-3 dark:border-slate-800"><div className="flex flex-wrap items-start justify-between gap-2"><div><span className="me-2 inline-flex rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] dark:bg-slate-800">#{test.sequence} · {test.testType}</span><strong className="text-xs">{language === "ar" ? test.testTitleAr : language === "fr" ? test.testTitleFr : test.testTitleEn}</strong><span className="mt-1 block text-[10px] text-slate-500">{test.standard} · {activeSession.samples.find(sample => sample.id === test.sampleId)?.sampleCode || "—"} · {test.replicates.length} {text(language, "تكرار", "répétitions", "replicates")}</span></div><span className={`rounded-full px-2 py-1 text-[10px] font-black ${test.status === "PASS" ? "bg-emerald-100 text-emerald-700" : test.status === "BLOCKED" || test.status === "FAIL" ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-700"}`}>{statusLabel(test.status)}</span></div><div className="mt-2 flex flex-wrap gap-2"><button type="button" onClick={() => addReplicate(test.id)} className="inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[10px] font-bold"><Copy className="h-3 w-3" />{text(language, "إضافة تكرار", "Ajouter répétition", "Add replicate")}</button>{onOpenTest && <button type="button" onClick={() => onOpenTest(test.testType, MASTER_TEST_CATALOG.find(definition => definition.id === test.testType)?.category || "aggregates", test.materialId)} className="inline-flex items-center gap-1 rounded-lg border border-indigo-200 px-2 py-1 text-[10px] font-bold text-indigo-700"><ExternalLink className="h-3 w-3" />{text(language, "فتح نموذج الاختبار", "Ouvrir l'essai", "Open test")}</button>}</div>{test.replicates.length > 0 && <div className="mt-2 grid gap-1 sm:grid-cols-3">{test.replicates.map(replicate => <div key={replicate.id} className="rounded-lg bg-slate-50 p-2 text-[10px] dark:bg-slate-950"><span className="font-bold">Replicate {replicate.sequence}</span><span className="ms-2 text-slate-500">{replicate.status}</span>{replicate.numericResult !== undefined && <span className="ms-2 font-mono">{replicate.numericResult}</span>}</div>)}</div>}</div>)}</div></>}</div></div>}
+    {sessions.length === 0 && <div className="mt-6 rounded-2xl border border-dashed border-slate-300 p-8 text-center text-xs text-slate-500"><FlaskConical className="mx-auto mb-2 h-8 w-8 text-indigo-400" />{text(language, "لا توجد جلسات بعد. أنشئ طلبًا يضم عدة اختبارات.", "Aucune session. Créez une demande avec plusieurs essais.", "No sessions yet. Create a request with multiple tests.")}</div>}
+  </section>;
+};

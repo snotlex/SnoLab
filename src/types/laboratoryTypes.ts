@@ -129,6 +129,9 @@ export interface MaterialTestRecord {
   syncedToMaterial?: boolean;
   syncedProperties?: Record<string, any>;
   updateProposals?: MaterialUpdateProposal[];
+  laboratorySessionId?: string;
+  laboratorySessionTestItemId?: string;
+  laboratoryReplicateId?: string;
   historyTimestamp?: string;
   createdAt: string;
   updatedAt: string;

@@ -8474,6 +8474,8 @@ max="0.95"
                   onSaveTestRecord={handleSaveTestRecord}
                   onDeleteTestRecord={handleDeleteTestRecord}
                   onNavigateToMaterialsLibrary={() => setActiveSidebarTab("materials_library")}
+                  projectId={activeProject?.id}
+                  projectName={activeProject?.name}
                   language={language as "ar" | "fr" | "en"}
                 />
               </div>
