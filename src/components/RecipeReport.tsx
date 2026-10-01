@@ -44,6 +44,7 @@ import { LabValidationReportPages } from "./LabValidationReportPages";
 import { validateCalculationLogic } from "../engine/validationGate";
 import { formatEngineeringValue } from "../utils/unitFormatter";
 import { downloadMixDesignPdf } from "../services/pdf";
+import { ReportDownloadQr } from "./report/ReportDownloadQr";
 
 const customTranslations: Record<"ar" | "fr" | "en", Record<string, string>> = {
   ar: {
@@ -1267,6 +1268,13 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
           </div>
         </div>
 
+        <ReportDownloadQr
+          input={input}
+          result={result}
+          activeProject={activeProject}
+          materialsDatabase={materialsDatabase}
+          language={reportLanguage}
+        />
         {/* 9 DISTINCT A4 CHASSIS PAGES */}
         <div className="w-full overflow-x-auto lg:overflow-x-visible">
 

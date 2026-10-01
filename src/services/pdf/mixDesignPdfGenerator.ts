@@ -1,5 +1,6 @@
 import { jsPDF } from "jspdf";
-import autoTable from "jspdf-autotable";
+import autoTableImport from "jspdf-autotable";
+const autoTable: typeof autoTableImport = (typeof autoTableImport === "function" ? autoTableImport : (autoTableImport as any).default) as typeof autoTableImport;
 import { MixDesignInput, MixDesignResult, EngineeringMaterial } from "../../types";
 import { 
   createPdfDocument, 

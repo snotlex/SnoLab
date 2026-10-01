@@ -5,6 +5,8 @@ import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, ThinkingLevel, Type } from "@google/genai";
 import dotenv from "dotenv";
 import nodemailer from "nodemailer";
+import { generateMixDesignPdf } from "./src/services/pdf";
+import { createReportToken, storeReport, verifyReportToken } from "./server/reportDownloadService";
 
 dotenv.config();
 
@@ -93,6 +95,48 @@ app.use(["/api/concrete-advisor", "/api/extract-pdf-materials", "/api/concrete-v
 
 app.use(express.json({ limit: "15mb" }));
 app.use(express.urlencoded({ limit: "15mb", extended: true }));
+
+const reportDownloadRateLimit = rateLimit({ windowMs: 60_000, max: 30, name: "report-download" });
+app.post("/api/reports", reportDownloadRateLimit, (req, res) => {
+  const body = req.body || {};
+  if (!body.input || !body.result || !body.reportId || !body.revisionId || !["ar", "fr", "en"].includes(body.language)) {
+    return res.status(400).json({ success: false, error: "INVALID_REPORT_SNAPSHOT", message: "Report snapshot is incomplete." });
+  }
+  const reportId = String(body.reportId).slice(0, 160);
+  const revisionId = String(body.revisionId).slice(0, 80);
+  const report = storeReport({
+    input: body.input,
+    result: body.result,
+    activeProject: body.activeProject || undefined,
+    materialsDatabase: Array.isArray(body.materialsDatabase) ? body.materialsDatabase : [],
+    language: body.language,
+    reportId,
+    revisionId,
+    reportReference: String(body.reportReference || `SNO-${reportId}-${revisionId}`).slice(0, 180),
+    status: String(body.status || "draft").slice(0, 80)
+  });
+  const signed = createReportToken(report);
+  const baseUrl = PUBLIC_APP_URL || `${req.protocol}://${req.get("host")}`;
+  if (!/^https:\/\//i.test(baseUrl) || /localhost|127\.0\.0\.1/i.test(baseUrl)) {
+    return res.status(503).json({ success: false, error: "HTTPS_PUBLIC_URL_REQUIRED", message: "A public HTTPS URL is required for phone QR downloads." });
+  }
+  return res.json({ success: true, metadata: { reportId, revisionId, reportReference: report.reportReference, inputHash: report.inputHash, issuedAt: signed.issuedAt, expiresAt: signed.expiresAt, status: report.status, downloadUrl: `${baseUrl}/api/reports/${signed.token}/download` } });
+});
+app.get("/api/reports/:token/download", reportDownloadRateLimit, async (req, res) => {
+  const verified = verifyReportToken(String(req.params.token || ""));
+  if (!verified) return res.status(410).json({ success: false, error: "REPORT_TOKEN_INVALID_OR_EXPIRED", message: "This report link is invalid, expired, or no longer points to the current revision." });
+  try {
+    const { report } = verified;
+    const doc = await generateMixDesignPdf(report.result, report.input, { language: report.language, activeProject: report.activeProject, materialsDatabase: report.materialsDatabase, batchVolume: Number(report.input.batchVolume || 1) });
+    const pdf = Buffer.from(doc.output("arraybuffer"));
+    const safeRef = report.reportReference.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 100);
+    res.set({ "Content-Type": "application/pdf", "Content-Disposition": `attachment; filename="SnoLab-Mix-Report-${safeRef}.pdf"`, "Cache-Control": "private, no-store", "X-Report-Reference": report.reportReference, "X-Report-Input-Hash": report.inputHash });
+    return res.send(pdf);
+  } catch (error) {
+    console.error("[Report Download] PDF generation failed", error);
+    return res.status(500).json({ success: false, error: "REPORT_PDF_GENERATION_FAILED" });
+  }
+});
 
 // Local engineering intelligence engine to handle API quota limits (429) or interruptions gracefully.
 function generateLocalFallbackAnalysis(params: {
