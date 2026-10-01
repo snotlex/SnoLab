@@ -1,4 +1,13 @@
-import type { CalibrationRecord, MaterialTestRecord, SampleRecord, TestDeviceRecord } from "../types/qualityDomain";
+import type { CalibrationRecord, SampleRecord, TestDeviceRecord } from "../types/qualityDomain";
+
+export interface QualityTestRecord {
+  id: string;
+  sampleId: string;
+  testType: string;
+  standard: string;
+  approvalStatus?: string;
+  deviceId?: string;
+}
 
 export type QualityAssetMetric = "valid" | "due" | "expired" | "unknown";
 
@@ -58,7 +67,7 @@ export function buildCalibrationAlerts(devices: TestDeviceRecord[], now = new Da
   });
 }
 
-export function buildSampleTraceRows(samples: SampleRecord[], tests: MaterialTestRecord[]): SampleTraceRow[] {
+export function buildSampleTraceRows(samples: SampleRecord[], tests: QualityTestRecord[]): SampleTraceRow[] {
   const testCount = new Map<string, number>();
   tests.forEach(test => testCount.set(test.sampleId, (testCount.get(test.sampleId) || 0) + 1));
   return samples.map(sample => {
@@ -71,15 +80,15 @@ export function buildSampleTraceRows(samples: SampleRecord[], tests: MaterialTes
 
 export function summarizeQualityAssets(
   samples: SampleRecord[],
-  tests: MaterialTestRecord[],
+  tests: QualityTestRecord[],
   devices: TestDeviceRecord[],
   calibrations: CalibrationRecord[],
   now = new Date()
 ): QualityAssetSummary {
   const alerts = buildCalibrationAlerts(devices, now);
-  const approvedTests = tests.filter(test => test.approvalStatus === "approved").length;
-  const pendingTests = tests.filter(test => test.approvalStatus === "draft" || test.approvalStatus === "submitted").length;
-  const rejectedTests = tests.filter(test => test.approvalStatus === "rejected").length;
+  const approvedTests = tests.filter(test => test.approvalStatus === "approved" || test.approvalStatus === "Validated").length;
+  const pendingTests = tests.filter(test => !test.approvalStatus || test.approvalStatus === "draft" || test.approvalStatus === "submitted" || test.approvalStatus === "Draft" || test.approvalStatus === "Pending Review").length;
+  const rejectedTests = tests.filter(test => test.approvalStatus === "rejected" || test.approvalStatus === "Rejected").length;
   const passedCalibrations = calibrations.filter(calibration => calibration.result === "pass").length;
   const traceRows = buildSampleTraceRows(samples, tests);
   return {

@@ -5173,7 +5173,7 @@ export default function App() {
               <QualityAssetsDashboard
                 language={language as "ar" | "fr" | "en"}
                 samples={activeProject?.samples || []}
-                tests={activeProject?.materialTests || []}
+                tests={materialTestRecords}
                 devices={activeProject?.testDevices || []}
                 calibrations={activeProject?.calibrations || []}
               />
