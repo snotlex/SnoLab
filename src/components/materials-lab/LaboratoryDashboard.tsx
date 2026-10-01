@@ -34,14 +34,22 @@ import {
 } from "../../types/laboratoryTypes";
 import { 
   MASTER_TEST_CATALOG, 
-  LAB_CATEGORIES_INFO,
-  syncTestToMaterial 
+  LAB_CATEGORIES_INFO
 } from "../../services/materialsLabEngine";
+import { getCompatibleMaterials } from "../../services/laboratoryMaterialCompatibility";
 import { NewTestWizard } from "./NewTestWizard";
 import { TestReportModal } from "./TestReportModal";
 import { MaterialComprehensiveReportModal } from "./MaterialComprehensiveReportModal";
 import { MaterialDossierSelectorModal } from "./MaterialDossierSelectorModal";
 import { generateLabTestPdf } from "../../services/pdf/labTestPdfGenerator";
+
+const labText = (language: string, ar: string, fr: string, en: string) => language === "ar" ? ar : language === "fr" ? fr : en;
+const TESTS_WITH_CHARTS = new Set(["AGG_SIEVE", "AGG_BULKING_SAND", "CEM_SETTING_TIME", "CEM_COMPRESSIVE_STRENGTH"]);
+function countTestInputs(value: any, parent = ""): number {
+  if (Array.isArray(value)) return value.reduce((sum, row) => sum + countTestInputs(row, parent), 0);
+  if (value && typeof value === "object") return Object.entries(value).reduce((sum, [key, nested]) => sum + (parent === "sieves" && key === "sieve" ? 0 : countTestInputs(nested, key)), 0);
+  return typeof value === "number" || typeof value === "string" ? 1 : 0;
+}
 
 interface LaboratoryDashboardProps {
   materials: EngineeringMaterial[];
@@ -64,12 +72,18 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
   const [activeCategory, setActiveCategory] = useState<LabCategory | "all">("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<TestStatus | "ALL">("ALL");
+  const [dateFilter, setDateFilter] = useState<"all" | "30d" | "90d">("all");
+  const [catalogMaterialFilter, setCatalogMaterialFilter] = useState("all");
+  const [standardFilter, setStandardFilter] = useState("all");
+  const [recordMaterialFilter, setRecordMaterialFilter] = useState("all");
+  const [sampleIdFilter, setSampleIdFilter] = useState("");
 
   // Modals
   const [isWizardOpen, setIsWizardOpen] = useState<boolean>(false);
   const [wizardInitialCategory, setWizardInitialCategory] = useState<LabCategory>("aggregates");
   const [wizardInitialTestId, setWizardInitialTestId] = useState<string>("AGG_SIEVE");
   const [wizardInitialMaterialId, setWizardInitialMaterialId] = useState<string>("");
+  const [wizardInitialDraft, setWizardInitialDraft] = useState<MaterialTestRecord | null>(null);
 
   const [selectedReportRecord, setSelectedReportRecord] = useState<MaterialTestRecord | null>(null);
 
@@ -101,20 +115,31 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
     const passed = laboratoryTests.filter(t => t.status === "PASS").length;
     const warnings = laboratoryTests.filter(t => t.status === "WARNING").length;
     const failed = laboratoryTests.filter(t => t.status === "FAIL").length;
-    const passRate = total > 0 ? Math.round((passed / total) * 100) : 100;
+    const drafts = laboratoryTests.filter(t => t.status === "DRAFT").length;
+    const completed = passed + warnings + failed;
+    const pendingReview = laboratoryTests.filter(t => t.status !== "FAIL" && t.status !== "DRAFT" && t.approvalStatus !== "Approved" && t.approvalStatus !== "Validated").length;
+    const passRate = completed > 0 ? Math.round((passed / completed) * 100) : 0;
 
     // Materials tested
-    const testedMaterialIds = new Set(laboratoryTests.map(t => t.materialId));
-    const verifiedMaterialsCount = materials.filter(m => testedMaterialIds.has(m.id)).length;
-    const materialsCoveragePct = materials.length > 0 ? Math.round((verifiedMaterialsCount / materials.length) * 100) : 0;
+    const testedMaterialIds = new Set(laboratoryTests.filter(t => t.status !== "DRAFT" && t.materialId).map(t => t.materialId));
+    const testedMaterialsCount = materials.filter(m => testedMaterialIds.has(m.id)).length;
+    const unapprovedMaterials = materials.filter(m => m.approvalStatus !== "Approved" && m.approvalStatus !== "Validated").length;
+    const materialsCoveragePct = materials.length > 0 ? Math.round((testedMaterialsCount / materials.length) * 100) : 0;
+    const activeCutoff = Date.now() - 90 * 24 * 60 * 60 * 1000;
+    const activeSamples = new Set(laboratoryTests.filter(t => t.sampleId.trim() && Date.parse(t.date) >= activeCutoff).map(t => t.sampleId)).size;
 
     return {
       total,
+      completed,
       passed,
       warnings,
       failed,
+      drafts,
+      pendingReview,
       passRate,
-      verifiedMaterialsCount,
+      testedMaterialsCount,
+      unapprovedMaterials,
+      activeSamples,
       totalMaterials: materials.length,
       materialsCoveragePct
     };
@@ -124,31 +149,41 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
   const displayedCatalog = useMemo(() => {
     return MASTER_TEST_CATALOG.filter(test => {
       if (activeCategory !== "all" && test.category !== activeCategory) return false;
+      if (catalogMaterialFilter !== "all" && !test.applicableMaterials.some(value => value.toLowerCase().includes(catalogMaterialFilter.toLowerCase()))) return false;
+      if (standardFilter !== "all" && test.standard !== standardFilter) return false;
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
-        const matchTitle = test.titleAr.toLowerCase().includes(q) || test.titleEn.toLowerCase().includes(q);
+        const matchTitle = test.titleAr.toLowerCase().includes(q) || test.titleEn.toLowerCase().includes(q) || test.titleFr.toLowerCase().includes(q);
         const matchStd = test.standard.toLowerCase().includes(q);
         if (!matchTitle && !matchStd) return false;
       }
       return true;
     });
-  }, [activeCategory, searchQuery]);
+  }, [activeCategory, searchQuery, catalogMaterialFilter, standardFilter]);
 
   // Filtered Test History Records
   const displayedRecords = useMemo(() => {
     return laboratoryTests.filter(rec => {
       if (activeCategory !== "all" && rec.category !== activeCategory) return false;
       if (statusFilter !== "ALL" && rec.status !== statusFilter) return false;
+      if (recordMaterialFilter !== "all" && rec.materialId !== recordMaterialFilter) return false;
+      if (sampleIdFilter.trim() && !rec.sampleId.toLowerCase().includes(sampleIdFilter.trim().toLowerCase())) return false;
+      if (dateFilter !== "all") {
+        const days = dateFilter === "30d" ? 30 : 90;
+        const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+        if (!rec.date || Number.isNaN(Date.parse(rec.date)) || Date.parse(rec.date) < cutoff) return false;
+      }
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const matchMat = rec.materialName.toLowerCase().includes(q);
-        const matchTitle = rec.testTitleAr.toLowerCase().includes(q) || rec.testTitleEn.toLowerCase().includes(q);
+        const matchTitle = rec.testTitleAr.toLowerCase().includes(q) || rec.testTitleEn.toLowerCase().includes(q) || rec.testTitleFr.toLowerCase().includes(q);
         const matchSample = rec.sampleId.toLowerCase().includes(q);
         if (!matchMat && !matchTitle && !matchSample) return false;
       }
       return true;
     });
-  }, [laboratoryTests, activeCategory, statusFilter, searchQuery]);
+  }, [laboratoryTests, activeCategory, statusFilter, searchQuery, dateFilter, recordMaterialFilter, sampleIdFilter]);
+  const latestTests = useMemo(() => [...laboratoryTests].sort((a, b) => (Date.parse(b.date) || 0) - (Date.parse(a.date) || 0)).slice(0, 5), [laboratoryTests]);
 
   // Filtered Materials for Verification Matrix
   const filteredMatrixMaterials = useMemo(() => {
@@ -166,20 +201,19 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
   }, [materials, materialCategoryFilter, materialSearchQuery]);
 
   const handleLaunchTest = (testId: string, category: LabCategory, materialId?: string) => {
+    setWizardInitialDraft(null);
     setWizardInitialTestId(testId);
     setWizardInitialCategory(category);
-    if (materialId) {
-      setWizardInitialMaterialId(materialId);
-    } else {
-      const matchMat = materials.find(m => {
-        if (category === "aggregates") return m.category === "رمال" || m.category === "حصى";
-        if (category === "cement") return m.category === "إسمنت";
-        if (category === "water") return m.category === "ماء";
-        if (category === "admixtures") return m.category?.includes("إضافات") || m.category?.includes("ملدنات");
-        return true;
-      });
-      setWizardInitialMaterialId(matchMat ? matchMat.id : materials[0]?.id || "");
-    }
+    const compatible = getCompatibleMaterials(testId, materials);
+    setWizardInitialMaterialId(materialId && compatible.some(material => material.id === materialId) ? materialId : compatible[0]?.id || "");
+    setIsWizardOpen(true);
+  };
+
+  const handleResumeDraft = (draft: MaterialTestRecord) => {
+    setWizardInitialDraft(draft);
+    setWizardInitialTestId(draft.testType);
+    setWizardInitialCategory(draft.category);
+    setWizardInitialMaterialId(draft.materialId);
     setIsWizardOpen(true);
   };
 
@@ -194,14 +228,13 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
           <div className="space-y-2">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-[11px] font-black text-blue-200">
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-              <span>SnoLab Materials Testing & Laboratory Quality Control</span>
+              <span>{labText(language, "SnoLab · مختبر المواد وضبط الجودة", "SnoLab · Laboratoire des matériaux et contrôle qualité", "SnoLab · Materials testing & quality control")}</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
-              🧪 مخبر خصائص المواد والتحقق والتحكم المخبري
+              {labText(language, "مختبر المواد وضبط الجودة", "Laboratoire des matériaux et contrôle qualité", "Materials laboratory & quality control")}
             </h1>
             <p className="text-xs sm:text-sm text-blue-100/80 max-w-3xl leading-relaxed">
-              منظومة متكاملة لجميع الاختبارات الفيزيائية والميكانيكية للركام، الإسمنت، ماء الخلط، الملدنات الكيميائية، والإضافات المعدنية.
-              مربوطة مباشرة بمستودع المواد لتحديث الخواص الفعلية ومطابقة المعايير القياسية (EN / ASTM / NF).
+              {labText(language, "منظومة اختبارات مواد البناء مع تحقق للمدخلات ومراجعة آمنة لخصائص المواد.", "Essais des matériaux avec validation des données et examen sécurisé des propriétés.", "Building-material tests with input validation and safe review of material properties.")}
             </p>
           </div>
 
@@ -213,7 +246,7 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
               className="flex items-center gap-2 px-5 py-3 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black rounded-2xl text-xs shadow-lg shadow-emerald-500/30 transition-all transform active:scale-95 cursor-pointer"
             >
               <Plus className="w-4 h-4 text-slate-950 stroke-[3]" />
-              <span>{language === "ar" ? "إجراء تجربة مخبرية جديدة" : "Run New Lab Test"}</span>
+              <span>{labText(language, "اختبار جديد", "Nouvel essai", "New test")}</span>
             </button>
 
             <button
@@ -237,36 +270,25 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
           </div>
         </div>
 
-        {/* Top 4 KPI Metrics */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-8 pt-6 border-t border-white/10">
-          <div className="p-3 bg-white/5 rounded-2xl border border-white/10 backdrop-blur-sm">
-            <span className="text-[10px] text-blue-200 uppercase tracking-widest font-black block">إجمالي التجارب المخبرية</span>
-            <span className="text-2xl font-black font-mono text-white">{stats.total}</span>
-            <span className="text-[10px] text-blue-300 block mt-0.5">سجل فحص معتمد</span>
-          </div>
-
-          <div className="p-3 bg-white/5 rounded-2xl border border-white/10 backdrop-blur-sm">
-            <span className="text-[10px] text-blue-200 uppercase tracking-widest font-black block">نسبة المطابقة القياسية</span>
-            <span className="text-2xl font-black font-mono text-emerald-400">{stats.passRate}%</span>
-            <span className="text-[10px] text-emerald-300 block mt-0.5">{stats.passed} تجربة مطابقة تماماً</span>
-          </div>
-
-          <div className="p-3 bg-white/5 rounded-2xl border border-white/10 backdrop-blur-sm">
-            <span className="text-[10px] text-blue-200 uppercase tracking-widest font-black block">المواد الموثقة مخبرياً</span>
-            <span className="text-2xl font-black font-mono text-amber-300">{stats.verifiedMaterialsCount} / {stats.totalMaterials}</span>
-            <span className="text-[10px] text-amber-200 block mt-0.5">{stats.materialsCoveragePct}% تغطية المستودع</span>
-          </div>
-
-          <div className="p-3 bg-white/5 rounded-2xl border border-white/10 backdrop-blur-sm">
-            <span className="text-[10px] text-blue-200 uppercase tracking-widest font-black block">حالة التخزين المحلي</span>
-            <span className="text-sm font-black text-white flex items-center gap-1.5 mt-1.5">
-              <BookmarkCheck className="w-4 h-4 text-cyan-400" />
-              <span>Local-First (.snlab)</span>
-            </span>
-            <span className="text-[10px] text-cyan-200 block mt-0.5">محفوظة داخل ملف المشروع</span>
-          </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-9 gap-3 mt-8 pt-6 border-t border-white/10">
+          {[
+            { label: labText(language, "كل الاختبارات", "Tous les essais", "All tests"), value: stats.total, detail: labText(language, "سجلات محفوظة", "Résultats archivés", "Archived records"), tone: "text-white" },
+            { label: labText(language, "مكتملة", "Terminés", "Completed"), value: stats.completed, detail: labText(language, "نتائج منفذة", "Essais exécutés", "Tests run"), tone: "text-cyan-300" },
+            { label: labText(language, "مسودات", "Brouillons", "Drafts"), value: stats.drafts, detail: labText(language, "يمكن استكمالها", "Reprise possible", "Can be resumed"), tone: "text-slate-200" },
+            { label: labText(language, "بحاجة إلى مراجعة", "À examiner", "Needs review"), value: stats.pendingReview, detail: labText(language, "لم تعتمد بعد", "Non encore approuvés", "Not approved yet"), tone: "text-amber-300" },
+            { label: labText(language, "فاشلة", "Échecs", "Failed"), value: stats.failed, detail: labText(language, "لا تزامن خصائصها", "Aucune synchronisation", "Never sync properties"), tone: "text-rose-300" },
+            { label: labText(language, "عينات نشطة · 90 يومًا", "Échantillons actifs · 90 j", "Active samples · 90 days"), value: stats.activeSamples, detail: labText(language, "أرقام عينات مميزة", "Identifiants distincts", "Unique sample IDs"), tone: "text-blue-200" },
+            { label: labText(language, "مواد غير معتمدة", "Matériaux non approuvés", "Unapproved materials"), value: stats.unapprovedMaterials, detail: labText(language, "تحتاج مراجعة", "À vérifier", "Require review"), tone: "text-orange-200" },
+            { label: labText(language, "تغطية برنامج الفحص", "Couverture du programme", "Program coverage"), value: `${stats.materialsCoveragePct}%`, detail: `${stats.testedMaterialsCount}/${stats.totalMaterials} ${labText(language, "مواد مفحوصة", "matériaux testés", "materials tested")}`, tone: "text-emerald-300" },
+            { label: labText(language, "معدل المطابقة", "Taux de conformité", "Pass rate"), value: `${stats.passRate}%`, detail: `${stats.passed} ${labText(language, "مطابق", "conformes", "passed")}`, tone: "text-emerald-300" }
+          ].map(metric => <div key={metric.label} className="min-w-0 rounded-2xl border border-white/10 bg-white/5 p-3 backdrop-blur-sm"><span className="block truncate text-[10px] font-black text-blue-200">{metric.label}</span><span className={`text-2xl font-black font-mono ${metric.tone}`}>{metric.value}</span><span className="mt-0.5 block truncate text-[10px] text-blue-200">{metric.detail}</span></div>)}
         </div>
       </div>
+
+      <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900" aria-label={labText(language, "أحدث الاختبارات", "Essais récents", "Latest tests")}>
+        <div className="md:col-span-2 xl:col-span-5 flex items-center gap-2"><TrendingUp className="h-4 w-4 text-blue-600" /><h2 className="text-sm font-black">{labText(language, "آخر الاختبارات المنفذة", "Derniers essais exécutés", "Latest tests performed")}</h2></div>
+        {latestTests.length === 0 ? <p className="text-xs text-slate-500 md:col-span-2 xl:col-span-5">{labText(language, "لا توجد نتائج محفوظة بعد.", "Aucun résultat archivé.", "No results have been archived yet.")}</p> : latestTests.map(record => <button key={record.id} type="button" onClick={() => record.status === "DRAFT" ? handleResumeDraft(record) : setSelectedReportRecord(record)} className="min-w-0 rounded-xl border border-slate-100 bg-slate-50 p-3 text-start hover:border-blue-300 dark:border-slate-800 dark:bg-slate-950"><span className="block truncate text-xs font-bold">{language === "ar" ? record.testTitleAr : language === "fr" ? record.testTitleFr : record.testTitleEn}</span><span className="mt-1 block truncate text-[10px] text-slate-500">{record.materialName || labText(language, "مادة غير محددة", "Matériau à choisir", "Material not selected")} · {record.sampleId || "—"}</span><span className="mt-1 block font-mono text-[10px] text-slate-400">{record.date} · {record.status === "DRAFT" ? labText(language, "مسودة", "Brouillon", "Draft") : record.status}</span></button>)}
+      </section>
 
       {/* 2. Category Selector Bar (6 Main Categories + All) */}
       <div className="space-y-3">
@@ -312,7 +334,7 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
                 }`}
               >
                 <span className="text-xl">{info.icon}</span>
-                <span className="text-xs font-bold truncate w-full">{info.nameAr}</span>
+                <span className="text-xs font-bold truncate w-full">{language === "ar" ? info.nameAr : language === "fr" ? info.nameFr : info.nameEn}</span>
                 <span className="text-[10px] opacity-75 font-mono">{countInCat} تجربة</span>
               </button>
             );
@@ -379,8 +401,8 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pt-2">
           {filteredMatrixMaterials.map(mat => {
             const matTests = laboratoryTests.filter(t => t.materialId === mat.id);
-            const isVerified = matTests.length > 0;
-            const lastTest = matTests[matTests.length - 1];
+            const isVerified = mat.approvalStatus === "Approved" || mat.approvalStatus === "Validated";
+            const lastTest = [...matTests].sort((a, b) => (Date.parse(b.date) || 0) - (Date.parse(a.date) || 0))[0];
 
             return (
               <div 
@@ -407,7 +429,7 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
                         : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-300 dark:border-slate-700"
                     }`}>
                       {isVerified ? <CheckCircle2 className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
-                      {isVerified ? `${matTests.length} فحص منجز` : "غير مفحوص"}
+                      {isVerified ? labText(language, "مادة معتمدة", "Matériau approuvé", "Approved material") : matTests.length ? labText(language, `${matTests.length} اختبار · قيد المراجعة`, `${matTests.length} essai(s) · à examiner`, `${matTests.length} test(s) · review pending`) : labText(language, "غير مفحوصة", "Non testée", "Not tested")}
                     </span>
                   </div>
 
@@ -421,6 +443,7 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
                       <span className="font-mono font-black text-slate-800 dark:text-slate-200">{mat.absorption !== undefined ? `${mat.absorption}%` : "—"}</span>
                     </div>
                   </div>
+                  {lastTest && <div className="mt-2 text-[10px] text-slate-500">{labText(language, "آخر فحص:", "Dernier essai :", "Latest test:")} {language === "ar" ? lastTest.testTitleAr : language === "fr" ? lastTest.testTitleFr : lastTest.testTitleEn} · {lastTest.date} · {lastTest.status}</div>}
                 </div>
 
                 <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800 gap-2">
@@ -466,15 +489,10 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
             </p>
           </div>
 
-          <div className="relative w-full sm:w-64">
-            <Search className="w-4 h-4 absolute right-3 top-2.5 text-slate-400" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="بحث في التجارب والمواصفات..."
-              className="w-full pl-3 pr-9 py-2 text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-            />
+          <div className="grid w-full grid-cols-1 gap-2 sm:w-auto sm:grid-cols-3">
+            <div className="relative sm:w-60"><Search className="w-4 h-4 absolute right-3 top-2.5 text-slate-400" /><input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder={labText(language, "بحث بالاختبار أو المواصفة...", "Rechercher essai ou norme…", "Search test or standard…")} className="w-full pl-3 pr-9 py-2 text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none" /></div>
+            <select value={catalogMaterialFilter} onChange={e => setCatalogMaterialFilter(e.target.value)} aria-label={labText(language, "تصفية حسب المادة", "Filtrer par matériau", "Filter by material")} className="rounded-xl border border-slate-200 bg-white px-2 py-2 text-xs dark:border-slate-700 dark:bg-slate-900"><option value="all">{labText(language, "كل المواد", "Tous les matériaux", "All materials")}</option>{[["رمال", "رمل", "Sable", "Sand"], ["حصى", "حصى", "Gravier", "Gravel"], ["إسمنت", "إسمنت", "Ciment", "Cement"], ["ماء", "ماء", "Eau", "Water"], ["ملدنات", "إضافات كيميائية", "Adjuvants", "Admixtures"], ["إضافات معدنية", "إضافات معدنية", "Additions minérales", "Mineral additions"], ["ألياف", "ألياف", "Fibres", "Fibers"]].map(([value, ar, fr, en]) => <option key={value} value={value}>{labText(language, ar, fr, en)}</option>)}</select>
+            <select value={standardFilter} onChange={e => setStandardFilter(e.target.value)} aria-label={labText(language, "تصفية حسب المواصفة", "Filtrer par norme", "Filter by standard")} className="rounded-xl border border-slate-200 bg-white px-2 py-2 text-xs dark:border-slate-700 dark:bg-slate-900"><option value="all">{labText(language, "كل المواصفات", "Toutes les normes", "All standards")}</option>{Array.from(new Set(MASTER_TEST_CATALOG.map(test => test.standard))).sort().map(standard => <option key={standard} value={standard}>{standard}</option>)}</select>
           </div>
         </div>
 
@@ -494,7 +512,7 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
                       </span>
                       <div>
                         <span className="text-[10px] font-black uppercase text-blue-600 dark:text-blue-400 block">
-                          {catInfo.nameAr}
+                          {language === "ar" ? catInfo.nameAr : language === "fr" ? catInfo.nameFr : catInfo.nameEn}
                         </span>
                         <span className="text-[10px] font-mono text-slate-400 block">
                           {test.standard}
@@ -507,27 +525,24 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
                   </div>
 
                   <h4 className="text-sm font-black text-slate-900 dark:text-white pt-1">
-                    {test.titleAr}
+                    {language === "ar" ? test.titleAr : language === "fr" ? test.titleFr : test.titleEn}
                   </h4>
                   <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed">
-                    {test.shortDescAr}
+                    {language === "ar" ? test.shortDescAr : language === "fr" ? test.shortDescFr : test.shortDescEn}
                   </p>
                 </div>
 
-                <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                  <div className="flex items-center gap-1 text-[10px] text-slate-400">
-                    <span className="font-bold">مزامنة:</span>
-                    <span className="font-mono text-blue-600 dark:text-blue-400 truncate max-w-[120px]">
-                      {test.syncedPropertyKeys.join(", ")}
-                    </span>
-                  </div>
+                <div className="space-y-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                  <div className="flex flex-wrap gap-1.5 text-[10px]"><span className="rounded-full bg-emerald-50 px-2 py-1 font-bold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">{labText(language, "جاهز لإدخال القياسات", "Prêt pour la saisie", "Ready for measurements")}</span><span className="rounded-full bg-slate-100 px-2 py-1 dark:bg-slate-800">{countTestInputs(test.defaultInputs)} {labText(language, "حقلًا", "champs", "fields")}</span><span className="rounded-full bg-slate-100 px-2 py-1 dark:bg-slate-800">{TESTS_WITH_CHARTS.has(test.id) ? labText(language, "رسم بياني", "Graphique", "Chart") : labText(language, "بدون رسم", "Sans graphique", "No chart")}</span></div>
+                  <div className="text-[10px] text-slate-500"><strong>{labText(language, "المادة:", "Matériau :", "Material:")}</strong> {test.applicableMaterials.join(", ")}</div>
+                  <div className="text-[10px] text-slate-500"><strong>{labText(language, "خصائص قابلة للمراجعة:", "Propriétés proposées :", "Properties proposed:")}</strong> <span className="font-mono text-blue-600 dark:text-blue-400">{test.syncedPropertyKeys.length ? test.syncedPropertyKeys.join(", ") : "—"}</span></div>
 
                   <button
                     type="button"
                     onClick={() => handleLaunchTest(test.id, test.category)}
                     className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black transition-all shadow-sm shadow-blue-500/20 cursor-pointer"
                   >
-                    <span>إجراء التجربة</span>
+                    <span>{labText(language, "ابدأ الاختبار", "Démarrer l'essai", "Start test")}</span>
                     <ChevronLeft className="w-3.5 h-3.5" />
                   </button>
                 </div>
@@ -579,7 +594,17 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
             >
               تنبيه ({stats.warnings})
             </button>
+            <button type="button" onClick={() => setStatusFilter("FAIL")} className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${statusFilter === "FAIL" ? "bg-rose-600 text-white shadow-sm font-black" : "text-slate-500"}`}>
+              {labText(language, `فشل (${stats.failed})`, `Échecs (${stats.failed})`, `Failed (${stats.failed})`)}
+            </button>
+            <button type="button" onClick={() => setStatusFilter("DRAFT")} className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${statusFilter === "DRAFT" ? "bg-slate-600 text-white shadow-sm font-black" : "text-slate-500"}`}>{labText(language, `مسودات (${stats.drafts})`, `Brouillons (${stats.drafts})`, `Drafts (${stats.drafts})`)}</button>
           </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2" aria-label={labText(language, "فلاتر سجل الاختبارات", "Filtres de l'historique", "Test history filters")}>
+          <select value={recordMaterialFilter} onChange={e => setRecordMaterialFilter(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-950"><option value="all">{labText(language, "كل المواد", "Tous les matériaux", "All materials")}</option>{Array.from(new Map(laboratoryTests.map(record => [record.materialId, record.materialName])).entries()).map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select>
+          <select value={dateFilter} onChange={e => setDateFilter(e.target.value as "all" | "30d" | "90d")} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-950"><option value="all">{labText(language, "كل التواريخ", "Toutes les dates", "All dates")}</option><option value="30d">{labText(language, "آخر 30 يومًا", "30 derniers jours", "Last 30 days")}</option><option value="90d">{labText(language, "آخر 90 يومًا", "90 derniers jours", "Last 90 days")}</option></select>
+          <input value={sampleIdFilter} onChange={e => setSampleIdFilter(e.target.value)} placeholder={labText(language, "بحث برقم العينة", "Rechercher par échantillon", "Filter by sample ID")} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-950" />
         </div>
 
         {displayedRecords.length === 0 ? (
@@ -609,7 +634,7 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
                   <th className="p-3">المادة المختبرة</th>
                   <th className="p-3">المواصفة القياسية</th>
                   <th className="p-3 text-center">القرار والمطابقة</th>
-                  <th className="p-3">الخاصية المحدثة</th>
+                  <th className="p-3">{labText(language, "الخصائص المقترحة / المزامنة", "Propriétés proposées / synchronisées", "Proposed / synced properties")}</th>
                   <th className="p-3 text-center">الإجراءات</th>
                 </tr>
               </thead>
@@ -622,8 +647,9 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
                     </td>
 
                     <td className="p-3">
-                      <span className="font-black text-slate-900 dark:text-white block">{rec.testTitleAr}</span>
-                      <span className="text-[10px] text-slate-400">{rec.sampleId}</span>
+                      <span className="font-black text-slate-900 dark:text-white block">{language === "ar" ? rec.testTitleAr : language === "fr" ? rec.testTitleFr : rec.testTitleEn}</span>
+                      <span className="text-[10px] text-slate-400">{rec.sampleId}{rec.sampleDate ? ` · ${rec.sampleDate}` : ""}</span>
+                      {rec.sampleSource && <span className="block text-[10px] text-slate-400">{rec.sampleSource}</span>}
                     </td>
 
                     <td className="p-3">
@@ -641,17 +667,21 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
                           ? "bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
                           : rec.status === "WARNING"
                           ? "bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800"
+                          : rec.status === "DRAFT"
+                          ? "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700"
                           : "bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800"
                       }`}>
                         {rec.status === "PASS" && <CheckCircle2 className="w-3 h-3" />}
                         {rec.status === "WARNING" && <AlertTriangle className="w-3 h-3" />}
                         {rec.status === "FAIL" && <XCircle className="w-3 h-3" />}
-                        {rec.status}
+                        {rec.status === "DRAFT" ? labText(language, "مسودة", "Brouillon", "Draft") : rec.status}
                       </span>
+                      <span className="mt-1 block text-[10px] text-slate-500">{rec.approvalStatus || labText(language, "قيد المراجعة", "À examiner", "Pending review")}</span>
                     </td>
 
                     <td className="p-3">
                       <div className="flex flex-wrap gap-1 max-w-[150px]">
+                        {(rec.updateProposals || []).map(proposal => <span key={proposal.id} title={`${proposal.oldValue ?? "—"} → ${proposal.newValue}${proposal.unit ? ` ${proposal.unit}` : ""}`} className="px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 font-mono text-[9px]">{proposal.propertyKey}: {proposal.newValue} {proposal.unit || ""} · {proposal.status}</span>)}
                         {Object.keys(rec.syncedProperties || {}).map(k => {
                           const val = rec.syncedProperties[k];
                           const displayVal = Array.isArray(val)
@@ -670,6 +700,7 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
 
                     <td className="p-3 text-center">
                       <div className="flex items-center justify-center gap-1.5">
+                        {rec.status === "DRAFT" ? <button type="button" onClick={() => handleResumeDraft(rec)} className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-2 text-[10px] font-bold text-white hover:bg-blue-700"><RotateCcw className="h-3 w-3" />{labText(language, "استكمال المسودة", "Reprendre le brouillon", "Resume draft")}</button> : <>
                         <button
                           type="button"
                           onClick={() => handleExportTestPdf(rec)}
@@ -704,6 +735,7 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
                         >
                           <BookOpen className="w-4 h-4" />
                         </button>
+                        </>}
 
                         {onDeleteTestRecord && (
                           <button
@@ -729,11 +761,17 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
       {isWizardOpen && (
         <NewTestWizard
           isOpen={isWizardOpen}
-          onClose={() => setIsWizardOpen(false)}
+          onClose={() => {
+            setIsWizardOpen(false);
+            setWizardInitialDraft(null);
+          }}
           materials={materials}
           initialCategory={wizardInitialCategory}
           initialTestId={wizardInitialTestId}
           initialMaterialId={wizardInitialMaterialId}
+          initialDraft={wizardInitialDraft}
+          existingTestRecords={laboratoryTests}
+          onNavigateToMaterialsLibrary={onNavigateToMaterialsLibrary}
           onSaveTest={onSaveTestRecord}
           language={language}
         />

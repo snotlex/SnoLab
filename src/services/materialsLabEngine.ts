@@ -267,7 +267,8 @@ export const MASTER_TEST_CATALOG: LabTestDefinition[] = [
     defaultInputs: {
       initialMassG: 500,
       retainedMassOn1_6mmG: 432,
-      gradingFraction: "10/14"
+      gradingFraction: "10/14",
+      waterVolumeMl: undefined
     }
   },
   {
@@ -2576,30 +2577,36 @@ export function syncTestToMaterial(
   testRecord: MaterialTestRecord,
   updatedProps: Record<string, any> = {}
 ): EngineeringMaterial {
-  const updated = { ...material };
+  // Only explicitly validated, non-demo results may update material properties.
+  if ((testRecord.status !== "PASS" && testRecord.status !== "WARNING") || testRecord.approvalStatus !== "Validated" || testRecord.isDemo) return material;
+
+  const updated = { ...material, metadata: { ...((material as any).metadata || {}) } };
 
   // Apply mapped properties
   Object.keys(updatedProps).forEach(key => {
     const val = updatedProps[key];
-    if (val !== undefined && val !== null) {
+    const containsOnlyFiniteValues = (value: any): boolean => {
+      if (value === undefined || value === null) return false;
+      if (typeof value === "number") return Number.isFinite(value);
+      if (Array.isArray(value)) return value.length > 0 && value.every(containsOnlyFiniteValues);
+      if (typeof value === "object") {
+        const values = Object.values(value);
+        return values.length > 0 && values.every(containsOnlyFiniteValues);
+      }
+      return typeof value === "string" && value.trim().length > 0;
+    };
+    if (containsOnlyFiniteValues(val)) {
       (updated as any)[key] = val;
     }
   });
 
-  // Also apply test verified stamp
-  (updated as any).active = true;
-  (updated as any).isApproved = testRecord.status !== "FAIL";
-  (updated as any).approvalStatus = testRecord.status === "FAIL" ? "Rejected" : "Validated";
-  
-  // Attach metadata
-  if (!(updated as any).metadata) {
-    (updated as any).metadata = {};
-  }
+  if (Object.keys(updatedProps).every(key => updated[key as keyof EngineeringMaterial] === material[key as keyof EngineeringMaterial])) return material;
+
+  // Record provenance without implicitly approving the material itself.
   (updated as any).metadata.lastLabTestId = testRecord.id;
   (updated as any).metadata.lastLabTestType = testRecord.testType;
   (updated as any).metadata.lastLabTestDate = testRecord.date;
   (updated as any).metadata.lastLabStatus = testRecord.status;
-  (updated as any).metadata.verifiedByLab = true;
 
   return updated;
 }

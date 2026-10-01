@@ -10,7 +10,7 @@ export type LabCategory =
   | "fibers";
 export type LaboratoryArea = "materials" | "concrete";
 
-export type TestStatus = "PASS" | "WARNING" | "FAIL";
+export type TestStatus = "DRAFT" | "PASS" | "WARNING" | "FAIL";
 
 export type TestApprovalStatus = "Draft" | "Pending Review" | "Validated" | "Rejected";
 
@@ -102,6 +102,8 @@ export interface MaterialTestRecord {
   materialName: string;
   materialCategory: string;
   sampleId: string;
+  sampleDate?: string;
+  sampleSource?: string;
   sampleDescription?: string;
   projectId?: string;
   projectName?: string;
@@ -111,7 +113,7 @@ export interface MaterialTestRecord {
   standard: string;
   inputs: Record<string, any>;
   results: Record<string, any>;
-  status: TestStatus; // Compliance verdict ("PASS" | "WARNING" | "FAIL")
+  status: TestStatus; // Draft lifecycle state or completed test verdict
   approvalStatus?: TestApprovalStatus; // Workflow Status ("Draft" | "Pending Review" | "Validated" | "Rejected")
   isDemo?: boolean;
   sourceType?: MaterialSourceType;

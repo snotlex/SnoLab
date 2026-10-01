@@ -236,14 +236,19 @@ export function extractPropertiesFromTest(test: MaterialTestRecord): Record<stri
           passing: Number(passing)
         })).sort((a, b) => b.sieve - a.sieve);
       } else if (inputs.sieves && Array.isArray(inputs.sieves)) {
-        const totalWeight = Number(inputs.totalWeight || 1000);
+        const hasValue = (value: unknown) => value !== undefined && value !== null && String(value).trim() !== "" && Number.isFinite(Number(value));
+        const totalWeight = Number(inputs.totalWeight);
+        const hasCompleteMeasurements = hasValue(inputs.totalWeight) && totalWeight > 0 && inputs.sieves.length > 0 && inputs.sieves.every((row: any) =>
+          row && hasValue(row.sieve) && Number(row.sieve) > 0 && hasValue(row.retained) && Number(row.retained) >= 0
+        );
+        if (!hasCompleteMeasurements) break;
         let cumulativeRetained = 0;
         const gradArray: { sieve: number; passing: number; retained?: number; cumRetained?: number }[] = [];
         const sieveSteps: SieveStepResult[] = [];
 
         inputs.sieves.forEach((s: any) => {
           const sieveSize = Number(s.sieve);
-          const retained = Number(s.retained || 0);
+          const retained = Number(s.retained);
           cumulativeRetained += retained;
           const percentRetained = (retained / totalWeight) * 100;
           const cumPercentRetained = (cumulativeRetained / totalWeight) * 100;
@@ -271,7 +276,7 @@ export function extractPropertiesFromTest(test: MaterialTestRecord): Record<stri
           sieves: sieveSteps,
           finenessModulus: results.finenessModulus,
           dMax: results.dMax,
-          finesContent: results.finesContent || 0
+          ...(hasValue(results.finesContent) ? { finesContent: Number(results.finesContent) } : {})
         };
       }
 
@@ -455,10 +460,28 @@ export function applyTestToMaterial(
   test: MaterialTestRecord,
   explicitApprovalStatus?: TestApprovalStatus
 ): ApplyTestResult {
-  const approvalStatus: TestApprovalStatus = explicitApprovalStatus || test.approvalStatus || "Validated";
-  const isValidated = approvalStatus === "Validated";
+  const approvalStatus: TestApprovalStatus = explicitApprovalStatus || test.approvalStatus || "Pending Review";
+  const isValidated = approvalStatus === "Validated" &&
+    (test.status === "PASS" || test.status === "WARNING") &&
+    !test.isDemo &&
+    !isDemoTestRecord(test);
+  if (!isValidated) return { updatedMaterial: material, appliedProperties: [], isAppliedToActiveProps: false };
 
-  const extractedProps = extractPropertiesFromTest(test);
+  const isComputedValue = (value: any): boolean => {
+    if (value === undefined || value === null) return false;
+    if (typeof value === "number") return Number.isFinite(value);
+    if (Array.isArray(value)) return value.length > 0 && value.every(isComputedValue);
+    if (typeof value === "object") {
+      const values = Object.values(value);
+      return values.length > 0 && values.every(isComputedValue);
+    }
+    return typeof value === "string" && value.trim().length > 0;
+  };
+  const extractedProps = Object.fromEntries(
+    Object.entries(extractPropertiesFromTest(test)).filter(([, value]) => isComputedValue(value))
+  );
+  if (Object.keys(extractedProps).length === 0) return { updatedMaterial: material, appliedProperties: [], isAppliedToActiveProps: false };
+
   const updatedMaterial: EngineeringMaterial = { ...material };
   
   // Initialize sources and history structures if missing
