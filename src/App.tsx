@@ -3628,7 +3628,7 @@ export default function App() {
 
   return (
     <div 
-      className={`snolab-app-shell min-h-screen ${themeMode === "dark" ? "dark bg-[#0B1120] text-slate-200" : "bg-[#F1F5F9] text-slate-900"} font-sans transition-colors duration-200 select-none pb-12`}
+      className={`min-h-screen ${themeMode === "dark" ? "dark bg-[#0B1120] text-slate-200" : "bg-[#F1F5F9] text-slate-900"} font-sans transition-colors duration-200 select-none pb-12`} 
       id="main-layout-root" 
       dir={language === "ar" ? "rtl" : "ltr"}
     >
@@ -3711,7 +3711,7 @@ export default function App() {
       </AnimatePresence>
 
       {/* TOP BAR & PLATFORM NAVIGATION GATEWAY */}
-      <header className={`snolab-topbar border-b font-sans sticky top-0 z-40 shadow-2xl print:hidden select-none transition-colors duration-200 ${
+      <header className={`border-b font-sans sticky top-0 z-40 shadow-2xl print:hidden select-none transition-colors duration-200 ${
         themeMode === "dark" 
           ? "bg-[#0B1120] border-slate-800 text-white" 
           : "bg-white border-slate-200 text-slate-800 shadow-md"
@@ -3909,7 +3909,7 @@ export default function App() {
       </header>
 
       {/* PRIMARY CONTAINER BLOCK WITH SIDEBAR & ACTIVE AREA */}
-      <div className="snolab-workspace-frame max-w-7xl mx-auto px-4 md:px-6 py-6" id="mixwizard-primary-container">
+      <div className="max-w-7xl mx-auto px-4 md:px-6 py-6" id="mixwizard-primary-container">
         
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           
@@ -3939,7 +3939,7 @@ export default function App() {
           />
 
           {/* MAIN WORKSPACE CONTENT PANEL (RIGHT - occupies 9 to 11 columns depending on isSidebarCollapsed) */}
-          <main className={`snolab-content-surface ${isSidebarCollapsed ? "lg:col-span-11" : "lg:col-span-9"} transition-all duration-300 space-y-6`} id="mixwizard-main-workspace">
+          <main className={`${isSidebarCollapsed ? "lg:col-span-11" : "lg:col-span-9"} transition-all duration-300 space-y-6`} id="mixwizard-main-workspace">
 
             {/* WORKFLOW ENFORCEMENT & STEPPER HEADER */}
             <div className="bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-xl text-right flex flex-col gap-5 font-sans select-none" dir="rtl">

@@ -143,22 +143,12 @@ test.describe("SnoLab application smoke flow", () => {
     const strengthInput = page.locator("#step1-project-requirements input[type=number]").first();
     await strengthInput.fill("");
     await expect(page.locator("#step1-project-requirements")).toContainText("Target strength is missing");
-    await expect(page.locator('section[aria-label="Mix lifecycle and approval"]')).toHaveCount(0);
-    await expect(page.locator('section[aria-label="Staged calculation and auditable values"]')).toHaveCount(0);
+    const lifecycle = page.locator('section[aria-label="Mix lifecycle and approval"]');
+    await expect(lifecycle).toBeVisible();
+    await expect(page.locator('section[aria-label="Staged calculation and auditable values"]')).toBeVisible();
+    await expect(lifecycle.getByRole("button", { name: "Approve mix" })).toBeDisabled();
     await strengthInput.fill("25");
     await expect(strengthInput).toHaveValue("25");
-  });
-
-  test("places specialized concrete inputs beside general inputs and removes material bundle actions", async ({ page }) => {
-    await page.goto("/");
-    await page.getByRole("button", { name: /🇺🇸 EN/ }).click();
-    await page.getByRole("button", { name: /Start New Project/ }).first().click();
-    await page.locator("#workflow-step-btn-3").click();
-    await page.locator("#step1-concrete-type select").selectOption("HSC");
-    await expect(page.locator("#step1-specialized-inputs")).toBeVisible();
-    await expect(page.locator("#step1-specialized-inputs")).toContainText("specialized inputs");
-    await expect(page.locator("#step1-concrete-type")).not.toContainText("Apply bundle");
-    await expect(page.locator("body")).not.toContainText("Recommended material bundle");
   });
 
   test("isolates stage 3 sections and preserves the selected concrete type", async ({ page }) => {

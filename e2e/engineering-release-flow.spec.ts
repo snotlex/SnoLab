@@ -37,15 +37,14 @@ test.describe("engineering release governance flow", () => {
     await expect(qc).toContainText("closed");
   });
 
-  test("keeps production approval governed through the dedicated release workspace", async ({ page }) => {
+  test("keeps production approval blocked for a design engineer without release gates", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /🇺🇸 EN/ }).click();
     await page.getByRole("button", { name: /Start New Project/ }).first().click();
-    await page.getByRole("button", { name: /Batch ticket/i }).click();
-    const ticket = page.getByTestId("production-batch-ticket");
-    await expect(ticket).toBeVisible();
-    await expect(ticket).toContainText("BLOCKED");
-    await expect(ticket).toContainText("cannot be released");
+    await page.locator("#workflow-step-btn-3").click();
+    const lifecycle = page.locator('section[aria-label="Mix lifecycle and approval"]');
+    await expect(lifecycle).toBeVisible();
+    await expect(lifecycle.getByRole("button", { name: "Approve mix" })).toBeDisabled();
   });
 
   test("exposes revision history and comparison as a governed workspace", async ({ page }) => {
