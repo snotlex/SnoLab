@@ -320,7 +320,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
   return (
     <div 
-      className={`min-h-screen transition-colors duration-350 overflow-x-hidden ${themeMode === "dark" ? "bg-[#0B1120] text-slate-100" : "bg-[#F1F5F9] text-slate-900"}`}
+      className={`snolab-landing-shell min-h-screen transition-colors duration-350 overflow-x-hidden ${themeMode === "dark" ? "bg-[#0B1120] text-slate-100" : "bg-[#F1F5F9] text-slate-900"}`}
       dir={isRtl ? "rtl" : "ltr"}
       id="sno-landing-page-root"
     >

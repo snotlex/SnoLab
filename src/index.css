@@ -38,6 +38,109 @@
 
 body {
   font-family: "Cairo", "Inter", ui-sans-serif, system-ui, sans-serif;
+  min-width: 320px;
+  background: #eef3f8;
+  color: #172033;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: #bfdbfe;
+  color: #0f172a;
+}
+
+/* SnoLab visual system: calm QA/QC surfaces, clear hierarchy, restrained motion. */
+.snolab-app-shell {
+  --snolab-ink: #172033;
+  --snolab-muted: #64748b;
+  --snolab-line: rgba(148, 163, 184, 0.24);
+  background:
+    radial-gradient(circle at 85% -10%, rgba(37, 99, 235, 0.10), transparent 34rem),
+    linear-gradient(180deg, #f7faff 0%, #eef3f8 52%, #e9eff6 100%);
+}
+
+.dark .snolab-app-shell {
+  --snolab-ink: #e5edf8;
+  --snolab-muted: #94a3b8;
+  --snolab-line: rgba(71, 85, 105, 0.44);
+  background:
+    radial-gradient(circle at 85% -10%, rgba(37, 99, 235, 0.18), transparent 34rem),
+    linear-gradient(180deg, #0b1324 0%, #0f172a 55%, #101b2d 100%);
+}
+
+.snolab-landing-shell {
+  background:
+    radial-gradient(circle at 12% 4%, rgba(14, 165, 233, 0.12), transparent 28rem),
+    radial-gradient(circle at 88% 10%, rgba(79, 70, 229, 0.12), transparent 30rem),
+    linear-gradient(180deg, #f8fbff 0%, #eef3f8 58%, #e8eff7 100%);
+}
+
+.dark .snolab-landing-shell {
+  background:
+    radial-gradient(circle at 12% 4%, rgba(14, 165, 233, 0.16), transparent 28rem),
+    radial-gradient(circle at 88% 10%, rgba(79, 70, 229, 0.18), transparent 30rem),
+    linear-gradient(180deg, #0b1324 0%, #0f172a 58%, #101b2d 100%);
+}
+
+.snolab-topbar {
+  background: color-mix(in srgb, var(--snolab-ink) 3%, transparent);
+  border-color: var(--snolab-line) !important;
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+}
+
+.snolab-workspace-frame {
+  position: relative;
+}
+
+.snolab-workspace-frame::before {
+  content: "";
+  position: absolute;
+  inset: 1.25rem 0 auto;
+  height: 7rem;
+  border-radius: 2rem;
+  background: linear-gradient(90deg, rgba(59, 130, 246, 0.08), rgba(14, 165, 233, 0.02), transparent);
+  pointer-events: none;
+}
+
+.snolab-sidebar-surface {
+  border-color: var(--snolab-line) !important;
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.08) !important;
+}
+
+.dark .snolab-sidebar-surface {
+  box-shadow: 0 18px 48px rgba(2, 6, 23, 0.32) !important;
+}
+
+.snolab-content-surface {
+  position: relative;
+  z-index: 1;
+}
+
+@media (max-width: 1023px) {
+  .snolab-workspace-frame::before { inset-inline: 0.5rem; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .snolab-content-surface { animation: snolab-enter 280ms ease-out both; }
+}
+
+@keyframes snolab-enter {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Consistent, unobtrusive scrollbars across the engineering workspace. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #94a3b8 transparent;
+}
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 999px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: #64748b; background-clip: padding-box;
 }
 
 /* Accessibility contrast adjustments for Light Theme */
