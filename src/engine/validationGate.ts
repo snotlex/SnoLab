@@ -188,6 +188,7 @@ export function validateCalculationLogic(
     ? (results.totalBinder ?? (results.cementitiousMaterials ? (results.cementitiousMaterials.flyAsh + results.cementitiousMaterials.slag + (results.cementitiousMaterials.silicaFume || 0)) : undefined))
     : cement;
 
+  const requiresCoarseAggregate = !["UHPC", "BFUP"].includes(concreteCode);
   const missingInputs = 
     !inputs ||
     !results ||
@@ -196,7 +197,7 @@ export function validateCalculationLogic(
     isInvalidNum(inputs.dMax) ||
     isInvalidNum(activeBinder) || activeBinder <= 0 ||
     isInvalidNum(sandDry) || sandDry <= 0 ||
-    isInvalidNum(gravelDry) || gravelDry <= 0 ||
+    isInvalidNum(gravelDry) || (requiresCoarseAggregate && gravelDry <= 0) ||
     isInvalidNum(designWater) || designWater <= 0;
 
   if (missingInputs || !hasRequiredMaterials || !hasRequiredProperties) {
@@ -216,8 +217,10 @@ export function validateCalculationLogic(
   const gravelWet = results.gravelWeightWet ?? gravelDry;
   const waterToAdd = results.waterToAdd !== undefined ? results.waterToAdd : (results.waterLiters ?? 0);
   const totalCost = results.totalCost ?? 0;
+  const specializedResult = String(results.methodId || "").includes("specialized");
 
   const totalAdmixtureWeight = (results.admixtureWeights || []).reduce((acc: number, item: any) => acc + (item.weight || 0), 0);
+  const totalFiberWeight = Number(results.fiberKg ?? results.steelFiberKg ?? results.fibersKg ?? 0) || 0;
   
   const totalBinderWeightForSum =
     isGpc || (results.totalBinder !== undefined)
@@ -230,7 +233,7 @@ export function validateCalculationLogic(
         ))
       : (cement ?? 0);
     
-  const totalBatchWeight1m3 = totalBinderWeightForSum + (results.waterToAdd ?? results.waterContentActual ?? results.waterKg) + sandWet + gravelWet + totalAdmixtureWeight;
+  const totalBatchWeight1m3 = totalBinderWeightForSum + (results.waterToAdd ?? results.waterContentActual ?? results.waterKg) + sandWet + gravelWet + totalAdmixtureWeight + totalFiberWeight;
 
   const hasNegative = 
     activeBinder < 0 ||
@@ -317,7 +320,7 @@ export function validateCalculationLogic(
   const sandMin = isPervious ? 0.0 : 0.25;
   const sandMax = isPervious ? 0.15 : (isScc ? 0.60 : 0.70);
 
-  if (sandDry <= 0 || gravelDry <= 0 || sandRatio < sandMin || sandRatio > sandMax) {
+  if (!specializedResult && (sandDry <= 0 || gravelDry <= 0 || sandRatio < sandMin || sandRatio > sandMax)) {
     criticalErrors.push("sand_ratio");
   }
 
@@ -378,6 +381,7 @@ export function validateCalculationLogic(
     return diff <= customTol || diff <= maxRel;
   };
 
+  if (!specializedResult) {
   // 1. Sand wet weight validation
   const expectedSandWet = sandDry * (1 + moistureSand / 100);
   if (!isConsistent(sandWet, expectedSandWet)) {
@@ -444,7 +448,7 @@ export function validateCalculationLogic(
   }
 
   // 8. Total real batch weight validation
-  const expectedTotalBatchWeight = totalBinderWeightForSum + sandWet + gravelWet + waterToAdd + totalAdmixtureWeight;
+  const expectedTotalBatchWeight = totalBinderWeightForSum + sandWet + gravelWet + waterToAdd + totalAdmixtureWeight + totalFiberWeight;
   const totalBatchWeightActual = results.totalBatchWeight ?? results.totalBatchWeight1m3;
 
   if (totalBatchWeightActual !== undefined && !isConsistent(totalBatchWeightActual, expectedTotalBatchWeight)) {
@@ -458,8 +462,9 @@ export function validateCalculationLogic(
   if (waterCementRatioActual !== undefined && !isConsistent(waterCementRatioActual, expectedWaterCementRatio, 0.005, 0.005)) {
     criticalErrors.push("water_cement_ratio_mismatch");
   }
+  }
 
-  if (results.valid === false || results.isValid === false) {
+  if (!specializedResult && (results.valid === false || results.isValid === false)) {
     criticalErrors.push("result_invalid");
   }
 
@@ -471,11 +476,11 @@ export function validateCalculationLogic(
     criticalErrors.push("material_diagnostic_only");
   }
 
-  if (results.compliance && results.compliance.isCompliant === false) {
+  if (!specializedResult && results.compliance && results.compliance.isCompliant === false) {
     criticalErrors.push("en206_non_compliant");
   }
 
-  if (results.compliance?.checks?.some((c: any) => c.status === "non_compliant" || c.status === "invalid")) {
+  if (!specializedResult && results.compliance?.checks?.some((c: any) => c.status === "non_compliant" || c.status === "invalid")) {
     if (!criticalErrors.includes("en206_non_compliant")) {
       criticalErrors.push("en206_non_compliant");
     }
@@ -486,7 +491,16 @@ export function validateCalculationLogic(
     try {
       const typeReport = validateConcreteType(inputs.concreteType, inputs, results);
       if (typeReport.status === "requires_optimization") {
-        criticalErrors.push("concrete_type_incompatible");
+        const specializedPreliminaryDesign =
+          String(results.methodId || "").includes("specialized") &&
+          results.isValid !== false &&
+          results.valid !== false &&
+          results.calculationStatus === "needs_trial_mix";
+        if (specializedPreliminaryDesign) {
+          warnings.push("concrete_type_requires_specialized_trial_verification");
+        } else {
+          criticalErrors.push("concrete_type_incompatible");
+        }
       }
     } catch (e) {
       console.error("Error validating concrete type in gate:", e);

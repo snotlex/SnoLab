@@ -2,6 +2,7 @@ import { jsPDF } from "jspdf";
 import { MixDesignResult } from "../../types";
 import { PDF_COLORS, PDF_PAGE_MARGINS } from "./pdfCore";
 import { getGradingSeries, getStrengthSeries } from "../../utils/reportData";
+import { containsArabic, drawPdfText, setPdfFont } from "./pdfArabic";
 
 function mapLogX(size: number, left: number, width: number): number {
   const min = 0.08;
@@ -35,17 +36,18 @@ export function drawGradingChart(
   doc.setDrawColor(...PDF_COLORS.border);
   doc.roundedRect(left, top, chartW, chartH, 1.5, 1.5, "FD");
 
-  doc.setFont("helvetica", "bold");
+  setPdfFont(doc, "bold");
   doc.setFontSize(8.5);
   doc.setTextColor(...PDF_COLORS.primary);
-  doc.text(options.title || "AGGREGATE GRADING — DREUX TARGET vs ACTUAL BLEND", left + 4, top + 7);
+  const gradingTitle = options.title || "AGGREGATE GRADING — DREUX TARGET vs ACTUAL BLEND";
+  drawPdfText(doc, gradingTitle, containsArabic(gradingTitle) ? left + chartW - 4 : left + 4, top + 7, { direction: containsArabic(gradingTitle) ? "rtl" : "ltr", align: containsArabic(gradingTitle) ? "right" : "left" });
 
   [0, 20, 40, 60, 80, 100].forEach((p) => {
     const y = mapPctY(p, plotTop, plotH);
     doc.setDrawColor(...PDF_COLORS.border);
     doc.setLineWidth(0.15);
     doc.line(plotLeft, y, plotLeft + plotW, y);
-    doc.setFont("helvetica", "normal");
+    setPdfFont(doc, "normal");
     doc.setFontSize(5.3);
     doc.setTextColor(...PDF_COLORS.textMuted);
     doc.text(String(p), plotLeft - 2, y + 1.8, { align: "right" });
@@ -135,10 +137,11 @@ export function drawStrengthEvolutionChart(
   doc.setDrawColor(...PDF_COLORS.border);
   doc.roundedRect(left, top, chartW, chartH, 1.5, 1.5, "FD");
 
-  doc.setFont("helvetica", "bold");
+  setPdfFont(doc, "bold");
   doc.setFontSize(8.5);
   doc.setTextColor(...PDF_COLORS.primary);
-  doc.text(options.title || "COMPRESSIVE STRENGTH DEVELOPMENT", left + 4, top + 7);
+  const strengthTitle = options.title || "COMPRESSIVE STRENGTH DEVELOPMENT";
+  drawPdfText(doc, strengthTitle, containsArabic(strengthTitle) ? left + chartW - 4 : left + 4, top + 7, { direction: containsArabic(strengthTitle) ? "rtl" : "ltr", align: containsArabic(strengthTitle) ? "right" : "left" });
 
   [0, 20, 40, 60, 80, 100].forEach((p) => {
     const value = (p / 100) * maxStrength;
@@ -146,7 +149,7 @@ export function drawStrengthEvolutionChart(
     doc.setDrawColor(...PDF_COLORS.border);
     doc.setLineWidth(0.12);
     doc.line(plotLeft, yy, plotLeft + plotW, yy);
-    doc.setFont("helvetica", "normal");
+    setPdfFont(doc, "normal");
     doc.setFontSize(5.3);
     doc.setTextColor(...PDF_COLORS.textMuted);
     doc.text(value.toFixed(0), plotLeft - 2, yy + 1.8, { align: "right" });
@@ -166,7 +169,7 @@ export function drawStrengthEvolutionChart(
   points.forEach(([px, py], idx) => {
     doc.setFillColor(...PDF_COLORS.success);
     doc.circle(px, py, 1.1, "F");
-    doc.setFont("helvetica", "normal");
+    setPdfFont(doc, "normal");
     doc.setFontSize(5);
     doc.setTextColor(...PDF_COLORS.textPrimary);
     doc.text(series[idx].strength.toFixed(1), px, py - 2.2, { align: "center" });

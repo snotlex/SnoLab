@@ -46,6 +46,8 @@ import { formatEngineeringValue } from "../utils/unitFormatter";
 import { downloadMixDesignPdf } from "../services/pdf";
 import { ReportDownloadQr } from "./report/ReportDownloadQr";
 import type { ReportDownloadMetadata } from "../services/reportDownloadService";
+import { buildReportEnvelope, type ReportEnvelope } from "../services/reporting/reportContract";
+import { downloadReportFormat } from "../services/reporting/reportFormatExport";
 
 const customTranslations: Record<"ar" | "fr" | "en", Record<string, string>> = {
   ar: {
@@ -603,6 +605,26 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
     (result.flyAshKg ?? 0) +
     (result.slagKg ?? 0) +
     (result.silicaFumeKg ?? 0);
+
+  const reportEnvelope = React.useMemo<ReportEnvelope>(() => buildReportEnvelope({
+    input,
+    result,
+    language: reportLanguage,
+    project: activeProject ? {
+      id: activeProject.id,
+      name: projectName,
+      client: clientOwner,
+      plant: siteLocation,
+    } : { name: projectName, client: clientOwner, plant: siteLocation },
+    findings: [
+      ...validation.criticalErrors.map((code) => ({ code, severity: "critical" as const, message: code, source: "validation-gate" })),
+      ...validation.warnings.map((code) => ({ code, severity: "medium" as const, message: code, source: "validation-gate" })),
+    ],
+  }), [input, result, reportLanguage, activeProject, projectName, clientOwner, siteLocation, validation]);
+
+  const handleExportStructured = (format: "csv" | "json" | "html") => {
+    downloadReportFormat(reportEnvelope, format);
+  };
 
   const dryWater = Math.round(result.waterContentActual) + " L";
   
@@ -1232,6 +1254,14 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
                 )}
               </span>
             </div>
+            <div className="flex flex-wrap items-center gap-2 mt-2 text-[9px] font-mono">
+              <span className={`rounded-full px-2 py-1 border ${reportEnvelope.metadata.verificationStatus === "blocked" ? "bg-red-50 text-red-700 border-red-200" : "bg-emerald-50 text-emerald-700 border-emerald-200"}`}>
+                {reportLanguage === "ar" ? "التحقق: " : reportLanguage === "fr" ? "Vérification : " : "Verification: "}{reportEnvelope.metadata.verificationStatus}
+              </span>
+              <span className="rounded-full px-2 py-1 bg-slate-100 text-slate-600 border border-slate-200">
+                {reportEnvelope.metadata.reportId} · r{reportEnvelope.metadata.revision}
+              </span>
+            </div>
           </div>
           <div className="flex flex-wrap gap-2">
             <button
@@ -1262,6 +1292,30 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
               className="text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white p-2 px-3 rounded-md flex items-center gap-1 transition-all shadow-sm cursor-pointer"
             >
               <FileSpreadsheet size={13} /> {t_sub.exportExcel}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleExportStructured("json")}
+              className="text-xs font-bold bg-slate-700 hover:bg-slate-800 text-white p-2 px-3 rounded-md flex items-center gap-1 transition-all shadow-sm cursor-pointer"
+              title="Export the versioned report contract as JSON"
+            >
+              <FileText size={13} /> {t_sub.exportJson}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleExportStructured("csv")}
+              className="text-xs font-bold bg-cyan-700 hover:bg-cyan-800 text-white p-2 px-3 rounded-md flex items-center gap-1 transition-all shadow-sm cursor-pointer"
+              title="Export flattened engineering values as CSV"
+            >
+              <FileSpreadsheet size={13} /> {t_sub.exportCsv}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleExportStructured("html")}
+              className="text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white p-2 px-3 rounded-md flex items-center gap-1 transition-all shadow-sm cursor-pointer"
+              title="Export a standalone RTL/LTR HTML report"
+            >
+              <Globe size={13} /> {t_sub.exportHtml}
             </button>
             <button
               type="button"

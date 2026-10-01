@@ -20,6 +20,7 @@ import { formatEngineeringValue } from "../../utils/unitFormatter";
 import { getStrengthSeries } from "../../utils/reportData";
 import { PDF_FONT_FAMILY } from "./pdfFonts";
 import { drawGradingChart, drawStrengthEvolutionChart } from "./reportCharts";
+import { preparePdfTableRows } from "./pdfArabic";
 
 /**
  * Generates an official, publication-quality, multi-page vector PDF for a Concrete Mix Design.
@@ -36,6 +37,7 @@ export async function generateMixDesignPdf(
   const project = options.activeProject || {};
   const batchVolume = options.batchVolume && options.batchVolume > 0 ? options.batchVolume : (input.batchVolume || 1);
   const lang = options.language || "fr";
+  const pdfDirection = lang === "ar" ? "rtl" : "ltr";
 
   const dateStr = new Date().toISOString().split("T")[0];
   const cementRef = String(input.cementType || "CEM").replace(/[^A-Za-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 18) || "CEM";
@@ -69,9 +71,10 @@ export async function generateMixDesignPdf(
 
   const fck = input.fck28;
   const fcm = result.fcm28 !== undefined ? result.fcm28 : (fck !== undefined ? (fck + (input.controlClass === "high" ? 6 : input.controlClass === "low" ? 12 : 8)) : undefined);
-  const wcRatio = result.wcRatioAdjusted || result.wcRatio;
+  const wcRatioCandidate = result.wcRatioAdjusted ?? result.wcRatio;
+  const wcRatio = typeof wcRatioCandidate === "number" && Number.isFinite(wcRatioCandidate) && wcRatioCandidate > 0 ? wcRatioCandidate : undefined;
   const slumpVal = input.slump;
-  const freshDensity = result.totalFreshDensity ? Math.round(result.totalFreshDensity) : undefined;
+  const freshDensity = typeof result.totalFreshDensity === "number" && Number.isFinite(result.totalFreshDensity) && result.totalFreshDensity > 0 ? Math.round(result.totalFreshDensity) : undefined;
 
   currentY = drawMetricCards(doc, currentY, [
     {
@@ -232,8 +235,8 @@ export async function generateMixDesignPdf(
   autoTable(doc, {
     ...theme,
     startY: currentY,
-    head: [["Component", "Commercial Name / Specification", "Source / Brand", "Density", "Absorption", "Moisture", "Notes / Limits"]],
-    body: materialsRows,
+    head: preparePdfTableRows([["Component", "Commercial Name / Specification", "Source / Brand", "Density", "Absorption", "Moisture", "Notes / Limits"]], pdfDirection),
+    body: preparePdfTableRows(materialsRows, pdfDirection),
     columnStyles: {
       0: { cellWidth: 32, fontStyle: "bold" },
       1: { cellWidth: 42 },
@@ -356,8 +359,8 @@ export async function generateMixDesignPdf(
   autoTable(doc, {
     ...theme,
     startY: currentY,
-    head: [["Constituent Material", "Absolute Volume (L/m³)", "Dry Mass (kg/m³)", `Batch (${batchVolume} m³)`, "% Total Mass", "Engineering Ratio"]],
-    body: dryRows,
+    head: preparePdfTableRows([["Constituent Material", "Absolute Volume (L/m³)", "Dry Mass (kg/m³)", `Batch (${batchVolume} m³)`, "% Total Mass", "Engineering Ratio"]], pdfDirection),
+    body: preparePdfTableRows(dryRows, pdfDirection),
     foot: [[
       "TOTAL DESIGN MASS (DRY / EFFECTIVE BASIS)",
       "1000.0 L",
@@ -436,8 +439,8 @@ export async function generateMixDesignPdf(
   autoTable(doc, {
     ...theme,
     startY: currentY,
-    head: [["Material / Scale Point", "Dry Mass (kg/m³)", "Moisture (w%)", "Moisture Delta (kg)", "Actual Wet Scale (1 m³)", `Batch Scale (${batchVolume} m³)`]],
-    body: moistureRows,
+    head: preparePdfTableRows([["Material / Scale Point", "Dry Mass (kg/m³)", "Moisture (w%)", "Moisture Delta (kg)", "Actual Wet Scale (1 m³)", `Batch Scale (${batchVolume} m³)`]], pdfDirection),
+    body: preparePdfTableRows(moistureRows, pdfDirection),
     columnStyles: {
       0: { cellWidth: 44, fontStyle: "bold" },
       1: { cellWidth: 26, halign: "right" },
@@ -534,8 +537,8 @@ export async function generateMixDesignPdf(
   autoTable(doc, {
     ...theme,
     startY: currentY,
-    head: [["Engineering Parameter", "Calculated / Measured", "Design Requirement / Limit", "Reference Standard", "Status"]],
-    body: complianceRows,
+    head: preparePdfTableRows([["Engineering Parameter", "Calculated / Measured", "Design Requirement / Limit", "Reference Standard", "Status"]], pdfDirection),
+    body: preparePdfTableRows(complianceRows, pdfDirection),
     columnStyles: {
       0: { cellWidth: 46, fontStyle: "bold" },
       1: { cellWidth: 32, halign: "center", fontStyle: "bold" },
@@ -572,7 +575,7 @@ export async function generateMixDesignPdf(
     autoTable(doc, {
       ...theme,
       startY: currentY,
-      body: [[lang === "ar" ? "لا توجد بيانات تدرج حبيبي كافية لإنشاء المنحنى." : "Insufficient grading data to generate the grading curve."]]
+      body: preparePdfTableRows([[lang === "ar" ? "لا توجد بيانات تدرج حبيبي كافية لإنشاء المنحنى." : "Insufficient grading data to generate the grading curve."]], pdfDirection)
     });
     currentY = (doc as any).lastAutoTable.finalY + 5;
   }
@@ -611,11 +614,11 @@ export async function generateMixDesignPdf(
   autoTable(doc, {
     ...theme,
     startY: currentY + 8,
-    head: [[lang === "ar" ? "حالة السجل" : "Record status", lang === "ar" ? "المعنى" : "Meaning"]],
-    body: [[
+    head: preparePdfTableRows([[lang === "ar" ? "حالة السجل" : "Record status", lang === "ar" ? "المعنى" : "Meaning"]], pdfDirection),
+    body: preparePdfTableRows([[
       lang === "ar" ? "بيانات المصدر الخام غير معروضة كسجل طويل داخل PDF" : "Raw source data is not dumped into the human-readable PDF",
       lang === "ar" ? "يتم الاحتفاظ بها في Snapshot/JSON منظم قابل للمراجعة" : "It remains available through the structured Snapshot/JSON export"
-    ]],
+    ]], pdfDirection),
     columnStyles: { 0: { cellWidth: 76, fontStyle: "bold" }, 1: { cellWidth: 96 } },
     styles: { overflow: "linebreak" }
   });

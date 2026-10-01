@@ -264,7 +264,7 @@ export function calculateSccMix(
     trace: [
       { stepId: "scc-1", label: "Select total powder content.", formula: "P = user target or 500 kg/m3 initial value", inputs: { requested: (input as any).sccPowderKgM3 }, output: powderKg, unit: "kg/m3" },
       { stepId: "scc-2", label: "Compute powder absolute volume.", formula: "Vp = Vc + Vscm", inputs: { cementKg, scmKg, cementDensity, scmDensity }, output: powderVolumeL, unit: "L/m3" },
-      { stepId: "scc-3", label: "Determine effective water from W/P by volume or explicit water.", formula: "W = (Vw/Vp)·Vp or user water", inputs: { requestedWpv, waterRequested }, output: water, unit: "kg/m3" },
+      { stepId: "scc-3", label: "Determine effective water from W/P by volume or explicit water.", formula: "W = (Vw/Vp)·Vp or user water", inputs: { requestedWpv, waterRequested: water }, output: water, unit: "kg/m3" },
       { stepId: "scc-4", label: "Set coarse aggregate volume fraction.", formula: "Vca = 0.28-0.35·1000 L/m3", inputs: { coarseVolumeFraction }, output: coarseVolumeL, unit: "L/m3" },
       { stepId: "scc-5", label: "Balance remaining volume with fine aggregate.", formula: "Vfa = 1000 - Vp - Vw - Vad - Vair - Vca", inputs: { powderVolumeL, waterVolumeL, admixtureVolumeL, airVolumeL, coarseVolumeL }, output: fineVolumeL, unit: "L/m3" },
       { stepId: "scc-6", label: "Correct batch water for aggregate moisture/absorption.", formula: "Wadd = W - Wfree + Wdeficit", inputs: { freeSurfaceWater: sandCorrection.freeSurfaceWater + gravelCorrection.freeSurfaceWater, absorptionDeficit: sandCorrection.absorptionDeficit + gravelCorrection.absorptionDeficit }, output: waterToAdd, unit: "kg/m3" }

@@ -2,6 +2,7 @@ import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { DEFAULT_LAB_PROFILE, LabProfile, ReportLanguage } from "./types";
 import { PDF_FONT_FAMILY, registerPdfFonts } from "./pdfFonts";
+import { containsArabic, drawPdfText } from "./pdfArabic";
 
 export const PDF_COLORS = {
   primary: [15, 23, 42] as [number, number, number],      // Slate 900 #0F172A
@@ -137,14 +138,15 @@ export function drawSectionBanner(
   doc.setFont(PDF_FONT_FAMILY, "bold");
   doc.setFontSize(9.5);
   doc.setTextColor(...PDF_COLORS.white);
-  doc.text(title.toUpperCase(), left + 6, yPos + height / 2 + 1.2);
+  const titleIsArabic = containsArabic(title);
+  drawPdfText(doc, titleIsArabic ? title : title.toUpperCase(), titleIsArabic ? left + contentWidth - 6 : left + 6, yPos + height / 2 + 1.2, { direction: titleIsArabic ? "rtl" : "ltr", align: titleIsArabic ? "right" : "left" });
 
   // Optional right-aligned badge
   if (badgeText) {
     doc.setFont(PDF_FONT_FAMILY, "normal");
     doc.setFontSize(7.5);
     doc.setTextColor(191, 219, 254); // Light blue
-    doc.text(badgeText, left + contentWidth - 4, yPos + height / 2 + 1.2, { align: "right" });
+    drawPdfText(doc, badgeText, titleIsArabic ? left + 6 : left + contentWidth - 4, yPos + height / 2 + 1.2, { direction: containsArabic(badgeText) ? "rtl" : "ltr", align: titleIsArabic ? "left" : "right" });
   }
 
   return yPos + height + 3.5;
@@ -209,21 +211,21 @@ export function drawMetricCards(
     doc.setFont(PDF_FONT_FAMILY, "bold");
     doc.setFontSize(6.5);
     doc.setTextColor(...PDF_COLORS.textMuted);
-    doc.text(card.label.toUpperCase(), cardX + cardWidth / 2, yPos + 4.5, { align: "center" });
+    drawPdfText(doc, containsArabic(card.label) ? card.label : card.label.toUpperCase(), cardX + cardWidth / 2, yPos + 4.5, { direction: containsArabic(card.label) ? "rtl" : "ltr", align: "center" });
 
     // Value + Unit
     doc.setFont(PDF_FONT_FAMILY, "bold");
     doc.setFontSize(10.5);
     doc.setTextColor(...valColor);
     const textVal = card.unit ? `${card.value} ${card.unit}` : card.value;
-    doc.text(textVal, cardX + cardWidth / 2, yPos + 10.5, { align: "center" });
+    drawPdfText(doc, textVal, cardX + cardWidth / 2, yPos + 10.5, { direction: containsArabic(textVal) ? "rtl" : "ltr", align: "center" });
 
     // Subtext if any
     if (card.subtext) {
       doc.setFont(PDF_FONT_FAMILY, "normal");
       doc.setFontSize(5.5);
       doc.setTextColor(...PDF_COLORS.textSecondary);
-      doc.text(card.subtext, cardX + cardWidth / 2, yPos + 14, { align: "center" });
+      drawPdfText(doc, card.subtext, cardX + cardWidth / 2, yPos + 14, { direction: containsArabic(card.subtext) ? "rtl" : "ltr", align: "center" });
     }
   });
 
@@ -266,7 +268,8 @@ export function drawMetadataGrid(
     doc.setFont(PDF_FONT_FAMILY, "bold");
     doc.setFontSize(7);
     doc.setTextColor(...PDF_COLORS.white);
-    doc.text(group.title.toUpperCase(), colX + 3, yPos + 3.8);
+    const groupIsArabic = containsArabic(group.title);
+    drawPdfText(doc, groupIsArabic ? group.title : group.title.toUpperCase(), groupIsArabic ? colX + colWidth - 3 : colX + 3, yPos + 3.8, { direction: groupIsArabic ? "rtl" : "ltr", align: groupIsArabic ? "right" : "left" });
 
     // Group Items
     let itemY = yPos + 9;
@@ -274,12 +277,13 @@ export function drawMetadataGrid(
       doc.setFont(PDF_FONT_FAMILY, "normal");
       doc.setFontSize(6.5);
       doc.setTextColor(...PDF_COLORS.textMuted);
-      doc.text(item.label + ":", colX + 3, itemY);
+      const labelIsArabic = containsArabic(item.label);
+      drawPdfText(doc, item.label + ":", labelIsArabic ? colX + colWidth - 3 : colX + 3, itemY, { direction: labelIsArabic ? "rtl" : "ltr", align: labelIsArabic ? "right" : "left" });
 
       doc.setFont(PDF_FONT_FAMILY, "bold");
       doc.setTextColor(...PDF_COLORS.textPrimary);
       // Right align or offset value
-      doc.text(item.value, colX + colWidth - 3, itemY, { align: "right" });
+      drawPdfText(doc, item.value, colX + colWidth - 3, itemY, { direction: containsArabic(item.value) ? "rtl" : "ltr", align: "right" });
 
       itemY += itemHeight;
     });
@@ -408,7 +412,7 @@ export function getStandardTableTheme() {
       valign: "middle" as const
     },
     styles: {
-      overflow: "ellipsize" as const,
+      overflow: "linebreak" as const,
       cellWidth: "wrap" as const,
       minCellHeight: 6
     },
@@ -478,25 +482,25 @@ export function finalizeReportPages(
     doc.setFont(PDF_FONT_FAMILY, "bold");
     doc.setFontSize(7.5);
     doc.setTextColor(...PDF_COLORS.primary);
-    doc.text(lab.name, left + 31.5, 13.5);
+    drawPdfText(doc, lab.name, left + 31.5, 13.5, { direction: containsArabic(lab.name) ? "rtl" : "ltr" });
 
     // Accreditation tag
     doc.setFont(PDF_FONT_FAMILY, "normal");
     doc.setFontSize(5.5);
     doc.setTextColor(...PDF_COLORS.textMuted);
-    doc.text(lab.accreditation, left + 9.5, 17);
+    drawPdfText(doc, lab.accreditation, left + 9.5, 17, { direction: containsArabic(lab.accreditation) ? "rtl" : "ltr" });
 
     // Right Side: Report Title & Reference Info
     doc.setFont(PDF_FONT_FAMILY, "bold");
     doc.setFontSize(8);
     doc.setTextColor(...PDF_COLORS.secondary);
-    doc.text(options.reportTitle.toUpperCase(), pageWidth - right, 13.5, { align: "right" });
+    drawPdfText(doc, containsArabic(options.reportTitle) ? options.reportTitle : options.reportTitle.toUpperCase(), pageWidth - right, 13.5, { direction: containsArabic(options.reportTitle) ? "rtl" : "ltr", align: "right" });
 
     doc.setFont(PDF_FONT_FAMILY, "normal");
     doc.setFontSize(5.5);
     doc.setTextColor(...PDF_COLORS.textSecondary);
     const refDateText = `REF: ${options.reportRef}  |  DATE: ${dateStr}  |  PAGE ${pageNum}/${totalPages}`;
-    doc.text(refDateText, pageWidth - right, 17, { align: "right" });
+    drawPdfText(doc, refDateText, pageWidth - right, 17, { direction: "ltr", align: "right" });
 
     // Subtle header bottom divider line
     doc.setDrawColor(...PDF_COLORS.border);
@@ -522,7 +526,7 @@ export function finalizeReportPages(
       left,
       footerY + 1.5
     );
-    doc.text(lab.contact, left, footerY + 5);
+    drawPdfText(doc, lab.contact, left, footerY + 5, { direction: containsArabic(lab.contact) ? "rtl" : "ltr" });
 
     // Right: Page counter & digital security tag
     doc.setFont(PDF_FONT_FAMILY, "bold");
