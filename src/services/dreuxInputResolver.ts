@@ -13,6 +13,7 @@
 
 import { EngineeringMaterial, MixDesignInput, SievePoint, AggregateType, AggregateQuality } from "../types";
 import { getMaterialPropValue } from "./materialPropertySchema";
+import { getActiveMaterialBatch, resolveMaterialBatchProperties } from "./materialBatchService";
 
 /**
  * Stable, standard Property IDs for Dreux-Gorisse method
@@ -338,8 +339,13 @@ export class DreuxInputResolver {
     };
 
     const cementMat = findMat(inputs.selectedCementId);
-    const sandMat = findMat(inputs.selectedSandId);
-    const gravelMat = findMat(inputs.selectedGravelId);
+    const baseSandMat = findMat(inputs.selectedSandId);
+    const baseGravelMat = findMat(inputs.selectedGravelId);
+    // Moisture, absorption and SSD density are batch properties. Resolve them
+    // before any derived calculation so the engine cannot silently use stale
+    // catalogue values when an accepted site batch exists.
+    const sandMat = baseSandMat ? resolveMaterialBatchProperties(baseSandMat, getActiveMaterialBatch(baseSandMat)) : undefined;
+    const gravelMat = baseGravelMat ? resolveMaterialBatchProperties(baseGravelMat, getActiveMaterialBatch(baseGravelMat)) : undefined;
     const waterMat = findMat(inputs.selectedWaterId);
     const admMat = findMat(inputs.selectedAdmixtureId);
     const scmMat = findMat(inputs.selectedScmId);

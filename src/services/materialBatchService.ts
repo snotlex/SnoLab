@@ -50,10 +50,16 @@ export function upsertMaterialBatch(
     : [...existing, batch];
   const accepted = batches.filter(item => item.status === "مقبولة" || item.status === "مقبولة بشروط");
   const latest = accepted.sort((a, b) => String(b.validationDate || b.updatedAt).localeCompare(String(a.validationDate || a.updatedAt)))[0];
+  // A newly created batch is normally "قيد الفحص". It must not become the
+  // governing batch until the laboratory has accepted it.
+  const governingBatch = batch.status === "مقبولة" || batch.status === "مقبولة بشروط"
+    ? batch
+    : existing.find(item => item.id === material.activeBatchId && (item.status === "مقبولة" || item.status === "مقبولة بشروط"))
+      || latest;
   return {
     ...material,
     materialBatches: batches,
-    activeBatchId: batch.id,
+    activeBatchId: governingBatch?.id,
     latestValidatedBatchId: latest?.id,
     updatedDate: nowIso().slice(0, 10),
     updatedAt: Date.now()
@@ -105,7 +111,10 @@ export function validateMaterialBatchForConcreteType(
   if (status === "\u0645\u0631\u0641\u0648\u0636\u0629" || status === "\u0645\u0624\u0631\u0634\u0641\u0629") {
     issues.push({ code: "batch_rejected", severity: "error", field: "status", messageAr: `الدفعة ${active.batchNumber} مرفوضة أو مؤرشفة ولا تصلح للحساب.`, messageEn: `Batch ${active.batchNumber} is rejected or archived and cannot be used.` });
   } else if (status === "\u0642\u064a\u062f \u0627\u0644\u0641\u062d\u0635") {
-    issues.push({ code: "batch_pending", severity: "warning", field: "status", messageAr: `الدفعة ${active.batchNumber} ما زالت قيد الفحص المخبري.`, messageEn: `Batch ${active.batchNumber} is still pending laboratory verification.` });
+    issues.push({ code: "batch_pending", severity: "error", field: "status", messageAr: `الدفعة ${active.batchNumber} ما زالت قيد الفحص المخبري ولا يمكن استخدامها للاعتماد.`, messageEn: `Batch ${active.batchNumber} is still pending laboratory verification and cannot be approved.` });
+  }
+  if (active.expiryDate && new Date(active.expiryDate).getTime() < Date.now()) {
+    issues.push({ code: "batch_expired", severity: "error", field: "expiryDate", messageAr: `الدفعة ${active.batchNumber} منتهية الصلاحية ولا يمكن استخدامها.`, messageEn: `Batch ${active.batchNumber} is expired and cannot be used.` });
   }
   const role = String(material.category || material.type || "").toLowerCase();
   const isAggregate = /رمل|رمال|حصى|ركام|aggregate|sand|gravel/.test(role);

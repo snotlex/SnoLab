@@ -8,11 +8,12 @@ describe("mix lifecycle governance", () => {
   });
 
   it("requires engineering review when only warnings remain", () => {
-    expect(deriveMixLifecycleStatus({ criticalErrors: 0, warnings: 1, hasRequiredInputs: true })).toBe("needs-review");
+    expect(deriveMixLifecycleStatus({ criticalErrors: 0, warnings: 1, hasRequiredInputs: true })).toBe("engineering-review");
     expect(canApproveMix({ criticalErrors: 0, warnings: 1, hasRequiredInputs: true })).toEqual({ allowed: false, reason: "warnings" });
   });
 
-  it("allows approval only after all required inputs pass without warnings", () => {
-    expect(canApproveMix({ criticalErrors: 0, warnings: 0, hasRequiredInputs: true })).toEqual({ allowed: true });
+  it("blocks approval until a passed trial mix and performance verification exist", () => {
+    expect(canApproveMix({ criticalErrors: 0, warnings: 0, hasRequiredInputs: true })).toEqual({ allowed: false, reason: "trial-mix-required" });
+    expect(canApproveMix({ criticalErrors: 0, warnings: 0, hasRequiredInputs: true, hasPassedTrialMix: true, performanceVerified: true })).toEqual({ allowed: true });
   });
 });

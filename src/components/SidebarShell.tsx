@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Activity, BookOpen, Briefcase, Calculator, ChevronDown, ChevronLeft, ChevronRight,
+  Activity, BookOpen, Briefcase, Calculator, ChevronDown, ChevronLeft, ChevronRight, Scale, ClipboardCheck, TicketCheck, Beaker, History,
   Coins, Database, FileText, FlaskConical, FolderOpen, Home, Menu, PanelLeftClose,
   PanelLeftOpen, Settings, ShieldCheck, Sliders, Sparkles, X
 } from "lucide-react";
@@ -88,6 +88,11 @@ export const SidebarShell = React.memo(function SidebarShell({
       { id: "dashboard", label: c("لوحة التحكم", "Tableau de bord", "Dashboard"), icon: Home, target: "dashboard", targetType: "tab" },
       { id: "projects", label: c("المشاريع المحفوظة", "Projets enregistrés", "Saved projects"), icon: FolderOpen, target: "saved_projects", targetType: "tab", badge: draftCount },
       { id: "mix-design", label: c("تصميم الخلطة", "Formulation", "Mix design"), icon: Calculator, target: "calculator", targetType: "tab", requiresProject: true },
+      { id: "batch-preparation", label: c("تحضير الدفعة", "Préparation de gâchée", "Batch preparation"), icon: Scale, target: "batch_preparation", targetType: "tab", requiresProject: true },
+      { id: "quality-control", label: c("ضبط الجودة QA/QC", "Contrôle qualité QA/QC", "QA/QC control"), icon: ClipboardCheck, target: "quality_control", targetType: "tab", requiresProject: true },
+      { id: "batch-ticket", label: c("تذكرة الوزن", "Ticket de pesée", "Batch ticket"), icon: TicketCheck, target: "batch_ticket", targetType: "tab", requiresProject: true },
+      { id: "quality-assets", label: c("العينات والمعايرة", "Échantillons et étalonnage", "Samples & calibration"), icon: Beaker, target: "quality_assets", targetType: "tab", requiresProject: true },
+      { id: "versions", label: c("إصدارات الخلطات", "Versions des mélanges", "Mix versions"), icon: History, target: "versions", targetType: "tab", requiresProject: true },
       { id: "optimization", label: c("تحسين الخلطة", "Optimisation", "Optimization"), icon: Activity, target: "optimization", targetType: "tab", requiresProject: true }
     ] },
     { id: "laboratory", label: c("مختبر المواد", "Laboratoire des matériaux", "Materials laboratory"), icon: FlaskConical, items: [

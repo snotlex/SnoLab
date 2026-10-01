@@ -253,7 +253,9 @@ export function validateCalculationLogic(
   if (waterToAdd < 0) {
     criticalErrors.push("moisture_water");
   } else if (totalFreeSurfaceWater > designWater) {
-    warnings.push("moisture_water_surface_exceeds_batch_water");
+    // Aggregate free water changes the actual water/binder ratio. It cannot
+    // be downgraded to a warning merely because added water was clamped to 0.
+    criticalErrors.push("moisture_water_surface_exceeds_batch_water");
   }
 
   // 4. Water to cement ratio (W/C)

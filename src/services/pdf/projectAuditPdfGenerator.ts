@@ -8,7 +8,7 @@ import {
   drawSignOffBlock, 
   getStandardTableTheme, 
   finalizeReportPages,
-  PDF_PAGE_MARGINS
+  PDF_LANDSCAPE_MARGINS
 } from "./pdfCore";
 import { DEFAULT_LAB_PROFILE } from "./types";
 import { MaterialTestRecord } from "../../types/laboratoryTypes";
@@ -37,7 +37,7 @@ export interface ProjectAuditPdfOptions {
 export async function generateProjectAuditPdf(
   options: ProjectAuditPdfOptions
 ): Promise<jsPDF> {
-  const doc = createPdfDocument();
+  const doc = createPdfDocument("landscape");
   const theme = getStandardTableTheme();
   const lab = DEFAULT_LAB_PROFILE;
   const project = options.project;
@@ -47,7 +47,7 @@ export async function generateProjectAuditPdf(
   const dateStr = new Date().toISOString().split("T")[0];
   const reportRef = `AUDIT-${project.name ? project.name.replace(/\s+/g, "-").toUpperCase().slice(0, 10) : "PROJ"}-${Math.floor(Date.now() / 1000).toString().slice(-5)}`;
 
-  let currentY = PDF_PAGE_MARGINS.top + 2;
+  let currentY = PDF_LANDSCAPE_MARGINS.top + 2;
 
   // =========================================================================
   // 1. EXECUTIVE SUMMARY CARDS
@@ -142,6 +142,9 @@ export async function generateProjectAuditPdf(
       startY: currentY,
       head: [["No.", "Material Name", "Category", "Source / Origin", "Density", "Absorption", "Status"]],
       body: matRows,
+      tableWidth: "auto",
+      styles: { overflow: "ellipsize", cellWidth: "wrap", minCellHeight: 6 },
+      margin: { left: PDF_LANDSCAPE_MARGINS.left, right: PDF_LANDSCAPE_MARGINS.right, top: PDF_LANDSCAPE_MARGINS.top, bottom: PDF_LANDSCAPE_MARGINS.bottom },
       columnStyles: {
         0: { cellWidth: 14, halign: "center" },
         1: { cellWidth: 50, fontStyle: "bold" },
@@ -162,7 +165,7 @@ export async function generateProjectAuditPdf(
   if (tests.length > 0) {
     if (currentY > 210) {
       doc.addPage();
-      currentY = PDF_PAGE_MARGINS.top + 2;
+      currentY = PDF_LANDSCAPE_MARGINS.top + 2;
     }
 
     currentY = drawSectionBanner(
@@ -187,6 +190,9 @@ export async function generateProjectAuditPdf(
       startY: currentY,
       head: [["Test ID", "Test Protocol / Title", "Sample / Material", "Standard", "Date", "Score", "Verdict"]],
       body: testRows,
+      tableWidth: "auto",
+      styles: { overflow: "ellipsize", cellWidth: "wrap", minCellHeight: 6 },
+      margin: { left: PDF_LANDSCAPE_MARGINS.left, right: PDF_LANDSCAPE_MARGINS.right, top: PDF_LANDSCAPE_MARGINS.top, bottom: PDF_LANDSCAPE_MARGINS.bottom },
       columnStyles: {
         0: { cellWidth: 32, fontStyle: "bold" },
         1: { cellWidth: 44 },
@@ -220,7 +226,8 @@ export async function generateProjectAuditPdf(
     reportSubtitle: project.name || "Quality Assurance Log",
     reportRef: reportRef,
     date: dateStr,
-    labProfile: lab
+    labProfile: lab,
+    orientation: "landscape"
   });
 
   return doc;
