@@ -82,6 +82,8 @@ Ensure you have [Node.js](https://nodejs.org/) (v18 or higher) installed on your
    ```
    The application will boot and bind to port `3000` (accessible via `http://localhost:3000`).
 
+   The `predev` check verifies that the QR dependency is installed before Vite starts. If a cloned Windows working copy reports `Failed to resolve import "qrcode"`, run `npm install` once (or simply rerun `npm run dev`; the preflight will install missing dependencies automatically).
+
 ---
 
 ## 🔒 4. Environment Variables
