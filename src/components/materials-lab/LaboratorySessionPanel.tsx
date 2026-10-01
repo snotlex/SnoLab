@@ -25,15 +25,19 @@ interface LaboratorySessionPanelProps {
   projectId?: string;
   projectName?: string;
   onOpenTest?: (testId: string, category: any, materialId?: string) => void;
+  projectSessions?: LaboratorySession[];
+  onSessionsChange?: (sessions: LaboratorySession[]) => void;
 }
 
 const text = (language: string, ar: string, fr: string, en: string) => language === "ar" ? ar : language === "fr" ? fr : en;
 const STORAGE_KEY = "snolab_laboratory_sessions_v1";
 
-export const LaboratorySessionPanel: React.FC<LaboratorySessionPanelProps> = ({ materials, legacyTests, language = "ar", projectId, projectName, onOpenTest }) => {
+export const LaboratorySessionPanel: React.FC<LaboratorySessionPanelProps> = ({ materials, legacyTests, language = "ar", projectId, projectName, onOpenTest, projectSessions, onSessionsChange }) => {
+  const storageKey = `${STORAGE_KEY}:${projectId || "global"}`;
   const [sessions, setSessions] = useState<LaboratorySession[]>(() => {
+    if (projectSessions) return projectSessions;
     try {
-      const saved = typeof window !== "undefined" ? window.localStorage.getItem(STORAGE_KEY) : null;
+      const saved = typeof window !== "undefined" ? window.localStorage.getItem(storageKey) : null;
       if (saved) return JSON.parse(saved) as LaboratorySession[];
     } catch { /* use compatibility views below */ }
     return legacyTests.slice(0, 12).map(legacyRecordToLaboratorySession);
@@ -49,8 +53,13 @@ export const LaboratorySessionPanel: React.FC<LaboratorySessionPanelProps> = ({ 
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions)); } catch { /* storage remains session-local */ }
-  }, [sessions]);
+    try { window.localStorage.setItem(storageKey, JSON.stringify(sessions)); } catch { /* storage remains session-local */ }
+    onSessionsChange?.(sessions);
+  }, [sessions, storageKey]);
+
+  useEffect(() => {
+    if (projectSessions) setSessions(projectSessions);
+  }, [projectSessions]);
 
   const activeSession = sessions.find(session => session.id === activeId) || sessions[0];
   const activeSummary = activeSession ? summarizeLaboratorySession(activeSession) : null;

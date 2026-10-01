@@ -988,6 +988,7 @@ export interface ActiveProject {
   validationRecords?: LabValidationRecord[]; // Section 5 & 6 feedback learning database
   samples?: SampleRecord[];
   materialTests?: MaterialTestRecord[];
+  laboratorySessions?: import("./types/laboratorySessionTypes").LaboratorySession[];
   testDevices?: TestDeviceRecord[];
   calibrations?: CalibrationRecord[];
   ncrRecords?: NcrRecord[];

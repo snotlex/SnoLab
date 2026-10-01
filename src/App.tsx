@@ -82,6 +82,7 @@ import { applyTestToMaterial } from "./services/materialLabSync";
 import { evaluateProductionRelease } from "./services/productionReleaseGate";
 import { can, resolveUserRole, separationOfDuties, UserRole } from "./services/permissions";
 import type { CalibrationRecord, SampleRecord, TestDeviceRecord } from "./types/qualityDomain";
+import type { LaboratorySession } from "./types/laboratorySessionTypes";
 const RecipeReport = React.lazy(() => import("./components/RecipeReport").then(m => ({ default: m.RecipeReport })));
 const ChemicalDosageMonitor = React.lazy(() => import("./components/ChemicalDosageMonitor").then(m => ({ default: m.ChemicalDosageMonitor })));
 const SieveGradingCurves = React.lazy(() => import("./components/SieveGradingCurves").then(m => ({ default: m.SieveGradingCurves })));
@@ -815,7 +816,7 @@ export default function App() {
     setMaterialTestRecords(prev => prev.filter(t => t.id !== testId));
   };
 
-  const updateActiveProjectLabAssets = (patch: Partial<Pick<ActiveProject, "samples" | "testDevices" | "calibrations">>, message: string) => {
+  const updateActiveProjectLabAssets = (patch: Partial<Pick<ActiveProject, "samples" | "testDevices" | "calibrations" | "laboratorySessions">>, message: string) => {
     if (!activeProjectId) return;
     const now = new Date().toISOString();
     setProjects(prev => prev.map(project => project.id === activeProjectId ? {
@@ -846,6 +847,10 @@ export default function App() {
       calibrationDueAt: calibration.dueAt
     } : device);
     updateActiveProjectLabAssets({ calibrations: [calibration, ...(activeProject?.calibrations || [])], testDevices: devices }, `Calibration certificate ${calibration.certificateNumber} registered.`);
+  };
+
+  const handleLaboratorySessionsChange = (sessions: LaboratorySession[]) => {
+    updateActiveProjectLabAssets({ laboratorySessions: sessions }, `Laboratory request register updated (${sessions.length} session(s)).`);
   };
 
   const handleExportBackup = () => {
@@ -8211,6 +8216,8 @@ max="0.95"
                   onNavigateToMaterialsLibrary={() => setActiveSidebarTab("materials_library")}
                   projectId={activeProject?.id}
                   projectName={activeProject?.name}
+                  projectSessions={activeProject?.laboratorySessions}
+                  onSessionsChange={handleLaboratorySessionsChange}
                   language={language as "ar" | "fr" | "en"}
                 />
               </div>

@@ -42,6 +42,7 @@ import { TestReportModal } from "./TestReportModal";
 import { MaterialComprehensiveReportModal } from "./MaterialComprehensiveReportModal";
 import { MaterialDossierSelectorModal } from "./MaterialDossierSelectorModal";
 import { LaboratorySessionPanel } from "./LaboratorySessionPanel";
+import type { LaboratorySession } from "../../types/laboratorySessionTypes";
 import { generateLabTestPdf } from "../../services/pdf/labTestPdfGenerator";
 
 const labText = (language: string, ar: string, fr: string, en: string) => language === "ar" ? ar : language === "fr" ? fr : en;
@@ -61,6 +62,8 @@ interface LaboratoryDashboardProps {
   projectId?: string;
   projectName?: string;
   language?: "ar" | "fr" | "en";
+  projectSessions?: LaboratorySession[];
+  onSessionsChange?: (sessions: LaboratorySession[]) => void;
 }
 
 export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
@@ -71,7 +74,9 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
   onNavigateToMaterialsLibrary,
   projectId,
   projectName,
-  language = "ar"
+  language = "ar",
+  projectSessions,
+  onSessionsChange
 }) => {
   // Navigation & Filter State
   const [activeCategory, setActiveCategory] = useState<LabCategory | "all">("all");
@@ -785,6 +790,8 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
         projectName={projectName}
         language={language}
         onOpenTest={handleLaunchTest}
+        projectSessions={projectSessions}
+        onSessionsChange={onSessionsChange}
       />}
 
       {/* New Test Wizard Modal */}
