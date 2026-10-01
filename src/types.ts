@@ -866,6 +866,9 @@ export interface MixVersion {
   id: string;
   name: string;
   date: string;
+  lifecycleStatus?: "draft" | "needs-review" | "approved";
+  approvedBy?: string;
+  approvedAt?: string;
   inputs: MixDesignInput;
   results: MixDesignResult;
   isOptimized?: boolean;
@@ -968,6 +971,9 @@ export interface ActiveProject {
   validationRecords?: LabValidationRecord[]; // Section 5 & 6 feedback learning database
   projectId?: string;
   mixId?: string;
+  mixLifecycleStatus?: "draft" | "needs-review" | "approved";
+  mixApprovedBy?: string;
+  mixApprovedAt?: string;
   materialIds?: string[];
   calculationVersion?: string | number;
   auditTrail?: {

@@ -114,6 +114,21 @@ test.describe("SnoLab application smoke flow", () => {
     await expect(page.getByRole("button", { name: "Run test" })).toHaveCount(0);
   });
 
+  test("keeps missing strength explicit and blocks mix approval until validation passes", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /🇺🇸 EN/ }).click();
+    await page.getByRole("button", { name: /Start New Project/ }).first().click();
+    await page.locator("#workflow-step-btn-3").click();
+    const strengthInput = page.locator("#step1-project-requirements input[type=number]").first();
+    await strengthInput.fill("");
+    await expect(page.locator("#step1-project-requirements")).toContainText("Target strength is missing");
+    const lifecycle = page.locator('section[aria-label="Mix lifecycle and approval"]');
+    await expect(lifecycle).toBeVisible();
+    await expect(lifecycle.getByRole("button", { name: "Approve mix" })).toBeDisabled();
+    await strengthInput.fill("25");
+    await expect(strengthInput).toHaveValue("25");
+  });
+
   test("creates a multi-test laboratory request and adds an independent replicate", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /🇺🇸 EN/ }).click();

@@ -44,6 +44,7 @@ import { validateCalculationLogic } from "./engine/validationGate";
 import { EngineeringCore, ProjectSession } from "./engine/EngineeringCore";
 import { CalculationValidationGatePanel } from "./components/CalculationValidationGatePanel";
 import { Phase3InputWizard } from "./components/Phase3InputWizard";
+import { MixLifecyclePanel, MixLifecycleStatus } from "./components/MixLifecyclePanel";
 import { CONCRETE_TYPES_CATALOG, getConcreteTypeDetails, CONCRETE_TYPE_CONFIGS } from "./concreteTypes";
 import { LogicalResultsSummary } from "./components/LogicalResultsSummary";
 import { isUserMaterial } from "./engine/suitabilityGate";
@@ -1560,6 +1561,7 @@ export default function App() {
   const [saveError, setSaveError] = useState("");
   const [saveSuccess, setSaveSuccess] = useState("");
   const [showSavedFeedback, setShowSavedFeedback] = useState(false);
+  const mixLifecycleStatus: MixLifecycleStatus = activeProject?.mixLifecycleStatus || "draft";
 
   const savePricesAsDefault = () => {
     try {
@@ -1613,14 +1615,11 @@ export default function App() {
     }
   }, []);
 
-  // Action: Save custom mix design
-  const handleSaveMix = async (e?: React.FormEvent) => {
+  // Draft persistence is intentionally independent from final approval.
+  const handleSaveMix = async (nameOverride?: string, lifecycleStatus: MixLifecycleStatus = "draft", e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!validationGate.isValidForReport) {
-      setSaveError(localizedLabel("لا يمكن حفظ الخلطة لوجود أخطاء حرجة غير مسموح بحفظها.", "Impossible de sauvegarder la formule en raison d'erreurs critiques.", "Cannot save mix design due to critical validation errors."));
-      return;
-    }
-    if (!saveName.trim()) {
+    const requestedName = (nameOverride || saveName).trim();
+    if (!requestedName) {
       setSaveError(localizedLabel("الرجاء إدخال اسم مميز للخلطة", "Veuillez entrer un nom unique pour la formule", "Please enter a unique name for the mix design"));
       return;
     }
@@ -1628,19 +1627,22 @@ export default function App() {
     setSaveError("");
     setSaveSuccess("");
     try {
-      saveNamedMixToProject(saveName.trim(), inputs, results, currency);
+      saveNamedMixToProject(requestedName, inputs, results, currency);
       const newMix = {
         id: "mix_" + Date.now(),
-        name: saveName.trim(),
+        name: requestedName,
         inputs: { ...inputs },
         results: results ? { ...results } : undefined,
         currency: currency,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        lifecycleStatus,
+        criticalErrors: validationGate.criticalErrors.length,
+        warnings: validationGate.warnings.length
       };
       setSavedMixes(prev => [newMix, ...prev.filter(m => m.id !== newMix.id)]);
       localStorage.setItem("snolab_saved_mixes", JSON.stringify([newMix, ...savedMixes.filter(m => m.id !== newMix.id)]));
       setSaveName("");
-      setSaveSuccess(localizedLabel("تم حفظ الخلطة بنجاح في ملف المشروع المحلي (.snlab)!", "Formule sauvegardée avec succès dans votre fichier projet local (.snlab) !", "Mix design successfully saved to your local project file (.snlab)!"));
+      setSaveSuccess(localizedLabel("تم حفظ الخلطة كمسودة قابلة للمراجعة.", "Formule enregistrée comme brouillon révisable.", "Mix design saved as a reviewable draft."));
       setTimeout(() => setSaveSuccess(""), 4000);
     } catch (err) {
       console.error("Error saving mix: ", err);
@@ -1648,6 +1650,28 @@ export default function App() {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleApproveMix = () => {
+    if (!validationGate.isValidForReport || validationGate.criticalErrors.length > 0 || validationGate.warnings.length > 0) {
+      setSaveError(localizedLabel("لا يمكن اعتماد الخلطة مع وجود أخطاء حرجة أو تحذيرات هندسية؛ احفظها للمراجعة أولاً.", "Le mélange ne peut pas être approuvé avec des erreurs ou avertissements d'ingénierie ; enregistrez-le pour revue.", "The mix cannot be approved while critical errors or engineering warnings remain; save it for review first."));
+      return;
+    }
+    const approvedAt = new Date().toISOString();
+    const approvedBy = "local-engineer";
+    setProjects(prev => prev.map(project => project.id === activeProjectId ? {
+      ...project,
+      mixLifecycleStatus: "approved",
+      mixApprovedAt: approvedAt,
+      mixApprovedBy: approvedBy,
+      auditTrail: {
+        ...project.auditTrail,
+        lastModifiedAt: approvedAt,
+        lastModifiedBy: approvedBy,
+        revisionHistory: [...(project.auditTrail?.revisionHistory || []), "Mix approved after validation gate passed."]
+      }
+    } : project));
+    setSaveSuccess(localizedLabel("تم اعتماد الخلطة وتسجيل عملية الاعتماد.", "Formule approuvée et action enregistrée.", "Mix approved and approval action recorded."));
   };
 
   // Action: Delete a saved mix
@@ -2532,7 +2556,9 @@ export default function App() {
     if (!dreuxPreCalcReport.canCalculate) {
       const errorMsg = language === "ar"
         ? dreuxPreCalcReport.summaryAr
-        : dreuxPreCalcReport.summaryEn;
+        : language === "fr"
+          ? (dreuxPreCalcReport as any).summaryFr || dreuxPreCalcReport.summaryEn
+          : dreuxPreCalcReport.summaryEn;
 
       return {
         valid: false,
@@ -2540,7 +2566,9 @@ export default function App() {
         errors: dreuxPreCalcReport.missingOrInvalidItems.map(i =>
           language === "ar"
             ? `${i.propertyAr}: ${i.statusAr} - ${i.actionAr}`
-            : `${i.property}: ${i.status} - ${i.action}`
+            : language === "fr"
+              ? `${(i as any).propertyFr || i.property}: ${(i as any).statusFr || i.status} - ${(i as any).actionFr || i.action}`
+              : `${i.property}: ${i.status} - ${i.action}`
         ),
         warnings: [errorMsg],
         fcm28: 0,
@@ -2590,7 +2618,7 @@ export default function App() {
           incompatibleMaterials: [],
           warnings: [errorMsg],
           recommendations: dreuxPreCalcReport.missingOrInvalidItems.map(i =>
-            language === "ar" ? `${i.propertyAr}: ${i.actionAr}` : `${i.property}: ${i.action}`
+            language === "ar" ? `${i.propertyAr}: ${i.actionAr}` : language === "fr" ? `${(i as any).propertyFr || i.property}: ${(i as any).actionFr || i.action}` : `${i.property}: ${i.action}`
           )
         }
       };
@@ -2890,12 +2918,8 @@ export default function App() {
     ].slice(0, 30));
   };
 
-  // Helper versions management
-  const handleSaveVersion = (name: string, isOptimized?: boolean) => {
-    if (!validationGate.isValidForReport) {
-      alert(language === "ar" ? "لا يمكن حفظ هذا الإصدار لوجود أخطاء حسابية حرجة." : "Cannot save version: critical calculation errors.");
-      return;
-    }
+  // Helper versions management; a saved copy is not silently certified.
+  const handleSaveVersion = (name: string, isOptimized?: boolean, lifecycleStatus: MixLifecycleStatus = "draft") => {
     // Locate currently active project to use its snapshots as fallback prior to liveDatabase
     const activeProj = projects.find(p => p.id === activeProjectId);
     const resolvedAll = resolveMaterials(inputs, activeProj?.materialSnapshots, materialsDatabase);
@@ -2920,7 +2944,7 @@ export default function App() {
     if (resolvedAll.scm) versionSnapshots.scm = JSON.parse(JSON.stringify(resolvedAll.scm));
 
     const currentMixId = `mix_ver_${Date.now()}`;
-    const revisionStr = `Saved certified mix version "${name}" (ID: ${currentMixId}).`;
+    const revisionStr = `Saved ${lifecycleStatus} mix version "${name}" (ID: ${currentMixId}).`;
 
     setProjects(prev => prev.map(p => {
       if (p.id === activeProjectId) {
@@ -2931,6 +2955,7 @@ export default function App() {
           id: `VER-${Date.now()}`,
           name,
           date: new Date().toISOString().replace('T', ' ').substring(0, 19),
+          lifecycleStatus,
           inputs: JSON.parse(JSON.stringify(inputs)),
           results: JSON.parse(JSON.stringify(results)),
           isOptimized,
@@ -5894,8 +5919,9 @@ export default function App() {
                             step="0.1"
                             value={inputs.fck28 ?? ""}
                             disabled={isFieldDisabled("fck28")}
+                            aria-invalid={!Number.isFinite(Number(inputs.fck28)) || Number(inputs.fck28) <= 0}
                             onChange={(e) => {
-                              const val = e.target.value === "" ? 0 : parseFloat(e.target.value);
+                              const val = e.target.value === "" ? Number.NaN : parseFloat(e.target.value);
                               setInputs(prev => ({ ...prev, fck28: val }));
                             }}
                             className={`w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2 px-3 text-xs font-bold text-slate-800 dark:text-white outline-none focus:border-blue-500 transition-colors ${language === "ar" ? "pl-14 text-right" : "pr-14 text-left"}`}
@@ -5906,7 +5932,7 @@ export default function App() {
                         
                         {/* Real-time Engineering Validation Feedback */}
                         {(() => {
-                          const fckVal = inputs.fck28 || 0;
+                          const fckVal = Number(inputs.fck28);
                           const rawCode = typeof inputs.concreteType === "string" ? inputs.concreteType : (inputs.concreteType as any)?.code || "NSC";
                           const concreteCode = String(rawCode || "NSC").toUpperCase();
                           let minRec = 10;
@@ -5931,6 +5957,9 @@ export default function App() {
                             minRec = 100; maxRec = 250; typeLabel = language === "ar" ? "فائقة الأداء (UHPC)" : "Ultra-High Performance Concrete (UHPC)";
                           }
 
+                          if (!Number.isFinite(fckVal) || fckVal <= 0) {
+                            return <p className="text-[9.5px] leading-snug text-rose-600 dark:text-rose-300 bg-rose-500/5 p-1.5 rounded-lg border border-rose-500/10">⚠ {language === "ar" ? "المقاومة المطلوبة غير مدخلة؛ لا توجد قيمة افتراضية وسيبقى الحساب محظوراً." : language === "fr" ? "La résistance cible est manquante ; aucune valeur par défaut n'est utilisée et le calcul reste bloqué." : "Target strength is missing; no hidden default is used and calculation remains blocked."}</p>;
+                          }
                           const isWarn = fckVal < minRec || fckVal > maxRec;
                           if (fckVal > 0 && isWarn) {
                             return (
@@ -5952,7 +5981,7 @@ export default function App() {
                       </div>
 
                       {/* Concrete Type Selection */}
-                      <div className={`p-3.5 bg-amber-500/5 rounded-xl border border-amber-500/10 space-y-1.5 ${isRtl ? "text-right" : "text-left"} font-sans`}>
+                      <div id="step1-concrete-type" className={`p-3.5 bg-amber-500/5 rounded-xl border border-amber-500/10 space-y-1.5 ${isRtl ? "text-right" : "text-left"} font-sans`}>
                         <label className="text-xs font-black text-slate-850 dark:text-slate-200 block">{t("concrete_type_label")}</label>
                         <select
                           value={inputs.concreteType || "NSC"}
@@ -7801,6 +7830,17 @@ max="0.95"
 
                 </div>
                 </Phase3InputWizard>
+
+                <MixLifecyclePanel
+                  language={language}
+                  status={mixLifecycleStatus}
+                  criticalCount={validationGate.criticalErrors.length}
+                  warningCount={validationGate.warnings.length}
+                  calculationReady={validationGate.isValidForReport}
+                  onSaveDraft={(name) => handleSaveMix(name, "draft")}
+                  onSaveCopy={(name) => handleSaveVersion(name, false, "draft")}
+                  onApprove={handleApproveMix}
+                />
 
                 {/* LOGICAL ENGINEERING SEQUENCE RESULTS SUMMARY */}
                 <div className="pt-2 space-y-4">

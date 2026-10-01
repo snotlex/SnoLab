@@ -20,7 +20,7 @@ const copy = (ar: string, fr: string, en: string): Copy => ({ ar, fr, en });
 
 const steps: Array<{ id: string; number: number; label: Copy; anchor: string }> = [
   { id: "scope", number: 1, label: copy("نطاق التصميم", "Périmètre du design", "Design scope"), anchor: "step1-project-requirements" },
-  { id: "type", number: 2, label: copy("نوع الخرسانة", "Type de béton", "Concrete type"), anchor: "step1-project-requirements" },
+  { id: "type", number: 2, label: copy("نوع الخرسانة", "Type de béton", "Concrete type"), anchor: "step1-concrete-type" },
   { id: "materials", number: 3, label: copy("المواد والدفعات", "Matériaux et lots", "Materials & batches"), anchor: "step3-materials-selection" },
   { id: "engineering", number: 4, label: copy("المدخلات الهندسية", "Données d’ingénierie", "Engineering inputs"), anchor: "step4-material-properties" },
   { id: "review", number: 5, label: copy("المراجعة والحساب", "Revue et calcul", "Review & calculate"), anchor: "mix-materials-status-verification-panel" }
@@ -92,6 +92,11 @@ export const Phase3InputWizard: React.FC<Phase3InputWizardProps> = ({
   ].includes(String(key)));
   const requiredLabels = requiredKeys.slice(0, 8).map((key: string) => getSpecializedInputDefinition(key).label[language]);
   const selectedTypeName = metadata ? (language === "ar" ? metadata.nameAr : language === "fr" ? metadata.nameFr : metadata.nameEn) : concreteCode;
+  const issueLinks = [
+    ...(criticalCount ? [{ label: text(copy("أخطاء حرجة في المدخلات أو المواد", "Erreurs critiques des données ou matériaux", "Critical input or material errors"), language), anchor: "step1-project-requirements" }] : []),
+    ...(specializedErrorCount ? [{ label: text(copy("مدخلات النوع الخاص", "Données spécialisées", "Specialized inputs"), language), anchor: "step4-material-properties" }] : []),
+    ...(warningCount ? [{ label: text(copy("تحذيرات هندسية", "Avertissements d'ingénierie", "Engineering warnings"), language), anchor: "mix-materials-status-verification-panel" }] : [])
+  ];
 
   return (
     <section className="space-y-5" dir={isRtl ? "rtl" : "ltr"} id="phase3-input-wizard">
@@ -162,14 +167,15 @@ export const Phase3InputWizard: React.FC<Phase3InputWizardProps> = ({
               <h3 className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-2"><ListChecks size={15} className="text-blue-500" />{text(copy("ملخص التحقق", "Résumé de validation", "Validation summary"), language)}</h3>
               <span className="text-[9px] font-mono text-slate-400">{checks.filter(item => item.state.label.ar === "مكتمل").length}/{checks.length}</span>
             </div>
-            <div className="space-y-2.5">
-              {checks.map((item) => (
-                <div key={item.label.en} className="flex items-start gap-2 text-[10px]">
+                <div className="space-y-2.5">
+                  {checks.map((item) => (
+                <button key={item.label.en} type="button" onClick={() => scrollToSection(item.label.en.includes("scope") || item.label.en.includes("strength") ? "step1-project-requirements" : item.label.en.includes("Concrete") ? "step1-concrete-type" : item.label.en.includes("materials") ? "step3-materials-selection" : item.label.en.includes("Specialized") ? "step4-material-properties" : "mix-materials-status-verification-panel")} className="w-full flex items-start gap-2 text-[10px] text-left hover:bg-slate-50 dark:hover:bg-slate-800/60 rounded-lg p-1 -m-1">
                   <span className={`mt-0.5 ${item.state.className}`}>{item.state.icon}</span>
                   <div className="min-w-0"><span className="text-slate-600 dark:text-slate-300 block leading-snug">{text(item.label, language)}</span><span className={`font-bold ${item.state.className}`}>{text(item.state.label, language)}</span></div>
+                </button>
+                  ))}
+                  {issueLinks.length > 0 && <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1.5"><div className="text-[9px] font-black text-slate-400">{text(copy("الانتقال إلى سبب المشكلة", "Aller à la cause", "Jump to the cause"), language)}</div>{issueLinks.map(issue => <button key={issue.label} type="button" onClick={() => scrollToSection(issue.anchor)} className="w-full text-left text-[10px] text-blue-600 dark:text-blue-300 hover:underline">↳ {issue.label}</button>)}</div>}
                 </div>
-              ))}
-            </div>
           </section>
           <section className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-950 text-white p-4 shadow-lg">
             <div className="text-[10px] text-slate-400 mb-2">{text(copy("معاينة حسابية مباشرة", "Aperçu du calcul", "Live calculation preview"), language)}</div>
