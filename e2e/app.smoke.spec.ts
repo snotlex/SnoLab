@@ -113,4 +113,26 @@ test.describe("SnoLab application smoke flow", () => {
     await expect(page.getByRole("button", { name: "Continue" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Run test" })).toHaveCount(0);
   });
+
+  test("creates a multi-test laboratory request and adds an independent replicate", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /🇺🇸 EN/ }).click();
+    await page.getByRole("button", { name: /Start New Project/ }).first().click();
+    await page.getByRole("button", { name: /Laboratory Performance Validation/ }).click();
+    await page.getByRole("button", { name: "Multi-test request center" }).click();
+    const panel = page.locator("section").filter({ hasText: "Laboratory requests & sessions" }).last();
+    await expect(panel).toBeVisible();
+    await panel.getByRole("button", { name: "New multi-test request" }).click();
+    await panel.getByLabel("Request number").fill("E2E-LAB-001");
+    await panel.getByLabel("Sample number").fill("E2E-S-001");
+    await panel.getByLabel("Sample code").fill("E2E-S-001-A");
+    const testChecks = panel.locator('input[type="checkbox"]');
+    await testChecks.nth(0).check();
+    await testChecks.nth(1).check();
+    await panel.getByRole("button", { name: "Create request" }).click();
+    await expect(panel).toContainText("E2E-LAB-001");
+    await expect(panel).toContainText("2 tests");
+    await panel.getByRole("button", { name: "Add replicate" }).first().click();
+    await expect(panel).toContainText("1 replicates");
+  });
 });
