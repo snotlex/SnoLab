@@ -697,6 +697,13 @@ export interface TestExecutionResult {
   syncedProperties: Record<string, any>;
 }
 
+function containsNonFiniteNumber(value: unknown): boolean {
+  if (typeof value === "number") return !Number.isFinite(value);
+  if (Array.isArray(value)) return value.some(containsNonFiniteNumber);
+  if (value && typeof value === "object") return Object.values(value).some(containsNonFiniteNumber);
+  return false;
+}
+
 export function executeLaboratoryTest(
   testType: string,
   inputs: Record<string, any>,
@@ -715,6 +722,22 @@ export function executeLaboratoryTest(
         limit: "Compatible classified material",
         status: "BLOCKED",
         note: compatibility.reason
+      }],
+      syncedProperties: {}
+    };
+  }
+  if (containsNonFiniteNumber(inputs)) {
+    return {
+      results: { inputValidity: "INVALID_NON_FINITE" },
+      status: "FAIL",
+      score: 0,
+      interpretation: "بيانات الاختبار تحتوي على NaN أو Infinity؛ تم إيقاف الحساب لحماية السجل والنتائج.",
+      complianceDetails: [{
+        parameter: "Input validity",
+        measured: "NaN/Infinity",
+        limit: "All numeric inputs must be finite",
+        status: "FAIL",
+        note: "أعد إدخال القيم الرقمية قبل تشغيل الاختبار."
       }],
       syncedProperties: {}
     };

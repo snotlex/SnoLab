@@ -6003,6 +6003,12 @@ export default function App() {
                           className="w-full text-xs p-2.5 rounded border border-amber-300/30 dark:border-amber-700/40 bg-white dark:bg-slate-900/50 text-slate-900 dark:text-white font-semibold focus:outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer"
                         >
                           <option value="NSC">{t("type_NSC")}</option>
+                          <option value="RC">{language === "ar" ? "الخرسانة المسلحة (RC)" : language === "fr" ? "Béton armé (RC)" : "Reinforced Concrete (RC)"}</option>
+                          <option value="PUMPED">{language === "ar" ? "الخرسانة القابلة للضخ (PUMPED)" : language === "fr" ? "Béton pompable (PUMPED)" : "Pumped Concrete (PUMPED)"}</option>
+                          <option value="MASS">{language === "ar" ? "الخرسانة الكتلية (MASS)" : language === "fr" ? "Béton de masse (MASS)" : "Mass Concrete (MASS)"}</option>
+                          <option value="MARINE">{language === "ar" ? "الخرسانة البحرية (MARINE)" : language === "fr" ? "Béton marin (MARINE)" : "Marine Concrete (MARINE)"}</option>
+                          <option value="PRECAST">{language === "ar" ? "الخرسانة مسبقة الصب (PRECAST)" : language === "fr" ? "Béton préfabriqué (PRECAST)" : "Precast Concrete (PRECAST)"}</option>
+                          <option value="PRESTRESSED">{language === "ar" ? "الخرسانة سابقة الإجهاد (PRESTRESSED)" : language === "fr" ? "Béton précontraint (PRESTRESSED)" : "Prestressed Concrete (PRESTRESSED)"}</option>
                           <option value="HSC">{t("type_HSC")}</option>
                           <option value="HPC">{t("type_HPC")}</option>
                           <option value="SCC">{t("type_SCC")}</option>

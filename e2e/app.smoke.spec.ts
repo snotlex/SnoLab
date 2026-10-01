@@ -25,7 +25,7 @@ test.describe("SnoLab application smoke flow", () => {
     await expect(page.getByRole("button", { name: /انطلاق مشروع جديد/ }).first()).toBeVisible();
   });
 
-  test("simulates concrete type inputs and validates five-stage navigation guards", async ({ page }) => {
+  test("simulates every concrete type and validates five-stage navigation guards", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /🇺🇸 EN/ }).click();
     await page.getByRole("button", { name: /Start New Project/ }).first().click();
@@ -45,18 +45,17 @@ test.describe("SnoLab application smoke flow", () => {
     const concreteTypeSelect = page.locator("#step1-project-requirements select").first();
     const strengthInput = page.locator("#step1-project-requirements input[type=number]").first();
     const cases = [
-      { type: "NSC", strength: "25" },
-      { type: "HSC", strength: "50" },
-      { type: "SCC", strength: "35" },
-      { type: "LWC", strength: "25" },
-      { type: "UHPC", strength: "120" },
+      ["NSC", "25"], ["RC", "30"], ["PUMPED", "30"], ["MASS", "30"], ["MARINE", "35"],
+      ["PRECAST", "45"], ["PRESTRESSED", "55"], ["HSC", "60"], ["HPC", "55"], ["SCC", "40"],
+      ["FRC", "35"], ["LWC", "25"], ["HWC", "40"], ["RCC", "35"], ["SHOTCRETE", "35"],
+      ["GPC", "40"], ["SHC", "35"], ["RAC", "30"], ["PERVIOUS", "20"], ["UHPC", "120"], ["BFUP", "120"]
     ];
 
     for (const concreteCase of cases) {
-      await concreteTypeSelect.selectOption(concreteCase.type);
-      await strengthInput.fill(concreteCase.strength);
-      await expect(concreteTypeSelect).toHaveValue(concreteCase.type);
-      await expect(strengthInput).toHaveValue(concreteCase.strength);
+      await concreteTypeSelect.selectOption(concreteCase[0]);
+      await strengthInput.fill(concreteCase[1]);
+      await expect(concreteTypeSelect).toHaveValue(concreteCase[0]);
+      await expect(strengthInput).toHaveValue(concreteCase[1]);
     }
 
     // Return to the default supported route before checking the workflow gate,
