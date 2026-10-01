@@ -91,7 +91,7 @@ export const SidebarShell = React.memo(function SidebarShell({
       { id: "batch-preparation", label: c("تحضير الدفعة", "Préparation de gâchée", "Batch preparation"), icon: Scale, target: "batch_preparation", targetType: "tab", requiresProject: true },
       { id: "quality-control", label: c("ضبط الجودة QA/QC", "Contrôle qualité QA/QC", "QA/QC control"), icon: ClipboardCheck, target: "quality_control", targetType: "tab", requiresProject: true },
       { id: "batch-ticket", label: c("تذكرة الوزن", "Ticket de pesée", "Batch ticket"), icon: TicketCheck, target: "batch_ticket", targetType: "tab", requiresProject: true },
-      { id: "quality-assets", label: c("العينات والمعايرة", "Échantillons et étalonnage", "Samples & calibration"), icon: Beaker, target: "quality_assets", targetType: "tab", requiresProject: true },
+      { id: "quality-assets", label: c("مركز عمليات المختبر", "Opérations du laboratoire", "Laboratory operations"), icon: Beaker, target: "quality_assets", targetType: "tab", requiresProject: true },
       { id: "versions", label: c("إصدارات الخلطات", "Versions des mélanges", "Mix versions"), icon: History, target: "versions", targetType: "tab", requiresProject: true },
       { id: "optimization", label: c("تحسين الخلطة", "Optimisation", "Optimization"), icon: Activity, target: "optimization", targetType: "tab", requiresProject: true }
     ] },
