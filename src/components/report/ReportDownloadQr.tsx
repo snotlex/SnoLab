@@ -10,6 +10,7 @@ interface Props {
   activeProject?: any;
   materialsDatabase?: unknown[];
   language: "ar" | "fr" | "en";
+  onMetadataReady?: (metadata: ReportDownloadMetadata | null) => void;
 }
 
 const labels = {
@@ -22,7 +23,7 @@ function digestSeed(input: MixDesignInput, result: MixDesignResult, project: any
   return JSON.stringify({ input, result, project, revision: project?.mixId || project?.id || "current" });
 }
 
-export const ReportDownloadQr: React.FC<Props> = ({ input, result, activeProject, materialsDatabase, language }) => {
+export const ReportDownloadQr: React.FC<Props> = ({ input, result, activeProject, materialsDatabase, language, onMetadataReady }) => {
   const t = labels[language];
   const [metadata, setMetadata] = useState<ReportDownloadMetadata | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState("");
@@ -35,14 +36,14 @@ export const ReportDownloadQr: React.FC<Props> = ({ input, result, activeProject
 
   useEffect(() => {
     let cancelled = false;
-    setMetadata(null); setQrDataUrl(""); setError("");
+    setMetadata(null); setQrDataUrl(""); setError(""); onMetadataReady?.(null);
     const protocolAvailable = typeof window !== "undefined" && window.location.protocol === "https:" && !/localhost|127\.0\.0\.1/i.test(window.location.hostname);
     if (!protocolAvailable) { setError("LOCAL_FIRST"); return; }
     createReportDownloadToken({ input, result, activeProject, materialsDatabase, language, reportId, revisionId, reportReference: `SNO-${reportId}-${revisionId}`, status })
-      .then(async (next) => { if (cancelled) return; setMetadata(next); setQrDataUrl(await QRCode.toDataURL(next.downloadUrl, { width: 280, margin: 3, errorCorrectionLevel: "H", color: { dark: "#0f172a", light: "#ffffff" } })); })
+      .then(async (next) => { if (cancelled) return; setMetadata(next); onMetadataReady?.(next); setQrDataUrl(await QRCode.toDataURL(next.downloadUrl, { width: 280, margin: 3, errorCorrectionLevel: "H", color: { dark: "#0f172a", light: "#ffffff" } })); })
       .catch((reason) => { if (!cancelled) setError(reason instanceof Error ? reason.message : t.failed); });
     return () => { cancelled = true; };
-  }, [fingerprint, language]);
+  }, [fingerprint, language, onMetadataReady]);
 
   const isAr = language === "ar";
   return <section data-testid="report-download-qr" dir={isAr ? "rtl" : "ltr"} className="rounded-2xl border border-indigo-200 bg-gradient-to-br from-indigo-50 via-white to-sky-50 p-5 shadow-sm" aria-label={t.title}>

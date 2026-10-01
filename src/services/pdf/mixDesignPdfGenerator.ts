@@ -1,5 +1,6 @@
 import { jsPDF } from "jspdf";
 import autoTableImport from "jspdf-autotable";
+import QRCode from "qrcode";
 const autoTable: typeof autoTableImport = (typeof autoTableImport === "function" ? autoTableImport : (autoTableImport as any).default) as typeof autoTableImport;
 import { MixDesignInput, MixDesignResult, EngineeringMaterial } from "../../types";
 import { 
@@ -43,11 +44,14 @@ export async function generateMixDesignPdf(
     ? (lang === "ar" ? "خرسانة جيوبوليمرية خالية من الإسمنت" : lang === "en" ? "Cementless Geopolymer Concrete" : "Béton géopolymère sans ciment")
     : (input.concreteType || (lang === "ar" ? "خرسانة تقليدية" : "Conventional Concrete"));
   const logoDataUrl = await loadPublicImageDataUrl("/brand/snolab-official-light.png");
+  const qrDataUrl = options.qrUrl
+    ? await QRCode.toDataURL(options.qrUrl, { width: 220, margin: 2, errorCorrectionLevel: "H" })
+    : "";
   const reportTitle = lang === "ar" 
-    ? "شهادة دراسة وتركيب الخلطة الخرسانية"
+    ? "تقرير دراسة وتركيب الخلطة الخرسانية"
     : lang === "en"
-    ? "Concrete Mix Design Formulation Certificate"
-    : "Certificat de Formulation de Béton (Dreux-Gorisse)";
+    ? "Concrete Mix Design Formulation Report"
+    : "Rapport de Formulation de Béton (Dreux-Gorisse)";
 
   let currentY = PDF_PAGE_MARGINS.top + 2;
 
@@ -691,6 +695,16 @@ export async function generateMixDesignPdf(
     labName: lab.name
   });
 
+  if (qrDataUrl) {
+    doc.setPage(1);
+    const qrX = PDF_PAGE_MARGINS.pageWidth - PDF_PAGE_MARGINS.right - 27;
+    const qrY = PDF_PAGE_MARGINS.pageHeight - 47;
+    doc.addImage(qrDataUrl, "PNG", qrX, qrY, 24, 24, undefined, "FAST");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(5.5);
+    doc.setTextColor(80, 90, 105);
+    doc.text("SCAN: REPORT DOWNLOAD", qrX + 12, qrY + 27, { align: "center" });
+  }
   // =========================================================================
   // 12. FINALIZE RUNNING HEADERS, FOOTERS & PAGE NUMBERS ACROSS ALL PAGES
   // =========================================================================

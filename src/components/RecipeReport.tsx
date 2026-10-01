@@ -45,13 +45,14 @@ import { validateCalculationLogic } from "../engine/validationGate";
 import { formatEngineeringValue } from "../utils/unitFormatter";
 import { downloadMixDesignPdf } from "../services/pdf";
 import { ReportDownloadQr } from "./report/ReportDownloadQr";
+import type { ReportDownloadMetadata } from "../services/reportDownloadService";
 
 const customTranslations: Record<"ar" | "fr" | "en", Record<string, string>> = {
   ar: {
     coverTitle: "تقرير تصميم أولي للخلطة الخرسانية (fck)",
     executiveSummary: "الملخص التنفيذي للمشروع",
     methodology: "المنهجية والمراجع العلمية",
-    materials: "سجل المواد الخام المعتمدة",
+    materials: "سجل المواد الخام ومصادرها",
     results: "مقادير الخلطة والوزن الفعلي",
     qualityScore: "تقييم الجودة النهائي",
     riskAssessment: "تحليل المخاطر الفنية والموقعية",
@@ -59,7 +60,7 @@ const customTranslations: Record<"ar" | "fr" | "en", Record<string, string>> = {
     appendixA: "الملحق أ: الحسابات الرياضية التفصيلية",
     appendixADesc: "جميع قيم الحساب التوليفية وفروقات المنخل الكتلوي بالتفصيل للمهندسين والمراجعين.",
     recommendations: "توصيات الصب والتنفيذ الموقعي المعتمد",
-    conclusion: "الخلاصة الهندسية والقرار الفني النهائي",
+    conclusion: "الخلاصة الهندسية وحالة المراجعة",
     approvals: "صفحة المراجعة والتواقيع",
     approved: "✓ صالح للمراجعة بعد اجتياز بوابة التحقق",
     requiresMod: "⚠ يتطلب تعديل المعاملات (REQUIRES SEGREGATION FIX)",
@@ -93,7 +94,7 @@ const customTranslations: Record<"ar" | "fr" | "en", Record<string, string>> = {
     coverTitle: "PRELIMINARY CONCRETE MIX DESIGN REPORT",
     executiveSummary: "Executive Summary Overview",
     methodology: "Theoretical Methodology & Framework",
-    materials: "Approved Raw Materials Registry",
+    materials: "Raw Materials & Provenance Registry",
     results: "Recipe Formulations & Proportions",
     qualityScore: "SNO Concrete Quality Index (CQI)",
     riskAssessment: "Advanced Risk Assessment Matrix",
@@ -101,7 +102,7 @@ const customTranslations: Record<"ar" | "fr" | "en", Record<string, string>> = {
     appendixA: "Appendix A: Step-by-Step Computational Calculations",
     appendixADesc: "Detailed line-by-line mathematical synthesis derivations, packing factors and volumes for expert auditing.",
     recommendations: "Field Construction & Site Placement Guidelines",
-    conclusion: "Engineering Conclusion & Certification",
+    conclusion: "Engineering Conclusion & Review Status",
     approvals: "Review & Sign-off Page",
     approved: "✓ READY FOR ENGINEERING REVIEW",
     requiresMod: "⚠ REQUIRES SETTINGS MODIFICATION",
@@ -135,7 +136,7 @@ const customTranslations: Record<"ar" | "fr" | "en", Record<string, string>> = {
     coverTitle: "RAPPORT PRÉLIMINAIRE DE FORMULATION DU BÉTON",
     executiveSummary: "Synthèse Décisionnelle & Évaluation",
     methodology: "Cadre Méthodologique & Références",
-    materials: "Agréments des Constituants de Base",
+    materials: "Registre des Constituants & Provenance",
     results: "Formulations & Dosages de Pesée",
     qualityScore: "Indice Global de Qualité du Béton (CQI)",
     riskAssessment: "Matrice d'Analyse des Risques Techniques",
@@ -143,7 +144,7 @@ const customTranslations: Record<"ar" | "fr" | "en", Record<string, string>> = {
     appendixA: "Annexe A: Équations & Logique Mathématique",
     appendixADesc: "Détails exhaustifs des coefficients de compacité, calculs volumétriques et répartition granulaire fine.",
     recommendations: "Manuel de Mise en Œuvre sur Chantier",
-    conclusion: "Conclusion Technique Durable",
+    conclusion: "Conclusion Technique & Statut de Revue",
     approvals: "Revue Technique & Signatures",
     approved: "✓ PRÊT POUR REVUE TECHNIQUE",
     requiresMod: "⚠ AJUSTEMENTS REQUIS PAR LE LABO",
@@ -396,6 +397,8 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
   const [batchVolume, setBatchVolume] = useState<number>(1.0); 
   const [showExplanation, setShowExplanation] = useState<boolean>(false);
   const [isExporting, setIsExporting] = useState<boolean>(false);
+  const [reportDownloadUrl, setReportDownloadUrl] = useState("");
+  const [reportReference, setReportReference] = useState("SNO-DRAFT-CURRENT");
   const [syncStatus, setSyncStatus] = useState<"synced" | "updating">("synced");
 
   // Hook to show live synchronization status when inputs or results change
@@ -579,7 +582,8 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
           client: "Contracting Authority",
           plant: "Ready-Mix Batching Plant #1"
         },
-        materialsDatabase: materialsDatabase
+        materialsDatabase,
+        qrUrl: reportDownloadUrl || undefined
       });
       console.log("Native Vector PDF successfully generated and downloaded.");
     } catch (err) {
@@ -820,7 +824,7 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
           },
           { labelAr: "رتبة الضغط الفعالة", labelEn: "Effective Class Strength", value: `${mat.cement.cementStrengthClass ?? input.cementClassStrength ?? "—"}`, unit: (mat.cement.cementStrengthClass ?? input.cementClassStrength) ? "MPa" : "" },
           { labelAr: "الحجم الفعلي بالتناسب", labelEn: "Batch Quantity", value: `${Math.round(result.cementWeight)}`, unit: "kg/m³" },
-          { labelAr: "ثاني أكسيد الكربون النوعي", labelEn: "Carbon Footprint (SNO CO2)", value: "320", unit: "kg-CO2/tn" }
+          { labelAr: "بصمة الكربون", labelEn: "Carbon Footprint", value: reportLanguage === "ar" ? "غير مسجلة" : reportLanguage === "fr" ? "Non enregistrée" : "Not recorded", unit: "" }
         ],
         notesAr: "إسمنت عالية المقاومة والاعتمادية الجزئية للتصنيع المتكامل للبيتون الهيكلي.",
         notesEn: "Premium hydration product optimized for mechanical load-sharing on structural members."
@@ -891,7 +895,7 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
         properties: [
           { labelAr: "اسم العنصر ومصدر المياه", labelEn: "Source Name", value: mat.water.name },
           { labelAr: "الكثافة الاسمية الكود", labelEn: "Density Standard", value: "1.00", unit: "g/cm³" },
-          { labelAr: "الرقم الهيدروجيني (pH)", labelEn: "Potential of Hydrogen (pH)", value: "7.2" },
+          { labelAr: "الرقم الهيدروجيني (pH)", labelEn: "Potential of Hydrogen (pH)", value: mat.water.ph !== undefined ? String(mat.water.ph) : (reportLanguage === "ar" ? "غير مسجل" : reportLanguage === "fr" ? "Non enregistré" : "Not recorded") },
           { labelAr: "الحجم الفعلي بالتناسب", labelEn: "Batch Quantity", value: `${Math.round(result.waterContentActual)}`, unit: "kg/m³" },
           { labelAr: "نسبة المياه المصححة الكلي", labelEn: "Net Adjusted Water", value: `${Math.round(result.waterWeightWet)}`, unit: "kg/m³" }
         ],
@@ -927,7 +931,10 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
   const hasLabValidation = labRecords.length > 0;
   const totalPagesCount = 10 + (hasLabValidation ? 8 : 0) + materialPassportsList.length;
 
-  const qrVerificationText = `REF:DG-MX-CERT\nLAB:${companyName}\nPROJ:${projectName}\nENG:${engineerName}\nSTRENGTH:C${input.fck28}\nDATE:${new Date().toLocaleDateString()}`;
+  const handleQrMetadata = React.useCallback((metadata: ReportDownloadMetadata | null) => {
+    setReportDownloadUrl(metadata?.downloadUrl || "");
+    setReportReference(metadata?.reportReference || "SNO-DRAFT-CURRENT");
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -942,7 +949,7 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
             </h3>
           </div>
           <span className={`text-xs font-black px-3 py-1 rounded-full ${validationLedger.overallPass ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800 animate-bounce"}`}>
-            {validationLedger.overallPass ? (reportLanguage === "ar" ? "✓ معتمد وصالح هندسياً" : "APPROVED") : (reportLanguage === "ar" ? "⚠ فشل بعض ضوابط الكودات" : "VERIFICATION DISCREPANCY")}
+            {validationLedger.overallPass ? (reportLanguage === "ar" ? "✓ جاهز للمراجعة الهندسية" : "READY FOR ENGINEERING REVIEW") : (reportLanguage === "ar" ? "⚠ فشل بعض ضوابط الكودات" : "VERIFICATION DISCREPANCY")}
           </span>
         </div>
 
@@ -1274,6 +1281,7 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
           activeProject={activeProject}
           materialsDatabase={materialsDatabase}
           language={reportLanguage}
+          onMetadataReady={handleQrMetadata}
         />
         {/* 9 DISTINCT A4 CHASSIS PAGES */}
         <div className="w-full overflow-x-auto lg:overflow-x-visible">
@@ -1291,9 +1299,9 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
 
               {/* Title Unit */}
               <div className="text-center my-6 space-y-4 max-w-[160mm]">
-                <span className="p-1 px-3 bg-red-105 text-red-800 text-[9px] font-black uppercase rounded tracking-widest leading-none">OFFICIAL RECORD</span>
+                <span className="p-1 px-3 bg-red-105 text-red-800 text-[9px] font-black uppercase rounded tracking-widest leading-none">ENGINEERING RECORD</span>
                 <h1 className="text-xl md:text-2xl font-black text-slate-900 leading-tight font-sans tracking-tight">
-                  {reportLanguage === "ar" ? "شهادة اعتماد وتصميم الخلطة الخرسانية المعتمدة" : reportLanguage === "fr" ? "CERTIFICAT EXCLUSIF DE FORMULATION DE BÉTON" : "COMPREHENSIVE CONCRETE MIX DESIGN CERTIFICATE"}
+                  {reportLanguage === "ar" ? "ملف التصميم الهندسي للخلطة الخرسانية" : reportLanguage === "fr" ? "DOSSIER TECHNIQUE DE FORMULATION DU BÉTON" : "ENGINEERING CONCRETE MIX DESIGN DOSSIER"}
                 </h1>
                 <div className="h-1 w-24 bg-amber-500 mx-auto rounded"></div>
                 <p className="text-[11px] text-slate-500 max-w-[130mm] mx-auto leading-relaxed">
@@ -1306,7 +1314,7 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
               {/* Document Registry Table */}
               <div className="w-full max-w-[150mm] border border-slate-200 rounded overflow-hidden text-xs my-3 bg-slate-50/50 text-right">
                 <div className="grid grid-cols-2 divide-x divide-y divide-slate-200">
-                  <div className="p-2.5"><span className="text-slate-400 block text-[9px] font-bold">{reportLanguage === "ar" ? "رقم المستند / التقرير" : "Report Reference ID"}</span><span className="font-mono font-bold text-slate-800">SNO-DG-2026-MX-{Math.floor(Date.now() / 150000).toString().substring(3)}</span></div>
+                  <div className="p-2.5"><span className="text-slate-400 block text-[9px] font-bold">{reportLanguage === "ar" ? "رقم المستند / التقرير" : "Report Reference ID"}</span><span className="font-mono font-bold text-slate-800">{reportReference}</span></div>
                   <div className="p-2.5"><span className="text-slate-400 block text-[9px] font-bold">{reportLanguage === "ar" ? "اسم المشروع الإنشائي" : "Structural Project"}</span><span className="font-extrabold text-slate-800 truncate block">{projectName || "Default Project"}</span></div>
                   <div className="p-2.5"><span className="text-slate-400 block text-[9px] font-bold">{reportLanguage === "ar" ? "الجهة المالكة للمشروع" : "Owner / Client"}</span><span className="font-bold text-slate-700 truncate block">{clientOwner || "Client Authority"}</span></div>
                   <div className="p-2.5"><span className="text-slate-400 block text-[9px] font-bold">{reportLanguage === "ar" ? "المهندس المسؤول المصمم" : "Lead Designer Engineer"}</span><span className="font-extrabold text-slate-800 block">{engineerName} <span className="text-[10px] text-slate-500">({licenseNumber})</span></span></div>
@@ -1318,10 +1326,10 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
               {/* Bottom Stamp and Security Validation */}
               <div className="w-full flex justify-between items-center max-w-[150mm] border-t border-dashed border-slate-200 pt-5 mt-3">
                 <div className="flex gap-3 items-center">
-                  <QrCodeSvg text={qrVerificationText} size={60} />
+                  <QrCodeSvg text={reportDownloadUrl} size={60} />
                   <div className="text-[8.5px] text-slate-404 leading-tight text-right">
-                    <span className="font-bold text-slate-600 block uppercase">REPORT INTEGRITY CHECK</span>
-                    <span>This QR identifies the report snapshot. It is not a construction approval or digital signature.</span>
+                    <span className="font-bold text-slate-600 block uppercase">REPORT DOWNLOAD LINK</span>
+                    <span>{reportDownloadUrl ? "Scan to download this report snapshot. It is not a construction approval or digital signature." : "A public HTTPS link is required before a downloadable QR can be embedded."}</span>
                   </div>
                 </div>
                 <div className="text-center">
@@ -1609,9 +1617,9 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
                     roleEn: "Hydraulic Cement Binders",
                     material: resolvedAll.cement,
                     icon: "🏗️",
-                    certNum: resolvedAll.cement?.id === "preset-cement-chlef" ? "CERT-DZ-442-2026" : `CERT-CEM-${resolvedAll.cement?.id?.toUpperCase().replace('PRESET-', '') || "UNKNOWN"}`,
-                    labRef: "CN-LNCT-ALGIERS-QA04",
-                    testDate: resolvedAll.cement?.updatedDate || "2026-06-12",
+                    certNum: resolvedAll.cement?.certificationNumber || "",
+                    labRef: resolvedAll.cement?.laboratory || "",
+                    testDate: resolvedAll.cement?.updatedDate || "",
                     decisionLog: reportLanguage === "ar" 
                       ? `تم اختيار الصنف العالي الجودة لضمان إماهة قوية، وتخفيض حرارة التفاعل المائي لمنع التشققات الدقيقة بالتلاؤم مع المتطلبات الميكانيكية.`
                       : `Chosen for high compressive build-up, standard hydration speed and excellent resistance to sulfate mineral attacks.`
@@ -1621,9 +1629,9 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
                     roleEn: "Fine Aggregate Sands",
                     material: resolvedAll.sand,
                     icon: "⏳",
-                    certNum: `CERT-SND-${resolvedAll.sand?.id?.toUpperCase().replace('PRESET-', '') || "UNKNOWN"}`,
-                    labRef: "SNO-MESSILA-LAB-01",
-                    testDate: resolvedAll.sand?.updatedDate || "2026-06-11",
+                    certNum: resolvedAll.sand?.certificationNumber || "",
+                    labRef: resolvedAll.sand?.laboratory || "",
+                    testDate: resolvedAll.sand?.updatedDate || "",
                     decisionLog: reportLanguage === "ar"
                       ? `تم اعتماد تدرج النعومة (${resolvedAll.sand?.finenessModulus || '2.6'}) كونه يضمن التعبئة المثالية للركام المجهري لتقليل نفاذية السوائل.`
                       : `Selected to optimize microskeleton void filling, improving fresh mix cohesion and workability retention.`
@@ -1633,9 +1641,9 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
                     roleEn: "Coarse Aggregate Gravels",
                     material: resolvedAll.gravel,
                     icon: "🪨",
-                    certNum: `CERT-GVL-${resolvedAll.gravel?.id?.toUpperCase().replace('PRESET-', '') || "UNKNOWN"}`,
-                    labRef: "SNO-QC-BISKRA-QUARRY",
-                    testDate: resolvedAll.gravel?.updatedDate || "2026-06-10",
+                    certNum: resolvedAll.gravel?.certificationNumber || "",
+                    labRef: resolvedAll.gravel?.laboratory || "",
+                    testDate: resolvedAll.gravel?.updatedDate || "",
                     decisionLog: reportLanguage === "ar"
                       ? `ركام مكسر عالي الصلابة بقطر أقصى (${input.dMax} مم) يضمن رصًا ممتازًا وقوة تحمل فائقة تحت ضغوط القص والتحميل الدائم الرأسي.`
                       : `Optimally graded angular coarse material selected for extreme macromechanical skeletal lock and packing density.`
@@ -1645,9 +1653,9 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
                     roleEn: "Potable Batching Water",
                     material: resolvedAll.water,
                     icon: "💧",
-                    certNum: "CERT-WTR- Potable-NF1008",
-                    labRef: "SNO-HYD-ALGIERS-02",
-                    testDate: resolvedAll.water?.updatedDate || "2026-06-14",
+                    certNum: resolvedAll.water?.certificationNumber || "",
+                    labRef: resolvedAll.water?.laboratory || "",
+                    testDate: resolvedAll.water?.updatedDate || "",
                     decisionLog: reportLanguage === "ar"
                       ? "مياه شروب معالجة، خالية تماماً من الشوائب العضوية والأملاح الضارة (الكلوريدات والكبريتات) لتفادي تآكل قضبان التسليح."
                       : "Purified potable supply fully conforming to EN 1008 standards, preventing early expansion and bar corrosion."
@@ -1661,8 +1669,8 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
                     roleEn: "Admixture Polymers",
                     material: resolvedAll.admixture,
                     icon: "🧪",
-                    certNum: `CERT-ADMX-${resolvedAll.admixture.id?.toUpperCase().replace('PRESET-', '') || "UNKNOWN"}`,
-                    labRef: "BLIDA-SIKA-LAB-09",
+                    certNum: resolvedAll.admixture.certificationNumber || "",
+                    labRef: resolvedAll.admixture?.laboratory || "",
                     testDate: resolvedAll.admixture.updatedDate || "2026-06-13",
                     decisionLog: reportLanguage === "ar"
                       ? `بولي كاربوكسيلات الجيل الثالث المتطورة لخفض ماء الخلط بنسبة مثالية مع الحفاظ على درجة الانزلاق المطلوبة وسهولة الضخ بالرافعات.`
@@ -1677,8 +1685,8 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
                     roleEn: "Supplementary SCM",
                     material: resolvedAll.scm,
                     icon: "🌋",
-                    certNum: `CERT-SCM-${resolvedAll.scm.id?.toUpperCase().replace('PRESET-', '') || "UNKNOWN"}`,
-                    labRef: "CN-LNCT-MINERAL-01",
+                    certNum: resolvedAll.scm.certificationNumber || "",
+                    labRef: resolvedAll.scm?.laboratory || "",
                     testDate: resolvedAll.scm.updatedDate || "2026-06-11",
                     decisionLog: reportLanguage === "ar"
                       ? `تعزيز الخصائص البوزولانية التفاعلية وسد المسامات الشعرية لمنع النفاذية وضمان استقرار الخرسانة ضد الهجمات الكيميائية.`
@@ -1702,7 +1710,7 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
                     material: fiberMat,
                     icon: "🧵",
                     certNum: `CERT-FBR-${fiberMat.id.toUpperCase()}`,
-                    labRef: "SNO-FIBER-TESTING-LAB",
+                    labRef: fiberMat.laboratory || "",
                     testDate: "2026-06-12",
                     decisionLog: reportLanguage === "ar"
                       ? `تم اختيار ألياف ${input.fiberType || "فولاذية"} بجرعة ${input.fiberDosageKgM3 || 0} كجم/م³ وطول ${input.fiberLengthMm || 0} مم لتعزيز مقاومة الانحناء والحد من الشروخ الانكماشية.`
@@ -1726,7 +1734,7 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
                     material: specialBinderMat,
                     icon: "🔮",
                     certNum: `CERT-SPCB-${specialBinderMat.id.toUpperCase()}`,
-                    labRef: "CN-LNCT-ORAN-LAB",
+                    labRef: specialBinderMat.laboratory || "",
                     testDate: "2026-06-14",
                     decisionLog: reportLanguage === "ar"
                       ? `تم استخدام رابط خاص مستبدل بنسبة ${input.specialBinderReplacementPercent || 0}% بكثافة ${input.specialBinderDensity && input.specialBinderDensity > 0 ? `${input.specialBinderDensity} كجم/م³` : "غير متوفر"} لزيادة متانة الخلطة وضمان تصلب معزز.`
@@ -1750,7 +1758,7 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
                     material: lwcMat,
                     icon: "🎈",
                     certNum: `CERT-LWC-${lwcMat.id.toUpperCase()}`,
-                    labRef: "SNO-LWC-LAB-01",
+                    labRef: lwcMat.laboratory || "",
                     testDate: "2026-06-15",
                     decisionLog: reportLanguage === "ar"
                       ? `ركام خفيف الوزن${input.lightweightAggregateDensity ? ` بكثافة ${input.lightweightAggregateDensity} كجم/م³` : ""} وبنية مسامية مستهدفة لإنتاج خرسانة خفيفة الوزن ذات كفاءة عزل حراري ممتازة.`
@@ -1774,7 +1782,7 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
                     material: hwcMat,
                     icon: "🏋️",
                     certNum: `CERT-HWC-${hwcMat.id.toUpperCase()}`,
-                    labRef: "SNO-HWC-LAB-RADIATION",
+                    labRef: hwcMat.laboratory || "",
                     testDate: "2026-06-16",
                     decisionLog: reportLanguage === "ar"
                       ? `تم اختيار ركام ثقيل (${input.heavyweightType || "خام الحديد"})${input.heavyweightAggregateDensity ? ` بكثافة ${input.heavyweightAggregateDensity} كجم/م³` : ""} لإنتاج خرسانة ثقيلة الوزن لامتصاص الإشعاعات وحماية المفاعلات.`
@@ -1798,7 +1806,7 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
                     material: airMat,
                     icon: "🌬️",
                     certNum: `CERT-AIR-${airMat.id.toUpperCase()}`,
-                    labRef: "SNO-AIR-TEST-LAB",
+                    labRef: airMat.laboratory || "",
                     testDate: "2026-06-10",
                     decisionLog: reportLanguage === "ar"
                       ? `إضافة حابس للهواء لتأمين الفراغات الهوائية المستهدفة ${input.selectedAirPercentage || 0}% وتحسين متانة دورات الصقيع والذوبان في الخرسانة.`
@@ -1825,11 +1833,11 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
                         {/* Traceability Grid */}
                         <div className="grid grid-cols-2 gap-x-1.5 gap-y-1 text-[8px] text-slate-550 border-b border-dashed border-slate-150 pb-1.5">
                           <div className="text-right"><strong>{reportLanguage === "ar" ? "المعرف:" : "ID:"}</strong> <span className="font-mono text-slate-700 select-all">{item.material.id}</span></div>
-                          <div className="text-right"><strong>{reportLanguage === "ar" ? "المنطقة والمصدر:" : "Region:"}</strong> <span className="text-slate-705 font-bold">{item.material.provenance || item.material.region || "ولاية معتمدة"}</span></div>
-                          <div className="text-right"><strong>{reportLanguage === "ar" ? "المورد:" : "Supplier:"}</strong> <span className="text-slate-700 truncate inline-block max-w-[85px]" title={item.material.supplierName}>{item.material.supplierName || "مورد رسمي معتمد"}</span></div>
-                          <div className="text-right"><strong>{reportLanguage === "ar" ? "المحجر:" : "Quarry:"}</strong> <span className="text-slate-700 truncate inline-block max-w-[80px]" title={item.material.quarryName}>{item.material.quarryName || item.material.sourceQuarry || "مقلع مرخص"}</span></div>
+                          <div className="text-right"><strong>{reportLanguage === "ar" ? "المنطقة والمصدر:" : "Region:"}</strong> <span className="text-slate-705 font-bold">{item.material.provenance || item.material.region || (reportLanguage === "ar" ? "غير مسجل" : "Not recorded")}</span></div>
+                          <div className="text-right"><strong>{reportLanguage === "ar" ? "المورد:" : "Supplier:"}</strong> <span className="text-slate-700 truncate inline-block max-w-[85px]" title={item.material.supplierName}>{item.material.supplierName || (reportLanguage === "ar" ? "غير مسجل" : "Not recorded")}</span></div>
+                          <div className="text-right"><strong>{reportLanguage === "ar" ? "المحجر:" : "Quarry:"}</strong> <span className="text-slate-700 truncate inline-block max-w-[80px]" title={item.material.quarryName}>{item.material.quarryName || item.material.sourceQuarry || (reportLanguage === "ar" ? "غير مسجل" : "Not recorded")}</span></div>
                           <div className="text-right"><strong>{reportLanguage === "ar" ? "الإصدار الحالي:" : "Version:"}</strong> <span className="text-blue-700 font-mono font-bold">v{item.material.version || 1}</span></div>
-                          <div className="text-right"><strong>{reportLanguage === "ar" ? "حالة الاعتماد:" : "Approval:"}</strong> <span className="text-emerald-700 font-bold">{item.material.ApprovalStatus || "Certified"}</span></div>
+                          <div className="text-right"><strong>{reportLanguage === "ar" ? "حالة الاعتماد:" : "Approval:"}</strong> <span className="text-emerald-700 font-bold">{item.material.ApprovalStatus || item.material.approvalStatus || (reportLanguage === "ar" ? "غير مسجل" : "Not recorded")}</span></div>
                         </div>
 
                         {/* Dynamic Certification Block */}
@@ -1839,11 +1847,11 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
                             <span><strong>{reportLanguage === "ar" ? "شهادة فحص رقم:" : "Cert No:"}</strong></span>
                           </div>
                           <div className="flex justify-between text-[7.5px] text-slate-500">
-                            <span className="text-slate-800">{item.labRef || "CN-LNCT-ALGIERS-QA04"}</span>
+                            <span className="text-slate-800">{item.labRef || (reportLanguage === "ar" ? "غير مسجل" : "Not recorded")}</span>
                             <span><strong>{reportLanguage === "ar" ? "المختبر المرجعي:" : "Lab Ref:"}</strong></span>
                           </div>
                           <div className="flex justify-between text-[7.5px] text-slate-500">
-                            <span className="font-mono text-slate-800">{item.material.updatedDate || item.testDate}</span>
+                            <span className="font-mono text-slate-800">{item.material.updatedDate || item.testDate || (reportLanguage === "ar" ? "غير مسجل" : "Not recorded")}</span>
                             <span><strong>{reportLanguage === "ar" ? "تاريخ الفحص:" : "Test Date:"}</strong></span>
                           </div>
                         </div>
@@ -2417,7 +2425,7 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
                 <div className="flex flex-col items-end">
                   <span className="text-slate-400 block text-[9px] mb-2 font-bold uppercase">{reportLanguage === "ar" ? "ختم الصلاحية والاعتماد" : reportLanguage === "fr" ? "Sceau de Qualité" : "Quality Seal"}</span>
                   <div className="w-14 h-14 border border-amber-600 border-double rounded-full flex items-center justify-center text-[7px] text-amber-600 font-black rotate-12 select-none">
-                    VALID CERT
+                    PRELIMINARY
                   </div>
                 </div>
               </div>
@@ -2505,8 +2513,8 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
                         <div>
                           <strong className="text-slate-800 font-bold block mb-0.5">{reportLanguage === "ar" ? "✓ اختبار مطابقة الخواص" : "Lab Compliance Audit"}</strong>
                           {reportLanguage === "ar" 
-                            ? `تم اختبار جودة عينات [${passport.name}] بالمعمل الميداني للتأكد من خلوه من الملوثات والحد الأدنى للنسب النوعية.` 
-                            : `Lot testing of constituent '${passport.name}' indicates perfect conformance with chemical limit ratios.`}
+                          ? `لا تُثبت هذه الصفحة اعتماداً مخبرياً غير مسجل؛ راجع حقول الاختبار المرتبطة بالمادة [${passport.name}].`
+                          : `No laboratory certification claim is made here; review the recorded test fields for '${passport.name}'.`}
                         </div>
                         <div className="pt-2 border-t border-dashed border-slate-200">
                           <strong className="text-slate-800 font-bold block mb-0.5">{reportLanguage === "ar" ? "✓ ملاحظات المفتش الفني" : "Assessor Assessment"}</strong>
@@ -2552,15 +2560,15 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
                   {/* Official stamping box */}
                   <div className="border border-indigo-100 bg-indigo-50/5 p-2.5 rounded-lg text-right flex justify-between items-center flex-row-reverse border-dashed">
                     <div>
-                      <h5 className="font-extrabold text-xs text-indigo-950 font-sans">{reportLanguage === "ar" ? "إقرار المطابقة الكيميائية" : "Validation Certification"}</h5>
+                        <h5 className="font-extrabold text-xs text-indigo-950 font-sans">{reportLanguage === "ar" ? "حالة سجل المادة" : "Material Record Status"}</h5>
                       <p className="text-slate-500 text-[9.5px] leading-relaxed max-w-[130mm] font-sans">
                         {reportLanguage === "ar" 
-                          ? "نقر نحن كمعمل فحص المواد بصلاحية هذه المادة للاستخدام في الخلطات الهيكلية المتكاملة لمشروع الشركة."
-                          : "Certified that this constituent complies with designated physical specifications and is approved for batch operation."}
+                          ? "تلخص هذه البطاقة البيانات المتاحة للمادة؛ يجب تسجيل اعتماد المختبر منفصلاً قبل إطلاق الدفعة."
+                          : "This record summarizes available constituent data; laboratory approval must be recorded separately before batch release."}
                       </p>
                     </div>
                     <div className="w-11 h-11 rounded bg-indigo-50/50 border border-indigo-100 flex items-center justify-center font-mono text-[8px] text-indigo-600 rotate-6 p-1 text-center font-bold select-none leading-tight">
-                      SNO TRUST
+                      TRACEABLE RECORD
                     </div>
                   </div>
 

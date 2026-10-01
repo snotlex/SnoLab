@@ -42,6 +42,8 @@ export interface MixDesignPdfOptions {
   includeSignatures?: boolean;
   notes?: string;
   chartImageBase64?: string;
+  /** Signed HTTPS report URL encoded into the printable QR when available. */
+  qrUrl?: string;
 }
 
 export interface LabTestPdfOptions {

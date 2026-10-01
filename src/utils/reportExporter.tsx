@@ -1,103 +1,29 @@
 import React from "react";
 import * as XLSX from "xlsx";
+import QRCode from "qrcode";
 import { MixDesignResult, MixDesignInput } from "../types";
 import { buildReportFileName, formatReportValue, getCalculationStatusLabel, getCompleteInputRows, getCompleteResultRows, getGradingSeries, getStrengthSeries, getSelectedMaterialSnapshots } from "./reportData";
 import { getActiveMaterialBatch } from "../services/materialBatchService";
 
-// QR Code SVG Generator representing the verified parameters
+// Real QR renderer used by the printable report and exportable report preview.
 export const QrCodeSvg: React.FC<{ text: string; size?: number }> = ({ text, size = 110 }) => {
-  const getHash = (str: string) => {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      hash = (hash << 5) - hash + str.charCodeAt(i);
-      hash |= 0;
-    }
-    return Math.abs(hash);
-  };
+  const [dataUrl, setDataUrl] = React.useState("");
 
-  const seed = getHash(text);
-  const matrixSize = 25; // 25x25 Version 2 style grid
-  const grid: boolean[][] = Array(matrixSize).fill(null).map(() => Array(matrixSize).fill(false));
-
-  const drawFinder = (row: number, col: number) => {
-    for (let r = 0; r < 7; r++) {
-      for (let c = 0; c < 7; c++) {
-        const isBorder = r === 0 || r === 6 || c === 0 || c === 6;
-        const isCenter = r >= 2 && r <= 4 && c >= 2 && c <= 4;
-        grid[row + r][col + c] = isBorder || isCenter;
-      }
-    }
-  };
-
-  drawFinder(0, 0);
-  drawFinder(0, matrixSize - 7);
-  drawFinder(matrixSize - 7, 0);
-
-  for (let i = 8; i < matrixSize - 8; i++) {
-    grid[6][i] = i % 2 === 0;
-    grid[i][6] = i % 2 === 0;
-  }
-
-  const aliRow = matrixSize - 9;
-  const aliCol = matrixSize - 9;
-  for (let r = 0; r < 5; r++) {
-    for (let c = 0; c < 5; c++) {
-      const isOut = r === 0 || r === 4 || c === 0 || c === 4;
-      const isIn = r === 2 && c === 2;
-      grid[aliRow + r][aliCol + c] = isOut || isIn;
-    }
-  }
-
-  let pseudo = seed;
-  for (let r = 0; r < matrixSize; r++) {
-    for (let c = 0; c < matrixSize; c++) {
-      const isFinderTL = r < 9 && c < 9;
-      const isFinderTR = r < 9 && c >= matrixSize - 9;
-      const isFinderBL = r >= matrixSize - 9 && c < 9;
-      const isAlignment = r >= aliRow && r < aliRow + 5 && c >= aliCol && c < aliCol + 5;
-      const isTiming = r === 6 || c === 6;
-
-      if (!isFinderTL && !isFinderTR && !isFinderBL && !isAlignment && !isTiming) {
-        pseudo = (pseudo * 1664525 + 1013904223) % 4294967296;
-        grid[r][c] = (pseudo % 3) === 0;
-      }
-    }
-  }
-
-  const cellSize = 4;
-  const svgSize = matrixSize * cellSize;
-  const rects: React.ReactNode[] = [];
-
-  for (let r = 0; r < matrixSize; r++) {
-    for (let c = 0; c < matrixSize; c++) {
-      if (grid[r][c]) {
-        rects.push(
-          <rect
-            key={`qr-cell-${r}-${c}`}
-            x={c * cellSize}
-            y={r * cellSize}
-            width={cellSize}
-            height={cellSize}
-            fill="#1e293b"
-          />
-        );
-      }
-    }
-  }
+  React.useEffect(() => {
+    let cancelled = false;
+    setDataUrl("");
+    if (!text) return () => { cancelled = true; };
+    QRCode.toDataURL(text, { width: Math.max(180, size * 2), margin: 3, errorCorrectionLevel: "H", color: { dark: "#0f172a", light: "#ffffff" } })
+      .then((url) => { if (!cancelled) setDataUrl(url); })
+      .catch(() => { if (!cancelled) setDataUrl(""); });
+    return () => { cancelled = true; };
+  }, [text, size]);
 
   return (
     <div className="flex flex-col items-center justify-center bg-white p-2 border border-slate-200 shadow-3xs shrink-0 rounded-lg" id="exportable-report-qrcode">
-      <svg
-        width={size}
-        height={size}
-        viewBox={`0 0 ${svgSize} ${svgSize}`}
-        className="shape-rendering-crispedges"
-      >
-        <rect width={svgSize} height={svgSize} fill="#ffffff" />
-        {rects}
-      </svg>
+      {dataUrl ? <img src={dataUrl} width={size} height={size} alt="SnoLab report QR code" /> : <div style={{ width: size, height: size }} className="flex items-center justify-center text-[8px] text-slate-400">QR pending</div>}
       <span className="text-[7px] font-mono text-slate-400 mt-1 uppercase tracking-wider font-bold">
-        VERIFIED SOURCE
+        REPORT LINK
       </span>
     </div>
   );
@@ -105,13 +31,13 @@ export const QrCodeSvg: React.FC<{ text: string; size?: number }> = ({ text, siz
 
 export const reportTranslations: Record<"ar" | "fr" | "en", any> = {
   ar: {
-    reportTitle: "تقرير معتمد لتصميم ومعايرة الخلطة الخرسانية",
+    reportTitle: "تقرير التصميم والمعايرة الهندسية للخلطة الخرسانية",
     reportSub: "طريقة التدرج الحُبيبي لدرو-غوريس (Dreux-Gorisse Mix Formulation)",
     documentId: "معرف المستند",
     date: "تاريخ الفحص",
     laboratory: "مختبر الفحص المعتمد",
     mixStatus: "حالة المطابقة النهائية",
-    certifiedFormula: "خلطة نهائية معتمدة وصالحة للصب",
+    certifiedFormula: "حالة الخلطة وإمكانية المراجعة",
     projectInfo: "معلومات وبيانات المشروع وصاحب العمل",
     projectName: "مشروع العمل",
     siteLocation: "مكان وساحة الصب بالموقع",
@@ -153,7 +79,7 @@ export const reportTranslations: Record<"ar" | "fr" | "en", any> = {
     batchScalerTitle: "معايرة ميزان خلاطة الموقع والوجبات الفرعية",
     batchScalerDesc: "ادخل الحجم الصافي لوجبة الخلاطة الفردية لضرب الأوزان فورا:",
     scaleLabel: "حجم الوجبة الصافي",
-    exportPdf: "تصدير وثيقة PDF",
+    exportPdf: "تصدير تقرير PDF",
     exportWord: "تصدير ملف Word",
     exportExcel: "تصدير جدول Excel",
     printReport: "طباعة التقرير",
@@ -181,13 +107,13 @@ export const reportTranslations: Record<"ar" | "fr" | "en", any> = {
     batchScaleWeight: "وزن الوجبة الصافية"
   },
   en: {
-    reportTitle: "Certified Concrete Mix Composition & Design Report",
+    reportTitle: "Engineering Concrete Mix Design Report",
     reportSub: "Dreux-Gorisse Advanced Grading & Mathematical Synthesis Framework",
     documentId: "DOCUMENT ID REFERENCE",
     date: "CERTIFICATION DATE",
     laboratory: "APPROVED TESTING LABORATORY",
     mixStatus: "COMPLIANCE STATUS",
-    certifiedFormula: "CERTIFIED FINAL FORMULA",
+    certifiedFormula: "MIX STATUS & REVIEW READINESS",
     projectInfo: "Project Location, Clients & Infrastructure Meta",
     projectName: "Project Title",
     siteLocation: "Casting Site Location",
@@ -229,7 +155,7 @@ export const reportTranslations: Record<"ar" | "fr" | "en", any> = {
     batchScalerTitle: "Batch Size Configuration & Mixer Volume Scaling",
     batchScalerDesc: "Input your actual site mixer volume in m³ or cubic yards to scale aggregate feeding quantities:",
     scaleLabel: "Batch Volume",
-    exportPdf: "Export Certified PDF",
+    exportPdf: "Export Engineering PDF",
     exportWord: "Export Formatted MS Word",
     exportExcel: "Export Structured MS Excel",
     printReport: "Print Live Report",
@@ -257,13 +183,13 @@ export const reportTranslations: Record<"ar" | "fr" | "en", any> = {
     batchScaleWeight: "Batch Weight"
   },
   fr: {
-    reportTitle: "Rapport Certifié d'Étude de Formulation de Béton",
+    reportTitle: "Rapport Technique de Formulation du Béton",
     reportSub: "Méthodologie Granulométrique & Composition Rationnelle (Dreux-Gorisse)",
     documentId: "ID DU DOCUMENT CERTIFIÉ",
     date: "DATE DE PUBLICATION ET VALIDATION",
     laboratory: "LABORATOIRE AGREE DE CONTROLE",
     mixStatus: "STATUT TECHNIQUE DE COMPATIBILITÉ",
-    certifiedFormula: "FORMULE ADMINISTRATIVE HOMOLOGUÉE",
+    certifiedFormula: "STATUT DE LA FORMULE ET REVUE",
     projectInfo: "Informations Administratives de l'Ouvrage et du Projet",
     projectName: "Intitulé du Projet / Ouvrage",
     siteLocation: "Lieu du Chantier / Zone de Coulage Interne",

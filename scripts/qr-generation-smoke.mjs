@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import QRCode from "qrcode";
 
 const reportUrl = "https://snolab.example.com/api/reports/signed-token-for-test/download";
+assert.match(reportUrl, /^https:\/\//);
+assert.doesNotMatch(reportUrl, /[{}\n\r]/);
 const dataUrl = await QRCode.toDataURL(reportUrl, {
   width: 280,
   margin: 3,
