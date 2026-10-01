@@ -77,8 +77,9 @@ export function evaluateEngineeringGate(
   // 1. Determine Dynamic Roles
   const roles: RequiredMaterialRole[] = [];
 
-  // Cement / Binder Role
-  const isCementRequired = true; // Required for concrete/mortar mix design
+  // Cement / Binder Role. GPC is cementless and is validated through its
+  // precursor/activator roles below instead of requiring Portland cement.
+  const isCementRequired = concreteType !== "GPC";
   roles.push({
     role: "cement",
     roleLabelAr: "الإسمنت / المجلد الأساسي",
@@ -150,8 +151,8 @@ export function evaluateEngineeringGate(
     status: "unselected"
   });
 
-  // Admixture Role (Mandatory for SCC, UHPC, HPC, or if selected)
-  const isAdmixtureMandatory = concreteType === "SCC" || concreteType === "UHPC" || concreteType === "HPC";
+  // Admixture Role (mandatory for high-range/specialized rheology routes).
+  const isAdmixtureMandatory = ["SCC", "UHPC", "BFUP", "HPC", "HSC"].includes(concreteType);
   if (isAdmixtureMandatory || inputs?.selectedAdmixtureId) {
     roles.push({
       role: "admixture",
@@ -174,9 +175,9 @@ export function evaluateEngineeringGate(
     });
   }
 
-  // Fiber Role (Mandatory for FIBER concrete)
-  if (concreteType === "FIBER" || inputs?.selectedFiberId) {
-    const isFiberMandatory = concreteType === "FIBER";
+  // Fiber Role (mandatory for the fiber-reinforced families exposed by the UI).
+  if (["FIBER", "FRC", "UHPC", "BFUP"].includes(concreteType) || inputs?.selectedFiberId) {
+    const isFiberMandatory = ["FIBER", "FRC", "UHPC", "BFUP"].includes(concreteType);
     roles.push({
       role: "fiber",
       roleLabelAr: "الألياف الإنشائية",
@@ -192,9 +193,9 @@ export function evaluateEngineeringGate(
     });
   }
 
-  // SCM / Supplementary (Mandatory for GEOPOLYMER)
-  if (concreteType === "GEOPOLYMER" || inputs?.selectedScmId) {
-    const isScmMandatory = concreteType === "GEOPOLYMER";
+  // SCM / Supplementary (mandatory for geopolymer, high-performance and UHPC routes).
+  if (["GPC", "GEOPOLYMER", "HSC", "HPC", "UHPC", "BFUP"].includes(concreteType) || inputs?.selectedScmId) {
+    const isScmMandatory = ["GPC", "GEOPOLYMER", "HSC", "HPC", "UHPC", "BFUP"].includes(concreteType);
     roles.push({
       role: "scm",
       roleLabelAr: "الإضافات المعدنية (SCM)",
@@ -207,6 +208,25 @@ export function evaluateEngineeringGate(
       sourceReasonFr: `Obligatoire pour le béton géopolymère.`,
       selectedMaterialId: inputs?.selectedScmId,
       status: isScmMandatory ? "unselected" : "not_required"
+    });
+  }
+
+  // Geopolymer precursor/activator is a distinct required role; treating it
+  // as ordinary cement would allow a Portland-cement selection to pass the gate.
+  if (concreteType === "GPC" || inputs?.selectedSpecialBinderId) {
+    const isSpecialBinderMandatory = concreteType === "GPC";
+    roles.push({
+      role: "specialBinder",
+      roleLabelAr: "المجلد/المنشط الخاص",
+      roleLabelEn: "Special Binder / Activator",
+      roleLabelFr: "Liant / activateur spécial",
+      icon: "⚗️",
+      isRequired: isSpecialBinderMandatory,
+      sourceReasonAr: isSpecialBinderMandatory ? "إلزامي للخرسانة الجيوبوليمرية كمجلد ومنشط غير إسمنتي." : "تم اختياره في الخلطة الحالية.",
+      sourceReasonEn: isSpecialBinderMandatory ? "Mandatory for geopolymer concrete as the non-Portland binder/activator." : "Selected in the current mix.",
+      sourceReasonFr: isSpecialBinderMandatory ? "Obligatoire pour le béton géopolymère comme liant/activateur sans Portland." : "Sélectionné dans le mélange.",
+      selectedMaterialId: inputs?.selectedSpecialBinderId,
+      status: isSpecialBinderMandatory ? "unselected" : "not_required"
     });
   }
 

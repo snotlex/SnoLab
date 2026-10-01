@@ -205,4 +205,19 @@ describe("Dynamic Engineering Verification Gate Engine", () => {
     expect(result.isBlocked).toBe(true);
     expect(result.missingCount).toBeGreaterThan(0);
   });
+
+  it("7. Should require specialized admixture, SCM, and fiber roles for the UI concrete codes", () => {
+    const hsc = evaluateEngineeringGate({ ...baseInput, concreteType: "HSC" }, "reports", []);
+    expect(hsc.roles.find(r => r.role === "admixture")?.isRequired).toBe(true);
+    expect(hsc.roles.find(r => r.role === "scm")?.isRequired).toBe(true);
+
+    const frc = evaluateEngineeringGate({ ...baseInput, concreteType: "FRC" }, "reports", []);
+    expect(frc.roles.find(r => r.role === "fiber")?.isRequired).toBe(true);
+
+    const gpc = evaluateEngineeringGate({ ...baseInput, concreteType: "GPC" }, "reports", []);
+    expect(gpc.roles.find(r => r.role === "cement")?.isRequired).toBe(false);
+    expect(gpc.roles.find(r => r.role === "scm")?.isRequired).toBe(true);
+    expect(gpc.roles.find(r => r.role === "specialBinder")?.isRequired).toBe(true);
+    expect(gpc.missingCount).toBeGreaterThan(0);
+  });
 });
