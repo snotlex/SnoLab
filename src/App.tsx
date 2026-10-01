@@ -44,8 +44,7 @@ import { validateCalculationLogic } from "./engine/validationGate";
 import { EngineeringCore, ProjectSession } from "./engine/EngineeringCore";
 import { CalculationValidationGatePanel } from "./components/CalculationValidationGatePanel";
 import { Phase3InputWizard } from "./components/Phase3InputWizard";
-import { MixLifecyclePanel, MixLifecycleStatus } from "./components/MixLifecyclePanel";
-import { CalculationStagesPanel } from "./components/CalculationStagesPanel";
+import type { MixLifecycleStatus } from "./components/MixLifecyclePanel";
 import { CONCRETE_TYPES_CATALOG, getConcreteTypeDetails, CONCRETE_TYPE_CONFIGS } from "./concreteTypes";
 import { LogicalResultsSummary } from "./components/LogicalResultsSummary";
 import { isUserMaterial } from "./engine/suitabilityGate";
@@ -7530,31 +7529,9 @@ max="0.95"
                 </div>
                 </Phase3InputWizard>
 
-                <MixLifecyclePanel
-                  language={language}
-                  status={mixLifecycleStatus}
-                  criticalCount={validationGate.criticalErrors.length}
-                  warningCount={validationGate.warnings.length}
-                  calculationReady={validationGate.isValidForReport}
-                  onSaveDraft={(name) => handleSaveMix(name, "draft")}
-                  onSaveCopy={(name) => handleSaveVersion(name, false, "draft")}
-                  onApprove={handleApproveMix}
-                />
-                {(activeProject || projects.find(project => project.id === activeProjectId)) && <MixVersioningPanel
-                  activeProject={(activeProject || projects.find(project => project.id === activeProjectId)) as ActiveProject}
-                  inputs={inputs}
-                  results={results}
-                  onSaveVersion={(name) => handleSaveVersion(name, false, "draft")}
-                  onRestoreVersion={handleRestoreVersion}
-                  onDeleteVersion={handleDeleteVersion}
-                />}
-                <CalculationStagesPanel
-                  language={language}
-                  results={results}
-                  criticalErrors={validationGate.criticalErrors.length}
-                  warnings={validationGate.warnings.length}
-                  selectedMaterialCount={[inputs.selectedCementId, inputs.selectedSandId, inputs.selectedGravelId, inputs.selectedWaterId].filter(Boolean).length}
-                />
+                {/* تم نقل دورة الاعتماد وإدارة الإصدارات إلى تبويباتها المخصصة،
+                    وإخفاء لوحة الحساب المرحلي من شاشة التحضير لتقليل طول المرحلة الثالثة.
+                    تبقى وظائف الحفظ والإصدارات والتحقق متاحة عبر الخدمات والتبويبات المتخصصة. */}
 
                 {/* LOGICAL ENGINEERING SEQUENCE RESULTS SUMMARY */}
                 <div className="pt-2 space-y-4">
