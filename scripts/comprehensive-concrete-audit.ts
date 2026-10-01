@@ -3,6 +3,7 @@ import { createTestInput } from "../src/__tests__/testHelper";
 import { selectConcreteMixDesignRoute } from "../src/mix-design/core/concreteMixDesignSelector";
 import { MIX_DESIGN_CONTRACTS } from "../src/mix-design/core/mixDesignContracts";
 import { evaluateEngineeringGate } from "../src/services/engineeringVerificationEngine";
+import { AggregateQuality, AggregateType } from "../src/types";
 
 const types = Object.keys(MIX_DESIGN_CONTRACTS);
 
@@ -17,8 +18,8 @@ const base = {
   cementDensity: 3100,
   sandRelativeDensity: 2.65,
   gravelRelativeDensity: 2.68,
-  aggregateType: "concasse" as const,
-  aggregateQuality: "standard" as const,
+  aggregateType: AggregateType.CONCASSE,
+  aggregateQuality: AggregateQuality.STANDARD,
   airContent: 1,
   moistureSand: 2,
   moistureGravel: 1,
