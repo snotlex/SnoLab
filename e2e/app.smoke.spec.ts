@@ -24,6 +24,28 @@ test.describe("SnoLab application smoke flow", () => {
     await expect(page.locator("body")).toContainText("منصة الذكاء الاصطناعي للهندسة والخرسانة");
     await expect(page.getByRole("button", { name: /انطلاق مشروع جديد/ }).first()).toBeVisible();
   });
+  test("supports accessible sidebar navigation, collapse, and mobile drawer", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /Start New Project|انطلاق مشروع جديد/ }).first().click();
+    const sidebar = page.getByTestId("sidebar");
+    await expect(sidebar).toBeVisible();
+    await expect(sidebar.getByRole("navigation")).toHaveAttribute("aria-label", /Primary navigation|التنقل الرئيسي/);
+
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const collapse = sidebar.getByRole("button", { name: /Collapse sidebar|طي الشريط الجانبي/ });
+    await collapse.click();
+    await expect(sidebar.getByRole("button", { name: /Expand sidebar|توسيع الشريط الجانبي/ })).toBeVisible();
+    await expect(sidebar.getByTestId("sidebar-navigation")).toBeVisible();
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    const openMobile = page.getByTestId("sidebar-mobile-open");
+    await expect(openMobile).toBeVisible();
+    await openMobile.click();
+    await expect(sidebar).toBeVisible();
+    await expect(page.getByRole("button", { name: /Close sidebar|إغلاق الشريط الجانبي/ }).first()).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(openMobile).toBeFocused();
+  });
 
   test("simulates every concrete type and validates five-stage navigation guards", async ({ page }) => {
     await page.goto("/");
@@ -165,7 +187,7 @@ test.describe("SnoLab application smoke flow", () => {
     await page.getByRole("button", { name: /🇺🇸 EN/ }).click();
     await page.getByRole("button", { name: /Start New Project/ }).first().click();
     await page.getByRole("button", { name: /Laboratory Performance Validation/ }).click();
-    await page.getByRole("button", { name: "Multi-test request center" }).click();
+    await page.locator("#materials-lab-screen").getByRole("button", { name: "Multi-test request center" }).click();
     const panel = page.locator("section").filter({ hasText: "Laboratory requests & sessions" }).last();
     await expect(panel).toBeVisible();
     await panel.getByRole("button", { name: "New multi-test request" }).click();
