@@ -45,6 +45,7 @@ import { EngineeringCore, ProjectSession } from "./engine/EngineeringCore";
 import { CalculationValidationGatePanel } from "./components/CalculationValidationGatePanel";
 import { Phase3InputWizard } from "./components/Phase3InputWizard";
 import { MixLifecyclePanel, MixLifecycleStatus } from "./components/MixLifecyclePanel";
+import { CalculationStagesPanel } from "./components/CalculationStagesPanel";
 import { CONCRETE_TYPES_CATALOG, getConcreteTypeDetails, CONCRETE_TYPE_CONFIGS } from "./concreteTypes";
 import { LogicalResultsSummary } from "./components/LogicalResultsSummary";
 import { isUserMaterial } from "./engine/suitabilityGate";
@@ -7840,6 +7841,13 @@ max="0.95"
                   onSaveDraft={(name) => handleSaveMix(name, "draft")}
                   onSaveCopy={(name) => handleSaveVersion(name, false, "draft")}
                   onApprove={handleApproveMix}
+                />
+                <CalculationStagesPanel
+                  language={language}
+                  results={results}
+                  criticalErrors={validationGate.criticalErrors.length}
+                  warnings={validationGate.warnings.length}
+                  selectedMaterialCount={[inputs.selectedCementId, inputs.selectedSandId, inputs.selectedGravelId, inputs.selectedWaterId].filter(Boolean).length}
                 />
 
                 {/* LOGICAL ENGINEERING SEQUENCE RESULTS SUMMARY */}
