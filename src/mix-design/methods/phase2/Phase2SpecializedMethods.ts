@@ -141,9 +141,22 @@ export function validateGpcInputs(input: MixDesignInput, language: "ar" | "fr" |
   required(num(input, "gpcActivatorLiquidKgM3"), "gpcActivatorLiquidKgM3", languageMessage(language, "كتلة المنشط السائل", "masse d'activateur liquide", "liquid activator mass"), errors);
   required(num(input, "gpcWaterKgM3"), "gpcWaterKgM3", "GPC effective water", errors);
   const ratio = num(input, "gpcActivatorToPrecursorRatio");
-  if (ratio <= 0 || ratio > 1.5) errors.push({ code: "GPC_ACTIVATOR_RATIO", severity: "error", field: "gpcActivatorToPrecursorRatio", message: "GPC activator-to-precursor ratio must be >0 and <=1.5." });
+  if (ratio <= 0 || ratio > 1.2) errors.push({ code: "GPC_ACTIVATOR_RATIO", severity: "error", field: "gpcActivatorToPrecursorRatio", message: "GPC activator-to-precursor ratio must be >0 and <=1.2." });
   const wb = num(input, "gpcWaterBinderRatio");
   if (wb <= 0 || wb > 0.60) errors.push({ code: "GPC_WB", severity: "error", field: "gpcWaterBinderRatio", message: "GPC water-to-binder ratio must be >0 and <=0.60." });
+  const precursor = num(input, "gpcPrecursorKgM3");
+  const activator = num(input, "gpcActivatorLiquidKgM3");
+  const water = num(input, "gpcWaterKgM3");
+  const coarseFraction = Number((input as any).gpcCoarseAggregateVolumeFraction);
+  if (Number.isFinite(precursor) && Number.isFinite(activator) && Number.isFinite(ratio) && Math.abs(activator / precursor - ratio) > 0.02) {
+    errors.push({ code: "GPC_ACTIVATOR_RATIO_MISMATCH", severity: "error", field: "gpcActivatorToPrecursorRatio", message: "GPC activator mass does not match the declared activator-to-precursor ratio within ±0.02." });
+  }
+  if (Number.isFinite(precursor) && Number.isFinite(water) && Number.isFinite(wb) && Math.abs(water / precursor - wb) > 0.02) {
+    errors.push({ code: "GPC_WB_MISMATCH", severity: "error", field: "gpcWaterBinderRatio", message: "GPC water mass does not match the declared water-to-precursor ratio within ±0.02." });
+  }
+  if (!Number.isFinite(coarseFraction) || coarseFraction < 0.25 || coarseFraction > 0.50) {
+    errors.push({ code: "GPC_COARSE_FRACTION", severity: "error", field: "gpcCoarseAggregateVolumeFraction", message: "GPC coarse aggregate volume fraction must be between 0.25 and 0.50." });
+  }
   return { isValid: errors.length === 0, errors, warnings: [] };
 }
 
@@ -163,8 +176,8 @@ export function calculateGpcMix(input: MixDesignInput, language: "ar" | "fr" | "
   const sandDensity = materialDensityKgM3(resolved.materials.sand, 2650);
   const gravelDensity = materialDensityKgM3(resolved.materials.gravel, 2650);
   const activatorDensity = materialDensityKgM3(resolved.materials.admixture, 1400);
-  const air = Math.max(0.5, Math.min(5, num(input, "airContent", 2)));
-  const coarseFraction = Math.max(0.25, Math.min(0.50, num(input, "gpcCoarseAggregateVolumeFraction", 0.35)));
+  const air = Number(input.airContent);
+  const coarseFraction = Number((input as any).gpcCoarseAggregateVolumeFraction);
   const coarseKg = coarseFraction * gravelDensity;
   const fixedVolume = precursor / precursorDensity * 1000 + water + activator / activatorDensity * 1000 + coarseFraction * 1000 + air * 10;
   const sandKg = solveSand(fixedVolume, coarseKg, sandDensity);
@@ -220,17 +233,25 @@ export function checkRacApplicability(input: MixDesignInput): ApplicabilityResul
 
 export function validateRacInputs(input: MixDesignInput, language: "ar" | "fr" | "en" = "ar"): ValidationResult {
   const errors: ValidationError[] = [];
-  const resolved = commonMaterials(input, language);
+  const resolved = commonMaterials(input, language, num(input, "racSuperplasticizerDosage") > 0);
   errors.push(...materialValidation(resolved).errors);
+  required(num(input, "racCementKgM3"), "racCementKgM3", "RAC cement mass", errors);
+  required(num(input, "racWaterKgM3"), "racWaterKgM3", "RAC effective water", errors);
   required(num(input, "racCoarseAggregateKgM3"), "racCoarseAggregateKgM3", "RAC coarse aggregate mass", errors);
+  required(num(input, "racRecycledAggregateDensityKgM3"), "racRecycledAggregateDensityKgM3", "RAC recycled aggregate density", errors);
   const replacement = num(input, "racReplacementPercent");
   const absorption = num(input, "racRecycledAbsorptionPercent");
   const preSat = num(input, "racPreSaturationPercent");
-  if (replacement <= 0 || replacement > 100) errors.push({ code: "RAC_REPLACEMENT", severity: "error", field: "racReplacementPercent", message: "RAC recycled coarse aggregate replacement must be >0 and <=100%." });
+  if (replacement < 0 || replacement > 100) errors.push({ code: "RAC_REPLACEMENT", severity: "error", field: "racReplacementPercent", message: "RAC recycled coarse aggregate replacement must be between 0 and 100%." });
   if (absorption < 0 || absorption > 20) errors.push({ code: "RAC_ABSORPTION", severity: "error", field: "racRecycledAbsorptionPercent", message: "Recycled aggregate absorption must be between 0 and 20%." });
   if (preSat < 0 || preSat > 100) errors.push({ code: "RAC_PRESAT", severity: "error", field: "racPreSaturationPercent", message: "Pre-saturation degree must be between 0 and 100%." });
   const wb = num(input, "racWaterBinderRatio");
   if (wb <= 0 || wb > 0.65) errors.push({ code: "RAC_WB", severity: "error", field: "racWaterBinderRatio", message: "RAC water-to-binder ratio must be >0 and <=0.65." });
+  const cement = num(input, "racCementKgM3");
+  const water = num(input, "racWaterKgM3");
+  if (Number.isFinite(cement) && Number.isFinite(water) && Number.isFinite(wb) && Math.abs(water / cement - wb) > 0.02) {
+    errors.push({ code: "RAC_WB_MISMATCH", severity: "error", field: "racWaterBinderRatio", message: "RAC water and cement masses do not match the declared water-to-binder ratio within ±0.02." });
+  }
   return { isValid: errors.length === 0, errors, warnings: [] };
 }
 
@@ -241,9 +262,9 @@ export function calculateRacMix(input: MixDesignInput, language: "ar" | "fr" | "
     return blocked(input, "recycled-aggregate-specialized", "Recycled Aggregate Concrete", ["Complete recycled aggregate replacement, absorption and pre-saturation inputs."], [...validation.errors.map(e => e.message), ...resolved.errors]);
   }
   const requestedWb = num(input, "racWaterBinderRatio");
-  const water = num(input, "racWaterKgM3", 160);
+  const water = num(input, "racWaterKgM3");
   const suppliedCement = num(input, "racCementKgM3");
-  const cement = suppliedCement > EPS ? suppliedCement : water / requestedWb;
+  const cement = suppliedCement;
   const wb = water / cement;
   const totalCoarse = num(input, "racCoarseAggregateKgM3");
   const replacement = num(input, "racReplacementPercent") / 100;
@@ -252,7 +273,7 @@ export function calculateRacMix(input: MixDesignInput, language: "ar" | "fr" | "
   const cementDensity = materialDensityKgM3(resolved.materials.cement, 3150);
   const sandDensity = materialDensityKgM3(resolved.materials.sand, 2650);
   const virginDensity = materialDensityKgM3(resolved.materials.gravel, 2650);
-  const recycledDensity = num(input, "racRecycledAggregateDensityKgM3", materialDensityKgM3(resolved.materials.gravel, 2350));
+  const recycledDensity = num(input, "racRecycledAggregateDensityKgM3");
   const recycledKg = totalCoarse * replacement;
   const virginKg = totalCoarse - recycledKg;
   const admixtureKg = Math.max(0, num(input, "racSuperplasticizerDosage") / 100 * cement);
@@ -267,7 +288,8 @@ export function calculateRacMix(input: MixDesignInput, language: "ar" | "fr" | "
   const moisture = num(input, "moistureGravel");
   const freeSurfaceRecycled = recycledKg * Math.max(0, moisture - absorption) / 100;
   const freeSurfaceVirgin = virginKg * Math.max(0, moisture - num(input, "gravelAbsorption")) / 100;
-  const freeSurface = freeSurfaceRecycled + freeSurfaceVirgin;
+  const freeSurfaceSand = sandKg * Math.max(0, num(input, "moistureSand") - num(input, "sandAbsorption")) / 100;
+  const freeSurface = freeSurfaceRecycled + freeSurfaceVirgin + freeSurfaceSand;
   const waterToAdd = Math.max(0, water + prewetWater - freeSurface);
   const density = cement + water + sandKg + virginKg + recycledKg + admixtureKg;
 
@@ -299,6 +321,7 @@ export function calculateRacMix(input: MixDesignInput, language: "ar" | "fr" | "
       { stepId: "rac-4", label: "Close absolute volume with fine aggregate.", formula: "Vfa = 1000 - Vcement - Vwater - Vair - Vad - Vvirgin - Vrecycled", inputs: { finalVolume }, output: sandKg, unit: "kg/m3" },
       { stepId: "rac-5", label: "Correct batch water for surface moisture and pre-saturation.", formula: "Wadd = W + Wpre - Wfree", inputs: { prewetWater, freeSurface }, output: waterToAdd, unit: "kg/m3" }
     ],
+    batchWaterKg: waterToAdd,
     complianceChecks: [
       { parameter: "replacement", requirement: ">0 and <=100%", actual: `${(replacement * 100).toFixed(1)}%`, status: "compliant" },
       { parameter: "water_binder", requirement: ">0 and <=0.65", actual: wb.toFixed(3), status: wb > 0 && wb <= 0.65 ? "compliant" : "non_compliant" },
@@ -319,12 +342,22 @@ export function checkShcApplicability(input: MixDesignInput): ApplicabilityResul
 
 export function validateShcInputs(input: MixDesignInput, language: "ar" | "fr" | "en" = "ar"): ValidationResult {
   const errors: ValidationError[] = [];
-  const resolved = commonMaterials(input, language);
+  const resolved = commonMaterials(input, language, num(input, "shcSuperplasticizerDosage") > 0);
   errors.push(...materialValidation(resolved).errors);
+  required(num(input, "shcCementKgM3"), "shcCementKgM3", "SHC cement mass", errors);
+  required(num(input, "shcWaterKgM3"), "shcWaterKgM3", "SHC effective water", errors);
+  if (!String((input as any).shcHealingAgentType || "").trim()) errors.push({ code: "SHC_AGENT_TYPE", severity: "error", field: "shcHealingAgentType", message: "SHC healing-agent type is required." });
   required(num(input, "shcHealingAgentDosageKgM3"), "shcHealingAgentDosageKgM3", "self-healing agent dosage", errors);
   required(num(input, "shcHealingAgentDensityKgM3"), "shcHealingAgentDensityKgM3", "self-healing agent density", errors);
   const wb = num(input, "shcWaterBinderRatio");
   if (wb <= 0 || wb > 0.65) errors.push({ code: "SHC_WB", severity: "error", field: "shcWaterBinderRatio", message: "SHC water-to-binder ratio must be >0 and <=0.65." });
+  const cement = num(input, "shcCementKgM3");
+  const water = num(input, "shcWaterKgM3");
+  if (Number.isFinite(cement) && Number.isFinite(water) && Number.isFinite(wb) && Math.abs(water / cement - wb) > 0.02) errors.push({ code: "SHC_WB_MISMATCH", severity: "error", field: "shcWaterBinderRatio", message: "SHC water and cement masses do not match the declared water-to-binder ratio within ±0.02." });
+  const air = Number(input.airContent);
+  const coarseFraction = Number((input as any).shcCoarseAggregateVolumeFraction);
+  if (!Number.isFinite(air) || air < 0 || air > 6) errors.push({ code: "SHC_AIR", severity: "error", field: "airContent", message: "SHC air content must be between 0 and 6%." });
+  if (!Number.isFinite(coarseFraction) || coarseFraction < 0.25 || coarseFraction > 0.55) errors.push({ code: "SHC_COARSE_FRACTION", severity: "error", field: "shcCoarseAggregateVolumeFraction", message: "SHC coarse aggregate volume fraction must be between 0.25 and 0.55." });
   return { isValid: errors.length === 0, errors, warnings: [] };
 }
 
@@ -334,8 +367,8 @@ export function calculateShcMix(input: MixDesignInput, language: "ar" | "fr" | "
   if (!validation.isValid || resolved.errors.length) {
     return blocked(input, "self-healing-specialized", "Self-Healing Concrete", ["Specify the healing-agent type, dosage and validated density together with the base mix materials."], [...validation.errors.map(e => e.message), ...resolved.errors]);
   }
-  const cement = num(input, "shcCementKgM3", num(input, "cementWeight", 350));
-  const water = num(input, "shcWaterKgM3", 160);
+  const cement = num(input, "shcCementKgM3");
+  const water = num(input, "shcWaterKgM3");
   const wb = num(input, "shcWaterBinderRatio");
   const agent = num(input, "shcHealingAgentDosageKgM3");
   const agentDensity = num(input, "shcHealingAgentDensityKgM3");
@@ -345,8 +378,8 @@ export function calculateShcMix(input: MixDesignInput, language: "ar" | "fr" | "
   const admixtureDensity = materialDensityKgM3(resolved.materials.admixture, 1100);
   const superplasticizer = Math.max(0, num(input, "shcSuperplasticizerDosage") / 100 * cement);
   const totalAdmixture = agent + superplasticizer;
-  const air = Math.max(0.5, Math.min(6, num(input, "airContent", 2)));
-  const coarseFraction = Math.max(0.25, Math.min(0.55, num(input, "shcCoarseAggregateVolumeFraction", 0.40)));
+  const air = Number(input.airContent);
+  const coarseFraction = Number((input as any).shcCoarseAggregateVolumeFraction);
   const coarseKg = coarseFraction * gravelDensity;
   const fixedVolume = cement / cementDensity * 1000 + water + superplasticizer / admixtureDensity * 1000 + agent / agentDensity * 1000 + coarseFraction * 1000 + air * 10;
   const sandKg = solveSand(fixedVolume, coarseKg, sandDensity);
@@ -394,13 +427,21 @@ export function checkShotcreteApplicability(input: MixDesignInput): Applicabilit
 
 export function validateShotcreteInputs(input: MixDesignInput, language: "ar" | "fr" | "en" = "ar"): ValidationResult {
   const errors: ValidationError[] = [];
-  const resolved = commonMaterials(input, language, true, false);
+  const cementFraction = Number((input as any).shotcreteCementFraction ?? 1);
+  const resolved = commonMaterials(input, language, true, cementFraction < 1);
   errors.push(...materialValidation(resolved).errors);
   required(num(input, "shotcreteWaterKgM3"), "shotcreteWaterKgM3", "shotcrete effective water", errors);
   const wb = num(input, "shotcreteWaterBinderRatio");
-  if (wb <= 0 || wb > 0.55) errors.push({ code: "SHOTCRETE_WB", severity: "error", field: "shotcreteWaterBinderRatio", message: "Shotcrete water-to-binder ratio must be >0 and <=0.55." });
+  if (wb < 0.30 || wb > 0.55) errors.push({ code: "SHOTCRETE_WB", severity: "error", field: "shotcreteWaterBinderRatio", message: "Shotcrete water-to-binder ratio must be between 0.30 and 0.55." });
+  const acceleratorRaw = (input as any).shotcreteAcceleratorPercent;
   const accelerator = num(input, "shotcreteAcceleratorPercent");
-  if (accelerator < 0 || accelerator > 15) errors.push({ code: "SHOTCRETE_ACCELERATOR", severity: "error", field: "shotcreteAcceleratorPercent", message: "Shotcrete accelerator dosage must be between 0 and 15% of binder mass." });
+  if (acceleratorRaw === undefined || acceleratorRaw === null || acceleratorRaw === "") errors.push({ code: "SHOTCRETE_ACCELERATOR_REQUIRED", severity: "error", field: "shotcreteAcceleratorPercent", message: "Shotcrete accelerator dosage is required, including zero when no accelerator is specified." });
+  if (accelerator < 0 || accelerator > 12) errors.push({ code: "SHOTCRETE_ACCELERATOR", severity: "error", field: "shotcreteAcceleratorPercent", message: "Shotcrete accelerator dosage must be between 0 and 12% of binder mass." });
+  if (!Number.isFinite(cementFraction) || cementFraction < 0.70 || cementFraction > 1) errors.push({ code: "SHOTCRETE_CEMENT_FRACTION", severity: "error", field: "shotcreteCementFraction", message: "Shotcrete cement fraction must be between 0.70 and 1.00." });
+  const coarseFraction = Number((input as any).shotcreteCoarseAggregateVolumeFraction);
+  if (!Number.isFinite(coarseFraction) || coarseFraction < 0.10 || coarseFraction > 0.45) errors.push({ code: "SHOTCRETE_COARSE_FRACTION", severity: "error", field: "shotcreteCoarseAggregateVolumeFraction", message: "Shotcrete coarse aggregate volume fraction must be between 0.10 and 0.45." });
+  const air = Number(input.airContent);
+  if (!Number.isFinite(air) || air < 0 || air > 8) errors.push({ code: "SHOTCRETE_AIR", severity: "error", field: "airContent", message: "Shotcrete air content must be between 0 and 8%." });
   return { isValid: errors.length === 0, errors, warnings: [] };
 }
 
@@ -413,7 +454,7 @@ export function calculateShotcreteMix(input: MixDesignInput, language: "ar" | "f
   const water = num(input, "shotcreteWaterKgM3");
   const wb = num(input, "shotcreteWaterBinderRatio");
   const binder = water / wb;
-  const cementFraction = Math.max(0, Math.min(1, num(input, "shotcreteCementFraction", 1)));
+  const cementFraction = Number((input as any).shotcreteCementFraction);
   const cement = binder * cementFraction;
   const scm = binder - cement;
   const cementDensity = materialDensityKgM3(resolved.materials.cement, 3150);
@@ -423,8 +464,8 @@ export function calculateShotcreteMix(input: MixDesignInput, language: "ar" | "f
   const accelerator = binder * num(input, "shotcreteAcceleratorPercent") / 100;
   const sp = Math.max(0, binder * num(input, "shotcreteSuperplasticizerPercent") / 100);
   const admixture = accelerator + sp;
-  const air = Math.max(1, Math.min(8, num(input, "airContent", 4)));
-  const coarseFraction = Math.max(0.10, Math.min(0.45, num(input, "shotcreteCoarseAggregateVolumeFraction", 0.25)));
+  const air = Number(input.airContent);
+  const coarseFraction = Number((input as any).shotcreteCoarseAggregateVolumeFraction);
   const coarseKg = coarseFraction * gravelDensity;
   const fixedVolume = cement / cementDensity * 1000 + scm / scmDensity * 1000 + water + admixture / materialDensityKgM3(resolved.materials.admixture, 1100) * 1000 + coarseFraction * 1000 + air * 10;
   const sandKg = solveSand(fixedVolume, coarseKg, sandDensity);

@@ -52,6 +52,7 @@ export const SPECIALIZED_INPUT_DEFINITIONS: Record<string, SpecializedInputDefin
   gpcWaterKgM3: d("ماء GPC", "Eau GPC", "GPC water", { unit: kg, min: 50, max: 250, step: 1 }),
   gpcWaterBinderRatio: d("نسبة الماء إلى المواد الرابطة GPC", "Rapport eau/liant GPC", "GPC water-to-binder ratio", { unit: ratio, min: 0.2, max: 0.6, step: 0.01 }),
   gpcActivatorToPrecursorRatio: d("نسبة المنشّط إلى المادة الأولية GPC", "Rapport activateur/précurseur GPC", "GPC activator-to-precursor ratio", { unit: ratio, min: 0.2, max: 1.2, step: 0.01 }),
+  gpcCoarseAggregateVolumeFraction: d("الحجم النسبي للركام الخشن GPC", "Fraction volumique des gros granulats GPC", "GPC coarse aggregate volume fraction", { unit: ratio, min: 0.25, max: 0.5, step: 0.01 }),
   shcCementKgM3: d("إسمنت SHC", "Ciment SHC", "SHC cement", { unit: kg, min: 250, max: 800, step: 1 }),
   shcWaterKgM3: d("ماء SHC", "Eau SHC", "SHC water", { unit: kg, min: 100, max: 240, step: 1 }),
   shcWaterBinderRatio: d("نسبة الماء إلى المواد الرابطة SHC", "Rapport eau/liant SHC", "SHC water-to-binder ratio", { unit: ratio, min: 0.25, max: 0.6, step: 0.01 }),

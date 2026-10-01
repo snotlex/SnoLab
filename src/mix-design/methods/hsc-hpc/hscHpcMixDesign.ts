@@ -121,6 +121,8 @@ export function validateHscHpcInputs(
     silicaDosage +
     Number(input.dosageFlyAsh || 0) +
     Number(input.dosageSlag || 0);
+  const wbField = type === "HSC" ? "hscWaterBinderRatio" : "hpcWaterBinderRatio";
+  const waterField = type === "HSC" ? "hscWaterKgM3" : "hpcWaterKgM3";
 
   if (!Number.isFinite(fck) || fck <= 0) {
     errors.push({ code: "fck", severity: "error", field: "fck28", message: "Target strength must be > 0 MPa." });
@@ -161,6 +163,7 @@ export function validateHscHpcInputs(
   }
 
   if (type === "HSC") {
+    if (Number(input.dosageFlyAsh ?? 0) > 0 || Number(input.dosageSlag ?? 0) > 0) errors.push({ code: "hsc_scm_type", severity: "error", field: "dosageSilicaFume", message: "The current HSC engine supports silica fume only; use HPC or a blended SCM model for fly ash/slag." });
     if (silicaDosage < 5 || silicaDosage > 15) {
       errors.push({
         code: "silica_fume",
@@ -197,6 +200,8 @@ export function validateHscHpcInputs(
     });
   }
 
+  const air = Number(input.airContent);
+  if (!Number.isFinite(air) || air < 0 || air > 4) errors.push({ code: "air_content", severity: "error", field: "airContent", message: "HSC/HPC air content must be between 0 and 4%." });
   return { isValid: errors.length === 0, errors, warnings };
 }
 
@@ -346,39 +351,22 @@ export function calculateHscHpcMix(
     130,
     180
   );
-  const water = clamp(
-    Number.isFinite(Number((input as any)[waterField])) ? Number((input as any)[waterField]) : defaultWater,
-    125,
-    190
-  );
+  const water = Number.isFinite(Number((input as any)[waterField])) ? Number((input as any)[waterField]) : defaultWater;
 
   const defaultWb = type === "HSC"
     ? clamp(0.34 - Math.max(0, fck - 50) * 0.0025, 0.24, 0.34)
     : clamp(0.36 - Math.max(0, fck - 45) * 0.002, 0.26, 0.36);
 
-  const wb = clamp(
-    Number.isFinite(requestedWb) ? requestedWb : defaultWb,
-    type === "HSC" ? 0.22 : 0.25,
-    type === "HSC" ? 0.36 : 0.38
-  );
+  const wb = Number.isFinite(requestedWb) ? requestedWb : defaultWb;
 
   const binder = water / wb;
   const binderMin = type === "HSC" ? 420 : 400;
   const binderMax = 650;
   const binderOutOfRange = binder < binderMin || binder > binderMax;
 
-  const scmPercent = clamp(
-    type === "HSC"
-      ? Number(input.dosageSilicaFume || 7.5)
-      : Number(
-          Number(input.dosageSilicaFume || 0) +
-          Number(input.dosageFlyAsh || 0) +
-          Number(input.dosageSlag || 0) ||
-          15
-        ),
-    type === "HSC" ? 5 : 5,
-    type === "HSC" ? 25 : 30
-  );
+  const scmPercent = type === "HSC"
+    ? Number(input.dosageSilicaFume)
+    : Number(input.selectedScmReplacementPercent ?? Number(input.dosageSilicaFume ?? 0) + Number(input.dosageFlyAsh ?? 0) + Number(input.dosageSlag ?? 0));
 
   const scmKg = binder * scmPercent / 100;
   const cementKg = binder - scmKg;
@@ -399,7 +387,7 @@ export function calculateHscHpcMix(
   const coarseVolumeL = coarseFraction * 1000;
   const coarseKg = coarseVolumeL / 1000 * gravelDensity;
 
-  const airPercent = clamp(Number(input.airContent || 1.5), 0.5, 4.0);
+  const airPercent = Number(input.airContent);
   const cementVolumeL = cementKg / cementDensity * 1000;
   const scmVolumeL = scmKg / scmDensity * 1000;
   const waterVolumeL = water;
@@ -411,13 +399,13 @@ export function calculateHscHpcMix(
 
   const sandCorrection = computeMoistureBatch(
     fineKg,
-    Number(input.moistureSand || 0),
-    Number(input.sandAbsorption || materialProperty(materials.materials.sand, ["absorption", "Absorption"], 0) || 0)
+    Number(input.moistureSand ?? 0),
+    Number(input.sandAbsorption ?? materialProperty(materials.materials.sand, ["absorption", "Absorption"], 0) ?? 0)
   );
   const gravelCorrection = computeMoistureBatch(
     coarseKg,
-    Number(input.moistureGravel || 0),
-    Number(input.gravelAbsorption || materialProperty(materials.materials.gravel, ["absorption", "Absorption"], 0) || 0)
+    Number(input.moistureGravel ?? 0),
+    Number(input.gravelAbsorption ?? materialProperty(materials.materials.gravel, ["absorption", "Absorption"], 0) ?? 0)
   );
 
   const waterToAdd = Math.max(
@@ -604,6 +592,9 @@ export function calculateHscHpcMix(
         unit: "kg/m3"
       }
     ],
+    batchWaterKg: waterToAdd,
+    wetFineAggregateKg: sandCorrection.wetKg,
+    wetCoarseAggregateKg: gravelCorrection.wetKg,
     complianceChecks,
     lifecycle
   });

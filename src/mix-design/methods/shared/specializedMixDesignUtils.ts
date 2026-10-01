@@ -201,6 +201,11 @@ export function makeSpecializedResult(
     complianceChecks: Array<{ parameter: string; requirement: string; actual: string; status: "compliant" | "warning" | "non_compliant" }>;
     lifecycle?: "valid" | "valid_with_warnings" | "needs_trial_mix" | "blocked";
     referenceFilledVolumeL?: number;
+    batchWaterKg?: number;
+    wetFineAggregateKg?: number;
+    wetCoarseAggregateKg?: number;
+    quartzKg?: number;
+    quartzDensityKgM3?: number;
   }
 ): MixDesignResult {
   const referenceFilledVolumeL = data.referenceFilledVolumeL ?? 1000;
@@ -208,7 +213,13 @@ export function makeSpecializedResult(
   const status = data.lifecycle === "blocked" ? "not-supported" : "success";
   const fiberWeight = data.fiberKg || 0;
   const totalBinder = data.cementKg + (data.scmKg || 0);
-  const totalFresh = data.cementKg + (data.scmKg || 0) + data.fineAggregateKg + data.coarseAggregateKg + data.admixtureKg + fiberWeight + data.waterKg;
+  const fineMoisture = computeMoistureBatch(data.fineAggregateKg, Number(input.moistureSand ?? 0), Number(input.sandAbsorption ?? 0));
+  const coarseMoisture = computeMoistureBatch(data.coarseAggregateKg, Number(input.moistureGravel ?? 0), Number(input.gravelAbsorption ?? 0));
+  const batchWater = data.batchWaterKg ?? data.waterKg + fineMoisture.absorptionDeficit + coarseMoisture.absorptionDeficit - fineMoisture.freeSurfaceWater - coarseMoisture.freeSurfaceWater;
+  const wetFine = data.wetFineAggregateKg ?? fineMoisture.wetKg;
+  const wetCoarse = data.wetCoarseAggregateKg ?? coarseMoisture.wetKg;
+  const quartzWeight = data.quartzKg || 0;
+  const totalFresh = data.cementKg + (data.scmKg || 0) + wetFine + wetCoarse + data.admixtureKg + fiberWeight + batchWater + quartzWeight;
 
   const result: any = {
     methodId: data.methodId,
@@ -225,6 +236,7 @@ export function makeSpecializedResult(
     fineAggregateKg: data.fineAggregateKg,
     coarseAggregateKg: data.coarseAggregateKg,
     admixtureKg: data.admixtureKg,
+    quartzPowderKg: quartzWeight,
     admixtureWeights: data.admixtureKg > 0 ? [{
       admixtureId: input.selectedAdmixtureId || "specialized-admixture",
       name: data.admixtureName || input.selectedAdmixtureName || "Superplasticizer",
@@ -241,11 +253,11 @@ export function makeSpecializedResult(
     sandWeightDry: data.fineAggregateKg,
     gravelWeightDry: data.coarseAggregateKg,
     waterContentActual: data.waterKg,
-    waterContentNeeded: data.waterKg,
-    waterToAdd: data.waterKg,
-    sandWeightWet: data.fineAggregateKg * (1 + (input.moistureSand || 0) / 100),
-    gravelWeightWet: data.coarseAggregateKg * (1 + (input.moistureGravel || 0) / 100),
-    batchWaterToAdd: data.waterKg,
+    waterContentNeeded: batchWater,
+    waterToAdd: batchWater,
+    sandWeightWet: wetFine,
+    gravelWeightWet: wetCoarse,
+    batchWaterToAdd: batchWater,
     absoluteVolumeTotal: data.absoluteVolumeL,
     volumeClosureError: absoluteVolumeError,
     physicalProperties: {
@@ -258,9 +270,10 @@ export function makeSpecializedResult(
       supplementaryCementitiousMaterials: data.scmKg || 0,
       totalBinder,
       effectiveWater: data.waterKg,
-      addedWater: data.waterKg,
+      addedWater: batchWater,
       fineAggregates: data.fineAggregateKg,
       coarseAggregates: data.coarseAggregateKg,
+      quartzPowder: quartzWeight,
       admixtures: data.admixtureKg > 0 ? [{
         id: input.selectedAdmixtureId || "specialized-admixture",
         name: data.admixtureName || input.selectedAdmixtureName || "Superplasticizer",

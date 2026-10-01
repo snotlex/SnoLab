@@ -67,6 +67,7 @@ export function validateSccInputs(
   if (!Number.isFinite(flow) || flow < 500 || flow > 850) errors.push({ code: "slump_flow", severity: "error", field: "sccTargetSlumpFlowMm", message: "Target slump flow must be within the supported SCC input envelope (500-850 mm)." });
   if (!Number.isFinite(powder) || powder < 380 || powder > 600) errors.push({ code: "powder", severity: "error", field: "sccPowderKgM3", message: "SCC total powder must be between 380 and 600 kg/m3 for the initial EFNARC-oriented composition." });
   if (!Number.isFinite(wpv) || wpv < 0.80 || wpv > 1.10) errors.push({ code: "water_powder_volume", severity: "error", field: "sccWaterPowderRatioByVolume", message: "SCC water/powder ratio by volume must be between 0.80 and 1.10 for the initial composition." });
+  if (Number.isFinite(waterExplicit) && Number.isFinite(wpv) && Number.isFinite(powder) && Math.abs(waterExplicit / powder - wpv) > 0.02) errors.push({ code: "water_powder_conflict", severity: "error", field: "sccWaterKgM3", message: "Explicit SCC water conflicts with the declared water/powder ratio by more than ±0.02." });
 
   const slump = Number(input.slump || 0);
   if (slump > 0 && slump > 30) {
@@ -80,19 +81,20 @@ export function calculateSccMix(
   input: MixDesignInput,
   language: "ar" | "fr" | "en" = "ar"
 ): MixDesignResult {
+  const validation = validateSccInputs(input, language);
   const resolved = resolveSpecializedMaterials(input, language, true);
-  if (resolved.errors.length > 0) {
+  if (resolved.errors.length > 0 || !validation.isValid) {
     return makeSpecializedResult(input, {
       methodId: "scc-specialized",
       methodName: "SCC / Self-Compacting Concrete",
       version: VERSION,
       cementKg: 0, waterKg: 0, fineAggregateKg: 0, coarseAggregateKg: 0, admixtureKg: 0,
       waterBinderRatio: 0, freshDensityKgM3: 0, absoluteVolumeL: 0,
-      warnings: resolved.errors,
+      warnings: [...resolved.errors, ...validation.warnings.map(w => w.message)],
       assumptions: [],
       recommendations: ["Complete the approved SCC material selections before calculation."],
       trace: [],
-      complianceChecks: [{ parameter: "materials", requirement: "Required SCC materials resolved from library", actual: resolved.errors.join(" | "), status: "non_compliant" }],
+      complianceChecks: [...resolved.errors.map(message => ({ parameter: "materials", requirement: "Required SCC materials resolved from library", actual: message, status: "non_compliant" as const })), ...validation.errors.map(e => ({ parameter: e.code, requirement: "Valid SCC specialized input", actual: e.message, status: "non_compliant" as const }))],
       lifecycle: "blocked"
     });
   }
@@ -160,7 +162,7 @@ export function calculateSccMix(
   const superDosage = Number((input as any).sccSuperplasticizerDosage ?? input.dosageSuper ?? 1.0);
   const admixtureKg = powderKg * Math.max(0, superDosage) / 100;
   const admixtureVolumeL = admixtureKg / admixtureDensity * 1000;
-  const airPercent = Number(input.airContent || 1.0);
+  const airPercent = Number(input.airContent ?? 1.0);
   const airVolumeL = airPercent * 10;
   const waterVolumeL = water;
 
