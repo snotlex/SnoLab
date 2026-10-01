@@ -60,7 +60,6 @@ import { inspectMixMaterialProperties } from "./services/materialPropertySchema"
 import { evaluateEngineeringGate } from "./services/engineeringVerificationEngine";
 import { SnoLabLogo } from "./components/SnoLabLogo";
 import { STRUCTURAL_ELEMENTS, getStructuralElementById } from "./data/structuralElements";
-import { getMaterialBundle } from "./data/materialLibraryExpansion";
 import { SEEDED_MATERIALS } from "./data/seededMaterials";
 import { useProjectStorage } from "./services/storage/ProjectContext";
 import { useProjectWorkflow, ProjectStageNumber } from "./services/workflow/ProjectWorkflowController";
@@ -5714,97 +5713,6 @@ export default function App() {
                         </select>
 
                         {(() => {
-                          const bundle = getMaterialBundle(String(inputs.concreteType || "NSC"));
-                          if (bundle.length === 0) return null;
-                          const categoryOf = (material: any) => String(material.category || material.type || "");
-                          const applyBundle = () => {
-                            const next: any = {};
-                            const pick = (predicate: (material: any) => boolean) => bundle.find(predicate);
-                            const cement = pick(material => categoryOf(material).includes("إسمنت"));
-                            const sand = pick(material => categoryOf(material).includes("رمال"));
-                            const gravel = pick(material => categoryOf(material).includes("حصى"));
-                            const admixture = pick(material => categoryOf(material).includes("إضافات كيميائية"));
-                            const scm = pick(material => categoryOf(material).includes("إضافات معدنية"));
-                            const fiber = pick(material => categoryOf(material).includes("ألياف"));
-                            if (cement) Object.assign(next, { selectedCementId: cement.id, cementType: cement.cementClass || cement.name, cementDensity: cement.density, cementClassStrength: Number(cement.strengthClass) || inputs.cementClassStrength });
-                            if (sand) Object.assign(next, { selectedSandId: sand.id, sandType: sand.name, sandRelativeDensity: sand.specificGravity || ((sand.density || 0) / 1000), finenessModulus: sand.finenessModulus, sandAbsorption: sand.absorption, moistureSand: sand.moisture });
-                            if (gravel) Object.assign(next, { selectedGravelId: gravel.id, gravelType: gravel.name, gravelRelativeDensity: gravel.specificGravity || ((gravel.density || 0) / 1000), dMax: gravel.dMax, gravelAbsorption: gravel.absorption, moistureGravel: gravel.moisture });
-                            if (admixture) Object.assign(next, { selectedAdmixtureId: admixture.id, selectedAdmixtureName: admixture.name, selectedAdmixtureDensity: admixture.density, selectedAdmixtureWaterReduction: admixture.waterReduction });
-                            if (scm) Object.assign(next, { selectedScmId: scm.id });
-                            if (fiber) Object.assign(next, { selectedFiberId: fiber.id, selectedFiberName: fiber.name });
-                            setInputs(prev => ({ ...prev, ...next }));
-                          };
-                          return (
-                            <div className="mt-3 p-3 rounded-lg border border-indigo-500/20 bg-indigo-500/5 space-y-2 text-right">
-                              <div className="flex items-center justify-between gap-2">
-                                <button type="button" onClick={applyBundle} className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-black">{language === "ar" ? "تطبيق الحزمة على الخلطة" : "Apply bundle to mix"}</button>
-                                <div className="text-[11px] font-black text-indigo-700 dark:text-indigo-300">{language === "ar" ? "حزمة مواد مقترحة لهذا النوع" : "Recommended material bundle"}</div>
-                              </div>
-                              <div className="flex flex-wrap gap-1.5 justify-end">
-                                {bundle.map(material => <span key={material.id} className="px-2 py-1 rounded-full bg-white/80 dark:bg-slate-950/60 border border-indigo-500/10 text-[9px] text-slate-600 dark:text-slate-300">{material.name}</span>)}
-                              </div>
-                              <p className="text-[9px] text-slate-500">{language === "ar" ? "الحزمة لا تستبدل الاختيارات تلقائياً؛ راجع الدفعات ونتائج المختبر قبل الاعتماد." : "The bundle does not silently replace selections; review batches and laboratory results before approval."}</p>
-                            </div>
-                          );
-                        })()}
-
-                        {(() => {
-                          const contract = getMixDesignContract(String(inputs.concreteType || "NSC").toUpperCase());
-                          if (!contract || contract.concreteType === "NSC") return null;
-                          const coreKeys = new Set([
-                            "fck28", "dMax", "cementType", "cementClassStrength", "cementDensity",
-                            "moistureSand", "moistureGravel", "airContent", "slump"
-                          ]);
-                          const specializedKeys = contract.requiredInputs.filter((key) => !coreKeys.has(String(key)));
-                          return (
-                            <div className="mt-3 p-3 rounded-lg border border-blue-500/20 bg-blue-500/5 space-y-2 text-right">
-                              <div className="text-[11px] font-black text-blue-600 dark:text-blue-300">
-                                {language === "ar" ? `مدخلات محرك ${contract.methodId} الإلزامية` : `${contract.methodId} required inputs`}
-                              </div>
-                              <div className="text-[9px] text-slate-500 dark:text-slate-400">
-                                {contract.engineeringFramework} — {language === "ar" ? "لا تستخدم قيمًا افتراضية" : "No silent defaults"}
-                              </div>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                {specializedKeys.map((key) => {
-                                  const field = String(key);
-                                  const isText = field.endsWith("Type") || field.endsWith("Method") || field === "fiberType" || field === "shcHealingAgentType";
-                                  const value = (inputs as any)[field];
-                                  const definition = getSpecializedInputDefinition(field);
-                                  const fieldError = specializedInputErrors[field];
-                                  return (
-                                    <label key={field} className="text-[9px] font-bold text-slate-600 dark:text-slate-300">
-                                      <span className="block mb-1">{definition.label[language as "ar" | "fr" | "en"] || definition.label.en}</span>
-                                      <input
-                                        type={isText ? "text" : "number"}
-                                        min={isText ? undefined : definition.min}
-                                        max={isText ? undefined : definition.max}
-                                        step={isText ? undefined : definition.step || "any"}
-                                        value={value ?? ""}
-                                        onChange={(event) => {
-                                          const raw = event.target.value;
-                                          const nextValue = isText ? raw : (raw === "" ? undefined : Number(raw));
-                                          const error = validateSpecializedInputValue(field, nextValue);
-                                          setSpecializedInputErrors(prev => {
-                                            const next = { ...prev };
-                                            if (error) next[field] = error;
-                                            else delete next[field];
-                                            return next;
-                                          });
-                                          if (!error) setInputs(prev => ({ ...prev, [field]: nextValue }));
-                                        }}
-                                        className={`w-full rounded border ${fieldError ? "border-rose-500 ring-1 ring-rose-300" : "border-blue-500/20"} bg-white dark:bg-slate-950 p-2 text-[10px] outline-none focus:border-blue-500`}
-                                        placeholder={language === "ar" ? "مطلوب" : "Required"}
-                                      />
-                                      {fieldError && <span className="block mt-1 text-[9px] font-bold text-rose-600 dark:text-rose-400">{specializedInputErrorMessage(field, fieldError, language as "ar" | "fr" | "en")}</span>}
-                                    </label>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          );
-                        })()}
-
-                        {(() => {
                           const meta = CONCRETE_TYPES_CATALOG.find(t => t.code === (inputs.concreteType || "NSC"));
                           if (!meta) return null;
                           const details = getConcreteTypeDetails(meta.code, language);
@@ -6046,6 +5954,65 @@ export default function App() {
                       </div>
 
                     </div>
+
+                    {/* Specialized inputs stay beside the general engineering inputs, not inside the concrete-type card. */}
+                    {(() => {
+                      const contract = getMixDesignContract(String(inputs.concreteType || "NSC").toUpperCase());
+                      if (!contract || contract.concreteType === "NSC") return null;
+                      const coreKeys = new Set([
+                        "fck28", "dMax", "cementType", "cementClassStrength", "cementDensity",
+                        "moistureSand", "moistureGravel", "airContent", "slump"
+                      ]);
+                      const specializedKeys = contract.requiredInputs.filter((key) => !coreKeys.has(String(key)));
+                      return (
+                        <div id="step1-specialized-inputs" className="mt-4 p-4 rounded-xl border border-blue-500/20 bg-blue-500/5 space-y-3 text-right">
+                          <div>
+                            <div className="text-[11px] font-black text-blue-600 dark:text-blue-300">
+                              {language === "ar" ? `المدخلات الخاصة بـ ${contract.methodId}` : `${contract.methodId} specialized inputs`}
+                            </div>
+                            <div className="text-[9px] text-slate-500 dark:text-slate-400 mt-1">
+                              {contract.engineeringFramework} — {language === "ar" ? "تظهر بجانب المدخلات العامة ولا تستخدم قيماً افتراضية." : "Shown beside the general inputs with no silent defaults."}
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                            {specializedKeys.map((key) => {
+                              const field = String(key);
+                              const isText = field.endsWith("Type") || field.endsWith("Method") || field === "fiberType" || field === "shcHealingAgentType";
+                              const value = (inputs as any)[field];
+                              const definition = getSpecializedInputDefinition(field);
+                              const fieldError = specializedInputErrors[field];
+                              return (
+                                <label key={field} className="text-[9px] font-bold text-slate-600 dark:text-slate-300">
+                                  <span className="block mb-1">{definition.label[language as "ar" | "fr" | "en"] || definition.label.en}</span>
+                                  <input
+                                    type={isText ? "text" : "number"}
+                                    min={isText ? undefined : definition.min}
+                                    max={isText ? undefined : definition.max}
+                                    step={isText ? undefined : definition.step || "any"}
+                                    value={value ?? ""}
+                                    onChange={(event) => {
+                                      const raw = event.target.value;
+                                      const nextValue = isText ? raw : (raw === "" ? undefined : Number(raw));
+                                      const error = validateSpecializedInputValue(field, nextValue);
+                                      setSpecializedInputErrors(prev => {
+                                        const next = { ...prev };
+                                        if (error) next[field] = error;
+                                        else delete next[field];
+                                        return next;
+                                      });
+                                      if (!error) setInputs(prev => ({ ...prev, [field]: nextValue }));
+                                    }}
+                                    className={`w-full rounded border ${fieldError ? "border-rose-500 ring-1 ring-rose-300" : "border-blue-500/20"} bg-white dark:bg-slate-950 p-2 text-[10px] outline-none focus:border-blue-500`}
+                                    placeholder={language === "ar" ? "مطلوب" : "Required"}
+                                  />
+                                  {fieldError && <span className="block mt-1 text-[9px] font-bold text-rose-600 dark:text-rose-400">{specializedInputErrorMessage(field, fieldError, language as "ar" | "fr" | "en")}</span>}
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })()}
 
                     {/* Pumpability and details */}
                     <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-900/40 p-3 rounded-xl border border-slate-200/50 dark:border-slate-800 font-sans">
