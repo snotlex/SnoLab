@@ -21,7 +21,11 @@ if (missing.length === 0) {
 console.warn(`[SnoLab] Missing dependencies: ${missing.join(", ")}`);
 console.warn("[SnoLab] Installing dependencies from package-lock.json before starting Vite...");
 const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
-const result = spawnSync(npmCommand, ["install", "--no-audit", "--no-fund"], { stdio: "inherit", shell: false });
+const result = spawnSync(npmCommand, ["install", "--no-audit", "--no-fund"], {
+  stdio: "inherit",
+  // npm.cmd is a Windows command script and must be launched through the shell.
+  shell: process.platform === "win32"
+});
 if (result.error) {
   console.error(`[SnoLab] Could not run npm install: ${result.error.message}`);
   process.exit(1);
