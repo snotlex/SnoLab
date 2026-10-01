@@ -1,9 +1,10 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2, ChevronDown, Circle, ClipboardCheck, Layers3, ListChecks, ShieldAlert } from "lucide-react";
 import { EngineeringMaterial, MixDesignInput } from "../types";
 import { CONCRETE_TYPES_CATALOG, getConcreteTypeDetails } from "../concreteTypes";
 import { getMixDesignContract } from "../mix-design/core/mixDesignContracts";
 import { getSpecializedInputDefinition } from "../mix-design/core/specializedInputDefinitions";
+import { getConcreteTypeFormConfig, Stage3SectionId } from "../mix-design/core/concreteTypeFormConfig";
 
 interface Phase3InputWizardProps {
   inputs: MixDesignInput;
@@ -24,6 +25,17 @@ const steps: Array<{ id: string; number: number; label: Copy; anchor: string }> 
   { id: "materials", number: 3, label: copy("المواد والدفعات", "Matériaux et lots", "Materials & batches"), anchor: "step3-materials-selection" },
   { id: "engineering", number: 4, label: copy("المدخلات الهندسية", "Données d’ingénierie", "Engineering inputs"), anchor: "step4-material-properties" },
   { id: "review", number: 5, label: copy("المراجعة والحساب", "Revue et calcul", "Review & calculate"), anchor: "mix-materials-status-verification-panel" }
+];
+
+const internalSections: Array<{ id: Stage3SectionId; label: Copy; anchor: string }> = [
+  { id: "requirements", label: copy("المتطلبات التصميمية", "Exigences de conception", "Design requirements"), anchor: "step1-project-requirements" },
+  { id: "type", label: copy("نوع الخرسانة والخيارات", "Type et options", "Concrete type & options"), anchor: "step1-concrete-type" },
+  { id: "materials", label: copy("المواد", "Matériaux", "Materials"), anchor: "step3-materials-selection" },
+  { id: "properties", label: copy("خصائص المواد", "Propriétés des matériaux", "Material properties"), anchor: "step4-material-properties" },
+  { id: "water-cement", label: copy("الماء والإسمنت", "Eau et ciment", "Water & cement"), anchor: "step5-field-conditions" },
+  { id: "aggregates", label: copy("الركام والتدرج", "Granulats et courbe", "Aggregates & grading"), anchor: "step6-design-coefficients" },
+  { id: "admixtures", label: copy("الإضافات والمعالجات", "Adjuvants et traitements", "Admixtures & treatment"), anchor: "step7-chemical-additions" },
+  { id: "review", label: copy("المراجعة والحساب", "Revue et calcul", "Review & calculate"), anchor: "mix-materials-status-verification-panel" }
 ];
 
 function text(value: Copy, language: "ar" | "fr" | "en") {
@@ -66,6 +78,8 @@ export const Phase3InputWizard: React.FC<Phase3InputWizardProps> = ({
   }, [concreteCode, language]);
   const [minStrength, maxStrength] = typeRange(concreteCode);
   const selectedMaterials = getSelectedCount(inputs);
+  const [activeSection, setActiveSection] = useState<Stage3SectionId>("requirements");
+  const formConfig = useMemo(() => getConcreteTypeFormConfig(concreteCode), [concreteCode]);
   const criticalCount = validationGate?.criticalErrors?.length || 0;
   const warningCount = validationGate?.warnings?.length || 0;
   const specializedErrorCount = Object.keys(specializedInputErrors).length;
@@ -135,6 +149,20 @@ export const Phase3InputWizard: React.FC<Phase3InputWizardProps> = ({
         </nav>
       </header>
 
+      <nav className="sticky top-2 z-20 -mx-1 overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-950/95 backdrop-blur p-2 shadow-sm" aria-label="Stage 3 sections">
+        <div className="flex min-w-max gap-1.5">
+          {internalSections.map((section) => {
+            const enabled = formConfig.sections.includes(section.id);
+            return <button key={section.id} type="button" disabled={!enabled} aria-current={activeSection === section.id ? "step" : undefined} onClick={() => { setActiveSection(section.id); if (section.id === "review") { scrollToSection(section.anchor); } else { document.getElementById(section.anchor)?.scrollIntoView({ behavior: "smooth", block: "start" }); } }} className={`rounded-xl px-3 py-2 text-[10px] font-black whitespace-nowrap transition-colors ${activeSection === section.id ? "bg-blue-600 text-white" : enabled ? "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800" : "text-slate-300 dark:text-slate-700 cursor-not-allowed"}`}>{text(section.label, language)}</button>;
+          })}
+        </div>
+      </nav>
+
+      <div className="rounded-xl border border-blue-500/15 bg-blue-500/5 px-3 py-2 text-[10px] text-slate-600 dark:text-slate-300" role="status">
+        {text(copy("القسم النشط", "Section active", "Active section"), language)}: <strong>{text(internalSections.find(section => section.id === activeSection)?.label || internalSections[0].label, language)}</strong>
+        <span className="mx-2 text-slate-400">•</span>{formConfig.requiredFields.length} {text(copy("حقول مرتبطة بالنوع", "champs liés au type", "type-linked fields"), language)}
+      </div>
+
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_290px] gap-5 items-start">
         <div className="space-y-5 min-w-0">
           <section className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/70 p-4 shadow-sm">
@@ -158,7 +186,10 @@ export const Phase3InputWizard: React.FC<Phase3InputWizardProps> = ({
               <div><span className="text-slate-400 block">{text(copy("التجربة المخبرية", "Essai de convenance", "Trial mix"), language)}</span><strong className="text-amber-600 dark:text-amber-300">{text(copy("مطلوبة قبل التنفيذ", "Requise avant exécution", "Required before execution"), language)}</strong></div>
             </div>
           </section>
-          {children}
+          <div data-stage3-focus={activeSection}>
+            <style>{`[data-stage3-focus="requirements"] #step3-materials-selection,[data-stage3-focus="requirements"] #step4-material-properties,[data-stage3-focus="requirements"] #step5-field-conditions,[data-stage3-focus="requirements"] #step6-design-coefficients,[data-stage3-focus="requirements"] #step7-chemical-additions{display:none}[data-stage3-focus="type"] #step3-materials-selection,[data-stage3-focus="type"] #step4-material-properties,[data-stage3-focus="type"] #step5-field-conditions,[data-stage3-focus="type"] #step6-design-coefficients,[data-stage3-focus="type"] #step7-chemical-additions{display:none}[data-stage3-focus="materials"] #step1-project-requirements,[data-stage3-focus="materials"] #step4-material-properties,[data-stage3-focus="materials"] #step5-field-conditions,[data-stage3-focus="materials"] #step6-design-coefficients,[data-stage3-focus="materials"] #step7-chemical-additions{display:none}[data-stage3-focus="properties"] #step1-project-requirements,[data-stage3-focus="properties"] #step3-materials-selection,[data-stage3-focus="properties"] #step5-field-conditions,[data-stage3-focus="properties"] #step6-design-coefficients,[data-stage3-focus="properties"] #step7-chemical-additions{display:none}[data-stage3-focus="water-cement"] #step1-project-requirements,[data-stage3-focus="water-cement"] #step3-materials-selection,[data-stage3-focus="water-cement"] #step4-material-properties,[data-stage3-focus="water-cement"] #step6-design-coefficients,[data-stage3-focus="water-cement"] #step7-chemical-additions{display:none}[data-stage3-focus="aggregates"] #step1-project-requirements,[data-stage3-focus="aggregates"] #step3-materials-selection,[data-stage3-focus="aggregates"] #step4-material-properties,[data-stage3-focus="aggregates"] #step5-field-conditions,[data-stage3-focus="aggregates"] #step7-chemical-additions{display:none}[data-stage3-focus="admixtures"] #step1-project-requirements,[data-stage3-focus="admixtures"] #step3-materials-selection,[data-stage3-focus="admixtures"] #step4-material-properties,[data-stage3-focus="admixtures"] #step5-field-conditions,[data-stage3-focus="admixtures"] #step6-design-coefficients{display:none}`}</style>
+            {activeSection === "review" ? <div className="rounded-2xl border border-indigo-500/20 bg-indigo-500/5 p-5 text-sm font-bold text-slate-700 dark:text-slate-200">{text(copy("تم اختيار المراجعة. استخدم لوحة التحقق والحساب المرحلي أدناه لمراجعة المدخلات قبل التشغيل.", "La revue est sélectionnée. Utilisez les panneaux de validation ci-dessous avant le calcul.", "Review is selected. Use the validation and staged calculation panels below before running the engine."), language)}</div> : children}
+          </div>
         </div>
 
         <aside className="xl:sticky xl:top-4 space-y-4">

@@ -5988,6 +5988,9 @@ export default function App() {
                           value={inputs.concreteType || "NSC"}
                           onChange={(e) => {
                             const val = e.target.value.toUpperCase();
+                            const current = String(inputs.concreteType || "NSC").toUpperCase();
+                            const hasTypeSpecificData = Object.keys(specializedInputErrors).length > 0 || Object.entries(inputs as any).some(([key, value]) => key !== "concreteType" && (key.startsWith("hsc") || key.startsWith("scc") || key.startsWith("uhpc") || key.startsWith("gpc") || key.startsWith("frc") || key.startsWith("lwc") || key.startsWith("hwc") || key.startsWith("fiber")) && value !== undefined && value !== "");
+                            if (val !== current && hasTypeSpecificData && !window.confirm(language === "ar" ? "سيتم تغيير النوع مع الاحتفاظ بالمدخلات الخاصة الحالية. قد تصبح بعض الحقول غير مطلوبة لهذا النوع. هل تريد المتابعة؟" : language === "fr" ? "Le type va changer et les données spécifiques seront conservées. Certains champs peuvent devenir non requis. Continuer ?" : "The type will change while current specialized inputs are preserved. Some fields may no longer apply. Continue?")) return;
                             setInputs(prev => {
                               let next = { ...prev, concreteType: val };
 

@@ -130,6 +130,37 @@ test.describe("SnoLab application smoke flow", () => {
     await expect(strengthInput).toHaveValue("25");
   });
 
+  test("isolates stage 3 sections and preserves the selected concrete type", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /🇺🇸 EN/ }).click();
+    await page.getByRole("button", { name: /Start New Project/ }).first().click();
+    await page.locator("#workflow-step-btn-3").click();
+    const sectionNav = page.locator('nav[aria-label="Stage 3 sections"]');
+    await sectionNav.getByRole("button", { name: "Materials" }).click();
+    await expect(page.locator("#step3-materials-selection")).toBeVisible();
+    await expect(page.locator("#step1-project-requirements")).toBeHidden();
+    await sectionNav.getByRole("button", { name: "Design requirements" }).click();
+    await expect(page.locator("#step1-project-requirements")).toBeVisible();
+    await page.locator("#step1-concrete-type select").selectOption("HSC");
+    await sectionNav.getByRole("button", { name: "Concrete type & options" }).click();
+    await expect(page.locator("#step1-concrete-type")).toBeVisible();
+    await expect(page.locator("#step1-concrete-type select")).toHaveValue("HSC");
+  });
+
+  test("keeps the stage 3 workspace usable across desktop, tablet, and phone widths", async ({ page }) => {
+    for (const width of [1920, 1440, 1024, 768, 390]) {
+      await page.setViewportSize({ width, height: width < 800 ? 844 : 900 });
+      await page.goto("/");
+      await page.getByRole("button", { name: /🇺🇸 EN/ }).click();
+      await page.getByRole("button", { name: /Start New Project/ }).first().click();
+      await page.locator("#workflow-step-btn-3").click();
+      await expect(page.locator("#phase3-input-wizard")).toBeVisible();
+      const navBox = await page.locator('nav[aria-label="Stage 3 sections"]').boundingBox();
+      expect(navBox?.width).toBeLessThanOrEqual(width);
+      await expect(page.getByRole("button", { name: "Design requirements" })).toBeVisible();
+    }
+  });
+
   test("creates a multi-test laboratory request and adds an independent replicate", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /🇺🇸 EN/ }).click();
