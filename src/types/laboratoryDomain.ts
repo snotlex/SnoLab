@@ -9,6 +9,7 @@ export type LaboratoryResultStatus =
   | "Warning"
   | "Approved"
   | "Rejected"
+  | "Blocked"
   | "Superseded";
 export type LaboratoryVerificationStatus = "VERIFIED" | "NEEDS_REVIEW" | "INCORRECT" | "INCOMPLETE";
 

@@ -10,7 +10,9 @@ export type LabCategory =
   | "fibers";
 export type LaboratoryArea = "materials" | "concrete";
 
-export type TestStatus = "DRAFT" | "PASS" | "WARNING" | "FAIL";
+// Keep legacy verdicts compatible while separating readiness and compatibility
+// blocking from engineering non-conformity.
+export type TestStatus = "DRAFT" | "READY" | "PASS" | "WARNING" | "FAIL" | "BLOCKED";
 
 export type TestApprovalStatus = "Draft" | "Pending Review" | "Validated" | "Rejected";
 

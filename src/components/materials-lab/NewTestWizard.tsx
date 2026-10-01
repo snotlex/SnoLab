@@ -68,6 +68,8 @@ interface NewTestWizardProps {
 const labText = (language: "ar" | "fr" | "en", ar: string, fr: string, en: string) =>
   language === "ar" ? ar : language === "fr" ? fr : en;
 
+const isBlockedOrFailed = (status: TestStatus) => status === "FAIL" || status === "BLOCKED";
+
 function blankFromExample(value: any): any {
   if (Array.isArray(value)) return [];
   if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([key, nested]) => [key, blankFromExample(nested)]));
@@ -667,7 +669,7 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
   const handleSave = () => {
     if (!hasRun || inputIssues.length > 0 || getSampleIssues().length > 0 || !currentMaterial || !compatibility.compatible) return;
     const testRecordId = initialDraft?.id || `TEST-${currentTestDef.category.toUpperCase().slice(0, 3)}-${Date.now().toString().slice(-6)}`;
-    const updateProposals = calculationResult.status === "FAIL" ? [] : selectedTestDefId === "AGG_SIEVE" && sievePhase2Result
+    const updateProposals = isBlockedOrFailed(calculationResult.status) ? [] : selectedTestDefId === "AGG_SIEVE" && sievePhase2Result
       ? createSieveMaterialUpdateProposals({
           material: currentMaterial,
           testRunId: testRecordId,
@@ -787,7 +789,7 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
       inputs: inputsState,
       results: calculationResult.results,
       status: calculationResult.status,
-      approvalStatus: calculationResult.status === "FAIL" ? "Rejected" : "Pending Review",
+      approvalStatus: isBlockedOrFailed(calculationResult.status) ? "Rejected" : "Pending Review",
       score: calculationResult.score,
       interpretation: calculationResult.interpretation,
       complianceDetails: calculationResult.complianceDetails,
@@ -1483,8 +1485,8 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
                   }`}>
                     {calculationResult.status === "PASS" && <CheckCircle2 className="w-3.5 h-3.5" />}
                     {calculationResult.status === "WARNING" && <AlertTriangle className="w-3.5 h-3.5" />}
-                    {calculationResult.status === "FAIL" && <XCircle className="w-3.5 h-3.5" />}
-                    {calculationResult.status === "PASS" ? labText(language, "مطابق للمواصفة", "Conforme", "Compliant") : calculationResult.status === "WARNING" ? labText(language, "تنبيه وتحذير", "Avertissement", "Warning") : labText(language, "مرفوض غير مطابق", "Non conforme", "Non-compliant")} ({calculationResult.status})
+                    {(calculationResult.status === "FAIL" || calculationResult.status === "BLOCKED") && <XCircle className="w-3.5 h-3.5" />}
+                    {calculationResult.status === "PASS" ? labText(language, "مطابق للمواصفة", "Conforme", "Compliant") : calculationResult.status === "WARNING" ? labText(language, "تنبيه وتحذير", "Avertissement", "Warning") : calculationResult.status === "BLOCKED" ? labText(language, "محظور لعدم توافق المادة", "Bloqué : matériau incompatible", "Blocked: incompatible material") : labText(language, "مرفوض غير مطابق", "Non conforme", "Non-compliant")} ({calculationResult.status})
                   </span>
                 </div>
 
@@ -1612,7 +1614,7 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
           <div className="flex items-center gap-2">
             <Bookmark className="w-4 h-4 text-emerald-500" />
             <span className="text-xs text-slate-600 dark:text-slate-400 font-bold">
-              {wizardStep === 3 && calculationResult.status !== "FAIL" && Object.keys(calculationResult.syncedProperties).length > 0
+              {wizardStep === 3 && !isBlockedOrFailed(calculationResult.status) && Object.keys(calculationResult.syncedProperties).length > 0
                 ? language === "ar" ? `خصائص مقترحة للمراجعة فقط: ${Object.keys(calculationResult.syncedProperties).join("، ")} ← ${currentMaterial?.name}. لن تُعدّل المكتبة تلقائيًا.` : language === "fr" ? `Propriétés proposées pour examen : ${Object.keys(calculationResult.syncedProperties).join(", ")} — aucune mise à jour automatique.` : `Properties proposed for review only: ${Object.keys(calculationResult.syncedProperties).join(", ")}. The library will not be changed automatically.`
                 : language === "ar" ? "النتيجة تبقى في السجل؛ لا مزامنة تلقائية لخصائص المادة." : language === "fr" ? "Le résultat reste dans l'historique ; aucune synchronisation automatique." : "The result is archived; material properties are not synced automatically."}
             </span>

@@ -706,14 +706,14 @@ export function executeLaboratoryTest(
   if (!compatibility.compatible) {
     return {
       results: {},
-      status: "FAIL",
+      status: "BLOCKED",
       score: 0,
       interpretation: compatibilityMessage(compatibility, "ar"),
       complianceDetails: [{
         parameter: "Test–Material compatibility",
         measured: `${material.category} / ${material.type}`,
         limit: "Compatible classified material",
-        status: "FAIL",
+        status: "BLOCKED",
         note: compatibility.reason
       }],
       syncedProperties: {}

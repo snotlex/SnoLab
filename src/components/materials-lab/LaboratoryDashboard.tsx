@@ -115,9 +115,10 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
     const passed = laboratoryTests.filter(t => t.status === "PASS").length;
     const warnings = laboratoryTests.filter(t => t.status === "WARNING").length;
     const failed = laboratoryTests.filter(t => t.status === "FAIL").length;
+    const blocked = laboratoryTests.filter(t => t.status === "BLOCKED").length;
     const drafts = laboratoryTests.filter(t => t.status === "DRAFT").length;
     const completed = passed + warnings + failed;
-    const pendingReview = laboratoryTests.filter(t => t.status !== "FAIL" && t.status !== "DRAFT" && t.approvalStatus !== "Approved" && t.approvalStatus !== "Validated").length;
+    const pendingReview = laboratoryTests.filter(t => t.status !== "FAIL" && t.status !== "BLOCKED" && t.status !== "DRAFT" && t.approvalStatus !== "Approved" && t.approvalStatus !== "Validated").length;
     const passRate = completed > 0 ? Math.round((passed / completed) * 100) : 0;
 
     // Materials tested
@@ -134,6 +135,7 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
       passed,
       warnings,
       failed,
+      blocked,
       drafts,
       pendingReview,
       passRate,
@@ -270,13 +272,14 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-9 gap-3 mt-8 pt-6 border-t border-white/10">
+        <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-10 gap-3 mt-8 pt-6 border-t border-white/10">
           {[
             { label: labText(language, "كل الاختبارات", "Tous les essais", "All tests"), value: stats.total, detail: labText(language, "سجلات محفوظة", "Résultats archivés", "Archived records"), tone: "text-white" },
             { label: labText(language, "مكتملة", "Terminés", "Completed"), value: stats.completed, detail: labText(language, "نتائج منفذة", "Essais exécutés", "Tests run"), tone: "text-cyan-300" },
             { label: labText(language, "مسودات", "Brouillons", "Drafts"), value: stats.drafts, detail: labText(language, "يمكن استكمالها", "Reprise possible", "Can be resumed"), tone: "text-slate-200" },
             { label: labText(language, "بحاجة إلى مراجعة", "À examiner", "Needs review"), value: stats.pendingReview, detail: labText(language, "لم تعتمد بعد", "Non encore approuvés", "Not approved yet"), tone: "text-amber-300" },
             { label: labText(language, "فاشلة", "Échecs", "Failed"), value: stats.failed, detail: labText(language, "لا تزامن خصائصها", "Aucune synchronisation", "Never sync properties"), tone: "text-rose-300" },
+            { label: labText(language, "محظورة", "Bloqués", "Blocked"), value: stats.blocked, detail: labText(language, "مادة غير متوافقة", "Matériau incompatible", "Incompatible material"), tone: "text-orange-300" },
             { label: labText(language, "عينات نشطة · 90 يومًا", "Échantillons actifs · 90 j", "Active samples · 90 days"), value: stats.activeSamples, detail: labText(language, "أرقام عينات مميزة", "Identifiants distincts", "Unique sample IDs"), tone: "text-blue-200" },
             { label: labText(language, "مواد غير معتمدة", "Matériaux non approuvés", "Unapproved materials"), value: stats.unapprovedMaterials, detail: labText(language, "تحتاج مراجعة", "À vérifier", "Require review"), tone: "text-orange-200" },
             { label: labText(language, "تغطية برنامج الفحص", "Couverture du programme", "Program coverage"), value: `${stats.materialsCoveragePct}%`, detail: `${stats.testedMaterialsCount}/${stats.totalMaterials} ${labText(language, "مواد مفحوصة", "matériaux testés", "materials tested")}`, tone: "text-emerald-300" },

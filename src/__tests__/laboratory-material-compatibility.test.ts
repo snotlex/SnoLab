@@ -24,7 +24,7 @@ describe("Laboratory test–material compatibility", () => {
 
   it("blocks incompatible calculations before the switch executes", () => {
     const result = executeLaboratoryTest("AGG_BULKING_SAND", { dryVolumeCm3: 1000 }, material({ category: "إسمنت", materialType: "مادة رابطة", type: "cement" }));
-    expect(result.status).toBe("FAIL");
+    expect(result.status).toBe("BLOCKED");
     expect(result.score).toBe(0);
     expect(result.results).toEqual({});
     expect(result.syncedProperties).toEqual({});
