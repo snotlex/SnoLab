@@ -297,3 +297,20 @@ body {
     break-inside: avoid !important;
   }
 }
+
+/* Focus and motion affordances for the engineering workspace. */
+:where(button, a, input, select, textarea, summary):focus-visible {
+  outline: 3px solid #22d3ee;
+  outline-offset: 2px;
+}
+summary::-webkit-details-marker {
+  display: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
