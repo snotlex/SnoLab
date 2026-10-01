@@ -1,6 +1,7 @@
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { DEFAULT_LAB_PROFILE, LabProfile, ReportLanguage } from "./types";
+import { PDF_FONT_FAMILY, registerPdfFonts } from "./pdfFonts";
 
 export const PDF_COLORS = {
   primary: [15, 23, 42] as [number, number, number],      // Slate 900 #0F172A
@@ -46,6 +47,7 @@ export function createPdfDocument(orientation: "portrait" | "landscape" = "portr
     format: "a4",
     compress: true
   });
+  registerPdfFonts(doc);
   doc.setProperties({
     creator: "SnoLab Concrete Mix & Materials LIMS Engine",
     title: "SnoLab Engineering Calculation Report",
@@ -132,14 +134,14 @@ export function drawSectionBanner(
   doc.rect(left, yPos, 3.5, height, "F");
 
   // Text title
-  doc.setFont("helvetica", "bold");
+  doc.setFont(PDF_FONT_FAMILY, "bold");
   doc.setFontSize(9.5);
   doc.setTextColor(...PDF_COLORS.white);
   doc.text(title.toUpperCase(), left + 6, yPos + height / 2 + 1.2);
 
   // Optional right-aligned badge
   if (badgeText) {
-    doc.setFont("helvetica", "normal");
+    doc.setFont(PDF_FONT_FAMILY, "normal");
     doc.setFontSize(7.5);
     doc.setTextColor(191, 219, 254); // Light blue
     doc.text(badgeText, left + contentWidth - 4, yPos + height / 2 + 1.2, { align: "right" });
@@ -204,13 +206,13 @@ export function drawMetricCards(
     doc.rect(cardX + 1, yPos, cardWidth - 2, 1, "F");
 
     // Card Label
-    doc.setFont("helvetica", "bold");
+    doc.setFont(PDF_FONT_FAMILY, "bold");
     doc.setFontSize(6.5);
     doc.setTextColor(...PDF_COLORS.textMuted);
     doc.text(card.label.toUpperCase(), cardX + cardWidth / 2, yPos + 4.5, { align: "center" });
 
     // Value + Unit
-    doc.setFont("helvetica", "bold");
+    doc.setFont(PDF_FONT_FAMILY, "bold");
     doc.setFontSize(10.5);
     doc.setTextColor(...valColor);
     const textVal = card.unit ? `${card.value} ${card.unit}` : card.value;
@@ -218,7 +220,7 @@ export function drawMetricCards(
 
     // Subtext if any
     if (card.subtext) {
-      doc.setFont("helvetica", "normal");
+      doc.setFont(PDF_FONT_FAMILY, "normal");
       doc.setFontSize(5.5);
       doc.setTextColor(...PDF_COLORS.textSecondary);
       doc.text(card.subtext, cardX + cardWidth / 2, yPos + 14, { align: "center" });
@@ -261,7 +263,7 @@ export function drawMetadataGrid(
     // Group Header
     doc.setFillColor(...PDF_COLORS.primary);
     doc.roundedRect(colX, yPos, colWidth, 5.5, 1.5, 1.5, "F");
-    doc.setFont("helvetica", "bold");
+    doc.setFont(PDF_FONT_FAMILY, "bold");
     doc.setFontSize(7);
     doc.setTextColor(...PDF_COLORS.white);
     doc.text(group.title.toUpperCase(), colX + 3, yPos + 3.8);
@@ -269,12 +271,12 @@ export function drawMetadataGrid(
     // Group Items
     let itemY = yPos + 9;
     group.items.forEach((item) => {
-      doc.setFont("helvetica", "normal");
+      doc.setFont(PDF_FONT_FAMILY, "normal");
       doc.setFontSize(6.5);
       doc.setTextColor(...PDF_COLORS.textMuted);
       doc.text(item.label + ":", colX + 3, itemY);
 
-      doc.setFont("helvetica", "bold");
+      doc.setFont(PDF_FONT_FAMILY, "bold");
       doc.setTextColor(...PDF_COLORS.textPrimary);
       // Right align or offset value
       doc.text(item.value, colX + colWidth - 3, itemY, { align: "right" });
@@ -322,12 +324,12 @@ export function drawSignOffBlock(
   doc.setLineWidth(0.3);
   doc.roundedRect(leftX, yPos, boxWidth, boxHeight, 1.5, 1.5, "FD");
 
-  doc.setFont("helvetica", "bold");
+  doc.setFont(PDF_FONT_FAMILY, "bold");
   doc.setFontSize(7);
   doc.setTextColor(...PDF_COLORS.primary);
   doc.text("ENGINEER / MATERIALS TECHNICIAN", leftX + 3, yPos + 4.5);
 
-  doc.setFont("helvetica", "normal");
+  doc.setFont(PDF_FONT_FAMILY, "normal");
   doc.setFontSize(6.5);
   doc.setTextColor(...PDF_COLORS.textSecondary);
   doc.text(`Name: ${options.operatorName || "Senior Materials Engineer"}`, leftX + 3, yPos + 9);
@@ -347,12 +349,12 @@ export function drawSignOffBlock(
   doc.setLineWidth(0.3);
   doc.roundedRect(rightX, yPos, boxWidth, boxHeight, 1.5, 1.5, "FD");
 
-  doc.setFont("helvetica", "bold");
+  doc.setFont(PDF_FONT_FAMILY, "bold");
   doc.setFontSize(7);
   doc.setTextColor(...PDF_COLORS.primary);
   doc.text("LABORATORY DIRECTOR / QUALITY ASSURANCE", rightX + 3, yPos + 4.5);
 
-  doc.setFont("helvetica", "normal");
+  doc.setFont(PDF_FONT_FAMILY, "normal");
   doc.setFontSize(6.5);
   doc.setTextColor(...PDF_COLORS.textSecondary);
   doc.text(`Authority: ${options.directorName || "Head of Concrete Quality Dept."}`, rightX + 3, yPos + 9);
@@ -363,7 +365,7 @@ export function drawSignOffBlock(
   doc.setDrawColor(...PDF_COLORS.secondary);
   doc.setLineWidth(0.5);
   doc.roundedRect(rightX + boxWidth - 32, yPos + 3, 29, 18, 1, 1, "D");
-  doc.setFont("helvetica", "bold");
+  doc.setFont(PDF_FONT_FAMILY, "bold");
   doc.setFontSize(5.5);
   doc.setTextColor(...PDF_COLORS.secondary);
   doc.text("SNOLAB TECHNICAL", rightX + boxWidth - 17.5, yPos + 7.5, { align: "center" });
@@ -387,7 +389,7 @@ export function getStandardTableTheme() {
     headStyles: {
       fillColor: PDF_COLORS.primary,
       textColor: PDF_COLORS.white,
-      font: "helvetica" as const,
+      font: PDF_FONT_FAMILY,
       fontStyle: "bold" as const,
       fontSize: 7.5,
       cellPadding: { top: 2.2, bottom: 2.2, left: 2.5, right: 2.5 },
@@ -398,7 +400,7 @@ export function getStandardTableTheme() {
     },
     bodyStyles: {
       textColor: PDF_COLORS.textPrimary,
-      font: "helvetica" as const,
+      font: PDF_FONT_FAMILY,
       fontSize: 7,
       cellPadding: { top: 2, bottom: 2, left: 2.5, right: 2.5 },
       lineColor: PDF_COLORS.border,
@@ -416,7 +418,7 @@ export function getStandardTableTheme() {
     footStyles: {
       fillColor: PDF_COLORS.accentDark,
       textColor: PDF_COLORS.white,
-      font: "helvetica" as const,
+      font: PDF_FONT_FAMILY,
       fontStyle: "bold" as const,
       fontSize: 7.5,
       cellPadding: { top: 2.2, bottom: 2.2, left: 2.5, right: 2.5 }
@@ -473,24 +475,24 @@ export function finalizeReportPages(
       drawLaboratoryEmblemLogo(doc, left, 10, 7.5);
     }
 
-    doc.setFont("helvetica", "bold");
+    doc.setFont(PDF_FONT_FAMILY, "bold");
     doc.setFontSize(7.5);
     doc.setTextColor(...PDF_COLORS.primary);
     doc.text(lab.name, left + 31.5, 13.5);
 
     // Accreditation tag
-    doc.setFont("helvetica", "normal");
+    doc.setFont(PDF_FONT_FAMILY, "normal");
     doc.setFontSize(5.5);
     doc.setTextColor(...PDF_COLORS.textMuted);
     doc.text(lab.accreditation, left + 9.5, 17);
 
     // Right Side: Report Title & Reference Info
-    doc.setFont("helvetica", "bold");
+    doc.setFont(PDF_FONT_FAMILY, "bold");
     doc.setFontSize(8);
     doc.setTextColor(...PDF_COLORS.secondary);
     doc.text(options.reportTitle.toUpperCase(), pageWidth - right, 13.5, { align: "right" });
 
-    doc.setFont("helvetica", "normal");
+    doc.setFont(PDF_FONT_FAMILY, "normal");
     doc.setFontSize(5.5);
     doc.setTextColor(...PDF_COLORS.textSecondary);
     const refDateText = `REF: ${options.reportRef}  |  DATE: ${dateStr}  |  PAGE ${pageNum}/${totalPages}`;
@@ -512,7 +514,7 @@ export function finalizeReportPages(
     doc.line(left, footerY - 2, pageWidth - right, footerY - 2);
 
     // Left: Legal notice & Laboratory Contact
-    doc.setFont("helvetica", "normal");
+    doc.setFont(PDF_FONT_FAMILY, "normal");
     doc.setFontSize(5.5);
     doc.setTextColor(...PDF_COLORS.textMuted);
     doc.text(
@@ -523,7 +525,7 @@ export function finalizeReportPages(
     doc.text(lab.contact, left, footerY + 5);
 
     // Right: Page counter & digital security tag
-    doc.setFont("helvetica", "bold");
+    doc.setFont(PDF_FONT_FAMILY, "bold");
     doc.setFontSize(6.5);
     doc.setTextColor(...PDF_COLORS.primary);
     doc.text(`Page ${pageNum} of ${totalPages}`, pageWidth - right, footerY + 1.5, { align: "right" });
@@ -531,8 +533,8 @@ export function finalizeReportPages(
     doc.setFont("courier", "normal");
     doc.setFontSize(5);
     doc.setTextColor(...PDF_COLORS.textMuted);
-    const hash = `SHA256:${Math.abs(hashString(options.reportRef + pageNum)).toString(16).toUpperCase().padStart(8, "0")}`;
-    doc.text(`VERIFICATION: ${hash}`, pageWidth - right, footerY + 5, { align: "right" });
+    const fingerprint = Math.abs(hashString(options.reportRef + pageNum)).toString(16).toUpperCase().padStart(8, "0");
+    doc.text(`FINGERPRINT: ${fingerprint}`, pageWidth - right, footerY + 5, { align: "right" });
   }
 }
 

@@ -313,9 +313,22 @@ export function calculateDreuxGorisseCore(input: MixDesignInput | DreuxGorisseIn
   const dosageAir = input.dosageAir !== undefined ? input.dosageAir : 0;
   const dosageRetarder = input.dosageRetarder !== undefined ? input.dosageRetarder : 0;
   const dosageAccelerator = input.dosageAccelerator !== undefined ? input.dosageAccelerator : 0;
-  const dosageSilicaFume = input.dosageSilicaFume !== undefined ? input.dosageSilicaFume : 0;
-  const dosageFlyAsh = input.dosageFlyAsh !== undefined ? input.dosageFlyAsh : 0;
-  const dosageSlag = input.dosageSlag !== undefined ? input.dosageSlag : 0;
+  let dosageSilicaFume = input.dosageSilicaFume !== undefined ? input.dosageSilicaFume : 0;
+  let dosageFlyAsh = input.dosageFlyAsh !== undefined ? input.dosageFlyAsh : 0;
+  let dosageSlag = input.dosageSlag !== undefined ? input.dosageSlag : 0;
+
+  // A selected SCM replacement percentage must reach the actual calculation.
+  // Older material records only carried selectedScmId/Name and left the
+  // type-specific dosage fields at zero, causing the PDF to claim an SCM while
+  // calculating no SCM mass. Infer the type conservatively from the material.
+  const selectedScmPercent = Number(input.selectedScmReplacementPercent || 0);
+  const scmIdentity = `${input.selectedScmId || ""} ${input.selectedScmName || ""}`.toLowerCase();
+  if (selectedScmPercent > 0 && dosageSilicaFume <= 0 && dosageFlyAsh <= 0 && dosageSlag <= 0) {
+    if (/(slag|ggbs|ggbfs|\u062e\u0628\u062b)/i.test(scmIdentity)) dosageSlag = selectedScmPercent;
+    else if (/(fly.?ash|pfa|\u0631\u0645\u0627\u062f)/i.test(scmIdentity)) dosageFlyAsh = selectedScmPercent;
+    else if (/(silica|microsilica|\u062f\u062e\u0627\u0646\u0020\u0627\u0644\u0633\u064a\u0644\u064a\u0643\u0627|\u0627\u0644\u0633\u064a\u0644\u064a\u0643\u0627)/i.test(scmIdentity)) dosageSilicaFume = selectedScmPercent;
+    else localWarnings.push(`Selected SCM replacement (${selectedScmPercent}%) could not be mapped to fly ash, slag, or silica fume; calculation kept unchanged.`);
+  }
 
   const exposureClass = input.exposureClass || "X0";
 

@@ -84,6 +84,47 @@ describe("PDF Report Generator Service (Vector Native)", () => {
     expect(doc.getNumberOfPages()).toBeGreaterThanOrEqual(1);
   });
 
+  it("should register the Arabic font and keep the human report bounded", async () => {
+    const doc = await generateMixDesignPdf(
+      {
+        fcm28: 34.9,
+        wcRatio: 0.48,
+        wcRatioAdjusted: 0.46,
+        cementWeight: 350,
+        waterContentActual: 160,
+        sandWeightDry: 700,
+        gravelWeightDry: 1100,
+        sandWeightWet: 721,
+        gravelWeightWet: 1111,
+        totalFreshDensity: 2360,
+        strengthEvolution: [
+          { age: 3, strength: 11.0 },
+          { age: 7, strength: 17.5 },
+          { age: 28, strength: 25.0 }
+        ],
+        gradingCurve: []
+      } as any,
+      {
+        fck28: 25,
+        cementType: "CEM II",
+        cementDensity: 3100,
+        sandRelativeDensity: 2.65,
+        gravelRelativeDensity: 2.68,
+        sandWeightDry: 700,
+        gravelWeightDry: 1100,
+        dMax: 20,
+        slump: 8,
+        airContent: 1.5,
+        batchVolume: 1
+      } as any,
+      { language: "ar" }
+    );
+
+    expect(doc.getFontList()).toHaveProperty("NotoKufiArabic");
+    expect(doc.getNumberOfPages()).toBeLessThanOrEqual(6);
+    expect((doc.output("arraybuffer") as ArrayBuffer).byteLength).toBeGreaterThan(1000);
+  });
+
   it("should generate a Laboratory Material Test PDF without errors", async () => {
     const mockTestRecord: any = {
       id: "TEST-AGG-2026-001",

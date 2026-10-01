@@ -17,7 +17,8 @@ import {
 } from "./pdfCore";
 import { MixDesignPdfOptions, DEFAULT_LAB_PROFILE } from "./types";
 import { formatEngineeringValue } from "../../utils/unitFormatter";
-import { getCompleteInputRows, getCompleteResultRows, getSelectedMaterialSnapshots } from "../../utils/reportData";
+import { getStrengthSeries } from "../../utils/reportData";
+import { PDF_FONT_FAMILY } from "./pdfFonts";
 import { drawGradingChart, drawStrengthEvolutionChart } from "./reportCharts";
 
 /**
@@ -37,7 +38,8 @@ export async function generateMixDesignPdf(
   const lang = options.language || "fr";
 
   const dateStr = new Date().toISOString().split("T")[0];
-  const reportRef = `MIX-${input.cementType || "CEM"}-${input.fck28 ? Math.round(input.fck28) : "NA"}-${Math.floor(Date.now() / 1000).toString().slice(-6)}`;
+  const cementRef = String(input.cementType || "CEM").replace(/[^A-Za-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 18) || "CEM";
+  const reportRef = `SNO-MIX-${cementRef}-${input.fck28 ? Math.round(input.fck28) : "NA"}-${dateStr.replace(/-/g, "")}`;
   const concreteCode = String(typeof input.concreteType === "string" ? input.concreteType : (input.concreteType as any)?.code || "").toUpperCase();
   const isCementless = concreteCode === "GPC" || concreteCode.includes("GEOPOLYMER") || concreteCode.includes("GEO-POLYMER") || concreteCode.includes("جيوبوليمر");
   const concreteTypeLabel = isCementless
@@ -207,7 +209,7 @@ export async function generateMixDesignPdf(
       "Mineral Addition (SCM)",
       input.selectedScmName || "Silica Fume / Fly Ash",
       "Industrial Mineral",
-      input.selectedScmDensity !== undefined ? `${input.selectedScmDensity.toFixed(2)} g/cm³` : "-",
+      input.selectedScmDensity !== undefined ? `${(input.selectedScmDensity / 1000).toFixed(2)} g/cm³` : "-",
       "-",
       "-",
       `Sub: ${scmDosage !== undefined ? `${scmDosage.toFixed(1)}%` : "-"}`
@@ -220,7 +222,7 @@ export async function generateMixDesignPdf(
       "Fibers (Fibres)",
       input.selectedFiberName || "Polypropylene / Steel Fibers",
       "Specialty Fiber",
-      input.fiberDensity !== undefined ? `${input.fiberDensity.toFixed(2)} g/cm³` : "-",
+      input.fiberDensity !== undefined ? `${(input.fiberDensity / 1000).toFixed(2)} g/cm³` : "-",
       "-",
       "-",
       `Dosage: ${input.fiberDosageKgM3 !== undefined ? `${input.fiberDosageKgM3.toFixed(1)} kg/m³` : "-"}`
@@ -357,7 +359,7 @@ export async function generateMixDesignPdf(
     head: [["Constituent Material", "Absolute Volume (L/m³)", "Dry Mass (kg/m³)", `Batch (${batchVolume} m³)`, "% Total Mass", "Engineering Ratio"]],
     body: dryRows,
     foot: [[
-      "TOTAL FRESH CONCRETE (1 m³)",
+      "TOTAL DESIGN MASS (DRY / EFFECTIVE BASIS)",
       "1000.0 L",
       `${totalDryMass} kg/m³`,
       `${(totalDryMass * batchVolume).toFixed(1)} kg`,
@@ -464,8 +466,14 @@ export async function generateMixDesignPdf(
   );
 
   // Theoretical strength calculations
+  const strengthSeries = getStrengthSeries(result);
+  const curveStrength = (age: number, fallback?: number) => {
+    const point = strengthSeries.find(item => item.age === age);
+    return point?.strength ?? fallback;
+  };
   const fc2 = fcm !== undefined ? (fcm * 0.45).toFixed(1) : "-";
-  const fc7 = fcm !== undefined ? (fcm * 0.70).toFixed(1) : "-";
+  const fc7Value = curveStrength(7, fcm !== undefined ? fcm * 0.70 : undefined);
+  const fc7 = fc7Value !== undefined ? fc7Value.toFixed(1) : "-";
   const fc28 = fcm !== undefined ? fcm.toFixed(1) : "-";
   const fc90 = fcm !== undefined ? (fcm * 1.15).toFixed(1) : "-";
   const fctm = fck !== undefined ? (0.30 * Math.pow(fck, 2/3)).toFixed(2) : "-";
@@ -494,18 +502,18 @@ export async function generateMixDesignPdf(
       (result.totalBinder || cementDry) > 0 ? ((result.totalBinder || cementDry) >= (isCementless ? 250 : 300) ? "CONFORMING" : "WARNING") : "N/A"
     ],
     [
-      "Early Strength at 2 Days (fcm,2d)",
+      "Model Early Strength at 2 Days (fcm,2d)",
       `${fc2} MPa`,
-      "For formwork stripping & safety",
-      "Hydration model class N/R",
-      fcm !== undefined ? "VERIFIED" : "N/A"
+      "Indicative only — do not use for stripping without test evidence",
+      "Hydration model / no lab result",
+      fcm !== undefined ? "MODEL PREDICTION" : "N/A"
     ],
     [
-      "Strength at 7 Days (fcm,7d)",
+      "Predicted Characteristic Strength at 7 Days (fck,7d)",
       `${fc7} MPa`,
-      "~70% of 28d design target",
-      "Standard curing 20°C",
-      fcm !== undefined ? "VERIFIED" : "N/A"
+      "Characteristic curve; confirm by laboratory test",
+      "Model series / standard curing 20°C",
+      fc7 !== "-" ? "MODEL PREDICTION" : "N/A"
     ],
     [
       "Flexural Tensile Strength (fctm)",
@@ -589,97 +597,26 @@ export async function generateMixDesignPdf(
   }
 
   // =========================================================================
-  // 8. APPENDIX A — SELECTED MATERIAL-LIBRARY SNAPSHOTS
+  // 8. TRACEABILITY NOTE — RAW SNAPSHOTS ARE KEPT OUT OF THE HUMAN REPORT
   // =========================================================================
-  doc.addPage();
-  currentY = PDF_PAGE_MARGINS.top + 2;
-  currentY = drawSectionBanner(
+  // The full input/result trace is intentionally not rendered as one row per PDF
+  // line. It is available through the structured report snapshot/JSON export.
+  currentY = Math.min(currentY + 6, PDF_PAGE_MARGINS.pageHeight - 62);
+  drawSectionBanner(
     doc,
     currentY,
-    lang === "ar" ? "الملحق أ — نسخ المواد المختارة من مكتبة المواد" : lang === "fr" ? "ANNEXE A — PROFILS DES MATÉRIAUX SÉLECTIONNÉS" : "APPENDIX A — SELECTED MATERIAL-LIBRARY SNAPSHOTS",
-    "MATERIAL SOURCE"
+    lang === "ar" ? "التتبع والمراجعة" : lang === "fr" ? "TRAÇABILITÉ ET REVUE" : "TRACEABILITY & REVIEW",
+    "STRUCTURED SNAPSHOT"
   );
-
-  const selectedMaterialSnapshots = getSelectedMaterialSnapshots(input);
-  if (selectedMaterialSnapshots.length) {
-    const snapshotRows = selectedMaterialSnapshots.flatMap(item =>
-      getCompleteResultRows(item.material as any).slice(0, 60).map(row => [
-        item.role,
-        row.label,
-        row.path || row.key,
-        String(row.value)
-      ])
-    );
-    autoTable(doc, {
-      ...theme,
-      startY: currentY,
-      head: [["Role", "Material property", "Field / Path", "Value"]],
-      body: snapshotRows,
-      columnStyles: {
-        0: { cellWidth: 31, fontStyle: "bold" },
-        1: { cellWidth: 55 },
-        2: { cellWidth: 51 },
-        3: { cellWidth: 45 }
-      },
-      styles: { overflow: "linebreak" }
-    });
-  } else {
-    autoTable(doc, {
-      ...theme,
-      startY: currentY,
-      body: [[lang === "ar" ? "لم يتم العثور على نسخ المواد في مكتبة المواد ضمن بيانات التصدير." : "No selected library material snapshots were available in the export payload."]]
-    });
-  }
-
-  // =========================================================================
-  // 9. APPENDIX B — COMPLETE MIX-PREPARATION INPUT REGISTER
-  // =========================================================================
-  doc.addPage();
-  currentY = PDF_PAGE_MARGINS.top + 2;
-  currentY = drawSectionBanner(
-    doc,
-    currentY,
-    lang === "ar" ? "الملحق أ — سجل جميع مدخلات تحضير الخلطة" : lang === "fr" ? "ANNEXE A — REGISTRE COMPLET DES ENTRÉES DE FORMULATION" : "APPENDIX A — COMPLETE MIX-PREPARATION INPUT REGISTER",
-    "SOURCE DATA"
-  );
-
-  const inputRows = getCompleteInputRows(input);
   autoTable(doc, {
     ...theme,
-    startY: currentY,
-    head: [[lang === "ar" ? "المعامل" : "Parameter", "Field / Path", lang === "ar" ? "القيمة" : "Value"]],
-    body: inputRows.map(row => [row.label, row.path || row.key, String(row.value)]),
-    columnStyles: {
-      0: { cellWidth: 67, fontStyle: "bold" },
-      1: { cellWidth: 58 },
-      2: { cellWidth: 48 }
-    },
-    styles: { overflow: "linebreak" }
-  });
-
-  // =========================================================================
-  // 10. APPENDIX C — COMPLETE RESULT REGISTER
-  // =========================================================================
-  doc.addPage();
-  currentY = PDF_PAGE_MARGINS.top + 2;
-  currentY = drawSectionBanner(
-    doc,
-    currentY,
-    lang === "ar" ? "الملحق ب — سجل جميع النتائج والمخرجات" : lang === "fr" ? "ANNEXE B — REGISTRE COMPLET DES RÉSULTATS" : "APPENDIX B — COMPLETE CALCULATION RESULT REGISTER",
-    "OUTPUT DATA"
-  );
-
-  const resultRows = getCompleteResultRows(result);
-  autoTable(doc, {
-    ...theme,
-    startY: currentY,
-    head: [[lang === "ar" ? "النتيجة" : "Result", "Field / Path", lang === "ar" ? "القيمة" : "Value"]],
-    body: resultRows.map(row => [row.label, row.path || row.key, String(row.value)]),
-    columnStyles: {
-      0: { cellWidth: 67, fontStyle: "bold" },
-      1: { cellWidth: 58 },
-      2: { cellWidth: 48 }
-    },
+    startY: currentY + 8,
+    head: [[lang === "ar" ? "حالة السجل" : "Record status", lang === "ar" ? "المعنى" : "Meaning"]],
+    body: [[
+      lang === "ar" ? "بيانات المصدر الخام غير معروضة كسجل طويل داخل PDF" : "Raw source data is not dumped into the human-readable PDF",
+      lang === "ar" ? "يتم الاحتفاظ بها في Snapshot/JSON منظم قابل للمراجعة" : "It remains available through the structured Snapshot/JSON export"
+    ]],
+    columnStyles: { 0: { cellWidth: 76, fontStyle: "bold" }, 1: { cellWidth: 96 } },
     styles: { overflow: "linebreak" }
   });
 
@@ -700,7 +637,7 @@ export async function generateMixDesignPdf(
     const qrX = PDF_PAGE_MARGINS.pageWidth - PDF_PAGE_MARGINS.right - 27;
     const qrY = PDF_PAGE_MARGINS.pageHeight - 47;
     doc.addImage(qrDataUrl, "PNG", qrX, qrY, 24, 24, undefined, "FAST");
-    doc.setFont("helvetica", "bold");
+    doc.setFont(PDF_FONT_FAMILY, "bold");
     doc.setFontSize(5.5);
     doc.setTextColor(80, 90, 105);
     doc.text("SCAN: REPORT DOWNLOAD", qrX + 12, qrY + 27, { align: "center" });
@@ -709,7 +646,7 @@ export async function generateMixDesignPdf(
   // 12. FINALIZE RUNNING HEADERS, FOOTERS & PAGE NUMBERS ACROSS ALL PAGES
   // =========================================================================
   finalizeReportPages(doc, {
-    reportTitle: "SNOLAB — CONCRETE MIX DESIGN CALCULATION REPORT",
+    reportTitle: reportTitle,
     reportSubtitle: `${fck !== undefined ? `C${fck}/${Math.round(fck * 1.25)}` : "Concrete Formulation"}${input.exposureClass ? ` - ${input.exposureClass}` : ""}`,
     reportRef: reportRef,
     date: dateStr,
