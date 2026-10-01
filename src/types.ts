@@ -1,3 +1,5 @@
+import type { SampleRecord, MaterialTestRecord, TestDeviceRecord, CalibrationRecord, NcrRecord } from "./types/qualityDomain";
+
 /**
  * Type declarations for the Dreux-Gorisse Concrete Mix Design App.
  */
@@ -862,11 +864,21 @@ export interface MaterialPropertyMetadata {
   history?: Array<{ timestamp: string; value: any; sourceType: string; user?: string; note?: string; previousValue?: any }>;
 }
 
+export interface AuditEvent {
+  id: string;
+  type: "created" | "updated" | "trial-mix-recorded" | "approved" | "revision-created" | "archived" | "restored";
+  timestamp: string;
+  actor: string;
+  message: string;
+  entityId?: string;
+  metadata?: Record<string, string | number | boolean | null>;
+}
+
 export interface MixVersion {
   id: string;
   name: string;
   date: string;
-  lifecycleStatus?: "draft" | "needs-review" | "approved";
+  lifecycleStatus?: "draft" | "data-validation" | "engineering-review" | "trial-mix-required" | "trial-mix-tested" | "performance-verified" | "needs-review" | "approved" | "superseded" | "archived";
   approvedBy?: string;
   approvedAt?: string;
   inputs: MixDesignInput;
@@ -875,6 +887,10 @@ export interface MixVersion {
   materialSnapshots?: Record<string, EngineeringMaterial>;
   projectId?: string;
   mixId?: string;
+  revisionNumber?: number;
+  revisionOf?: string;
+  immutableHash?: string;
+  isImmutable?: boolean;
   materialIds?: string[];
   calculationVersion?: string | number;
   auditTrail?: {
@@ -883,6 +899,7 @@ export interface MixVersion {
     lastModifiedBy?: string;
     lastModifiedAt?: string;
     revisionHistory?: string[];
+    events?: AuditEvent[];
   };
 }
 
@@ -969,9 +986,14 @@ export interface ActiveProject {
   aiHistory?: any[];
   materialSnapshots?: Record<string, EngineeringMaterial>;
   validationRecords?: LabValidationRecord[]; // Section 5 & 6 feedback learning database
+  samples?: SampleRecord[];
+  materialTests?: MaterialTestRecord[];
+  testDevices?: TestDeviceRecord[];
+  calibrations?: CalibrationRecord[];
+  ncrRecords?: NcrRecord[];
   projectId?: string;
   mixId?: string;
-  mixLifecycleStatus?: "draft" | "needs-review" | "approved";
+  mixLifecycleStatus?: "draft" | "data-validation" | "engineering-review" | "trial-mix-required" | "trial-mix-tested" | "performance-verified" | "needs-review" | "approved" | "superseded" | "archived";
   mixApprovedBy?: string;
   mixApprovedAt?: string;
   materialIds?: string[];
@@ -982,5 +1004,6 @@ export interface ActiveProject {
     lastModifiedBy?: string;
     lastModifiedAt?: string;
     revisionHistory?: string[];
+    events?: AuditEvent[];
   };
 }

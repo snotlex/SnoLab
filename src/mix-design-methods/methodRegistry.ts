@@ -39,6 +39,10 @@ export const METHODS_REGISTRY: Record<string, MixDesignMethodDefinition> = {
       "Graphical computations are complex to carry out manually"
     ],
     outputType: "complete-mix",
+    version: "SnoLab-DG-1.0",
+    scope: "Preliminary mix proportioning; production release requires trial mix and engineering approval.",
+    technicalReference: "Dreux-Gorisse method; verify against the project-adopted national standard and laboratory calibration.",
+    approvalLevel: "preliminary-only",
     requiredInputs: [
       {
         key: "fck28",

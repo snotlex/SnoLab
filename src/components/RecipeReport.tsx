@@ -30,6 +30,7 @@ import { ReportCompliance } from "./ReportCompliance";
 import { ReportDetailedSteps } from "./ReportDetailedSteps";
 import { ReportThermalAnalysis } from "./ReportThermalAnalysis";
 import { validateConcreteType } from "../concreteTypes";
+import { METHODS_REGISTRY } from "../mix-design-methods/methodRegistry";
 import { 
   reportTranslations, 
   QrCodeSvg, 
@@ -46,7 +47,7 @@ import { downloadMixDesignPdf } from "../services/pdf";
 
 const customTranslations: Record<"ar" | "fr" | "en", Record<string, string>> = {
   ar: {
-    coverTitle: "شهادة ومعايرة الخلطة الخرسانية المعتمدة (fck)",
+    coverTitle: "تقرير تصميم أولي للخلطة الخرسانية (fck)",
     executiveSummary: "الملخص التنفيذي للمشروع",
     methodology: "المنهجية والمراجع العلمية",
     materials: "سجل المواد الخام المعتمدة",
@@ -58,8 +59,8 @@ const customTranslations: Record<"ar" | "fr" | "en", Record<string, string>> = {
     appendixADesc: "جميع قيم الحساب التوليفية وفروقات المنخل الكتلوي بالتفصيل للمهندسين والمراجعين.",
     recommendations: "توصيات الصب والتنفيذ الموقعي المعتمد",
     conclusion: "الخلاصة الهندسية والقرار الفني النهائي",
-    approvals: "صفحة الاعتماد والتواقيع والختام",
-    approved: "✓ معتمد وصالح للصب (APPROVED)",
+    approvals: "صفحة المراجعة والتواقيع",
+    approved: "✓ صالح للمراجعة بعد اجتياز بوابة التحقق",
     requiresMod: "⚠ يتطلب تعديل المعاملات (REQUIRES SEGREGATION FIX)",
     suitability: "نوعية وملاءمة الخلطة للاعتماد",
     designMethod: "طريقة التصميم الطيفية المستخدمة",
@@ -88,7 +89,7 @@ const customTranslations: Record<"ar" | "fr" | "en", Record<string, string>> = {
     suitCheckText: "المعادلات الهركية من SNO AI تؤكد اجتياز قيم تصميم الركام لجميع محددات وقيم أمان السحب الشاقولي.",
   },
   en: {
-    coverTitle: "CERTIFIED CONCRETE MIX DESIGN CERTIFICATE",
+    coverTitle: "PRELIMINARY CONCRETE MIX DESIGN REPORT",
     executiveSummary: "Executive Summary Overview",
     methodology: "Theoretical Methodology & Framework",
     materials: "Approved Raw Materials Registry",
@@ -100,8 +101,8 @@ const customTranslations: Record<"ar" | "fr" | "en", Record<string, string>> = {
     appendixADesc: "Detailed line-by-line mathematical synthesis derivations, packing factors and volumes for expert auditing.",
     recommendations: "Field Construction & Site Placement Guidelines",
     conclusion: "Engineering Conclusion & Certification",
-    approvals: "Certification & Acceptance Stamps Page",
-    approved: "✓ APPROVED & CERTIFIED FOR USE",
+    approvals: "Review & Sign-off Page",
+    approved: "✓ READY FOR ENGINEERING REVIEW",
     requiresMod: "⚠ REQUIRES SETTINGS MODIFICATION",
     suitability: "Aptitude of Concrete Formula",
     designMethod: "Design Formulation Paradigm",
@@ -130,7 +131,7 @@ const customTranslations: Record<"ar" | "fr" | "en", Record<string, string>> = {
     suitCheckText: "Statistical analyses from the SNO synthesis engine verify that this mix design fulfills all safety parameters and margin demands.",
   },
   fr: {
-    coverTitle: "CERTIFICAT DE FORMULATION DE BÉTON CERTIFIÉ",
+    coverTitle: "RAPPORT PRÉLIMINAIRE DE FORMULATION DU BÉTON",
     executiveSummary: "Synthèse Décisionnelle & Évaluation",
     methodology: "Cadre Méthodologique & Références",
     materials: "Agréments des Constituants de Base",
@@ -142,8 +143,8 @@ const customTranslations: Record<"ar" | "fr" | "en", Record<string, string>> = {
     appendixADesc: "Détails exhaustifs des coefficients de compacité, calculs volumétriques et répartition granulaire fine.",
     recommendations: "Manuel de Mise en Œuvre sur Chantier",
     conclusion: "Conclusion Technique Durable",
-    approvals: "Validation Technique & Signatures Officielles",
-    approved: "✓ FORMULE APPROUVÉE & CERTIFIÉE",
+    approvals: "Revue Technique & Signatures",
+    approved: "✓ PRÊT POUR REVUE TECHNIQUE",
     requiresMod: "⚠ AJUSTEMENTS REQUIS PAR LE LABO",
     suitability: "Aptitude Globale de l'emploi",
     designMethod: "Méthodologie de Formulation Appliquée",
@@ -257,6 +258,7 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
   onChangeProjectDetails
 }) => {
   const { language } = useLanguage();
+  const methodRegistryEntry = METHODS_REGISTRY[String(result.methodId || "dreux-gorisse")] || METHODS_REGISTRY["dreux-gorisse"];
 
   const validation = React.useMemo(() => {
     return validateCalculationLogic(input, result, language);
@@ -1310,13 +1312,13 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
                 <div className="flex gap-3 items-center">
                   <QrCodeSvg text={qrVerificationText} size={60} />
                   <div className="text-[8.5px] text-slate-404 leading-tight text-right">
-                    <span className="font-bold text-slate-600 block uppercase">QR Verification Security</span>
-                    <span>Scan to verify concrete receipt digital signature online. SNO cryptographic integrity.</span>
+                    <span className="font-bold text-slate-600 block uppercase">REPORT INTEGRITY CHECK</span>
+                    <span>This QR identifies the report snapshot. It is not a construction approval or digital signature.</span>
                   </div>
                 </div>
                 <div className="text-center">
                   <div className="w-16 h-16 border-2 border-amber-600 border-double rounded-full flex items-center justify-center text-[7px] text-amber-700 leading-tight font-black rotate-12 shrink-0">
-                    APPROVED<br/>SNO LAB
+                    PRELIMINARY<br/>REVIEW ONLY
                   </div>
                 </div>
               </div>
@@ -1330,8 +1332,8 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
               <div className="bg-slate-50 p-4 border-l-4 border-l-indigo-500 rounded text-xs text-slate-700 leading-relaxed font-sans text-right">
                 <h4 className="font-black text-indigo-700 mb-1">{reportLanguage === "ar" ? "مقدمة فنية عامة" : "Technical Overview"}</h4>
                 {reportLanguage === "ar" 
-                  ? "تقدّم هذه الشهادة وثيقة تفصيلية معتمدة لهيكل تصميم الخلطة الخرسانية الحالية لبيان المكونات والوزن النوعي والتدرج الرغوي الحبيبي. لقد تم معايرة كميات الإسمنت والماء والركامات بدقة متناهية لتطابق متطلبات أمان الدباغة وتحقيق متمتانة عالية تقاوم نفاذية المياه ورطوبة الموقع والضغوط الإنشائية."
-                  : "This official synthesis report documents the engineered design mix of concrete calculated with Dreux-Gorisse/EN methodology. The aggregate skeleton has been optimized for minimum voids and balanced binder ratios to guarantee maximum density, low workability resistance loss, and robust curing safety limits."}
+                  ? "هذا تقرير تصميم أولي يوضح نسب المكونات والحسابات المستخدمة. لا يمثل تصريح صب أو شهادة مطابقة؛ يجب تنفيذ خلطة تجريبية ومراجعة النتائج واعتمادها من الجهة المختصة قبل التنفيذ."
+                  : "This preliminary report documents calculated proportions using the selected method. It is not a construction approval or certificate of conformity; a trial mix, laboratory verification and authorized engineering approval are required before use."}
               </div>
 
               {/* Specification data sheet */}
@@ -1457,8 +1459,8 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
                     <li>
                       <strong>{reportLanguage === "ar" ? "رطوبة الركام المائي:" : "Aggregate Moisture Calibration:"}</strong>{" "}
                       {reportLanguage === "ar" 
-                        ? `تم تطبيق رطوبة عيارية قدرها (الرمل: ${input.moistureSand || 3.5}%، الحصى: ${input.moistureGravel || 1.0}%) لضبط كميات العمل الجافة وإعادة ترشيح ماء الخلط.`
-                        : `Damp adjustments applied under values of Sand: ${input.moistureSand || 3.5}%, Gravel: ${input.moistureGravel || 1.0}% to secure wet density and clean W/C.`}
+                        ? `تم تطبيق قيم الرطوبة المسجلة فعليًا (الرمل: ${input.moistureSand !== undefined ? `${input.moistureSand}%` : "غير مسجل"}، الحصى: ${input.moistureGravel !== undefined ? `${input.moistureGravel}%` : "غير مسجل"}). لا يجوز اعتماد التصحيح عند غياب قياس حديث.`
+                        : `Moisture correction uses recorded values only (Sand: ${input.moistureSand !== undefined ? `${input.moistureSand}%` : "not recorded"}, Gravel: ${input.moistureGravel !== undefined ? `${input.moistureGravel}%` : "not recorded"}). A current measurement is required for approval.`}
                     </li>
                     <li>
                       <strong>{reportLanguage === "ar" ? "معادلة ترابط القوة والجودة:" : "Strength Connection Principle:"}</strong>{" "}
@@ -1499,7 +1501,16 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
                         {result.isStandaloneCompleteMethod !== false ? (reportLanguage === "ar" ? "نعم / Yes" : "Yes") : (reportLanguage === "ar" ? "لا / No" : "No")}
                       </span>
                     </div>
+                    <div>
+                      <strong>{reportLanguage === "ar" ? "إصدار الطريقة:" : "Method version:"}</strong>{" "}
+                      <span className="font-mono font-bold text-indigo-700">{methodRegistryEntry?.version || "unregistered"}</span>
+                    </div>
+                    <div>
+                      <strong>{reportLanguage === "ar" ? "مستوى الاعتماد:" : "Approval level:"}</strong>{" "}
+                      <span className="font-mono font-bold text-amber-700">{methodRegistryEntry?.approvalLevel || "preliminary-only"}</span>
+                    </div>
                   </div>
+                  <p className="text-[10px] leading-5 text-slate-600"><strong>{reportLanguage === "ar" ? "النطاق والمرجع:" : "Scope / reference:"}</strong> {methodRegistryEntry?.scope} {methodRegistryEntry?.technicalReference}</p>
 
                   {/* Supporting models warnings constraint */}
                   {(!result.isStandaloneCompleteMethod || result.category === "supporting-model") && (

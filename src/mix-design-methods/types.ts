@@ -59,6 +59,10 @@ export interface MixDesignMethodDefinition {
   limitationsFr: string[];
   limitationsEn: string[];
   outputType: "complete-mix" | "grading-analysis" | "strength-model" | "supporting-analysis";
+  version?: string;
+  scope?: string;
+  technicalReference?: string;
+  approvalLevel?: "production-capable" | "preliminary-only" | "supporting-only";
 }
 
 export interface MixDesignResult {

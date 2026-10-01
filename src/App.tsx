@@ -70,6 +70,10 @@ import { ProjectFileManagerModal } from "./components/ProjectFileManagerModal";
 import { LocalProjectVault } from "./components/LocalProjectVault";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { SidebarShell } from "./components/SidebarShell";
+import { BatchPreparationCenter } from "./components/BatchPreparationCenter";
+const QualityControlDashboard = React.lazy(() => import("./components/QualityControlDashboard").then(m => ({ default: m.QualityControlDashboard })));
+const ProductionBatchTicket = React.lazy(() => import("./components/ProductionBatchTicket").then(m => ({ default: m.ProductionBatchTicket })));
+const QualityAssetsDashboard = React.lazy(() => import("./components/QualityAssetsDashboard").then(m => ({ default: m.QualityAssetsDashboard })));
 
 // Lazy-loaded heavy panels for core bundle size optimization
 const LaboratoryDashboard = React.lazy(() => import("./components/materials-lab/LaboratoryDashboard").then(m => ({ default: m.LaboratoryDashboard })));
@@ -77,6 +81,8 @@ const EngineeringAIAdvisor = React.lazy(() => import("./components/EngineeringAI
 import { INITIAL_MATERIAL_TESTS } from "./data/seedMaterialTests";
 import { MaterialTestRecord, TestApprovalStatus } from "./types/laboratoryTypes";
 import { applyTestToMaterial } from "./services/materialLabSync";
+import { evaluateProductionRelease } from "./services/productionReleaseGate";
+import { can, resolveUserRole, separationOfDuties, UserRole } from "./services/permissions";
 const RecipeReport = React.lazy(() => import("./components/RecipeReport").then(m => ({ default: m.RecipeReport })));
 const ChemicalDosageMonitor = React.lazy(() => import("./components/ChemicalDosageMonitor").then(m => ({ default: m.ChemicalDosageMonitor })));
 const SieveGradingCurves = React.lazy(() => import("./components/SieveGradingCurves").then(m => ({ default: m.SieveGradingCurves })));
@@ -605,8 +611,10 @@ export default function App() {
     email: "local@device",
     displayName: "المستخدم المحلي",
     emailVerified: true,
-    photoURL: null
+    photoURL: null,
+    role: resolveUserRole(typeof window !== "undefined" ? window.localStorage.getItem("snolab_user_role") : undefined)
   });
+  const currentUserRole = resolveUserRole(user.role);
 
   const localizedLabel = (ar: string, fr: string, en: string) => {
     if (language === "ar") return ar;
@@ -629,6 +637,11 @@ export default function App() {
   // Sidebar navigation switcher tabs
   const [activeSidebarTab, setActiveSidebarTab] = useState<
     | "calculator"
+    | "batch_preparation"
+    | "quality_control"
+    | "batch_ticket"
+    | "quality_assets"
+    | "versions"
     | "cost"
     | "reports"
     | "settings"
@@ -1654,9 +1667,70 @@ export default function App() {
     }
   };
 
+  const handleSaveTrialMix = (trial: { slump: number; freshDensity: number; concreteTemp: number; strength28d: number; notes: string; status: "PASSED" | "WARNING" | "FAILED" }) => {
+    if (!can(currentUserRole, "record-trial-mix")) {
+      setSaveError(localizedLabel("دور المستخدم الحالي لا يسمح بتسجيل Trial Mix.", "Le rôle actuel ne permet pas d'enregistrer une gâchée d'essai.", "The current role cannot record a trial mix."));
+      return;
+    }
+    const now = new Date().toISOString();
+    const record = {
+      id: `TRIAL-${Date.now()}`,
+      name: `Trial Mix ${new Date().toLocaleDateString("en-CA")}`,
+      date: now,
+      testingDate: now,
+      supervisor: user.displayName,
+      location: activeProject?.plant || "",
+      inputsSnapshot: { ...inputs },
+      resultsSnapshot: { ...results },
+      labInputs: {
+        slump: trial.slump, slumpFlow: 0, freshDensity: trial.freshDensity, airContent: Number(inputs.airContent || 0), concreteTemp: trial.concreteTemp,
+        strength1d: 0, strength3d: 0, strength7d: 0, strength28d: trial.strength28d, strength56d: 0, strength90d: 0,
+        waterAbsorption: 0, permeabilityIndex: 0, chloridePenetration: "Not tested", sulfateResistanceRating: "Not tested",
+        schmidtHammer: 0, upvSpeed: 0, coreTestResult: 0
+      },
+      validationScore: trial.status === "PASSED" ? 100 : null,
+      rating: trial.status === "PASSED" ? "Acceptable" : trial.status === "FAILED" ? "Failed" : "N/A",
+      status: trial.status,
+      engineeringComments: [trial.notes || "Trial mix record entered from batch preparation center."],
+      engineerNotes: trial.notes,
+      materialSnapshots: activeProject?.materialSnapshots,
+      createdAt: now
+    } as any;
+    setProjects(prev => prev.map(project => project.id === activeProjectId ? {
+      ...project,
+      validationRecords: [record, ...(project.validationRecords || [])],
+      mixLifecycleStatus: trial.status === "PASSED" ? "performance-verified" : "trial-mix-required",
+      auditTrail: {
+        ...project.auditTrail,
+        lastModifiedAt: now,
+        lastModifiedBy: user.uid,
+        revisionHistory: [...(project.auditTrail?.revisionHistory || []), `Trial mix ${record.id} recorded with status ${trial.status}.`],
+        events: [...(project.auditTrail?.events || []), { id: `AUD-${Date.now()}`, type: "trial-mix-recorded", timestamp: now, actor: user.uid, entityId: record.id, message: `Trial mix recorded with status ${trial.status}.`, metadata: { strength28d: trial.strength28d } }]
+      }
+    } : project));
+    setSaveSuccess(localizedLabel("تم حفظ سجل الخلطة التجريبية. لا يزال الاعتماد يتطلب اجتياز جميع البوابات.", "La gâchée d'essai a été enregistrée; les autres portes restent obligatoires.", "Trial mix record saved; all other release gates remain mandatory."));
+  };
+
   const handleApproveMix = () => {
+    if (!can(currentUserRole, "approve-production")) {
+      setSaveError(localizedLabel("لا يملك المستخدم صلاحية اعتماد الإنتاج. يلزم دور Approver مستقل.", "Le rôle actuel ne peut pas libérer la production. Un approbateur indépendant est requis.", "The current role cannot approve production. An independent approver role is required."));
+      return;
+    }
+    if (!separationOfDuties(activeProject?.auditTrail?.createdBy, user.uid)) {
+      setSaveError(localizedLabel("فشل فصل المهام: يجب أن يكون المعتمد مختلفًا عن منشئ المشروع.", "Séparation des tâches impossible: l'approbateur doit être différent du créateur.", "Separation of duties failed: the approver must differ from the project creator."));
+      return;
+    }
     if (!validationGate.isValidForReport || validationGate.criticalErrors.length > 0 || validationGate.warnings.length > 0) {
       setSaveError(localizedLabel("لا يمكن اعتماد الخلطة مع وجود أخطاء حرجة أو تحذيرات هندسية؛ احفظها للمراجعة أولاً.", "Le mélange ne peut pas être approuvé avec des erreurs ou avertissements d'ingénierie ; enregistrez-le pour revue.", "The mix cannot be approved while critical errors or engineering warnings remain; save it for review first."));
+      return;
+    }
+    const release = evaluateProductionRelease(activeProject, results, validationGate);
+    if (!release.canRelease) {
+      setSaveError(localizedLabel(
+        "لا يمكن إصدار الخلطة للإنتاج قبل توثيق خلطة تجريبية ناجحة واعتماد جميع بوابات التحقق.",
+        "La libération en production exige une gâchée d'essai réussie et la validation de toutes les portes techniques.",
+        "Production release requires a passed documented trial mix and all engineering gates to pass."
+      ));
       return;
     }
     const approvedAt = new Date().toISOString();
@@ -1670,7 +1744,8 @@ export default function App() {
         ...project.auditTrail,
         lastModifiedAt: approvedAt,
         lastModifiedBy: approvedBy,
-        revisionHistory: [...(project.auditTrail?.revisionHistory || []), "Mix approved after validation gate passed."]
+        revisionHistory: [...(project.auditTrail?.revisionHistory || []), "Mix approved after validation gate passed."],
+        events: [...(project.auditTrail?.events || []), { id: `AUD-${Date.now()}`, type: "approved", timestamp: approvedAt, actor: approvedBy, entityId: project.id, message: "Mix approved for production after all release gates passed.", metadata: { lifecycleStatus: "approved" } }]
       }
     } : project));
     setSaveSuccess(localizedLabel("تم اعتماد الخلطة وتسجيل عملية الاعتماد.", "Formule approuvée et action enregistrée.", "Mix approved and approval action recorded."));
@@ -2951,6 +3026,12 @@ export default function App() {
     setProjects(prev => prev.map(p => {
       if (p.id === activeProjectId) {
         const oldVersions = p.mixVersions || [];
+        const priorApproved = oldVersions.find(version => version.lifecycleStatus === "approved" || version.lifecycleStatus === "performance-verified");
+        const revisionNumber = oldVersions.reduce((max, version) => Math.max(max, Number(version.revisionNumber || 0)), 0) + 1;
+        const serializedSnapshot = JSON.stringify({ inputs, results, materialIds });
+        let snapshotHash = 0;
+        for (let index = 0; index < serializedSnapshot.length; index++) snapshotHash = ((snapshotHash << 5) - snapshotHash + serializedSnapshot.charCodeAt(index)) | 0;
+        const immutableHash = `sha1-lite-${Math.abs(snapshotHash).toString(16)}`;
         const revisionHistory = [...(p.auditTrail?.revisionHistory || []), revisionStr];
         
         const newVer = {
@@ -2964,6 +3045,10 @@ export default function App() {
           materialSnapshots: versionSnapshots,
           projectId: p.id,
           mixId: currentMixId,
+          revisionNumber,
+          revisionOf: priorApproved?.id,
+          immutableHash,
+          isImmutable: lifecycleStatus === "approved" || lifecycleStatus === "performance-verified",
           materialIds,
           calculationVersion: "SNO-v3.5L",
           auditTrail: {
@@ -2971,7 +3056,8 @@ export default function App() {
             createdAt: p.auditTrail?.createdAt || p.createdDate || new Date().toISOString().split('T')[0],
             lastModifiedBy: "senoussi.s.t@gmail.com",
             lastModifiedAt: new Date().toISOString(),
-            revisionHistory
+            revisionHistory,
+            events: [{ id: `AUD-${Date.now()}`, type: "revision-created", timestamp: new Date().toISOString(), actor: "senoussi.s.t@gmail.com", entityId: currentMixId, message: `Revision ${revisionNumber} created from current engineering snapshot.`, metadata: { revisionNumber, immutable: lifecycleStatus === "approved" || lifecycleStatus === "performance-verified" } }]
           }
         };
 
@@ -2991,7 +3077,8 @@ export default function App() {
             createdAt: p.auditTrail?.createdAt || p.createdDate || new Date().toISOString().split('T')[0],
             lastModifiedBy: "senoussi.s.t@gmail.com",
             lastModifiedAt: new Date().toISOString(),
-            revisionHistory
+            revisionHistory,
+            events: [...(p.auditTrail?.events || []), { id: `AUD-${Date.now()}`, type: "revision-created", timestamp: new Date().toISOString(), actor: "senoussi.s.t@gmail.com", entityId: currentMixId, message: `Revision ${revisionNumber} created from current engineering snapshot.`, metadata: { revisionNumber, immutable: lifecycleStatus === "approved" || lifecycleStatus === "performance-verified" } }]
           }
         };
       }
@@ -3043,6 +3130,10 @@ export default function App() {
   };
 
   const handleDeleteVersion = (versionId: string) => {
+    if (!can(currentUserRole, "delete-version")) {
+      setSaveError(localizedLabel("لا يملك المستخدم صلاحية حذف الإصدارات.", "Le rôle actuel ne peut pas supprimer les versions.", "The current role cannot delete versions."));
+      return;
+    }
     setProjects(prev => prev.map(p => {
       if (p.id === activeProjectId) {
         return {
@@ -5044,6 +5135,59 @@ export default function App() {
                   setInputs(loadedInputs);
                   setActiveSidebarTab("calculator");
                 }}
+              />
+            )}
+
+            {/* TAB CONTENT: TRACEABLE BATCH PREPARATION */}
+            {activeSidebarTab === "batch_preparation" && (
+              <BatchPreparationCenter
+                input={inputs}
+                result={results as any}
+                materials={materialsDatabase}
+                language={language as "ar" | "fr" | "en"}
+                onNavigateToDesign={() => setActiveSidebarTab("calculator")}
+                onSaveTrialMix={handleSaveTrialMix}
+              />
+            )}
+            {activeSidebarTab === "quality_control" && (
+              <QualityControlDashboard
+                language={language as "ar" | "fr" | "en"}
+                records={(activeProject?.validationRecords || []) as any}
+                ncrRecords={(activeProject?.ncrRecords || []) as any}
+                input={inputs}
+                result={results}
+                onCreateNcr={(record) => { if (!can(currentUserRole, "open-ncr")) { setSaveError(localizedLabel("لا يملك المستخدم صلاحية فتح NCR.", "Le rôle actuel ne peut pas ouvrir une NCR.", "The current role cannot open an NCR.")); return; } setProjects(prev => prev.map(project => project.id === (activeProjectId || activeProject?.id) ? { ...project, ncrRecords: [record, ...(project.ncrRecords || [])], auditTrail: { ...project.auditTrail, lastModifiedAt: new Date().toISOString(), lastModifiedBy: user.uid, events: [...(project.auditTrail?.events || []), { id: `AUD-${Date.now()}`, type: "updated", timestamp: new Date().toISOString(), actor: user.uid, entityId: record.id, message: `NCR opened: ${record.title}.` }] } } : project)); }}
+                onUpdateNcr={(id, status) => { if (!can(currentUserRole, "open-ncr")) { setSaveError(localizedLabel("لا يملك المستخدم صلاحية تعديل NCR.", "Le rôle actuel ne peut pas modifier la NCR.", "The current role cannot update an NCR.")); return; } const now = new Date().toISOString(); setProjects(prev => prev.map(project => project.id === (activeProjectId || activeProject?.id) ? { ...project, ncrRecords: (project.ncrRecords || []).map(ncr => ncr.id === id ? { ...ncr, status, ...(status === "closed" ? { closedAt: now } : {}) } : ncr), auditTrail: { ...project.auditTrail, lastModifiedAt: now, lastModifiedBy: user.uid, events: [...(project.auditTrail?.events || []), { id: `AUD-${Date.now()}`, type: status === "closed" ? "updated" : "updated", timestamp: now, actor: user.uid, entityId: id, message: `NCR status changed to ${status}.` }] } } : project)); }}
+                onNavigateToTrial={() => setActiveSidebarTab("batch_preparation")}
+              />
+            )}
+            {activeSidebarTab === "batch_ticket" && (
+              <ProductionBatchTicket
+                language={language as "ar" | "fr" | "en"}
+                input={inputs}
+                result={results as any}
+                project={activeProject}
+                blocked={!evaluateProductionRelease(activeProject || undefined, results, validationGate).canRelease}
+                onNavigateToPreparation={() => setActiveSidebarTab("batch_preparation")}
+              />
+            )}
+            {activeSidebarTab === "quality_assets" && (
+              <QualityAssetsDashboard
+                language={language as "ar" | "fr" | "en"}
+                samples={activeProject?.samples || []}
+                tests={activeProject?.materialTests || []}
+                devices={activeProject?.testDevices || []}
+                calibrations={activeProject?.calibrations || []}
+              />
+            )}
+            {activeSidebarTab === "versions" && (activeProject || projects.find(project => project.id === activeProjectId)) && (
+              <MixVersioningPanel
+                activeProject={(activeProject || projects.find(project => project.id === activeProjectId)) as ActiveProject}
+                inputs={inputs}
+                results={results}
+                onSaveVersion={(name) => handleSaveVersion(name, false, "draft")}
+                onRestoreVersion={handleRestoreVersion}
+                onDeleteVersion={handleDeleteVersion}
               />
             )}
 
@@ -7396,6 +7540,14 @@ max="0.95"
                   onSaveCopy={(name) => handleSaveVersion(name, false, "draft")}
                   onApprove={handleApproveMix}
                 />
+                {(activeProject || projects.find(project => project.id === activeProjectId)) && <MixVersioningPanel
+                  activeProject={(activeProject || projects.find(project => project.id === activeProjectId)) as ActiveProject}
+                  inputs={inputs}
+                  results={results}
+                  onSaveVersion={(name) => handleSaveVersion(name, false, "draft")}
+                  onRestoreVersion={handleRestoreVersion}
+                  onDeleteVersion={handleDeleteVersion}
+                />}
                 <CalculationStagesPanel
                   language={language}
                   results={results}

@@ -11,6 +11,7 @@ import {
   Layers, 
   AlertTriangle 
 } from "lucide-react";
+import { RevisionDiffPanel } from "./RevisionDiffPanel";
 
 interface MixVersioningPanelProps {
   activeProject: ActiveProject;
@@ -153,6 +154,11 @@ export const MixVersioningPanel: React.FC<MixVersioningPanelProps> = ({
                       <div className="text-[10px] text-slate-400 font-mono">
                         {ver.date}
                       </div>
+                      <div className="flex flex-wrap items-center gap-1.5 text-[9px] font-black">
+                        <span className={`rounded-full px-2 py-0.5 ${ver.isImmutable ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300" : "bg-slate-100 text-slate-500 dark:bg-slate-800"}`}>{ver.isImmutable ? "IMMUTABLE / مجمّد" : (ver.lifecycleStatus || "draft")}</span>
+                        <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-300">REV {ver.revisionNumber || 1}</span>
+                      </div>
+                      {ver.immutableHash && <div className="truncate text-[9px] font-mono text-slate-400" title={ver.immutableHash}>HASH: {ver.immutableHash}</div>}
 
                       {/* Quick Tech Metrics */}
                       <div className="border-t border-dashed border-slate-150 dark:border-slate-800 pt-2 grid grid-cols-2 gap-2 text-right font-sans">
@@ -187,9 +193,10 @@ export const MixVersioningPanel: React.FC<MixVersioningPanelProps> = ({
                     <div className="border-t border-slate-100 dark:border-slate-800/60 pt-3 flex items-center justify-between gap-2">
                       <button
                         type="button"
-                        onClick={() => onDeleteVersion(ver.id)}
-                        className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 p-1.5 rounded-lg transition-colors cursor-pointer"
-                        title="حذف هذا الرصيد التاريخي"
+                        onClick={() => !ver.isImmutable && onDeleteVersion(ver.id)}
+                        disabled={ver.isImmutable}
+                        className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 p-1.5 rounded-lg transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-30"
+                        title={ver.isImmutable ? "لا يمكن حذف نسخة مجمّدة" : "حذف هذه النسخة غير المعتمدة"}
                       >
                         <Trash2 size={14} />
                       </button>
@@ -225,6 +232,8 @@ export const MixVersioningPanel: React.FC<MixVersioningPanelProps> = ({
           )}
         </div>
       </div>
+
+      {comparedItems.length >= 2 && <RevisionDiffPanel versions={comparedItems} />}
 
       {/* Comparison Drawer / Side-by-Side Matrix */}
       {comparedItems.length > 0 && (

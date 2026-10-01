@@ -31,13 +31,17 @@ export const PDF_PAGE_MARGINS = {
   pageHeight: 297,
   contentWidth: 182 // 210 - 28
 };
+export const PDF_LANDSCAPE_MARGINS = {
+  left: 14, right: 14, top: 28, bottom: 20,
+  pageWidth: 297, pageHeight: 210, contentWidth: 269
+};
 
 /**
  * Creates and initializes a standardized A4 portrait jsPDF document.
  */
-export function createPdfDocument(): jsPDF {
+export function createPdfDocument(orientation: "portrait" | "landscape" = "portrait"): jsPDF {
   const doc = new jsPDF({
-    orientation: "portrait",
+    orientation,
     unit: "mm",
     format: "a4",
     compress: true
@@ -401,6 +405,11 @@ export function getStandardTableTheme() {
       lineWidth: 0.1,
       valign: "middle" as const
     },
+    styles: {
+      overflow: "ellipsize" as const,
+      cellWidth: "wrap" as const,
+      minCellHeight: 6
+    },
     alternateRowStyles: {
       fillColor: PDF_COLORS.background
     },
@@ -435,11 +444,12 @@ export function finalizeReportPages(
     labProfile?: LabProfile;
     isDraft?: boolean;
     logoDataUrl?: string;
+    orientation?: "portrait" | "landscape";
   }
 ) {
   const totalPages = doc.getNumberOfPages();
   const lab = options.labProfile || DEFAULT_LAB_PROFILE;
-  const { left, pageWidth, pageHeight, contentWidth, right } = PDF_PAGE_MARGINS;
+  const { left, pageWidth, pageHeight, contentWidth, right } = options.orientation === "landscape" ? PDF_LANDSCAPE_MARGINS : PDF_PAGE_MARGINS;
   const dateStr = options.date || new Date().toISOString().split("T")[0];
 
   for (let pageNum = 1; pageNum <= totalPages; pageNum++) {

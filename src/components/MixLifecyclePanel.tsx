@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { AlertTriangle, CheckCircle2, ClipboardPenLine, FilePlus2, LockKeyhole, Save, ShieldAlert } from "lucide-react";
-
-export type MixLifecycleStatus = "draft" | "needs-review" | "approved";
+import { LIFECYCLE_STEPS, MixLifecycleStatus } from "../services/mixLifecycle";
+export type { MixLifecycleStatus } from "../services/mixLifecycle";
 
 interface MixLifecyclePanelProps {
   language: "ar" | "fr" | "en";
@@ -68,6 +68,19 @@ const labels = {
   }
 } as const;
 
+const officialLabels: Record<MixLifecycleStatus, { ar: string; fr: string; en: string }> = {
+  draft: { ar: "مسودة", fr: "Brouillon", en: "Draft" },
+  "data-validation": { ar: "تحقق البيانات", fr: "Validation des données", en: "Data validation" },
+  "engineering-review": { ar: "مراجعة هندسية", fr: "Revue d'ingénierie", en: "Engineering review" },
+  "trial-mix-required": { ar: "خلطة تجريبية مطلوبة", fr: "Gâchée d'essai requise", en: "Trial mix required" },
+  "trial-mix-tested": { ar: "تم اختبار الخلطة", fr: "Gâchée testée", en: "Trial mix tested" },
+  "performance-verified": { ar: "الأداء موثق", fr: "Performance vérifiée", en: "Performance verified" },
+  approved: { ar: "معتمد للإنتاج", fr: "Approuvé pour production", en: "Approved for production" },
+  superseded: { ar: "مستبدل", fr: "Remplacé", en: "Superseded" },
+  archived: { ar: "مؤرشف", fr: "Archivé", en: "Archived" },
+  "needs-review": { ar: "يحتاج مراجعة", fr: "À revoir", en: "Needs review" }
+};
+
 export const MixLifecyclePanel: React.FC<MixLifecyclePanelProps> = ({
   language,
   status,
@@ -80,8 +93,8 @@ export const MixLifecyclePanel: React.FC<MixLifecyclePanelProps> = ({
 }) => {
   const [name, setName] = useState("");
   const t = labels[language];
-  const statusLabel = status === "approved" ? t.approved : status === "needs-review" ? t.review : t.draft;
-  const statusClass = status === "approved" ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" : status === "needs-review" ? "bg-amber-500/10 text-amber-700 border-amber-500/20" : "bg-slate-500/10 text-slate-600 border-slate-500/20";
+  const statusLabel = officialLabels[status]?.[language] || t.draft;
+  const statusClass = status === "approved" || status === "performance-verified" ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" : status === "engineering-review" || status === "needs-review" ? "bg-amber-500/10 text-amber-700 border-amber-500/20" : "bg-slate-500/10 text-slate-600 border-slate-500/20";
   const save = (callback: (value: string) => void) => {
     const value = name.trim();
     if (!value) return;
@@ -100,9 +113,17 @@ export const MixLifecyclePanel: React.FC<MixLifecyclePanelProps> = ({
           <p className="text-[11px] text-slate-500 max-w-2xl leading-relaxed">{t.description}</p>
         </div>
         <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[10px] font-black whitespace-nowrap ${statusClass}`}>
-          {status === "approved" ? <CheckCircle2 size={13} /> : status === "needs-review" ? <AlertTriangle size={13} /> : <FilePlus2 size={13} />}
+          {status === "approved" || status === "performance-verified" ? <CheckCircle2 size={13} /> : status === "engineering-review" || status === "needs-review" ? <AlertTriangle size={13} /> : <FilePlus2 size={13} />}
           {statusLabel}
         </span>
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-1.5 md:grid-cols-7" aria-label="Official mix lifecycle">
+        {LIFECYCLE_STEPS.map((step, index) => {
+          const currentIndex = LIFECYCLE_STEPS.indexOf(status === "needs-review" ? "engineering-review" : status);
+          const complete = currentIndex >= index;
+          return <div key={step} className={`rounded-lg border p-2 text-[9px] font-black ${complete ? "border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-300" : "border-slate-200 text-slate-400 dark:border-slate-800"}`}><span className="me-1 font-mono">{String(index + 1).padStart(2, "0")}</span>{officialLabels[step][language]}</div>;
+        })}
       </div>
 
       <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-2 text-[10px]">
