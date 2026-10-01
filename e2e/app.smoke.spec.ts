@@ -143,10 +143,9 @@ test.describe("SnoLab application smoke flow", () => {
     const strengthInput = page.locator("#step1-project-requirements input[type=number]").first();
     await strengthInput.fill("");
     await expect(page.locator("#step1-project-requirements")).toContainText("Target strength is missing");
-    const lifecycle = page.locator('section[aria-label="Mix lifecycle and approval"]');
-    await expect(lifecycle).toBeVisible();
-    await expect(page.locator('section[aria-label="Staged calculation and auditable values"]')).toBeVisible();
-    await expect(lifecycle.getByRole("button", { name: "Approve mix" })).toBeDisabled();
+    await expect(page.locator("#phase3-input-wizard")).toBeVisible();
+    await expect(page.locator('section[aria-label="Mix lifecycle and approval"]')).toHaveCount(0);
+    await expect(page.locator('section[aria-label="Staged calculation and auditable values"]')).toHaveCount(0);
     await strengthInput.fill("25");
     await expect(strengthInput).toHaveValue("25");
   });

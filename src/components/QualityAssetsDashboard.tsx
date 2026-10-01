@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { AlertTriangle, Beaker, CalendarClock, CheckCircle2, ClipboardCheck, Cpu, FileCheck2, FlaskConical, Gauge, Search, ShieldAlert, ShieldCheck, SlidersHorizontal, Timer, XCircle } from "lucide-react";
+import { AlertTriangle, Beaker, CalendarClock, CheckCircle2, ClipboardCheck, Cpu, FileCheck2, FlaskConical, Gauge, Plus, Search, ShieldAlert, ShieldCheck, SlidersHorizontal, Timer, X, XCircle } from "lucide-react";
 import type { CalibrationRecord, SampleRecord, TestDeviceRecord } from "../types/qualityDomain";
 import { buildCalibrationAlerts, buildSampleTraceRows, LABORATORY_CAPABILITIES, summarizeQualityAssets, type QualityAssetMetric, type QualityTestRecord } from "../services/qualityAssetAnalytics";
 
@@ -15,13 +15,24 @@ interface Props {
   tests: QualityTestRecord[];
   devices: TestDeviceRecord[];
   calibrations: CalibrationRecord[];
+  onAddSample?: (sample: SampleRecord) => void;
+  onAddDevice?: (device: TestDeviceRecord) => void;
+  onAddCalibration?: (calibration: CalibrationRecord) => void;
 }
 
 type View = "overview" | "samples" | "tests" | "devices" | "capabilities";
 
-export const QualityAssetsDashboard: React.FC<Props> = ({ language, samples = [], tests = [], devices = [], calibrations = [] }) => {
+type RegistrationForm = "sample" | "device" | "calibration" | null;
+const newId = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
+
+export const QualityAssetsDashboard: React.FC<Props> = ({ language, samples = [], tests = [], devices = [], calibrations = [], onAddSample, onAddDevice, onAddCalibration }) => {
   const [view, setView] = useState<View>("overview");
   const [query, setQuery] = useState("");
+  const [registrationForm, setRegistrationForm] = useState<RegistrationForm>(null);
+  const [formError, setFormError] = useState("");
+  const [sampleDraft, setSampleDraft] = useState({ sampleNumber: "", materialId: "", batchId: "", receivedAt: new Date().toISOString().slice(0, 10), sampledBy: "", quantity: "", unit: "kg" });
+  const [deviceDraft, setDeviceDraft] = useState({ name: "", deviceType: "", serialNumber: "", calibrationDueAt: "" });
+  const [calibrationDraft, setCalibrationDraft] = useState({ deviceId: "", certificateNumber: "", calibratedAt: new Date().toISOString().slice(0, 10), dueAt: "", laboratory: "", result: "pass" as "pass" | "fail" });
   const now = useMemo(() => new Date(), []);
   const summary = useMemo(() => summarizeQualityAssets(samples, tests, devices, calibrations, now), [samples, tests, devices, calibrations, now]);
   const alerts = useMemo(() => buildCalibrationAlerts(devices, now), [devices, now]);
@@ -38,6 +49,27 @@ export const QualityAssetsDashboard: React.FC<Props> = ({ language, samples = []
   ];
   const statusLabel = (status: string) => ({ received: c(language, "مستلمة", "Reçue", "Received"), "in-testing": c(language, "قيد الاختبار", "En essai", "In testing"), accepted: c(language, "مقبولة", "Acceptée", "Accepted"), rejected: c(language, "مرفوضة", "Rejetée", "Rejected"), archived: c(language, "مؤرشفة", "Archivée", "Archived") } as Record<string, string>)[status] || status;
   const approvalLabel = (status: string) => ({ draft: c(language, "مسودة", "Brouillon", "Draft"), submitted: c(language, "مرسلة للمراجعة", "Soumise", "Submitted"), approved: c(language, "معتمدة", "Approuvée", "Approved"), rejected: c(language, "مرفوضة", "Rejetée", "Rejected") } as Record<string, string>)[status] || status;
+  const openRegistration = (form: RegistrationForm) => { setFormError(""); setRegistrationForm(form); };
+  const closeRegistration = () => { setFormError(""); setRegistrationForm(null); };
+  const submitRegistration = (event: React.FormEvent) => {
+    event.preventDefault();
+    try {
+      if (registrationForm === "sample") {
+        if (!sampleDraft.sampleNumber.trim() || !sampleDraft.receivedAt) throw new Error(c(language, "رقم العينة وتاريخ الاستلام مطلوبان.", "Le numéro et la date de réception sont obligatoires.", "Sample number and receipt date are required."));
+        onAddSample?.({ id: newId("SMP"), sampleNumber: sampleDraft.sampleNumber.trim(), materialId: sampleDraft.materialId.trim() || undefined, batchId: sampleDraft.batchId.trim() || undefined, receivedAt: sampleDraft.receivedAt, sampledBy: sampleDraft.sampledBy.trim() || undefined, quantity: sampleDraft.quantity ? Number(sampleDraft.quantity) : undefined, unit: sampleDraft.unit || undefined, status: "received", chainOfCustody: [`received:${new Date().toISOString()}`] });
+        setSampleDraft({ sampleNumber: "", materialId: "", batchId: "", receivedAt: new Date().toISOString().slice(0, 10), sampledBy: "", quantity: "", unit: "kg" });
+      } else if (registrationForm === "device") {
+        if (!deviceDraft.name.trim() || !deviceDraft.deviceType.trim()) throw new Error(c(language, "اسم الجهاز ونوعه مطلوبان.", "Le nom et le type de l’appareil sont obligatoires.", "Device name and type are required."));
+        onAddDevice?.({ id: newId("DEV"), name: deviceDraft.name.trim(), deviceType: deviceDraft.deviceType.trim(), serialNumber: deviceDraft.serialNumber.trim() || undefined, calibrationStatus: deviceDraft.calibrationDueAt ? "valid" : "unknown", calibrationDueAt: deviceDraft.calibrationDueAt || undefined });
+        setDeviceDraft({ name: "", deviceType: "", serialNumber: "", calibrationDueAt: "" });
+      } else if (registrationForm === "calibration") {
+        if (!calibrationDraft.deviceId || !calibrationDraft.certificateNumber.trim() || !calibrationDraft.calibratedAt || !calibrationDraft.dueAt) throw new Error(c(language, "الجهاز والشهادة وتواريخ المعايرة مطلوبة.", "Appareil, certificat et dates d’étalonnage obligatoires.", "Device, certificate and calibration dates are required."));
+        onAddCalibration?.({ id: newId("CAL"), deviceId: calibrationDraft.deviceId, certificateNumber: calibrationDraft.certificateNumber.trim(), calibratedAt: calibrationDraft.calibratedAt, dueAt: calibrationDraft.dueAt, laboratory: calibrationDraft.laboratory.trim() || undefined, result: calibrationDraft.result });
+        setCalibrationDraft({ deviceId: "", certificateNumber: "", calibratedAt: new Date().toISOString().slice(0, 10), dueAt: "", laboratory: "", result: "pass" });
+      }
+      closeRegistration();
+    } catch (error) { setFormError(error instanceof Error ? error.message : String(error)); }
+  };
 
   return <section dir={language === "ar" ? "rtl" : "ltr"} className="space-y-5" data-testid="quality-assets-dashboard">
     <header className="relative overflow-hidden rounded-3xl bg-slate-950 p-6 text-white shadow-xl">
@@ -48,9 +80,18 @@ export const QualityAssetsDashboard: React.FC<Props> = ({ language, samples = []
           <h1 className="text-2xl font-black tracking-tight">{c(language, "مركز عمليات المختبر المدني", "Centre des opérations du laboratoire civil", "Civil laboratory operations center")}</h1>
           <p className="mt-2 max-w-3xl text-xs leading-6 text-slate-300">{c(language, "من استقبال العينة وسلسلة الحيازة إلى صلاحية الجهاز واعتماد النتيجة — لوحة واحدة لاتخاذ قرار هندسي قابل للتتبع.", "De la réception de l’échantillon à l’approbation du résultat — un centre unique et traçable.", "From sample intake to result approval — one traceable workspace for engineering release decisions.")}</p>
         </div>
-        <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-[10px] text-slate-300"><Timer size={15} className="text-cyan-300" /> {c(language, "حالة البيانات: محلية وقابلة للمراجعة", "Données locales et auditables", "Local and auditable data")}</div>
+        <div className="flex flex-wrap items-center gap-2"><div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-[10px] text-slate-300"><Timer size={15} className="text-cyan-300" /> {c(language, "حالة البيانات: محلية وقابلة للمراجعة", "Données locales et auditables", "Local and auditable data")}</div><button type="button" onClick={() => openRegistration("sample")} className="inline-flex items-center gap-2 rounded-2xl bg-cyan-400 px-3 py-2 text-[10px] font-black text-slate-950 hover:bg-cyan-300"><Plus size={14} />{c(language, "تسجيل عينة", "Enregistrer un échantillon", "Register sample")}</button></div>
       </div>
     </header>
+
+    {registrationForm && <form onSubmit={submitRegistration} className="rounded-2xl border border-cyan-200 bg-cyan-50 p-4 shadow-sm dark:border-cyan-900/50 dark:bg-cyan-950/20">
+      <div className="mb-3 flex items-center justify-between"><div><h2 className="text-sm font-black text-cyan-950 dark:text-cyan-100">{registrationForm === "sample" ? c(language, "تسجيل عينة جديدة", "Nouvel échantillon", "Register sample") : registrationForm === "device" ? c(language, "تسجيل جهاز مختبر", "Nouvel appareil", "Register device") : c(language, "تسجيل شهادة معايرة", "Nouveau certificat", "Register calibration")}</h2><p className="mt-1 text-[10px] text-cyan-800/70 dark:text-cyan-200/70">{c(language, "تُحفظ العملية داخل المشروع وتظهر في سجل التدقيق.", "L’opération est enregistrée dans le projet et l’audit.", "The operation is saved in the project and audit trail.")}</p></div><button type="button" onClick={closeRegistration} className="rounded-lg p-1 text-cyan-800 hover:bg-cyan-100 dark:text-cyan-200"><X size={17} /></button></div>
+      {registrationForm === "sample" && <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4"><Field label={c(language, "رقم العينة *", "N° échantillon *", "Sample no. *")} value={sampleDraft.sampleNumber} onChange={value => setSampleDraft(prev => ({ ...prev, sampleNumber: value }))} /><Field label={c(language, "معرف المادة", "ID matériau", "Material ID")} value={sampleDraft.materialId} onChange={value => setSampleDraft(prev => ({ ...prev, materialId: value }))} /><Field label={c(language, "رقم الدفعة", "N° lot", "Batch no.")} value={sampleDraft.batchId} onChange={value => setSampleDraft(prev => ({ ...prev, batchId: value }))} /><Field label={c(language, "تاريخ الاستلام *", "Réception *", "Received *")} type="date" value={sampleDraft.receivedAt} onChange={value => setSampleDraft(prev => ({ ...prev, receivedAt: value }))} /><Field label={c(language, "المسؤول عن أخذ العينة", "Préleveur", "Sampled by")} value={sampleDraft.sampledBy} onChange={value => setSampleDraft(prev => ({ ...prev, sampledBy: value }))} /><Field label={c(language, "الكمية", "Quantité", "Quantity")} type="number" value={sampleDraft.quantity} onChange={value => setSampleDraft(prev => ({ ...prev, quantity: value }))} /><Field label={c(language, "الوحدة", "Unité", "Unit")} value={sampleDraft.unit} onChange={value => setSampleDraft(prev => ({ ...prev, unit: value }))} /></div>}
+      {registrationForm === "device" && <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4"><Field label={c(language, "اسم الجهاز *", "Nom *", "Name *")} value={deviceDraft.name} onChange={value => setDeviceDraft(prev => ({ ...prev, name: value }))} /><Field label={c(language, "نوع الجهاز *", "Type *", "Type *")} value={deviceDraft.deviceType} onChange={value => setDeviceDraft(prev => ({ ...prev, deviceType: value }))} /><Field label={c(language, "الرقم التسلسلي", "N° série", "Serial no.")} value={deviceDraft.serialNumber} onChange={value => setDeviceDraft(prev => ({ ...prev, serialNumber: value }))} /><Field label={c(language, "موعد المعايرة", "Échéance", "Calibration due")} type="date" value={deviceDraft.calibrationDueAt} onChange={value => setDeviceDraft(prev => ({ ...prev, calibrationDueAt: value }))} /></div>}
+      {registrationForm === "calibration" && <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5"><label className="text-[10px] font-bold text-cyan-950 dark:text-cyan-100"><span className="mb-1 block">{c(language, "الجهاز *", "Appareil *", "Device *")}</span><select required value={calibrationDraft.deviceId} onChange={event => setCalibrationDraft(prev => ({ ...prev, deviceId: event.target.value }))} className="w-full rounded-xl border border-cyan-200 bg-white px-3 py-2 text-xs dark:border-cyan-800 dark:bg-slate-950"><option value="">{c(language, "اختر الجهاز", "Choisir", "Select")}</option>{devices.map(device => <option key={device.id} value={device.id}>{device.name} · {device.serialNumber || device.id}</option>)}</select></label><Field label={c(language, "رقم الشهادة *", "Certificat *", "Certificate *")} value={calibrationDraft.certificateNumber} onChange={value => setCalibrationDraft(prev => ({ ...prev, certificateNumber: value }))} /><Field label={c(language, "تاريخ المعايرة *", "Date *", "Calibrated *")} type="date" value={calibrationDraft.calibratedAt} onChange={value => setCalibrationDraft(prev => ({ ...prev, calibratedAt: value }))} /><Field label={c(language, "تاريخ الاستحقاق *", "Échéance *", "Due *")} type="date" value={calibrationDraft.dueAt} onChange={value => setCalibrationDraft(prev => ({ ...prev, dueAt: value }))} /><Field label={c(language, "مختبر المعايرة", "Laboratoire", "Calibration lab")} value={calibrationDraft.laboratory} onChange={value => setCalibrationDraft(prev => ({ ...prev, laboratory: value }))} /></div>}
+      {formError && <p className="mt-3 rounded-lg bg-rose-100 px-3 py-2 text-[10px] font-bold text-rose-700">{formError}</p>}
+      <div className="mt-3 flex flex-wrap gap-2"><button type="submit" className="rounded-xl bg-cyan-600 px-4 py-2 text-xs font-black text-white hover:bg-cyan-700">{c(language, "حفظ التسجيل", "Enregistrer", "Save registration")}</button>{registrationForm !== "sample" && <button type="button" onClick={() => openRegistration(registrationForm === "device" ? "sample" : "device")} className="rounded-xl border border-cyan-300 px-4 py-2 text-xs font-black text-cyan-800">{registrationForm === "device" ? c(language, "تسجيل عينة بدلًا من ذلك", "Enregistrer un échantillon", "Register a sample instead") : c(language, "تسجيل جهاز بدلًا من ذلك", "Enregistrer un appareil", "Register a device instead")}</button>}</div>
+    </form>}
 
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
       {[
@@ -66,7 +107,7 @@ export const QualityAssetsDashboard: React.FC<Props> = ({ language, samples = []
     </div>
 
     <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900/70 lg:flex-row lg:items-center lg:justify-between">
-      <div className="flex flex-wrap gap-1">{tabs.map(tab => { const Icon = tab.icon; return <button key={tab.id} type="button" onClick={() => setView(tab.id)} className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-[11px] font-black transition ${view === tab.id ? "bg-indigo-600 text-white shadow" : "text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"}`}><Icon size={15} />{c(language, tab.ar, tab.fr, tab.en)}</button>; })}</div>
+      <div className="flex flex-wrap gap-1">{tabs.map(tab => { const Icon = tab.icon; return <button key={tab.id} type="button" onClick={() => setView(tab.id)} className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-[11px] font-black transition ${view === tab.id ? "bg-indigo-600 text-white shadow" : "text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"}`}><Icon size={15} />{c(language, tab.ar, tab.fr, tab.en)}</button>; })}<button type="button" onClick={() => openRegistration("device")} className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-[11px] font-black text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"><Plus size={15} />{c(language, "جهاز", "Appareil", "Device")}</button><button type="button" onClick={() => openRegistration("calibration")} className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-[11px] font-black text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"><CalendarClock size={15} />{c(language, "معايرة", "Étalonnage", "Calibration")}</button></div>
       {view !== "overview" && <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-950"><Search size={15} className="text-slate-400" /><input value={query} onChange={event => setQuery(event.target.value)} className="w-full bg-transparent text-xs outline-none lg:w-64" placeholder={c(language, "بحث في السجل…", "Rechercher…", "Search register…")} /></label>}
     </div>
 
@@ -87,3 +128,4 @@ export const QualityAssetsDashboard: React.FC<Props> = ({ language, samples = []
 
 const DataSection: React.FC<React.PropsWithChildren<{ title: string }>> = ({ title, children }) => <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900/70"><div className="mb-4 flex items-center gap-2"><FileCheck2 size={18} className="text-indigo-600" /><h2 className="text-sm font-black">{title}</h2></div>{children}</section>;
 const EmptyRow: React.FC<{ colSpan: number; language: Language }> = ({ colSpan, language }) => <tr><td colSpan={colSpan} className="p-10 text-center text-xs text-slate-500">{c(language, "لا توجد سجلات مطابقة.", "Aucun enregistrement correspondant.", "No matching records.")}</td></tr>;
+const Field: React.FC<{ label: string; value: string; onChange: (value: string) => void; type?: string }> = ({ label, value, onChange, type = "text" }) => <label className="text-[10px] font-bold text-cyan-950 dark:text-cyan-100"><span className="mb-1 block">{label}</span><input type={type} value={value} onChange={event => onChange(event.target.value)} className="w-full rounded-xl border border-cyan-200 bg-white px-3 py-2 text-xs outline-none focus:border-cyan-500 dark:border-cyan-800 dark:bg-slate-950" /></label>;

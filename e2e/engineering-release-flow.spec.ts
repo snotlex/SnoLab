@@ -11,7 +11,7 @@ test.describe("engineering release governance flow", () => {
     await page.getByRole("button", { name: /QA\/QC control/i }).click();
     await expect(page.getByTestId("quality-control-dashboard")).toBeVisible();
     await expect(page.getByTestId("quality-control-dashboard")).toContainText("NCR / CAPA");
-    await page.getByRole("button", { name: /Samples & calibration/i }).click();
+    await page.locator('[data-sidebar-item="quality-assets"]').click();
     await expect(page.getByTestId("quality-assets-dashboard")).toBeVisible();
     await page.getByRole("button", { name: /Batch ticket/i }).click();
     await expect(page.getByTestId("production-batch-ticket")).toBeVisible();
@@ -42,9 +42,8 @@ test.describe("engineering release governance flow", () => {
     await page.getByRole("button", { name: /🇺🇸 EN/ }).click();
     await page.getByRole("button", { name: /Start New Project/ }).first().click();
     await page.locator("#workflow-step-btn-3").click();
-    const lifecycle = page.locator('section[aria-label="Mix lifecycle and approval"]');
-    await expect(lifecycle).toBeVisible();
-    await expect(lifecycle.getByRole("button", { name: "Approve mix" })).toBeDisabled();
+    await expect(page.locator("#phase3-input-wizard")).toBeVisible();
+    await expect(page.locator('section[aria-label="Mix lifecycle and approval"]')).toHaveCount(0);
   });
 
   test("exposes revision history and comparison as a governed workspace", async ({ page }) => {

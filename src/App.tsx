@@ -81,6 +81,7 @@ import { MaterialTestRecord, TestApprovalStatus } from "./types/laboratoryTypes"
 import { applyTestToMaterial } from "./services/materialLabSync";
 import { evaluateProductionRelease } from "./services/productionReleaseGate";
 import { can, resolveUserRole, separationOfDuties, UserRole } from "./services/permissions";
+import type { CalibrationRecord, SampleRecord, TestDeviceRecord } from "./types/qualityDomain";
 const RecipeReport = React.lazy(() => import("./components/RecipeReport").then(m => ({ default: m.RecipeReport })));
 const ChemicalDosageMonitor = React.lazy(() => import("./components/ChemicalDosageMonitor").then(m => ({ default: m.ChemicalDosageMonitor })));
 const SieveGradingCurves = React.lazy(() => import("./components/SieveGradingCurves").then(m => ({ default: m.SieveGradingCurves })));
@@ -812,6 +813,39 @@ export default function App() {
 
   const handleDeleteTestRecord = (testId: string) => {
     setMaterialTestRecords(prev => prev.filter(t => t.id !== testId));
+  };
+
+  const updateActiveProjectLabAssets = (patch: Partial<Pick<ActiveProject, "samples" | "testDevices" | "calibrations">>, message: string) => {
+    if (!activeProjectId) return;
+    const now = new Date().toISOString();
+    setProjects(prev => prev.map(project => project.id === activeProjectId ? {
+      ...project,
+      ...patch,
+      auditTrail: {
+        ...project.auditTrail,
+        lastModifiedAt: now,
+        lastModifiedBy: user.uid,
+        revisionHistory: [...(project.auditTrail?.revisionHistory || []), message],
+        events: [...(project.auditTrail?.events || []), { id: `AUD-${Date.now()}`, type: "updated" as const, timestamp: now, actor: user.uid, entityId: project.id, message }]
+      }
+    } : project));
+  };
+
+  const handleAddLabSample = (sample: SampleRecord) => {
+    updateActiveProjectLabAssets({ samples: [sample, ...(activeProject?.samples || [])] }, `Laboratory sample ${sample.sampleNumber} registered.`);
+  };
+
+  const handleAddLabDevice = (device: TestDeviceRecord) => {
+    updateActiveProjectLabAssets({ testDevices: [device, ...(activeProject?.testDevices || [])] }, `Laboratory device ${device.name} registered.`);
+  };
+
+  const handleAddLabCalibration = (calibration: CalibrationRecord) => {
+    const devices = (activeProject?.testDevices || []).map(device => device.id === calibration.deviceId ? {
+      ...device,
+      calibrationStatus: calibration.result === "fail" ? "expired" as const : "valid" as const,
+      calibrationDueAt: calibration.dueAt
+    } : device);
+    updateActiveProjectLabAssets({ calibrations: [calibration, ...(activeProject?.calibrations || [])], testDevices: devices }, `Calibration certificate ${calibration.certificateNumber} registered.`);
   };
 
   const handleExportBackup = () => {
@@ -5176,6 +5210,9 @@ export default function App() {
                 tests={materialTestRecords}
                 devices={activeProject?.testDevices || []}
                 calibrations={activeProject?.calibrations || []}
+                onAddSample={handleAddLabSample}
+                onAddDevice={handleAddLabDevice}
+                onAddCalibration={handleAddLabCalibration}
               />
             )}
             {activeSidebarTab === "versions" && (activeProject || projects.find(project => project.id === activeProjectId)) && (
