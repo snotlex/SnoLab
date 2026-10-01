@@ -631,6 +631,7 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
 
   const handleSaveDraft = () => {
     const now = new Date().toISOString();
+    const readyToRun = Boolean(currentMaterial && compatibility.compatible && getSampleIssues().length === 0 && inputIssues.length === 0);
     const draft: MaterialTestRecord = {
       id: initialDraft?.id || `DRAFT-${currentTestDef.category.toUpperCase().slice(0, 3)}-${Date.now().toString().slice(-6)}`,
       testType: currentTestDef.id,
@@ -651,10 +652,12 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
       standard: currentTestDef.standard,
       inputs: JSON.parse(JSON.stringify(inputsState)),
       results: {},
-      status: "DRAFT",
+      status: readyToRun ? "READY" : "DRAFT",
       approvalStatus: "Draft",
       score: 0,
-      interpretation: language === "ar" ? "مسودة غير منفذة؛ لا توجد نتيجة محسوبة." : language === "fr" ? "Brouillon non exécuté ; aucun résultat calculé." : "Unrun draft; no calculated result.",
+      interpretation: readyToRun
+        ? language === "ar" ? "المدخلات مكتملة وجاهزة للتشغيل؛ لم يتم تنفيذ الحساب بعد." : language === "fr" ? "Les données sont complètes et prêtes à être exécutées ; aucun calcul n'a encore été lancé." : "Inputs are complete and ready to run; calculation has not been executed yet."
+        : language === "ar" ? "مسودة غير منفذة؛ لا توجد نتيجة محسوبة." : language === "fr" ? "Brouillon non exécuté ; aucun résultat calculé." : "Unrun draft; no calculated result.",
       complianceDetails: [],
       notes: notes || undefined,
       syncedToMaterial: false,

@@ -117,8 +117,9 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
     const failed = laboratoryTests.filter(t => t.status === "FAIL").length;
     const blocked = laboratoryTests.filter(t => t.status === "BLOCKED").length;
     const drafts = laboratoryTests.filter(t => t.status === "DRAFT").length;
+    const ready = laboratoryTests.filter(t => t.status === "READY").length;
     const completed = passed + warnings + failed;
-    const pendingReview = laboratoryTests.filter(t => t.status !== "FAIL" && t.status !== "BLOCKED" && t.status !== "DRAFT" && t.approvalStatus !== "Approved" && t.approvalStatus !== "Validated").length;
+    const pendingReview = laboratoryTests.filter(t => t.status !== "FAIL" && t.status !== "BLOCKED" && t.status !== "DRAFT" && t.status !== "READY" && t.approvalStatus !== "Approved" && t.approvalStatus !== "Validated").length;
     const passRate = completed > 0 ? Math.round((passed / completed) * 100) : 0;
 
     // Materials tested
@@ -137,6 +138,7 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
       failed,
       blocked,
       drafts,
+      ready,
       pendingReview,
       passRate,
       testedMaterialsCount,
@@ -277,6 +279,7 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
             { label: labText(language, "كل الاختبارات", "Tous les essais", "All tests"), value: stats.total, detail: labText(language, "سجلات محفوظة", "Résultats archivés", "Archived records"), tone: "text-white" },
             { label: labText(language, "مكتملة", "Terminés", "Completed"), value: stats.completed, detail: labText(language, "نتائج منفذة", "Essais exécutés", "Tests run"), tone: "text-cyan-300" },
             { label: labText(language, "مسودات", "Brouillons", "Drafts"), value: stats.drafts, detail: labText(language, "يمكن استكمالها", "Reprise possible", "Can be resumed"), tone: "text-slate-200" },
+            { label: labText(language, "جاهزة للتشغيل", "Prêts à exécuter", "Ready to run"), value: stats.ready, detail: labText(language, "مدخلات مكتملة", "Données complètes", "Inputs complete"), tone: "text-blue-300" },
             { label: labText(language, "بحاجة إلى مراجعة", "À examiner", "Needs review"), value: stats.pendingReview, detail: labText(language, "لم تعتمد بعد", "Non encore approuvés", "Not approved yet"), tone: "text-amber-300" },
             { label: labText(language, "فاشلة", "Échecs", "Failed"), value: stats.failed, detail: labText(language, "لا تزامن خصائصها", "Aucune synchronisation", "Never sync properties"), tone: "text-rose-300" },
             { label: labText(language, "محظورة", "Bloqués", "Blocked"), value: stats.blocked, detail: labText(language, "مادة غير متوافقة", "Matériau incompatible", "Incompatible material"), tone: "text-orange-300" },
@@ -290,7 +293,7 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
 
       <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900" aria-label={labText(language, "أحدث الاختبارات", "Essais récents", "Latest tests")}>
         <div className="md:col-span-2 xl:col-span-5 flex items-center gap-2"><TrendingUp className="h-4 w-4 text-blue-600" /><h2 className="text-sm font-black">{labText(language, "آخر الاختبارات المنفذة", "Derniers essais exécutés", "Latest tests performed")}</h2></div>
-        {latestTests.length === 0 ? <p className="text-xs text-slate-500 md:col-span-2 xl:col-span-5">{labText(language, "لا توجد نتائج محفوظة بعد.", "Aucun résultat archivé.", "No results have been archived yet.")}</p> : latestTests.map(record => <button key={record.id} type="button" onClick={() => record.status === "DRAFT" ? handleResumeDraft(record) : setSelectedReportRecord(record)} className="min-w-0 rounded-xl border border-slate-100 bg-slate-50 p-3 text-start hover:border-blue-300 dark:border-slate-800 dark:bg-slate-950"><span className="block truncate text-xs font-bold">{language === "ar" ? record.testTitleAr : language === "fr" ? record.testTitleFr : record.testTitleEn}</span><span className="mt-1 block truncate text-[10px] text-slate-500">{record.materialName || labText(language, "مادة غير محددة", "Matériau à choisir", "Material not selected")} · {record.sampleId || "—"}</span><span className="mt-1 block font-mono text-[10px] text-slate-400">{record.date} · {record.status === "DRAFT" ? labText(language, "مسودة", "Brouillon", "Draft") : record.status}</span></button>)}
+        {latestTests.length === 0 ? <p className="text-xs text-slate-500 md:col-span-2 xl:col-span-5">{labText(language, "لا توجد نتائج محفوظة بعد.", "Aucun résultat archivé.", "No results have been archived yet.")}</p> : latestTests.map(record => <button key={record.id} type="button" onClick={() => record.status === "DRAFT" || record.status === "READY" ? handleResumeDraft(record) : setSelectedReportRecord(record)} className="min-w-0 rounded-xl border border-slate-100 bg-slate-50 p-3 text-start hover:border-blue-300 dark:border-slate-800 dark:bg-slate-950"><span className="block truncate text-xs font-bold">{language === "ar" ? record.testTitleAr : language === "fr" ? record.testTitleFr : record.testTitleEn}</span><span className="mt-1 block truncate text-[10px] text-slate-500">{record.materialName || labText(language, "مادة غير محددة", "Matériau à choisir", "Material not selected")} · {record.sampleId || "—"}</span><span className="mt-1 block font-mono text-[10px] text-slate-400">{record.date} · {record.status === "DRAFT" ? labText(language, "مسودة", "Brouillon", "Draft") : record.status === "READY" ? labText(language, "جاهز للتشغيل", "Prêt à exécuter", "Ready to run") : record.status}</span></button>)}
       </section>
 
       {/* 2. Category Selector Bar (6 Main Categories + All) */}
