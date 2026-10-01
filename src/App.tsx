@@ -43,6 +43,7 @@ import { MaterialsIntegrationAudit } from "./components/MaterialsIntegrationAudi
 import { validateCalculationLogic } from "./engine/validationGate";
 import { EngineeringCore, ProjectSession } from "./engine/EngineeringCore";
 import { CalculationValidationGatePanel } from "./components/CalculationValidationGatePanel";
+import { Phase3InputWizard } from "./components/Phase3InputWizard";
 import { CONCRETE_TYPES_CATALOG, getConcreteTypeDetails, CONCRETE_TYPE_CONFIGS } from "./concreteTypes";
 import { LogicalResultsSummary } from "./components/LogicalResultsSummary";
 import { isUserMaterial } from "./engine/suitabilityGate";
@@ -5857,6 +5858,14 @@ export default function App() {
                 </div>
 
                 {/* THE REDESIGNED STEPWISE GRID */}
+                <Phase3InputWizard
+                  inputs={inputs}
+                  results={results}
+                  language={language}
+                  validationGate={validationGate}
+                  specializedInputErrors={specializedInputErrors}
+                  materialsDatabase={materialsDatabase}
+                >
                 <div className="space-y-6" id="calculator-input-cards-grid">
                   
                   {/* STEP 1: PROJECT REQUIREMENTS & SPECS */}
@@ -7791,6 +7800,7 @@ max="0.95"
                   </div>
 
                 </div>
+                </Phase3InputWizard>
 
                 {/* LOGICAL ENGINEERING SEQUENCE RESULTS SUMMARY */}
                 <div className="pt-2 space-y-4">
