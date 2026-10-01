@@ -98,18 +98,25 @@ NODE_ENV=development
 # Required to access /api/admin/* endpoints (generate with: openssl rand -hex 32)
 ADMIN_API_TOKEN=replace_with_a_long_random_token
 
-# Explicit public URL used by activation emails
+# Explicit public URL used by activation emails and phone QR download links
+# Use http://localhost:3000 only for local development; production requires public HTTPS.
 PUBLIC_APP_URL=http://localhost:3000
+
+# HMAC secret for signed report-download tokens (generate with: openssl rand -hex 32)
+REPORT_DOWNLOAD_SECRET=replace_with_a_long_random_secret
+
+# Report-download link lifetime in milliseconds (default: 7 days)
+REPORT_DOWNLOAD_TTL_MS=604800000
 
 # Google Gemini API Key (Secret key used server-side for AI engineering recommendations)
 GEMINI_API_KEY=your_gemini_api_key_here
 ```
 
-*Note: Do not prefix `GEMINI_API_KEY` with `VITE_` as it is kept strictly secure on the Node.js Express server backend.*
+*Note: Do not prefix `GEMINI_API_KEY` with `VITE_` as it is kept strictly secure on the Node.js Express server backend. Never commit real values for `ADMIN_API_TOKEN`, `REPORT_DOWNLOAD_SECRET`, `GEMINI_API_KEY`, SMTP credentials, or any other secret.*
 
 ### Administrative API security
 
-All `/api/admin/*` routes require `Authorization: Bearer <ADMIN_API_TOKEN>`. The server fails closed with `503` when the token is not configured and returns `401` for missing or invalid tokens. Keep the token only in the server environment, never in frontend code or committed files. Set `PUBLIC_APP_URL` in production so activation links do not depend on an untrusted `Host` header.
+All `/api/admin/*` routes require `Authorization: Bearer <ADMIN_API_TOKEN>`. The server fails closed with `503` when the token is not configured and returns `401` for missing or invalid tokens. Keep the token only in the server environment, never in frontend code or committed files. Set `PUBLIC_APP_URL` in production so activation and phone QR links do not depend on an untrusted `Host` header. `REPORT_DOWNLOAD_SECRET` signs QR report links and must remain stable across deployments. `REPORT_DOWNLOAD_TTL_MS` controls their lifetime; `604800000` equals seven days. The QR report endpoint requires HTTPS in production and returns the PDF with `Content-Disposition: attachment`.
 
 ---
 
