@@ -213,6 +213,25 @@ test.describe("SnoLab application smoke flow", () => {
     await expect(page.locator("#specialized-input-hscWaterBinderRatio-error")).toContainText("Value must be ≥ 0.22");
   });
 
+  test("recovers cleanly after correcting an invalid specialized input", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /🇺🇸 EN/ }).click();
+    await page.getByRole("button", { name: /Start New Project/ }).first().click();
+    await page.locator("#workflow-step-btn-3").click();
+    await page.locator("#step1-project-requirements #step1-concrete-type select").selectOption("HSC");
+
+    const ratio = page.locator("#specialized-input-hscWaterBinderRatio");
+    const error = page.locator("#specialized-input-hscWaterBinderRatio-error");
+    await ratio.fill("0.1");
+    await expect(ratio).toHaveAttribute("aria-invalid", "true");
+    await expect(error).toBeVisible();
+
+    await ratio.fill("0.30");
+    await expect(ratio).toHaveValue("0.30");
+    await expect(ratio).toHaveAttribute("aria-invalid", "false");
+    await expect(error).toHaveCount(0);
+  });
+
   test("creates a multi-test laboratory request and adds an independent replicate", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /🇺🇸 EN/ }).click();
