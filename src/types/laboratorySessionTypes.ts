@@ -24,6 +24,17 @@ export type LaboratorySessionTestStatus =
 
 export type LaboratoryReplicateStatus = "EMPTY" | "IN_PROGRESS" | "VALID" | "INVALID" | "EXCLUDED";
 
+export interface LaboratoryCustodyEvent {
+  id: string;
+  action: "COLLECTED" | "HANDED_OVER" | "RECEIVED" | "STORED" | "TRANSFERRED" | "SEALED" | "OPENED";
+  actor: string;
+  timestamp: string;
+  location?: string;
+  condition?: string;
+  notes?: string;
+  attachmentIds?: string[];
+}
+
 export interface LaboratorySessionSample {
   id: string;
   sampleNumber: string;
@@ -35,10 +46,15 @@ export interface LaboratorySessionSample {
   source?: string;
   collectedAt?: string;
   receivedAt?: string;
+  collectedBy?: string;
+  handedOverBy?: string;
+  receivedBy?: string;
+  transportCondition?: string;
   quantity?: { value: number; unit: string };
   conditionOnReceipt?: string;
   storageCondition?: string;
   attachmentIds?: string[];
+  custodyEvents?: LaboratoryCustodyEvent[];
   notes?: string;
 }
 
