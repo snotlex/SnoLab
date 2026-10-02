@@ -79,6 +79,12 @@ export interface MixDesignResult extends LegacyResult {
   };
 
   inputSnapshot: MixDesignInput;
+  inputHash?: string;
+  materialSnapshot?: Record<string, unknown>;
+  calculationTrace?: CalculationTraceStep[];
+  units?: Record<string, string>;
+  usedDefaults?: string[];
+  releaseEligibility?: "eligible" | "trial_mix_required" | "blocked";
 
   quantities: {
     cement?: number;
