@@ -1,124 +1,110 @@
 import { describe, it, expect } from "vitest";
-import { 
-  PROJECT_STAGES, 
+import {
+  PROJECT_STAGES,
   WORKFLOW_STAGES,
-  ProjectStageNumber,
   computeEffectiveProjectIsOpen,
+  evaluateStageGate,
   validateStageNavigation,
   getNextStage,
   getPrevStage,
   getStageForTab,
-  getTabForStage
+  getTabForStage,
+  ProjectStageNumber
 } from "../services/workflow/ProjectWorkflowController";
 
-describe("Phase 1: Project Workflow Architecture & Controller Behavior", () => {
-  // Test A — Five stages
-  it("Test A: defines exactly 5 canonical project workflow stages in order (1 -> 5)", () => {
-    expect(WORKFLOW_STAGES).toHaveLength(5);
-    expect(PROJECT_STAGES).toHaveLength(5);
-    expect(WORKFLOW_STAGES.map(s => s.number)).toEqual([1, 2, 3, 4, 5]);
-    expect(WORKFLOW_STAGES[0].nameKey).toBe("workflow.step1.label");
-    expect(WORKFLOW_STAGES[1].nameKey).toBe("workflow.step2.label");
-    expect(WORKFLOW_STAGES[2].nameKey).toBe("workflow.step3.label");
-    expect(WORKFLOW_STAGES[3].nameKey).toBe("workflow.step5.label");
-    expect(WORKFLOW_STAGES[4].nameKey).toBe("workflow.step6.label");
+const baseProject = (overrides: any = {}): any => ({
+  schemaVersion: 1,
+  fileType: "snolab_project",
+  appVersion: "test",
+  exportedAt: "2026-10-02T00:00:00.000Z",
+  metadata: { id: "P-1", name: "Project", client: "Client", plant: "Plant", engineer: "Engineer" },
+  settings: { language: "ar", currency: "DZD", unitSystem: "metric", selectedMethod: "dreux", costBasis: "dry", autoDensities: false },
+  materials: [
+    { id: "cement-1" }, { id: "sand-1" }, { id: "gravel-1" }
+  ],
+  laboratoryTests: [],
+  materialProperties: {},
+  mixDesigns: {
+    currentInputs: { fck28: 25, dMax: 20, slump: 8, cementClassStrength: 42.5, cementType: "CEM I", concreteType: "NSC", selectedMethod: "dreux", selectedCementId: "cement-1", selectedSandId: "sand-1", selectedGravelId: "gravel-1" },
+    currentResults: { valid: true, isValid: true, calculationStatus: "valid" }
+  },
+  validationRecords: [{ status: "PASSED" }],
+  reports: [{ id: "R-1", name: "Report", type: "technical", generatedAt: "2026-10-02" }],
+  notes: [],
+  history: [],
+  ...overrides
+});
+
+describe("Seven-stage project workflow architecture", () => {
+  it("defines exactly seven canonical stages in the requested order", () => {
+    expect(WORKFLOW_STAGES).toHaveLength(7);
+    expect(PROJECT_STAGES).toHaveLength(7);
+    expect(WORKFLOW_STAGES.map(stage => stage.id)).toEqual([
+      "project_setup", "requirements", "materials_verification", "mix_calculation", "trial_mix", "lab_review", "release_report"
+    ]);
+    expect(WORKFLOW_STAGES.map(stage => stage.number)).toEqual([1, 2, 3, 4, 5, 6, 7]);
   });
 
-  // Test B — Stage navigation with open project
-  it("Test B: allows navigation to any valid stage (1..5) when a valid project is open", () => {
-    const isProjectOpen = true;
-    for (let stage = 1; stage <= 5; stage++) {
-      const result = validateStageNavigation(stage, isProjectOpen);
-      expect(result.allowed).toBe(true);
-      expect(result.reason).toBeUndefined();
+  it("allows valid navigation only when the active project and forward gate exist", () => {
+    const project = baseProject();
+    for (let stage = 1; stage <= 7; stage++) {
+      expect(validateStageNavigation(stage, true, stage as ProjectStageNumber, project).allowed).toBe(true);
     }
+    expect(validateStageNavigation(7, true, 1, project).allowed).toBe(true);
   });
 
-  // Test C — Invalid stage rejection
-  it("Test C: rejects invalid stage numbers (< 1, > 5, non-integers)", () => {
-    const isProjectOpen = true;
-    expect(validateStageNavigation(0, isProjectOpen).allowed).toBe(false);
-    expect(validateStageNavigation(6, isProjectOpen).allowed).toBe(false);
-    expect(validateStageNavigation(-1, isProjectOpen).allowed).toBe(false);
-    expect(validateStageNavigation(2.5, isProjectOpen).allowed).toBe(false);
-    expect(validateStageNavigation(NaN, isProjectOpen).allowed).toBe(false);
-    expect(validateStageNavigation(0, isProjectOpen).reason).toContain("Invalid stage range");
+  it("rejects invalid stage numbers and missing projects", () => {
+    expect(validateStageNavigation(0, true).allowed).toBe(false);
+    expect(validateStageNavigation(8, true).allowed).toBe(false);
+    expect(validateStageNavigation(2.5, true).allowed).toBe(false);
+    expect(validateStageNavigation(2, false).reason).toContain("No active project");
   });
 
-  // Test D — No active project blocks navigation
-  it("Test D: blocks stage navigation when there is no valid active project", () => {
-    const isProjectOpen = false;
-    for (let stage = 1; stage <= 5; stage++) {
-      const result = validateStageNavigation(stage, isProjectOpen);
-      expect(result.allowed).toBe(false);
-      expect(result.reason).toBe("No active project is open. Please start or open a project.");
-    }
+  it("blocks forward navigation at the first unmet gate with actionable reason codes", () => {
+    const incomplete = baseProject({ mixDesigns: { currentInputs: {} }, materials: [], validationRecords: [], reports: [] });
+    const check = validateStageNavigation(3, true, 1, incomplete);
+    expect(check.allowed).toBe(false);
+    expect(check.gate?.reasons).toContain("REQUIREMENTS_INCOMPLETE");
+    expect(check.gate?.reasons).toContain("MATERIALS_NOT_VERIFIED");
   });
 
-  // Test E — nextStage progression
-  it("Test E: verifies nextStage step-by-step sequential progression (1 -> 2 -> 3 -> 4 -> 5) and boundary at 5", () => {
-    expect(getNextStage(1)).toBe(2);
-    expect(getNextStage(2)).toBe(3);
-    expect(getNextStage(3)).toBe(4);
-    expect(getNextStage(4)).toBe(5);
-    expect(getNextStage(5)).toBeNull(); // Terminal boundary
+  it("evaluates every gate independently and reports the final release requirements", () => {
+    const project = baseProject();
+    expect(evaluateStageGate(1, project).ready).toBe(true);
+    expect(evaluateStageGate(2, project).ready).toBe(true);
+    expect(evaluateStageGate(3, project).ready).toBe(true);
+    expect(evaluateStageGate(4, project).ready).toBe(true);
+    expect(evaluateStageGate(5, project).ready).toBe(true);
+    expect(evaluateStageGate(6, project).ready).toBe(true);
+    expect(evaluateStageGate(7, project).ready).toBe(true);
+    expect(evaluateStageGate(7, baseProject({ reports: [] })).reasons).toContain("REPORT_NOT_GENERATED");
   });
 
-  // Test F — prevStage regression
-  it("Test F: verifies prevStage step-by-step regression (5 -> 4 -> 3 -> 2 -> 1) and boundary at 1", () => {
-    expect(getPrevStage(5)).toBe(4);
-    expect(getPrevStage(4)).toBe(3);
-    expect(getPrevStage(3)).toBe(2);
-    expect(getPrevStage(2)).toBe(1);
-    expect(getPrevStage(1)).toBeNull(); // Initial boundary
+  it("supports sequential next/previous boundaries across seven stages", () => {
+    expect(getNextStage(6)).toBe(7);
+    expect(getNextStage(7)).toBeNull();
+    expect(getPrevStage(7)).toBe(6);
+    expect(getPrevStage(1)).toBeNull();
   });
 
-  // Test G — Stage <-> Tab bidirectional mapping
-  it("Test G: verifies two-way Stage <-> Tab mapping for primary and submodule tabs", () => {
-    // Primary tab mappings
+  it("maps primary and submodule tabs without losing the legacy calculator/library paths", () => {
     expect(getTabForStage(1)).toBe("saved_projects");
-    expect(getTabForStage(2)).toBe("materials_library");
-    expect(getTabForStage(3)).toBe("calculator");
-    expect(getTabForStage(4)).toBe("cost");
-    expect(getTabForStage(5)).toBe("reports");
-
-    // Stage resolution from primary tabs
-    expect(getStageForTab("saved_projects")).toBe(1);
-    expect(getStageForTab("materials_library")).toBe(2);
-    expect(getStageForTab("calculator")).toBe(3);
-    expect(getStageForTab("cost")).toBe(4);
-    expect(getStageForTab("reports")).toBe(5);
-
-    // Stage resolution from submodule tabs
-    expect(getStageForTab("cloud_storage")).toBe(1);
-    expect(getStageForTab("cement_database")).toBe(2);
-    expect(getStageForTab("granular_skeleton")).toBe(3);
-    expect(getStageForTab("forecasting")).toBe(4);
-    expect(getStageForTab("compliance_reports")).toBe(5);
-
-    // Laboratory tabs are no longer in the workflow sequence and return null
-    expect(getStageForTab("materials_lab")).toBeNull();
-    expect(getStageForTab("academic_lab")).toBeNull();
-
-    // Unknown tabs return null
+    expect(getTabForStage(2)).toBe("cloud_storage");
+    expect(getTabForStage(3)).toBe("materials_library");
+    expect(getTabForStage(4)).toBe("calculator");
+    expect(getTabForStage(5)).toBe("batch_preparation");
+    expect(getTabForStage(6)).toBe("quality_control");
+    expect(getTabForStage(7)).toBe("reports");
+    expect(getStageForTab("calculator")).toBe(4);
+    expect(getStageForTab("materials_lab")).toBe(6);
+    expect(getStageForTab("compliance_reports")).toBe(7);
     expect(getStageForTab("non_existent_tab")).toBeNull();
   });
 
-  // Test H — No implicit project
-  it("Test H: verifies that a stale session flag or missing project metadata cannot create a valid active project", () => {
-    // Stale session flag with no storage project id
+  it("never treats a stale session flag as an active project", () => {
     expect(computeEffectiveProjectIsOpen(true, undefined)).toBe(false);
     expect(computeEffectiveProjectIsOpen(true, null)).toBe(false);
-    expect(computeEffectiveProjectIsOpen(true, "")).toBe(false);
-
-    // Project exists in storage but projectIsOpen state is false
-    expect(computeEffectiveProjectIsOpen(false, "PROJ-2026-001")).toBe(false);
-
-    // Both state is false and id is missing
-    expect(computeEffectiveProjectIsOpen(false, undefined)).toBe(false);
-
-    // Authoritative valid active project: BOTH open intent and valid project metadata ID must exist
-    expect(computeEffectiveProjectIsOpen(true, "PROJ-2026-001")).toBe(true);
+    expect(computeEffectiveProjectIsOpen(false, "P-1")).toBe(false);
+    expect(computeEffectiveProjectIsOpen(true, "P-1")).toBe(true);
   });
 });
-

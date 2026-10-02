@@ -153,5 +153,19 @@
   "calculator.controlStandard": "Standard (Niveau Atelier)",
   "calculator.aggRounded": "Roulé de rivière (Roulé)",
   "calculator.aggCrushed": "Calcaire concassé (Concassé)",
-  "calculator.total": "Total :"
+  "calculator.total": "Total :",
+  "workflow.stage1.label": "Configuration du projet",
+  "workflow.stage1.desc": "Identité, client et site",
+  "workflow.stage2.label": "Exigences",
+  "workflow.stage2.desc": "Résistance, affaissement et critères",
+  "workflow.stage3.label": "Vérification des matériaux",
+  "workflow.stage3.desc": "Constituants sélectionnés et traçables",
+  "workflow.stage4.label": "Calcul du mélange",
+  "workflow.stage4.desc": "Calcul et traçabilité d’ingénierie",
+  "workflow.stage5.label": "Gâchée d’essai",
+  "workflow.stage5.desc": "Préparation et enregistrement",
+  "workflow.stage6.label": "Revue laboratoire",
+  "workflow.stage6.desc": "Essais, revue et approbation",
+  "workflow.stage7.label": "Émission et rapport",
+  "workflow.stage7.desc": "Rapport final et libération"
 }
