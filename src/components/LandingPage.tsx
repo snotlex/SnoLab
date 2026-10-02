@@ -699,7 +699,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
             {content.howItWorks.steps.map((st, idx) => (
               <div key={idx} className={`relative flex flex-col space-y-4 z-10 ${isRtl ? "text-right" : "text-left"}`}>
-                <span className="h-12 w-12 bg-blue-600 text-white font-extrabold text-sm flex items-center justify-center rounded-xl shadow-lg font-mono">
+                <span className="h-12 w-12 bg-[#C7F43A] text-[#0A0F15] font-extrabold text-sm flex items-center justify-center rounded-xl shadow-[0_8px_22px_rgba(199,244,58,0.18)] font-mono">
                   {st.num}
                 </span>
                 
@@ -741,7 +741,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   key={idx} 
                   className={`bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-sm space-y-3 flex flex-col justify-between ${isRtl ? "text-right" : "text-left"}`}
                 >
-                  <div className="p-2.5 bg-blue-500/10 text-blue-500 rounded-lg self-start">
+                    <div className="p-2.5 bg-[#C7F43A]/10 text-[#77931a] dark:text-[#C7F43A] rounded-lg self-start border border-[#C7F43A]/15">
                     <SComp size={18} />
                   </div>
 
@@ -764,8 +764,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       {/* 6. CALL TO ACTION (CTA) SECTION */}
       <section className="py-16 md:py-24 relative overflow-hidden" id="sno-cta-section">
         {/* Glow decoration */}
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-600/10 via-indigo-600/5 to-transparent dark:from-blue-600/20 pointer-events-none"></div>
-        <div className="absolute bottom-0 right-1/2 translate-x-1/2 w-96 h-48 bg-blue-500/10 dark:bg-blue-500/15 blur-[60px] rounded-full pointer-events-none"></div>
+        <div className="absolute inset-0 bg-gradient-to-br from-[#C7F43A]/10 via-emerald-500/5 to-transparent dark:from-[#C7F43A]/12 pointer-events-none"></div>
+        <div className="absolute bottom-0 right-1/2 translate-x-1/2 w-96 h-48 bg-[#C7F43A]/10 dark:bg-[#C7F43A]/12 blur-[60px] rounded-full pointer-events-none"></div>
 
         <div className="max-w-4xl mx-auto px-4 md:px-8 text-center relative z-10 space-y-6">
           <motion.div
@@ -784,7 +784,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             <div className="pt-2">
               <button
                 onClick={onStartProject}
-                className="bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-sm md:text-base px-8 py-3.5 rounded-xl shadow-2xl shadow-blue-500/20 active:scale-95 transition-all inline-flex items-center gap-2 cursor-pointer"
+                className="bg-[#C7F43A] hover:bg-[#D8FB71] text-[#0A0F15] font-extrabold text-sm md:text-base px-8 py-3.5 rounded-xl shadow-2xl shadow-[#C7F43A]/20 active:scale-95 transition-all inline-flex items-center gap-2 cursor-pointer"
               >
                 <span>{tLanding(content.ctaSection.btn)}</span>
                 {isRtl ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
