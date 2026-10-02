@@ -544,7 +544,7 @@ export function calculateHscHpcMix(
         formula: type === "HSC"
           ? "W/B = clamp(0.34 - 0.0025·max(fck-50,0), 0.24, 0.34)"
           : "W/B = clamp(0.36 - 0.002·max(fck-45,0), 0.26, 0.36)",
-        inputs: { fck, requestedWb },
+      inputs: { fck, requestedWb: Number.isFinite(requestedWb) ? requestedWb : null },
         output: wb,
         unit: "-"
       },
