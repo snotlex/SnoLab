@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createLaboratorySession, addSessionSample, addSessionTest, addTestReplicate, approveLaboratorySession, buildLaboratorySessionSyncPlan, canApproveLaboratorySession, findLaboratorySessionSyncConflicts, legacyRecordToLaboratorySession, runReadyLaboratoryTests, summarizeLaboratorySession, summarizeReplicates, validateLaboratorySession } from "../services/laboratorySessionService";
+import { createLaboratorySession, addSessionSample, addSessionTest, addTestReplicate, approveLaboratorySession, buildLaboratorySessionSyncPlan, canApproveLaboratorySession, findLaboratorySessionSyncConflicts, legacyRecordToLaboratorySession, recordSampleCustodyEvent, runReadyLaboratoryTests, summarizeLaboratorySession, summarizeReplicates, validateLaboratorySession } from "../services/laboratorySessionService";
 import type { MaterialTestRecord } from "../types/laboratoryTypes";
 
 describe("Laboratory multi-test session service", () => {
@@ -88,6 +88,21 @@ describe("Laboratory multi-test session service", () => {
     session = addSessionTest(session, { testType: "T-INCOMPLETE", testTitleAr: "ناقص", testTitleFr: "Incomplet", testTitleEn: "Incomplete", standard: "Internal", materialId: "MAT-SAND", sampleId: session.samples[0].id, status: "PASS" });
     expect(summarizeLaboratorySession(session).status).toBe("PARTIALLY_COMPLETED");
     expect(summarizeLaboratorySession(session).status).not.toBe("COMPLETED");
+  });
+
+  it("records append-only custody events with actor, location, condition and attachments", () => {
+    let session = addSessionSample(createLaboratorySession({ requestNumber: "LAB-CUSTODY-1" }), baseSample, "collector");
+    const sampleId = session.samples[0].id;
+    session = recordSampleCustodyEvent(session, sampleId, {
+      action: "HANDED_OVER", actor: "collector", timestamp: "2026-10-01T08:00:00.000Z",
+      location: "Site A", condition: "Sealed and intact", attachmentIds: ["photo-1"], notes: "Transferred to courier"
+    });
+    session = recordSampleCustodyEvent(session, sampleId, {
+      action: "RECEIVED", actor: "lab-tech", timestamp: "2026-10-01T10:00:00.000Z", location: "Lab A", condition: "Sealed"
+    });
+    expect(session.samples[0].custodyEvents).toHaveLength(2);
+    expect(session.samples[0].custodyEvents?.[0]).toMatchObject({ action: "HANDED_OVER", location: "Site A", attachmentIds: ["photo-1"] });
+    expect(session.auditLog.filter(entry => entry.action === "CUSTODY_EVENT_RECORDED")).toHaveLength(2);
   });
 
   it("requires completed valid tests before approval and exposes a traceable sync plan", () => {

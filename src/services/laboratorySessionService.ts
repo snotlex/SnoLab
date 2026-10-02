@@ -11,6 +11,7 @@ import {
   LaboratorySessionSyncPlanItem,
   LaboratorySessionTestItem,
   LaboratorySessionTestStatus,
+  LaboratoryCustodyEvent,
   LaboratorySessionValidationResult,
   SessionRunResult,
   SessionTestRunner,
@@ -72,7 +73,13 @@ export function addSessionSample(session: LaboratorySession, sample: Omit<Labora
   if (session.samples.some(item => item.sampleNumber === number || item.sampleCode === code)) {
     throw new Error(`Duplicate sample number or code: ${number}/${code}`);
   }
-  const created = { ...sample, id: id("SMP"), sampleNumber: number, sampleCode: code };
+  const created = {
+    ...sample,
+    id: id("SMP"),
+    sampleNumber: number,
+    sampleCode: code,
+    custodyEvents: sample.custodyEvents ? [...sample.custodyEvents] : []
+  };
   const next = {
     ...session,
     samples: [...session.samples, created],
@@ -80,6 +87,25 @@ export function addSessionSample(session: LaboratorySession, sample: Omit<Labora
     status: session.status === "DRAFT" ? "IN_PROGRESS" as LaboratoryRequestStatus : session.status
   };
   return touch(next, audit("SAMPLE_ADDED", "sample", created.id, actor, undefined, created));
+}
+
+export function recordSampleCustodyEvent(
+  session: LaboratorySession,
+  sampleId: string,
+  event: Omit<LaboratoryCustodyEvent, "id">,
+  actor = event.actor
+): LaboratorySession {
+  const sample = session.samples.find(item => item.id === sampleId);
+  if (!sample) throw new Error(`Unknown sample: ${sampleId}`);
+  if (!event.action || !event.timestamp || !actor) throw new Error("Custody action, timestamp, and actor are required.");
+  const createdEvent: LaboratoryCustodyEvent = { ...event, actor, id: id("CUST") };
+  const samples = session.samples.map(item => item.id === sampleId
+    ? { ...item, custodyEvents: [...(item.custodyEvents || []), createdEvent] }
+    : item);
+  return touch(
+    { ...session, samples },
+    audit("CUSTODY_EVENT_RECORDED", "sample", sampleId, actor, event.notes, undefined, createdEvent)
+  );
 }
 
 export function addSessionTest(
