@@ -153,5 +153,19 @@
   "calculator.controlStandard": "Standard (Workshop Level)",
   "calculator.aggRounded": "Rounded Riverbed Gravel (Roulé)",
   "calculator.aggCrushed": "Crushed Quarry Limestone (Concassé)",
-  "calculator.total": "Total:"
+  "calculator.total": "Total:",
+  "workflow.stage1.label": "Project Setup",
+  "workflow.stage1.desc": "Identity, client and site",
+  "workflow.stage2.label": "Requirements",
+  "workflow.stage2.desc": "Strength, slump and design criteria",
+  "workflow.stage3.label": "Materials Verification",
+  "workflow.stage3.desc": "Selected, traceable constituents",
+  "workflow.stage4.label": "Mix Calculation",
+  "workflow.stage4.desc": "Engineering calculation and trace",
+  "workflow.stage5.label": "Trial Mix",
+  "workflow.stage5.desc": "Batch preparation and recording",
+  "workflow.stage6.label": "Lab Review",
+  "workflow.stage6.desc": "Testing, review and approval",
+  "workflow.stage7.label": "Release / Report",
+  "workflow.stage7.desc": "Final report and release gate"
 }

@@ -1519,20 +1519,15 @@ export default function App() {
     }
   }, [workflow.projectIsOpen, storageProject?.metadata?.id]);
 
-  // Synchronize sidebar tabs with central 6-stage ProjectWorkflowController
+  // Synchronize sidebar tabs with the canonical seven-stage ProjectWorkflowController
   useEffect(() => {
     workflow.syncStageWithTab(activeSidebarTab);
   }, [activeSidebarTab, workflow]);
 
-  // Single Source of Truth for current project stage (1..6)
+  // Single Source of Truth for current project stage (1..7)
   const activeStep = workflow.currentStage;
 
   const handleStepClick = (stepNum: number) => {
-    if (engineeringGate.isBlocked && stepNum > 3) {
-      setActiveSidebarTab("calculator");
-      workflow.goToStage(3);
-      return;
-    }
     const success = workflow.goToStage(stepNum as ProjectStageNumber);
     if (success) {
       const targetTab = workflow.getTabForStage(stepNum as ProjectStageNumber);
@@ -3834,13 +3829,26 @@ export default function App() {
               projectIsOpen={workflow.projectIsOpen}
               stageName={t(workflow.activeStageInfo.nameKey)}
               stageDescription={t(workflow.activeStageInfo.descKey)}
-              steps={[
-                { num: 1, label: t("workflow.step1.label"), desc: t("workflow.step1.desc"), icon: Folder },
-                { num: 2, label: t("workflow.step2.label"), desc: t("workflow.step2.desc"), icon: Database },
-                { num: 3, label: t("workflow.step3.label"), desc: t("workflow.step3.desc"), icon: Calculator },
-                { num: 4, label: t("workflow.step5.label"), desc: t("workflow.step5.desc"), icon: TrendingUp },
-                { num: 5, label: t("workflow.step6.label"), desc: t("workflow.step6.desc"), icon: FileText },
-              ]}
+              steps={workflow.allStages.map(stage => {
+                const gate = workflow.getStageGate(stage.number);
+                const icons = {
+                  project_setup: Folder,
+                  requirements: Briefcase,
+                  materials_verification: Database,
+                  mix_calculation: Calculator,
+                  trial_mix: FlaskConical,
+                  lab_review: ShieldCheck,
+                  release_report: FileText,
+                } as Record<string, typeof Folder>;
+                return {
+                  num: stage.number,
+                  label: t(stage.nameKey),
+                  desc: t(stage.descKey),
+                  icon: icons[stage.id] || Folder,
+                  ready: gate.ready,
+                  gateReason: gate.reasons.join(", "),
+                };
+              })}
               onStepClick={handleStepClick}
               onCloseProject={async () => { await workflow.closeProject(); setViewMode("landing"); }}
               onPrevious={() => handleStepClick((activeStep - 1) as ProjectStageNumber)}

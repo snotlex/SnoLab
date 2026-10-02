@@ -153,5 +153,19 @@
   "calculator.controlStandard": "عادية ورشة عمل",
   "calculator.aggRounded": "أملس وديان (Roulé)",
   "calculator.aggCrushed": "مكسر كلسي (Concassé)",
-  "calculator.total": "إجمالي:"
+  "calculator.total": "إجمالي:",
+  "workflow.stage1.label": "إعداد المشروع",
+  "workflow.stage1.desc": "الهوية والعميل والموقع",
+  "workflow.stage2.label": "المتطلبات",
+  "workflow.stage2.desc": "المقاومة والهبوط ومعايير التصميم",
+  "workflow.stage3.label": "تحقق المواد",
+  "workflow.stage3.desc": "مواد مختارة وقابلة للتدقيق",
+  "workflow.stage4.label": "حساب الخلطة",
+  "workflow.stage4.desc": "الحساب والتتبّع الهندسي",
+  "workflow.stage5.label": "الخلطة التجريبية",
+  "workflow.stage5.desc": "تحضير الدفعة وتسجيل النتائج",
+  "workflow.stage6.label": "مراجعة المختبر",
+  "workflow.stage6.desc": "اختبارات ومراجعة واعتماد",
+  "workflow.stage7.label": "الإصدار والتقرير",
+  "workflow.stage7.desc": "التقرير النهائي وبوابة الإصدار"
 }
