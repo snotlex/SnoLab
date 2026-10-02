@@ -106,6 +106,7 @@ const ReportCompliance = React.lazy(() => import("./components/ReportCompliance"
 const ReportThermalAnalysis = React.lazy(() => import("./components/ReportThermalAnalysis").then(m => ({ default: m.ReportThermalAnalysis })));
 import { WorkspaceWorkflowHeader } from "./components/WorkspaceWorkflowHeader";
 import { WorkspaceTopBar } from "./components/WorkspaceTopBar";
+import { WorkspaceLayout } from "./components/WorkspaceLayout";
 import {
   ResponsiveContainer,
   PieChart as RechartsPieChart,
@@ -3774,9 +3775,7 @@ export default function App() {
       />
 
       {/* PRIMARY CONTAINER BLOCK WITH SIDEBAR & ACTIVE AREA */}
-      <div className="max-w-7xl mx-auto px-4 md:px-6 py-6" id="mixwizard-primary-container">
-
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      <WorkspaceLayout isSidebarCollapsed={isSidebarCollapsed}>
 
           <SidebarShell
             language={language as "ar" | "fr" | "en"}
@@ -7696,8 +7695,7 @@ max="0.95"
             </>
             )}
           </main>
-        </div>
-      </div>
+      </WorkspaceLayout>
 
       {/* Modals & Dialogs */}
       <BatchMaterialPropertiesModal
