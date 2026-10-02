@@ -109,6 +109,7 @@ import { WorkspaceTopBar } from "./components/WorkspaceTopBar";
 import { WorkspaceLayout } from "./components/WorkspaceLayout";
 import { WorkspaceEmptyState } from "./components/WorkspaceEmptyState";
 import { EngineeringVerificationGate } from "./components/EngineeringVerificationGate";
+import { CalculatorScreenFrame } from "./components/CalculatorScreenFrame";
 import {
   ResponsiveContainer,
   PieChart as RechartsPieChart,
@@ -4570,7 +4571,7 @@ export default function App() {
 
             {/* TAB CONTENT: 2. CALCULATOR WITH CARDS */}
             {activeSidebarTab === "calculator" && (
-              <div className="space-y-6 animate-fade-in" id="mixwizard-calculator-screen">
+              <CalculatorScreenFrame language={language as "ar" | "fr" | "en"} isRtl={isRtl}>
 
                 {/* HEAD DETAILS WITH CUSTOM AREA & VOLUME ESTIMATION CONTROLS */}
                 <div className="bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm flex flex-col gap-5 text-right">
@@ -6785,7 +6786,7 @@ max="0.95"
                 </div>
 
                 </div>
-              </div>
+            </CalculatorScreenFrame>
             )}
 
 
