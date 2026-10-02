@@ -73,9 +73,9 @@ export function getDefaultMixInputs(): MixDesignInput {
     areaM2: 10,
     thicknessCm: 10,
     volumeInputMode: "volume",
-    selectedCementId: "CEM-001",
-    selectedSandId: "SAND-001",
-    selectedGravelId: "GRAVEL-001",
+    selectedCementId: "SYS-CEM-001",
+    selectedSandId: "SYS-SND-001",
+    selectedGravelId: "SYS-GRA-001",
     selectedWaterId: "WATER-001"
   };
 }

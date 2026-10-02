@@ -108,6 +108,7 @@ import { WorkspaceWorkflowHeader } from "./components/WorkspaceWorkflowHeader";
 import { WorkspaceTopBar } from "./components/WorkspaceTopBar";
 import { WorkspaceLayout } from "./components/WorkspaceLayout";
 import { WorkspaceEmptyState } from "./components/WorkspaceEmptyState";
+import { ProjectRequirementsPanel } from "./components/ProjectRequirementsPanel";
 import type { OnboardingRole } from "./services/workflow/onboarding";
 import { EngineeringVerificationGate } from "./components/EngineeringVerificationGate";
 import { CalculatorScreenFrame } from "./components/CalculatorScreenFrame";
@@ -1519,11 +1520,6 @@ export default function App() {
     }
   }, [workflow.projectIsOpen, storageProject?.metadata?.id]);
 
-  // Synchronize sidebar tabs with the canonical seven-stage ProjectWorkflowController
-  useEffect(() => {
-    workflow.syncStageWithTab(activeSidebarTab);
-  }, [activeSidebarTab, workflow]);
-
   // Single Source of Truth for current project stage (1..7)
   const activeStep = workflow.currentStage;
 
@@ -1533,6 +1529,14 @@ export default function App() {
       const targetTab = workflow.getTabForStage(stepNum as ProjectStageNumber);
       setActiveSidebarTab(targetTab);
     }
+  };
+
+  const handleRequirementsInputChange = (patch: Partial<MixDesignInput>) => {
+    setInputs(prev => {
+      const next = { ...prev, ...patch };
+      updateProjectMixInputs(next);
+      return next;
+    });
   };
 
   const [newProjName, setNewProjName] = useState("");
@@ -3813,6 +3817,7 @@ export default function App() {
               }
               setViewMode("workspace");
               setActiveSidebarTab(target as typeof activeSidebarTab);
+              workflow.syncStageWithTab(target);
             }}
           />
 
@@ -4532,12 +4537,24 @@ export default function App() {
         )}
 
             {/* TAB CONTENT: SAVED PROJECTS & LOCAL STORAGE VAULT */}
-            {(activeSidebarTab === "saved_projects" || activeSidebarTab === "cloud_storage") && (
+            {activeSidebarTab === "saved_projects" && (
               <LocalProjectVault
                 onLoadMixToCalculator={(loadedInputs) => {
                   setInputs(loadedInputs);
                   setActiveSidebarTab("calculator");
                 }}
+              />
+            )}
+
+            {/* TAB CONTENT: PROJECT REQUIREMENTS GATE */}
+            {activeSidebarTab === "cloud_storage" && (
+              <ProjectRequirementsPanel
+                language={language as "ar" | "fr" | "en"}
+                metadata={workflow.activeProjectMeta}
+                inputs={inputs}
+                onMetadataChange={updateProjectMetadata}
+                onInputsChange={handleRequirementsInputChange}
+                onContinue={() => handleStepClick(3)}
               />
             )}
 
