@@ -118,6 +118,7 @@ import { DesignMethodStructuralSelector } from "./components/DesignMethodStructu
 import { BasicMixConditionsFields } from "./components/BasicMixConditionsFields";
 import { SpecializedConcreteInputs } from "./components/SpecializedConcreteInputs";
 import { CementSelectionCard } from "./components/CementSelectionCard";
+import { SandSelectionCard } from "./components/SandSelectionCard";
 import {
   ResponsiveContainer,
   PieChart as RechartsPieChart,
@@ -5013,85 +5014,38 @@ export default function App() {
                               />
                             )}
 
-                            {/* Sand Selection */}
                             {isSandAllowed && (
-                              <div className="p-3 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-slate-200/40 dark:border-slate-800 space-y-2.5">
-                                <div className="text-xs font-black text-slate-800 dark:text-white border-b border-slate-200/50 dark:border-slate-800 pb-1 flex items-center gap-1">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-yellow-500"></span>
-                                  <span>{t("sand_calibration")}</span>
-                                </div>
-                                <div>
-                                  <label className="text-[10px] text-slate-500 block mb-1">{t("sand_types_available")}</label>
-                                  <select
-                                    value={inputs.selectedSandId || ""}
-                                    onChange={(e) => {
-                                      const selectedId = e.target.value;
-                                      if (!selectedId) {
-                                        setInputs(prev => ({
-                                          ...prev,
-                                          selectedSandId: "",
-                                          sandType: "",
-                                          sandRelativeDensity: 0,
-                                          priceSand: 0,
-                                          sandAbsorption: 0,
-                                          moistureSand: 0,
-                                          finenessModulus: 0
-                                        }));
-                                        return;
-                                      }
-                                      const validation = validateMaterialSelection(selectedId, materialsDatabase, currentMethod, currentConcrete, activeProject);
-                                      if (!validation.isValid) {
-                                        alert(language === "ar" ? validation.errorAr : validation.errorEn);
-                                        return;
-                                      }
-                                      const matchedMat = validation.material;
-                                      const dens = matchedMat?.density ?? matchedMat?.specificGravity;
-                                      const price = matchedMat?.price;
-                                      const abs = matchedMat?.absorption;
-                                      const moist = matchedMat?.moisture;
-                                      if (!matchedMat || typeof dens !== "number" || !Number.isFinite(dens) || dens <= 0 || typeof abs !== "number" || !Number.isFinite(abs) || abs < 0 || typeof moist !== "number" || !Number.isFinite(moist) || moist < 0 || typeof matchedMat.finenessModulus !== "number" || !Number.isFinite(matchedMat.finenessModulus)) {
-                                        alert(language === "ar" ? "لا يمكن اختيار هذا الرمل: الكثافة والامتصاص والرطوبة ومعامل النعومة يجب أن تكون مسجلة في مكتبة المواد." : "This sand cannot be selected: density, absorption, moisture, and fineness modulus must be recorded in the material library.");
-                                        return;
-                                      }
-                                      setInputs(prev => ({
-                                        ...prev,
-                                        sandType: matchedMat ? matchedMat.name : prev.sandType,
-                                        sandRelativeDensity: dens,
-                                        ...(price !== undefined ? { priceSand: price } : {}),
-                                        sandAbsorption: abs,
-                                        moistureSand: moist,
-                                        finenessModulus: matchedMat?.finenessModulus || prev.finenessModulus,
-                                        selectedSandId: selectedId
-                                      }));
-                                      if (matchedMat) {
-                                        setSelectedMaterialForInfo(matchedMat.name);
-                                      }
-                                    }}
-                                    className="w-full text-xs p-2 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-white font-semibold cursor-pointer"
-                                  >
-                                    <option value="">{language === "ar" ? "اختر مادة من المستودع (المعتمدة فقط)" : language === "fr" ? "Choisir un sable approuvé" : "Select approved sand"}</option>
-                                    {sandList.map(m => (
-                                      <option key={m.id} value={m.id} className={isUserMaterial(m) ? "text-emerald-600 font-semibold" : "text-blue-600"}>
-                                        {getMaterialOptionLabel(m)}
-                                      </option>
-                                    ))}
-                                  </select>
-                                  {renderMaterialSourceBadge(inputs.selectedSandId)}
-                                </div>
-                                <p className="text-[9px] text-slate-400 font-sans leading-normal">
-                                  {t("sand_influence_tip")}
-                                </p>
-                                {sandList.length === 0 && (
-                                  <div className="mt-2 p-2 bg-amber-500/10 border border-amber-500/20 rounded-lg text-[10px] text-amber-700 dark:text-amber-300 font-bold">
-                                    ⚠️ {language === "ar" ? "لا توجد مواد رمال مسجلة في المستودع." : "No sand materials in repository."}
-                                  </div>
-                                )}
-                                {sandList.length > 0 && !inputs.selectedSandId && (
-                                  <div className="mt-1.5 p-1.5 bg-amber-500/5 border border-amber-500/15 rounded text-[10px] text-amber-600 dark:text-amber-400 font-semibold">
-                                    ⚠️ {language === "ar" ? "الرجاء اختيار الرمل المعتمد من القائمة." : "Please select approved sand."}
-                                  </div>
-                                )}
-                              </div>
+                              <SandSelectionCard
+                                language={language as "ar" | "fr" | "en"}
+                                translate={t}
+                                materials={sandList}
+                                selectedId={inputs.selectedSandId}
+                                materialOptionLabel={getMaterialOptionLabel}
+                                isUserMaterial={isUserMaterial}
+                                materialBadge={renderMaterialSourceBadge(inputs.selectedSandId)}
+                                onSelect={(selectedId) => {
+                                  if (!selectedId) {
+                                    setInputs(prev => ({ ...prev, selectedSandId: "", sandType: "", sandRelativeDensity: 0, priceSand: 0, sandAbsorption: 0, moistureSand: 0, finenessModulus: 0 }));
+                                    return;
+                                  }
+                                  const validation = validateMaterialSelection(selectedId, materialsDatabase, currentMethod, currentConcrete, activeProject);
+                                  if (!validation.isValid) {
+                                    alert(language === "ar" ? validation.errorAr : validation.errorEn);
+                                    return;
+                                  }
+                                  const matchedMat = validation.material;
+                                  const dens = matchedMat?.density ?? matchedMat?.specificGravity;
+                                  const price = matchedMat?.price;
+                                  const abs = matchedMat?.absorption;
+                                  const moist = matchedMat?.moisture;
+                                  if (!matchedMat || typeof dens !== "number" || !Number.isFinite(dens) || dens <= 0 || typeof abs !== "number" || !Number.isFinite(abs) || abs < 0 || typeof moist !== "number" || !Number.isFinite(moist) || moist < 0 || typeof matchedMat.finenessModulus !== "number" || !Number.isFinite(matchedMat.finenessModulus)) {
+                                    alert(language === "ar" ? "لا يمكن اختيار هذا الرمل: الكثافة والامتصاص والرطوبة ومعامل النعومة يجب أن تكون مسجلة في مكتبة المواد." : "This sand cannot be selected: density, absorption, moisture, and fineness modulus must be recorded in the material library.");
+                                    return;
+                                  }
+                                  setInputs(prev => ({ ...prev, sandType: matchedMat.name, sandRelativeDensity: dens, ...(price !== undefined ? { priceSand: price } : {}), sandAbsorption: abs, moistureSand: moist, finenessModulus: matchedMat.finenessModulus || prev.finenessModulus, selectedSandId: selectedId }));
+                                  setSelectedMaterialForInfo(matchedMat.name);
+                                }}
+                              />
                             )}
 
                             {/* Coarse aggregates */}
