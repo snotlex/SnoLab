@@ -122,6 +122,7 @@ import { SandSelectionCard } from "./components/SandSelectionCard";
 import { GravelSelectionCard } from "./components/GravelSelectionCard";
 import { WaterSelectionCard } from "./components/WaterSelectionCard";
 import { ChemicalAdmixtureSelectionCard } from "./components/ChemicalAdmixtureSelectionCard";
+import { MineralAdditionSelectionCard } from "./components/MineralAdditionSelectionCard";
 import {
   ResponsiveContainer,
   PieChart as RechartsPieChart,
@@ -5181,84 +5182,42 @@ export default function App() {
                                   />
                                 )}
 
-                                {/* Mineral Admixtures (SCM) & Fillers Selection */}
                                 {isScmAllowed && (
-                                  <div className="p-3 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-slate-200/40 dark:border-slate-800 space-y-2.5">
-                                    <div className="text-xs font-black text-slate-800 dark:text-white border-b border-slate-200/50 dark:border-slate-800 pb-1 flex items-center gap-1">
-                                      <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
-                                      <span>{language === "ar" ? "الإضافات المعدنية والمالئة:" : language === "fr" ? "Additions minérales & Fillers :" : "Mineral Additions & Fillers:"}</span>
-                                    </div>
-                                    <div>
-                                      <label className="text-[10px] text-slate-500 block mb-1">
-                                        {language === "ar" ? "المحسنات الميتالوجية والمالئة المعتمدة" : language === "fr" ? "Additions approuvées" : "Approved SCMs & fillers"}
-                                      </label>
-                                      <select
-                                        value={inputs.selectedScmId || ""}
-                                        onChange={(e) => {
-                                          const selectedId = e.target.value;
-                                          if (!selectedId) {
-                                            setInputs(prev => ({
-                                              ...prev,
-                                              selectedScmId: "",
-                                              selectedScmName: "",
-                                              selectedScmDensity: undefined,
-                                              dosageSilicaFume: 0,
-                                              dosageFlyAsh: 0,
-                                              dosageSlag: 0
-                                            }));
-                                            return;
-                                          }
-                                          const validation = validateMaterialSelection(selectedId, materialsDatabase, currentMethod, currentConcrete, activeProject);
-                                          if (!validation.isValid) {
-                                            alert(language === "ar" ? validation.errorAr : validation.errorEn);
-                                            return;
-                                          }
-                                          const matchedMat = validation.material;
-                                          if (matchedMat) {
-                                            const dens = matchedMat.density;
-                                            const recDos = matchedMat.recommendedDosage;
-                                            if (typeof dens !== "number" || !Number.isFinite(dens) || dens <= 0 || typeof recDos !== "number" || !Number.isFinite(recDos) || recDos <= 0) {
-                                              alert(language === "ar" ? "لا يمكن اختيار هذه المادة: الكثافة والجرعة الموصى بها يجب أن تكونا مسجلتين في مكتبة المواد." : "This material cannot be selected: density and recommended dosage must be recorded in the material library.");
-                                              return;
-                                            }
-                                            const price = matchedMat.price;
-
-                                            const scmNameLower = (matchedMat.name || "").toLowerCase();
-                                            const scmEngLower = (matchedMat.englishName || "").toLowerCase();
-
-                                            let isSilica = scmNameLower.includes("سيليكا") || scmEngLower.includes("silica");
-                                            let isFlyAsh = scmNameLower.includes("رماد") || scmEngLower.includes("fly ash") || scmEngLower.includes("fly_ash");
-                                            let isSlag = scmNameLower.includes("خبث") || scmEngLower.includes("slag");
-
-                                            setInputs(prev => ({
-                                              ...prev,
-                                              selectedScmId: selectedId,
-                                              selectedScmName: matchedMat.name,
-                                              selectedScmDensity: dens,
-                                              dosageSilicaFume: isSilica ? recDos : prev.dosageSilicaFume,
-                                              dosageFlyAsh: isFlyAsh ? recDos : prev.dosageFlyAsh,
-                                              dosageSlag: isSlag ? recDos : prev.dosageSlag,
-                                              priceSilicaFume: isSilica ? (price ?? prev.priceSilicaFume) : prev.priceSilicaFume,
-                                              priceFlyAsh: isFlyAsh ? (price ?? prev.priceFlyAsh) : prev.priceFlyAsh,
-                                              priceSlag: isSlag ? (price ?? prev.priceSlag) : prev.priceSlag
-                                            }));
-                                          }
-                                        }}
-                                        className="w-full text-xs p-2 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-white font-semibold cursor-pointer"
-                                      >
-                                        <option value="">{language === "ar" ? "اختر مادة من المستودع (المعتمدة فقط)" : language === "fr" ? "Choisir une addition approuvée" : "Select approved SCM"}</option>
-                                        {scmList.map(m => (
-                                          <option key={m.id} value={m.id} className={isUserMaterial(m) ? "text-emerald-600 font-semibold" : "text-blue-600"}>
-                                            {getMaterialOptionLabel(m)}
-                                          </option>
-                                        ))}
-                                      </select>
-                                      {renderMaterialSourceBadge(inputs.selectedScmId)}
-                                    </div>
-                                    <p className="text-[9px] text-slate-400 font-sans leading-normal">
-                                      {language === "ar" ? "تغلق الفراغات المجهرية للخرسانة وتزيد من متانتها الكيميائية ومقاومتها طويلة المدى." : language === "fr" ? "Améliore la compacité et la résistance aux attaques chimiques." : "Improves concrete compacity, density, and chemical attack resistance."}
-                                    </p>
-                                  </div>
+                                  <MineralAdditionSelectionCard
+                                    language={language as "ar" | "fr" | "en"}
+                                    materials={scmList}
+                                    selectedId={inputs.selectedScmId}
+                                    materialOptionLabel={getMaterialOptionLabel}
+                                    isUserMaterial={isUserMaterial}
+                                    materialBadge={renderMaterialSourceBadge(inputs.selectedScmId)}
+                                    onSelect={(selectedId) => {
+                                      if (!selectedId) {
+                                        setInputs(prev => ({ ...prev, selectedScmId: "", selectedScmName: "", selectedScmDensity: undefined, dosageSilicaFume: 0, dosageFlyAsh: 0, dosageSlag: 0 }));
+                                        return;
+                                      }
+                                      const validation = validateMaterialSelection(selectedId, materialsDatabase, currentMethod, currentConcrete, activeProject);
+                                      if (!validation.isValid) {
+                                        alert(language === "ar" ? validation.errorAr : validation.errorEn);
+                                        return;
+                                      }
+                                      const matchedMat = validation.material;
+                                      if (matchedMat) {
+                                        const dens = matchedMat.density;
+                                        const recDos = matchedMat.recommendedDosage;
+                                        if (typeof dens !== "number" || !Number.isFinite(dens) || dens <= 0 || typeof recDos !== "number" || !Number.isFinite(recDos) || recDos <= 0) {
+                                          alert(language === "ar" ? "لا يمكن اختيار هذه المادة: الكثافة والجرعة الموصى بها يجب أن تكونا مسجلتين في مكتبة المواد." : "This material cannot be selected: density and recommended dosage must be recorded in the material library.");
+                                          return;
+                                        }
+                                        const price = matchedMat.price;
+                                        const scmNameLower = (matchedMat.name || "").toLowerCase();
+                                        const scmEngLower = (matchedMat.englishName || "").toLowerCase();
+                                        const isSilica = scmNameLower.includes("سيليكا") || scmEngLower.includes("silica");
+                                        const isFlyAsh = scmNameLower.includes("رماد") || scmEngLower.includes("fly ash") || scmEngLower.includes("fly_ash");
+                                        const isSlag = scmNameLower.includes("خبث") || scmEngLower.includes("slag");
+                                        setInputs(prev => ({ ...prev, selectedScmId: selectedId, selectedScmName: matchedMat.name, selectedScmDensity: dens, dosageSilicaFume: isSilica ? recDos : prev.dosageSilicaFume, dosageFlyAsh: isFlyAsh ? recDos : prev.dosageFlyAsh, dosageSlag: isSlag ? recDos : prev.dosageSlag, priceSilicaFume: isSilica ? (price ?? prev.priceSilicaFume) : prev.priceSilicaFume, priceFlyAsh: isFlyAsh ? (price ?? prev.priceFlyAsh) : prev.priceFlyAsh, priceSlag: isSlag ? (price ?? prev.priceSlag) : prev.priceSlag }));
+                                      }
+                                    }}
+                                  />
                                 )}
 
                                 {/* Fiber Reinforcement Selection */}
