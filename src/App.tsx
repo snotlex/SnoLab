@@ -117,6 +117,7 @@ import { ConcreteTypeSelector } from "./components/ConcreteTypeSelector";
 import { DesignMethodStructuralSelector } from "./components/DesignMethodStructuralSelector";
 import { BasicMixConditionsFields } from "./components/BasicMixConditionsFields";
 import { SpecializedConcreteInputs } from "./components/SpecializedConcreteInputs";
+import { CementSelectionCard } from "./components/CementSelectionCard";
 import {
   ResponsiveContainer,
   PieChart as RechartsPieChart,
@@ -4982,81 +4983,34 @@ export default function App() {
 
                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
 
-                            {/* Cement selection */}
                             {isCementAllowed && (
-                              <div className="p-3 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-slate-200/40 dark:border-slate-800 space-y-2.5">
-                                <div className="text-xs font-black text-slate-800 dark:text-white border-b border-slate-200/50 dark:border-slate-800 pb-1 flex items-center gap-1">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
-                                  <span>{t("cement_calibration")}</span>
-                                </div>
-                                <div>
-                                  <label className="text-[10px] text-slate-500 block mb-1">{t("cement_type_available")}</label>
-                                  <select
-                                    value={inputs.selectedCementId || ""}
-                                    onChange={(e) => {
-                                      const selectedId = e.target.value;
-                                      if (!selectedId) {
-                                        setInputs(prev => ({
-                                          ...prev,
-                                          selectedCementId: "",
-                                          cementType: "",
-                                          cementDensity: 0,
-                                          priceCement: 0
-                                        }));
-                                        return;
-                                      }
-                                      const validation = validateMaterialSelection(selectedId, materialsDatabase, currentMethod, currentConcrete, activeProject);
-                                      if (!validation.isValid) {
-                                        alert(language === "ar" ? validation.errorAr : validation.errorEn);
-                                        return;
-                                      }
-                                      const matchedMat = validation.material;
-                                      const dens = matchedMat ? matchedMat.density : 0;
-                                      const price = matchedMat?.price || 17;
-                                      const strClass = matchedMat ? parseFloat(matchedMat.strengthClass || (matchedMat as any).cementClassStrength) : undefined;
-                                      setInputs(prev => ({
-                                        ...prev,
-                                        cementType: matchedMat ? matchedMat.name : prev.cementType,
-                                        cementDensity: dens,
-                                        priceCement: price,
-                                        cementClassStrength: strClass || prev.cementClassStrength,
-                                        selectedCementId: selectedId
-                                      }));
-                                    }}
-                                    className="w-full text-xs p-2 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-white font-semibold cursor-pointer"
-                                  >
-                                    <option value="">{language === "ar" ? "اختر مادة من المستودع (المعتمدة فقط)" : language === "fr" ? "Choisir un matériau approuvé" : "Select approved material"}</option>
-                                    {cementList.map(m => (
-                                      <option key={m.id} value={m.id} className={isUserMaterial(m) ? "text-emerald-600 font-semibold" : "text-blue-600"}>
-                                        {getMaterialOptionLabel(m)}
-                                      </option>
-                                    ))}
-                                  </select>
-                                  {renderMaterialSourceBadge(inputs.selectedCementId)}
-                                </div>
-                                <div>
-                                  <label className="text-[10px] text-slate-500 block mb-1">{t("cement_class_strength_label")}</label>
-                                  <select
-                                    value={inputs.cementClassStrength}
-                                    onChange={(e) => setInputs(prev => ({ ...prev, cementClassStrength: parseFloat(e.target.value) }))}
-                                    className="w-full text-xs p-2 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-white font-semibold cursor-pointer"
-                                  >
-                                    <option value="32.5">{t("cem_32")}</option>
-                                    <option value="42.5">{t("cem_42")}</option>
-                                    <option value="52.5">{t("cem_52")}</option>
-                                  </select>
-                                </div>
-                                {cementList.length === 0 && (
-                                  <div className="mt-2 p-2 bg-amber-500/10 border border-amber-500/20 rounded-lg text-[10px] text-amber-700 dark:text-amber-300 font-bold">
-                                    ⚠️ {language === "ar" ? "لا توجد مواد إسمنت مسجلة في المستودع." : "No cement materials in repository."}
-                                  </div>
-                                )}
-                                {cementList.length > 0 && !inputs.selectedCementId && (
-                                  <div className="mt-1.5 p-1.5 bg-amber-500/5 border border-amber-500/15 rounded text-[10px] text-amber-600 dark:text-amber-400 font-semibold">
-                                    ⚠️ {language === "ar" ? "الرجاء اختيار الإسمنت المعتمد من القائمة." : "Please select approved cement."}
-                                  </div>
-                                )}
-                              </div>
+                              <CementSelectionCard
+                                language={language as "ar" | "fr" | "en"}
+                                translate={t}
+                                materials={cementList}
+                                selectedId={inputs.selectedCementId}
+                                cementClassStrength={inputs.cementClassStrength}
+                                materialOptionLabel={getMaterialOptionLabel}
+                                isUserMaterial={isUserMaterial}
+                                materialBadge={renderMaterialSourceBadge(inputs.selectedCementId)}
+                                onClassStrengthChange={(value) => setInputs(prev => ({ ...prev, cementClassStrength: value }))}
+                                onSelect={(selectedId) => {
+                                  if (!selectedId) {
+                                    setInputs(prev => ({ ...prev, selectedCementId: "", cementType: "", cementDensity: 0, priceCement: 0 }));
+                                    return;
+                                  }
+                                  const validation = validateMaterialSelection(selectedId, materialsDatabase, currentMethod, currentConcrete, activeProject);
+                                  if (!validation.isValid) {
+                                    alert(language === "ar" ? validation.errorAr : validation.errorEn);
+                                    return;
+                                  }
+                                  const matchedMat = validation.material;
+                                  const dens = matchedMat ? matchedMat.density : 0;
+                                  const price = matchedMat?.price || 17;
+                                  const strClass = matchedMat ? parseFloat(matchedMat.strengthClass || (matchedMat as any).cementClassStrength) : undefined;
+                                  setInputs(prev => ({ ...prev, cementType: matchedMat ? matchedMat.name : prev.cementType, cementDensity: dens, priceCement: price, cementClassStrength: strClass || prev.cementClassStrength, selectedCementId: selectedId }));
+                                }}
+                              />
                             )}
 
                             {/* Sand Selection */}
