@@ -115,6 +115,7 @@ import { CalculatorModeSelector } from "./components/CalculatorModeSelector";
 import { CompressiveStrengthField } from "./components/CompressiveStrengthField";
 import { ConcreteTypeSelector } from "./components/ConcreteTypeSelector";
 import { DesignMethodStructuralSelector } from "./components/DesignMethodStructuralSelector";
+import { BasicMixConditionsFields } from "./components/BasicMixConditionsFields";
 import {
   ResponsiveContainer,
   PieChart as RechartsPieChart,
@@ -4789,95 +4790,22 @@ export default function App() {
                         }}
                       />
 
-                      {/* Slump consistency */}
-                      <div className={`p-3.5 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-850 ${isRtl ? "text-right" : "text-left"} ${isFieldDisabled("slump") ? "opacity-35 pointer-events-none select-none grayscale" : ""}`}>
-                        <InteractiveTooltip termKey="slump" language={language}>
-                          <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1 cursor-help">
-                            {t("slump_label")}
-                          </label>
-                        </InteractiveTooltip>
-                        <select
-                          value={inputs.slump}
-                          disabled={isFieldDisabled("slump")}
-                          onChange={(e) => setInputs(prev => ({ ...prev, slump: parseInt(e.target.value) }))}
-                          className="w-full text-xs p-2.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white_important cursor-pointer text-slate-800 dark:text-slate-200"
-                        >
-                          <option value="2">
-                            {language === "fr" ? "Terre Humide (0-20 mm - Béton démoulé immédiat)" : language === "en" ? "Very Dry (0-20 mm - precast/road paving)" : "جاف متماسك جداً (0-20 mm - دك ميكانيكي مسبق الصنع)"}
-                          </option>
-                          <option value="4">
-                            {language === "fr" ? "Ferme (30-50 mm - fondations et dalles)" : language === "en" ? "Semi-dry / Abram's (30-50 mm - bridges / base)" : "بلاستيكي معتدل (30-50 mm - لدن عادي صب الجسور)"}
-                          </option>
-                          <option value="8">
-                            {language === "fr" ? "Plastique (60-90 mm - structures courantes)" : language === "en" ? "Standard Plastic (60-90 mm - general columns / slabs)" : "لدن انسيابي عياري (60-90 mm - صب الهياكل العادية بالأعمدة)"}
-                          </option>
-                          <option value="12">
-                            {language === "fr" ? "Très Plastique (100-150 mm - bétonnage par pompe)" : language === "en" ? "Very Plastic / Pumpable (100-150 mm - pump concrete)" : "لدن جداً / للتوصيل بالمضخة (100-150 mm - صب خرسانة بمضخة)"}
-                          </option>
-                          <option value="17">
-                            {language === "fr" ? "Fluide (≥160 mm - béton autoplaçant)" : language === "en" ? "Fluid / Self-Leveling (≥160 mm - highly reinforced / no vibration)" : "سائل ذاتي التسوية (≥160 mm - صب مكثف حديدي بلا هزاز)"}
-                          </option>
-                        </select>
-                      </div>
-
-                      {/* Dmax size */}
-                      <div className={`p-3.5 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-850 ${isRtl ? "text-right" : "text-left"} ${isFieldDisabled("dMax") ? "opacity-35 pointer-events-none select-none grayscale" : ""}`}>
-                        <div className="flex justify-between items-center mb-1">
-                          <InteractiveTooltip termKey="dmax" language={language}>
-                            <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block cursor-help">{t("dmax_dropdown_label")}</label>
-                          </InteractiveTooltip>
-                          {inputs.labOverrides?.dMax ? (
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveOverride("dMax")}
-                              className="text-[10px] text-red-500 hover:underline"
-                            >
-                              {language === "ar" ? "إلغاء التجاوز" : "Cancel Override"}
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => handleOpenOverrideForm("dMax", inputs.dMax)}
-                              className="text-[10px] text-amber-600 hover:underline"
-                            >
-                              {language === "ar" ? "تجاوز مخبري" : "Lab Override"}
-                            </button>
-                          )}
-                        </div>
-                        <select
-                          value={inputs.dMax}
-                          disabled={isFieldDisabled("dMax")}
-                          onChange={(e) => setInputs(prev => ({ ...prev, dMax: parseFloat(e.target.value) }))}
-                          className={`w-full text-xs p-2.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white cursor-pointer text-slate-800 dark:text-slate-200 ${!inputs.labOverrides?.dMax ? "opacity-75 bg-slate-100 dark:bg-slate-800" : ""}`}
-                        >
-                          <option value="8">{t("dmax_8")}</option>
-                          <option value="12.5">12.5 mm</option>
-                          <option value="16">16 mm</option>
-                          <option value="20">{t("dmax_20")}</option>
-                          <option value="25">25 mm</option>
-                          <option value="31.5">31.5 mm</option>
-                          <option value="40">{t("dmax_40")}</option>
-                        </select>
-                        {inputs.labOverrides?.dMax && (
-                          <div className="text-[9px] text-amber-600 mt-1 leading-normal p-1 bg-amber-500/5 rounded border border-amber-500/10">
-                            ⚠️ {language === "ar" ? `معدل مخبرياً: الأصل (${inputs.labOverrides.dMax.originalMaterialValue} mm). السبب: ${inputs.labOverrides.dMax.reason}` : `Overridden: Original (${inputs.labOverrides.dMax.originalMaterialValue} mm). Reason: ${inputs.labOverrides.dMax.reason}`}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Site Quality Control */}
-                      <div className={`p-3.5 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-850 ${isRtl ? "text-right" : "text-left"}`}>
-                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">{t("control_class_label")}</label>
-                        <select
-                          value={inputs.controlClass}
-                          onChange={(e) => setInputs(prev => ({ ...prev, controlClass: e.target.value as any }))}
-                          className="w-full text-xs p-2.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-white"
-                        >
-                          <option value="high">{t("qc_high")}</option>
-                          <option value="normal">{t("qc_normal")}</option>
-                          <option value="low">{t("qc_low")}</option>
-                        </select>
-                      </div>
+                      <BasicMixConditionsFields
+                        language={language as "ar" | "fr" | "en"}
+                        isRtl={isRtl}
+                        translate={t}
+                        slump={inputs.slump}
+                        dMax={inputs.dMax}
+                        controlClass={inputs.controlClass}
+                        slumpDisabled={isFieldDisabled("slump")}
+                        dMaxDisabled={isFieldDisabled("dMax")}
+                        labOverride={inputs.labOverrides?.dMax}
+                        onSlumpChange={(value) => setInputs(prev => ({ ...prev, slump: value }))}
+                        onDmaxChange={(value) => setInputs(prev => ({ ...prev, dMax: value }))}
+                        onControlClassChange={(value) => setInputs(prev => ({ ...prev, controlClass: value as any }))}
+                        onOpenDmaxOverride={() => handleOpenOverrideForm("dMax", inputs.dMax)}
+                        onRemoveDmaxOverride={() => handleRemoveOverride("dMax")}
+                      />
 
                     </div>
 
