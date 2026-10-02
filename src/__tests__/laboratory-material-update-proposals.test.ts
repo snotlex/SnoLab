@@ -69,8 +69,17 @@ describe("Laboratory material update proposals", () => {
     const proposal = createSieveMaterialUpdateProposals({ material, testRunId: "TEST-SIEVE-3", result })[0];
     const decision = acceptMaterialUpdateProposal(material, proposal, "reviewer", "approved after worksheet check", "2026-09-19T01:00:00.000Z");
     expect(decision.proposal.status).toBe("Accepted");
+    expect(decision.auditEntry).toMatchObject({ entityType: "material_update", action: "accepted", oldValue: 2.4, newValue: 3.01 });
+    expect(decision.proposal.auditEntryId).toBe(decision.auditEntry.id);
     expect(decision.material.finenessModulus).toBe(3.01);
     expect(material.finenessModulus).toBe(2.4);
+  });
+
+  it("rejects a stale proposal when the material changed after proposal creation", () => {
+    const proposal = createSieveMaterialUpdateProposals({ material, testRunId: "TEST-SIEVE-STALE", result })[0];
+    const changedMaterial = { ...material, finenessModulus: 2.8 } as EngineeringMaterial;
+    expect(() => acceptMaterialUpdateProposal(changedMaterial, proposal, "reviewer", "stale check"))
+      .toThrow("proposal is stale");
   });
 
   it("requires a reason when rejecting a proposal", () => {

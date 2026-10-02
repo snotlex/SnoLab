@@ -8,7 +8,8 @@ const water = { id: "water-1", chloridesMgL: 100 } as unknown as EngineeringMate
 
 describe("Phase 4 material update proposals", () => {
   it("creates a pending chloride proposal without mutating the material", () => {
-    const run = executeDefinedLaboratoryTest(WATER_CHLORIDES_DEFINITION, { runId: "W-1", materialId: water.id, sampleId: "S-1", operator: "tech", rawData: { analyteMassMg: 210, sampleVolumeL: 1 } });
+    const calculated = executeDefinedLaboratoryTest(WATER_CHLORIDES_DEFINITION, { runId: "W-1", materialId: water.id, sampleId: "S-1", operator: "tech", rawData: { analyteMassMg: 210, sampleVolumeL: 1 } });
+    const run = { ...calculated, status: "Verified" as const, verificationStatus: "VERIFIED" as const, standard: { organization: "EN" as const, code: "EN 934", version: "2026", status: "Active" as const } };
     const proposals = createPhase4MaterialUpdateProposals({ material: water, run, proposedAt: "2026-10-02T00:00:00.000Z" });
     expect(proposals).toMatchObject([{ propertyKey: "chloridesMgL", oldValue: 100, newValue: 210, status: "Pending" }]);
     expect(water.chloridesMgL).toBe(100);
