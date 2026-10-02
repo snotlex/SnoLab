@@ -74,6 +74,7 @@ import { MaterialBulkCompletionModal } from "./materials/MaterialBulkCompletionM
 import { CompletenessChecker } from "../services/import/CompletenessChecker";
 import { ExportService } from "../services/ExportService";
 import { MaterialService } from "../services/MaterialService";
+import { createAIDraftMetadata } from "../services/aiGovernance";
 import { getActiveMaterialBatch, upsertMaterialBatch } from "../services/materialBatchService";
 import * as XLSX from "xlsx";
 
@@ -3099,7 +3100,9 @@ export function MaterialEngineeringDatabase({
           createdBy: "SNO AI Assistant (Gemini 3.5)",
           createdDate: new Date().toISOString().split('T')[0],
           updatedDate: new Date().toISOString().split('T')[0],
-          status: "نشط"
+          status: "قيد المراجعة",
+          ApprovalStatus: "Pending Review",
+          aiGovernance: createAIDraftMetadata({ modelId: "gemini-material-advisor", promptVersion: "material-advisor-v1", confidence: "unknown" })
         }));
 
         setAIAssistSuccessMessage("تم اقتراح كافة الخصائص الهندسية والتحذيرات بدقة عالية واحترافية فائقة باستخدام مساعد SNO AI!");
@@ -3112,7 +3115,9 @@ export function MaterialEngineeringDatabase({
           englishName: prev.englishName || `${cat} Custom Spec`,
           category: prev.category,
           provenance: prev.provenance || region,
-          status: "نشط"
+          status: "قيد المراجعة",
+          ApprovalStatus: "Pending Review",
+          aiGovernance: createAIDraftMetadata({ modelId: "local-heuristic-fallback", promptVersion: "material-advisor-v1" })
         }));
         setAIAssistSuccessMessage("تم اقتراح الخصائص الهندسية بنجاح عبر المحرّك الذاتي الفوري!");
       }
@@ -3126,7 +3131,9 @@ export function MaterialEngineeringDatabase({
         englishName: prev.englishName || `${cat} Custom Spec`,
         category: prev.category,
         provenance: prev.provenance || region,
-        status: "نشط"
+        status: "قيد المراجعة",
+        ApprovalStatus: "Pending Review",
+        aiGovernance: createAIDraftMetadata({ modelId: "local-heuristic-fallback", promptVersion: "material-advisor-v1" })
       }));
       setAIAssistSuccessMessage("تم اقتراح الخصائص الهندسية وتثبيت المعايرة باستخدام محرك الطوارئ الذاتي!");
     } finally {
