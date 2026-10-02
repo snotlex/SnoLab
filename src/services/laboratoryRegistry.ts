@@ -5,7 +5,15 @@ export interface RegisteredStandard extends LaboratoryStandardReference {
   title?: string;
   effectiveFrom?: string;
   effectiveTo?: string;
+  acceptanceRule?: string;
+  units?: string[];
+  coveredTestIds?: string[];
   acceptanceCriteriaConfigured: boolean;
+}
+
+export interface StandardPreflightResult {
+  ready: boolean;
+  errors: string[];
 }
 
 export interface RegisteredEquipment extends LaboratoryEquipment {
@@ -26,11 +34,24 @@ export function findActiveStandard(registry: RegisteredStandard[], organization:
 }
 
 export function canUseStandard(standard: RegisteredStandard | undefined, at = new Date()): boolean {
-  if (!standard || standard.status !== "Active" || !standard.acceptanceCriteriaConfigured) return false;
+  return preflightStandard(standard, at).ready;
+}
+
+export function preflightStandard(standard: (LaboratoryStandardReference & Partial<RegisteredStandard>) | undefined, at = new Date()): StandardPreflightResult {
+  const errors: string[] = [];
+  if (!standard) return { ready: false, errors: ["STANDARD_MISSING"] };
+  if (!standard.version || standard.version.trim() === "" || standard.version === "configured by laboratory") errors.push("STANDARD_VERSION_UNKNOWN");
+  if (standard.status !== "Active") errors.push(`STANDARD_STATUS_${standard.status.toUpperCase().replace(/\s+/g, "_")}`);
+  if ("acceptanceCriteriaConfigured" in standard && standard.acceptanceCriteriaConfigured !== true) errors.push("ACCEPTANCE_CRITERIA_NOT_CONFIGURED");
+  if ("acceptanceRule" in standard && !standard.acceptanceRule) errors.push("ACCEPTANCE_RULE_MISSING");
   const time = at.getTime();
-  if (standard.effectiveFrom && time < new Date(standard.effectiveFrom).getTime()) return false;
-  if (standard.effectiveTo && time > new Date(standard.effectiveTo).getTime()) return false;
-  return true;
+  if (standard.effectiveFrom && time < new Date(standard.effectiveFrom).getTime()) errors.push("STANDARD_NOT_YET_EFFECTIVE");
+  if (standard.effectiveTo && time > new Date(standard.effectiveTo).getTime()) errors.push("STANDARD_EXPIRED");
+  return { ready: errors.length === 0, errors };
+}
+
+export function standardPreflightIssueMessages(preflight: StandardPreflightResult): string[] {
+  return preflight.errors.map(code => `Official test blocked by standards preflight: ${code}.`);
 }
 
 export function deriveEquipmentStatus(equipment: Pick<LaboratoryEquipment, "status" | "nextCalibrationDate">, at = new Date()): LaboratoryEquipmentStatus {

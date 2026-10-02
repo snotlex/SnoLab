@@ -6,6 +6,7 @@ import type {
   LaboratoryStandardReference
 } from "../types/laboratoryDomain";
 import { verifyLaboratoryCalculation } from "./laboratoryVerification";
+import { preflightStandard } from "./laboratoryRegistry";
 
 function issue(
   level: ValidationIssue["level"],
@@ -59,10 +60,40 @@ export function executeDefinedLaboratoryTest<TData extends Record<string, unknow
     standard?: LaboratoryStandardReference;
     equipmentIds?: string[];
     now?: string;
+    official?: boolean;
   }
 ): LaboratoryTestRun<TData> {
   const now = params.now || new Date().toISOString();
-  const inputValidation = validateTestInputs({ ...definition, standard: params.standard || definition.standard }, params.rawData);
+  const selectedStandard = params.standard || definition.standard;
+  if (params.official) {
+    const standardsPreflight = preflightStandard(selectedStandard);
+    if (!standardsPreflight.ready) {
+      const issues = standardsPreflight.errors.map(code => issue(
+        "engineering",
+        "error",
+        code,
+        `Official test blocked by standards preflight: ${code}.`
+      ));
+      return {
+        id: params.runId,
+        projectId: params.projectId,
+        materialId: params.materialId,
+        sampleId: params.sampleId,
+        testDefinitionId: definition.id,
+        testDefinitionRevision: definition.revision,
+        standard: selectedStandard,
+        equipmentIds: params.equipmentIds,
+        operator: params.operator,
+        rawData: params.rawData,
+        calculationTrace: [],
+        validation: { valid: false, issues },
+        status: "Blocked",
+        createdAt: now,
+        updatedAt: now
+      };
+    }
+  }
+  const inputValidation = validateTestInputs({ ...definition, standard: selectedStandard }, params.rawData);
   if (!inputValidation.valid) {
     return {
       id: params.runId,
