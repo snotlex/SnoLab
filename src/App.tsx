@@ -119,6 +119,7 @@ import { BasicMixConditionsFields } from "./components/BasicMixConditionsFields"
 import { SpecializedConcreteInputs } from "./components/SpecializedConcreteInputs";
 import { CementSelectionCard } from "./components/CementSelectionCard";
 import { SandSelectionCard } from "./components/SandSelectionCard";
+import { GravelSelectionCard } from "./components/GravelSelectionCard";
 import {
   ResponsiveContainer,
   PieChart as RechartsPieChart,
@@ -5048,139 +5049,55 @@ export default function App() {
                               />
                             )}
 
-                            {/* Coarse aggregates */}
                             {isGravelAllowed && (
-                              <div className="p-3 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-slate-200/40 dark:border-slate-800 space-y-2.5">
-                                <div className="text-xs font-black text-slate-800 dark:text-white border-b border-slate-200/50 dark:border-slate-800 pb-1 flex items-center gap-1">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
-                                  <span>{t("gravel_calibration")}</span>
-                                </div>
-                                <div>
-                                  <label className="text-[10px] text-slate-500 block mb-1">{t("gravel_types_available")}</label>
-                                  <select
-                                    value={inputs.selectedGravelId || ""}
-                                    onChange={(e) => {
-                                      const selectedId = e.target.value;
-                                      if (!selectedId) {
-                                        setInputs(prev => ({
-                                          ...prev,
-                                          selectedGravelId: "",
-                                          gravelType: "",
-                                          gravelRelativeDensity: 0,
-                                          priceGravel: 0,
-                                          gravelAbsorption: 0,
-                                          moistureGravel: 0,
-                                          dMax: 20
-                                        }));
-                                        return;
-                                      }
-                                      const validation = validateMaterialSelection(selectedId, materialsDatabase, currentMethod, currentConcrete, activeProject);
-                                      if (!validation.isValid) {
-                                        alert(language === "ar" ? validation.errorAr : validation.errorEn);
-                                        return;
-                                      }
-                                      const matchedMat = validation.material;
-                                      const dens = matchedMat?.density ?? matchedMat?.specificGravity;
-                                      const price = matchedMat?.price;
-                                      const abs = matchedMat?.absorption;
-                                      const moist = matchedMat?.moisture;
-                                      if (!matchedMat || typeof dens !== "number" || !Number.isFinite(dens) || dens <= 0 || typeof abs !== "number" || !Number.isFinite(abs) || abs < 0 || typeof moist !== "number" || !Number.isFinite(moist) || moist < 0 || typeof matchedMat.dMax !== "number" || !Number.isFinite(matchedMat.dMax) || matchedMat.dMax <= 0) {
-                                        alert(language === "ar" ? "لا يمكن اختيار هذا الركام: الكثافة والامتصاص والرطوبة وDmax يجب أن تكون مسجلة في مكتبة المواد." : "This aggregate cannot be selected: density, absorption, moisture, and Dmax must be recorded in the material library.");
-                                        return;
-                                      }
-                                      const maxS = matchedMat.dMax;
-                                      const shape = matchedMat?.particleShape === "مكسر" || matchedMat?.particleShape === "زاوي" ? AggregateType.CONCASSE : AggregateType.ROULE;
-
-                                      let qualityVal = AggregateQuality.STANDARD;
-                                      if (matchedMat) {
-                                        if (matchedMat.aggregateQuality === "excellent") {
-                                          qualityVal = AggregateQuality.EXCELLENT;
-                                        } else if (matchedMat.aggregateQuality === "poor") {
-                                          qualityVal = AggregateQuality.POOR;
-                                        } else if (matchedMat.aggregateQuality === "standard") {
-                                          qualityVal = AggregateQuality.STANDARD;
-                                        } else {
-                                          const qStr = String(matchedMat.quality || "").toLowerCase();
-                                          if (qStr.includes("excellent") || qStr.includes("ممتاز") || qStr.includes("عالي")) {
-                                            qualityVal = AggregateQuality.EXCELLENT;
-                                          } else if (qStr.includes("poor") || qStr.includes("ضعيف") || qStr.includes("متوسط")) {
-                                            qualityVal = AggregateQuality.POOR;
-                                          } else {
-                                            qualityVal = AggregateQuality.STANDARD;
-                                          }
-
-                                          if (matchedMat.losAngelesAbrasion !== undefined) {
-                                            const la = matchedMat.losAngelesAbrasion;
-                                            if (la < 15) qualityVal = AggregateQuality.EXCELLENT;
-                                            else if (la > 30) qualityVal = AggregateQuality.POOR;
-                                          }
-                                        }
-                                      }
-
-                                      setInputs(prev => ({
-                                        ...prev,
-                                        gravelType: matchedMat ? matchedMat.name : prev.gravelType,
-                                        gravelRelativeDensity: dens,
-                                        ...(price !== undefined ? { priceGravel: price } : {}),
-                                        gravelAbsorption: abs,
-                                        moistureGravel: moist,
-                                        dMax: maxS,
-                                        aggregateType: shape,
-                                        aggregateQuality: qualityVal,
-                                        selectedGravelId: selectedId
-                                      }));
-                                      if (matchedMat) {
-                                        setSelectedMaterialForInfo(matchedMat.name);
-                                      }
-                                    }}
-                                    className="w-full text-xs p-2 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-white font-semibold cursor-pointer"
-                                  >
-                                    <option value="">{language === "ar" ? "اختر مادة من المستودع (المعتمدة فقط)" : language === "fr" ? "Choisir un gravier approuvé" : "Select approved gravel"}</option>
-                                    {gravelList.map(m => (
-                                      <option key={m.id} value={m.id} className={isUserMaterial(m) ? "text-emerald-600 font-semibold" : "text-blue-600"}>
-                                        {getMaterialOptionLabel(m)}
-                                      </option>
-                                    ))}
-                                  </select>
-                                  {renderMaterialSourceBadge(inputs.selectedGravelId)}
-                                </div>
-                                <div className="grid grid-cols-2 gap-1.5 bg-slate-100/50 dark:bg-slate-800/40 p-2 rounded-lg border border-slate-200/50 dark:border-slate-800/60">
-                                  <div>
-                                    <span className="text-[9px] text-slate-500 dark:text-slate-400 block mb-0.5">{t("grain_shape")}</span>
-                                    <div className="text-[10px] font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1">
-                                      <span className="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
-                                      <span>
-                                        {inputs.aggregateType === AggregateType.CONCASSE
-                                          ? (language === "ar" ? "مكسر / زاوي (آلي)" : "Crushed / Angular (Auto)")
-                                          : (language === "ar" ? "مستدير (آلي)" : "Rounded (Auto)")}
-                                      </span>
-                                    </div>
-                                  </div>
-                                  <div>
-                                    <span className="text-[9px] text-slate-500 dark:text-slate-400 block mb-0.5">{t("grading_quality")}</span>
-                                    <div className="text-[10px] font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1">
-                                      <span className="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
-                                      <span>
-                                        {inputs.aggregateQuality === AggregateQuality.EXCELLENT
-                                          ? (language === "ar" ? "ممتاز (آلي)" : "Excellent (Auto)")
-                                          : inputs.aggregateQuality === AggregateQuality.POOR
-                                          ? (language === "ar" ? "ضعيف (آلي)" : "Poor (Auto)")
-                                          : (language === "ar" ? "عادي / قياسي (آلي)" : "Standard (Auto)")}
-                                      </span>
-                                    </div>
-                                  </div>
-                                </div>
-                                {gravelList.length === 0 && (
-                                  <div className="mt-2 p-2 bg-amber-500/10 border border-amber-500/20 rounded-lg text-[10px] text-amber-700 dark:text-amber-300 font-bold">
-                                    ⚠️ {language === "ar" ? "لا توجد مواد حصى مسجلة في المستودع." : "No gravel materials in repository."}
-                                  </div>
-                                )}
-                                {gravelList.length > 0 && !inputs.selectedGravelId && (
-                                  <div className="mt-1.5 p-1.5 bg-amber-500/5 border border-amber-500/15 rounded text-[10px] text-amber-600 dark:text-amber-400 font-semibold">
-                                    ⚠️ {language === "ar" ? "الرجاء اختيار الحصى المعتمد من القائمة." : "Please select approved gravel."}
-                                  </div>
-                                )}
-                              </div>
+                              <GravelSelectionCard
+                                language={language as "ar" | "fr" | "en"}
+                                translate={t}
+                                materials={gravelList}
+                                selectedId={inputs.selectedGravelId}
+                                aggregateType={inputs.aggregateType}
+                                aggregateQuality={inputs.aggregateQuality}
+                                materialOptionLabel={getMaterialOptionLabel}
+                                isUserMaterial={isUserMaterial}
+                                materialBadge={renderMaterialSourceBadge(inputs.selectedGravelId)}
+                                onSelect={(selectedId) => {
+                                  if (!selectedId) {
+                                    setInputs(prev => ({ ...prev, selectedGravelId: "", gravelType: "", gravelRelativeDensity: 0, priceGravel: 0, gravelAbsorption: 0, moistureGravel: 0, dMax: 20 }));
+                                    return;
+                                  }
+                                  const validation = validateMaterialSelection(selectedId, materialsDatabase, currentMethod, currentConcrete, activeProject);
+                                  if (!validation.isValid) {
+                                    alert(language === "ar" ? validation.errorAr : validation.errorEn);
+                                    return;
+                                  }
+                                  const matchedMat = validation.material;
+                                  const dens = matchedMat?.density ?? matchedMat?.specificGravity;
+                                  const price = matchedMat?.price;
+                                  const abs = matchedMat?.absorption;
+                                  const moist = matchedMat?.moisture;
+                                  if (!matchedMat || typeof dens !== "number" || !Number.isFinite(dens) || dens <= 0 || typeof abs !== "number" || !Number.isFinite(abs) || abs < 0 || typeof moist !== "number" || !Number.isFinite(moist) || moist < 0 || typeof matchedMat.dMax !== "number" || !Number.isFinite(matchedMat.dMax) || matchedMat.dMax <= 0) {
+                                    alert(language === "ar" ? "لا يمكن اختيار هذا الركام: الكثافة والامتصاص والرطوبة وDmax يجب أن تكون مسجلة في مكتبة المواد." : "This aggregate cannot be selected: density, absorption, moisture, and Dmax must be recorded in the material library.");
+                                    return;
+                                  }
+                                  const maxS = matchedMat.dMax;
+                                  const shape = matchedMat.particleShape === "مكسر" || matchedMat.particleShape === "زاوي" ? AggregateType.CONCASSE : AggregateType.ROULE;
+                                  let qualityVal = AggregateQuality.STANDARD;
+                                  if (matchedMat.aggregateQuality === "excellent") qualityVal = AggregateQuality.EXCELLENT;
+                                  else if (matchedMat.aggregateQuality === "poor") qualityVal = AggregateQuality.POOR;
+                                  else if (matchedMat.aggregateQuality === "standard") qualityVal = AggregateQuality.STANDARD;
+                                  else {
+                                    const qStr = String(matchedMat.quality || "").toLowerCase();
+                                    if (qStr.includes("excellent") || qStr.includes("ممتاز") || qStr.includes("عالي")) qualityVal = AggregateQuality.EXCELLENT;
+                                    else if (qStr.includes("poor") || qStr.includes("ضعيف") || qStr.includes("متوسط")) qualityVal = AggregateQuality.POOR;
+                                    if (matchedMat.losAngelesAbrasion !== undefined) {
+                                      if (matchedMat.losAngelesAbrasion < 15) qualityVal = AggregateQuality.EXCELLENT;
+                                      else if (matchedMat.losAngelesAbrasion > 30) qualityVal = AggregateQuality.POOR;
+                                    }
+                                  }
+                                  setInputs(prev => ({ ...prev, gravelType: matchedMat.name, gravelRelativeDensity: dens, ...(price !== undefined ? { priceGravel: price } : {}), gravelAbsorption: abs, moistureGravel: moist, dMax: maxS, aggregateType: shape, aggregateQuality: qualityVal, selectedGravelId: selectedId }));
+                                  setSelectedMaterialForInfo(matchedMat.name);
+                                }}
+                              />
                             )}
 
                             {/* Water Selection */}
