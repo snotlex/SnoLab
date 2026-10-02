@@ -112,6 +112,7 @@ import { EngineeringVerificationGate } from "./components/EngineeringVerificatio
 import { CalculatorScreenFrame } from "./components/CalculatorScreenFrame";
 import { CalculatorSectionHeader } from "./components/CalculatorSectionHeader";
 import { CalculatorModeSelector } from "./components/CalculatorModeSelector";
+import { CompressiveStrengthField } from "./components/CompressiveStrengthField";
 import {
   ResponsiveContainer,
   PieChart as RechartsPieChart,
@@ -4743,80 +4744,14 @@ export default function App() {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
 
-                      {/* Compressive Strength fck28 */}
-                      <div className={`p-3.5 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-800 space-y-2 ${isFieldDisabled("fck28") ? "opacity-35 pointer-events-none select-none grayscale" : ""}`}>
-                        <div className="flex justify-between items-center text-xs">
-                          <InteractiveTooltip termKey="fck28" language={language}>
-                            <label className="font-extrabold text-slate-700 dark:text-slate-200 cursor-help">{t("fck28_label")}</label>
-                          </InteractiveTooltip>
-                          <span className="font-mono text-xs text-blue-500 font-bold">{language === "ar" ? "ميجاباسكال (MPa)" : "MPa"}</span>
-                        </div>
-                        <div className="relative flex items-center">
-                          <input
-                            type="number"
-                            step="0.1"
-                            value={inputs.fck28 ?? ""}
-                            disabled={isFieldDisabled("fck28")}
-                            aria-invalid={!Number.isFinite(Number(inputs.fck28)) || Number(inputs.fck28) <= 0}
-                            onChange={(e) => {
-                              const val = e.target.value === "" ? Number.NaN : parseFloat(e.target.value);
-                              setInputs(prev => ({ ...prev, fck28: val }));
-                            }}
-                            className={`w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2 px-3 text-xs font-bold text-slate-800 dark:text-white outline-none focus:border-blue-500 transition-colors ${language === "ar" ? "pl-14 text-right" : "pr-14 text-left"}`}
-                            placeholder="e.g. 30"
-                          />
-                          <span className={`absolute text-[10px] font-extrabold text-blue-500 font-mono ${language === "ar" ? "left-3" : "right-3"}`}>MPa</span>
-                        </div>
-
-                        {/* Real-time Engineering Validation Feedback */}
-                        {(() => {
-                          const fckVal = Number(inputs.fck28);
-                          const rawCode = typeof inputs.concreteType === "string" ? inputs.concreteType : (inputs.concreteType as any)?.code || "NSC";
-                          const concreteCode = String(rawCode || "NSC").toUpperCase();
-                          let minRec = 10;
-                          let maxRec = 35;
-                          let typeLabel = "NSC";
-
-                          if (concreteCode === "NSC") {
-                            minRec = 10; maxRec = 35; typeLabel = language === "ar" ? "عادية المقاومة (NSC)" : "Normal Strength Concrete (NSC)";
-                          } else if (concreteCode === "HSC") {
-                            minRec = 40; maxRec = 100; typeLabel = language === "ar" ? "عالية المقاومة (HSC)" : "High Strength Concrete (HSC)";
-                          } else if (concreteCode === "HPC") {
-                            minRec = 40; maxRec = 100; typeLabel = language === "ar" ? "عالية الأداء (HPC)" : "High Performance Concrete (HPC)";
-                          } else if (concreteCode === "SCC") {
-                            minRec = 25; maxRec = 60; typeLabel = language === "ar" ? "ذاتية الرص (SCC)" : "Self-Consolidating Concrete (SCC)";
-                          } else if (concreteCode === "LWC") {
-                            minRec = 15; maxRec = 35; typeLabel = language === "ar" ? "خفيفة الوزن (LWC)" : "Lightweight Concrete (LWC)";
-                          } else if (concreteCode === "HWC") {
-                            minRec = 25; maxRec = 60; typeLabel = language === "ar" ? "ثقيلة الوزن (HWC)" : "Heavyweight Concrete (HWC)";
-                          } else if (concreteCode === "FRC") {
-                            minRec = 20; maxRec = 60; typeLabel = language === "ar" ? "المسلحة بالألياف (FRC)" : "Fiber-Reinforced Concrete (FRC)";
-                          } else if (concreteCode === "UHPC" || concreteCode === "BFUP") {
-                            minRec = 100; maxRec = 250; typeLabel = language === "ar" ? "فائقة الأداء (UHPC)" : "Ultra-High Performance Concrete (UHPC)";
-                          }
-
-                          if (!Number.isFinite(fckVal) || fckVal <= 0) {
-                            return <p className="text-[9.5px] leading-snug text-rose-600 dark:text-rose-300 bg-rose-500/5 p-1.5 rounded-lg border border-rose-500/10">⚠ {language === "ar" ? "المقاومة المطلوبة غير مدخلة؛ لا توجد قيمة افتراضية وسيبقى الحساب محظوراً." : language === "fr" ? "La résistance cible est manquante ; aucune valeur par défaut n'est utilisée et le calcul reste bloqué." : "Target strength is missing; no hidden default is used and calculation remains blocked."}</p>;
-                          }
-                          const isWarn = fckVal < minRec || fckVal > maxRec;
-                          if (fckVal > 0 && isWarn) {
-                            return (
-                              <p className="text-[9.5px] leading-snug text-amber-600 dark:text-amber-450 bg-amber-500/5 p-1.5 rounded-lg border border-amber-500/10 text-right">
-                                ⚠ {language === "ar"
-                                  ? `تنبيه: المقاومة الموصى بها لخرسانة ${typeLabel} هي بين ${minRec} و ${maxRec} MPa.`
-                                  : `Note: Recommended strength range for ${typeLabel} is ${minRec} to ${maxRec} MPa.`}
-                              </p>
-                            );
-                          }
-                          return (
-                            <p className="text-[9px] text-slate-450 text-right">
-                              ✓ {language === "ar"
-                                ? `ضمن النطاق الموصى به لـ ${typeLabel} (${minRec} - ${maxRec} MPa).`
-                                : `Within recommended range for ${typeLabel} (${minRec} - ${maxRec} MPa).`}
-                            </p>
-                          );
-                        })()}
-                      </div>
+                      <CompressiveStrengthField
+                        language={language as "ar" | "fr" | "en"}
+                        value={inputs.fck28}
+                        concreteType={typeof inputs.concreteType === "string" ? inputs.concreteType : (inputs.concreteType as any)?.code}
+                        disabled={isFieldDisabled("fck28")}
+                        translate={t}
+                        onChange={(value) => setInputs(prev => ({ ...prev, fck28: value }))}
+                      />
 
                       {/* Concrete Type Selection */}
                       <div id="step1-concrete-type" className={`p-3.5 bg-amber-500/5 rounded-xl border border-amber-500/10 space-y-1.5 ${isRtl ? "text-right" : "text-left"} font-sans`}>
