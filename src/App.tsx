@@ -108,6 +108,7 @@ import { WorkspaceWorkflowHeader } from "./components/WorkspaceWorkflowHeader";
 import { WorkspaceTopBar } from "./components/WorkspaceTopBar";
 import { WorkspaceLayout } from "./components/WorkspaceLayout";
 import { WorkspaceEmptyState } from "./components/WorkspaceEmptyState";
+import type { OnboardingRole } from "./services/workflow/onboarding";
 import { EngineeringVerificationGate } from "./components/EngineeringVerificationGate";
 import { CalculatorScreenFrame } from "./components/CalculatorScreenFrame";
 import { CalculatorSectionHeader } from "./components/CalculatorSectionHeader";
@@ -3859,8 +3860,12 @@ export default function App() {
             {!workflow.projectIsOpen ? (
               <WorkspaceEmptyState
                 language={language as "ar" | "fr" | "en"}
-                onStartNewProject={async () => { await workflow.startNewProject(); setActiveSidebarTab("saved_projects"); }}
+                onStartNewProject={async (role: OnboardingRole) => {
+                  await workflow.startNewProject();
+                  setActiveSidebarTab(role === "lab-quality" ? "materials_library" : "saved_projects");
+                }}
                 onOpenExistingProject={async () => { const ok = await workflow.openExistingProject(); if (ok) setActiveSidebarTab("saved_projects"); }}
+                onOpenAdvanced={async () => { await workflow.startNewProject(); setActiveSidebarTab("calculator"); }}
                 onHome={() => setViewMode("landing")}
               />
             ) : engineeringGate.isBlocked && [
