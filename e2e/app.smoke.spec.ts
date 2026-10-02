@@ -1,4 +1,11 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
+
+async function openStage3(page: Page) {
+  await page.locator("#workflow-step-btn-2").click();
+  await expect(page.locator("#project-requirements-panel")).toBeVisible();
+  await page.locator("#workflow-step-btn-3").click();
+  await expect(page.locator("#stage3-sequential-page")).toBeVisible();
+}
 
 test.describe("SnoLab application smoke flow", () => {
   test("opens the landing page, switches language, and starts a project", async ({ page }) => {
@@ -14,7 +21,7 @@ test.describe("SnoLab application smoke flow", () => {
     await page.getByRole("button", { name: /Start New Project/ }).first().click();
     await expect(page.locator("#main-layout-root")).toBeVisible();
     await expect(page.locator("body")).toContainText("Project Setup");
-    await expect(page.locator("body")).toContainText("STAGE 1 / 5");
+    await expect(page.locator("body")).toContainText("STAGE 1 / 7");
   });
 
   test("keeps the landing page usable on a mobile viewport", async ({ page }) => {
@@ -47,22 +54,19 @@ test.describe("SnoLab application smoke flow", () => {
     await expect(openMobile).toBeFocused();
   });
 
-  test("simulates every concrete type and validates five-stage navigation guards", async ({ page }) => {
+  test("simulates every concrete type and validates seven-stage navigation guards", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /🇺🇸 EN/ }).click();
     await page.getByRole("button", { name: /Start New Project/ }).first().click();
 
-    const stageBadge = page.locator("span").filter({ hasText: /^STAGE [1-5] \/ 5/ }).first();
+    const stageBadge = page.locator("span").filter({ hasText: /^STAGE [1-7] \/ 7/ }).first();
     const nextStage = page.getByRole("button", { name: "Next Stage" });
     const previousStage = page.getByRole("button", { name: "Previous Stage" });
 
-    await expect(stageBadge).toContainText("STAGE 1 / 5");
+    await expect(stageBadge).toContainText("STAGE 1 / 7");
     await expect(previousStage).toBeDisabled();
 
-    // Go directly to the mix-proportioning stage where concrete type and
-    // strength are entered, then exercise representative concrete families.
-    await page.locator("#workflow-step-btn-3").click();
-    await expect(stageBadge).toContainText("STAGE 3 / 5");
+    await openStage3(page);
 
     const concreteTypeSelect = page.locator("#step1-project-requirements select").first();
     const strengthInput = page.locator("#step1-project-requirements input[type=number]").first();
@@ -80,28 +84,22 @@ test.describe("SnoLab application smoke flow", () => {
       await expect(strengthInput).toHaveValue(concreteCase[1]);
     }
 
-    // Return to the default supported route before checking the workflow gate,
-    // so specialised validation does not affect this navigation assertion.
     await concreteTypeSelect.selectOption("NSC");
     await strengthInput.fill("25");
 
-    // Stage 4 is reachable, while the engineering verification gate correctly
-    // prevents stage 5 when required materials are not yet approved.
     await nextStage.click();
-    await expect(stageBadge).toContainText("STAGE 4 / 5");
-    await expect(page.locator("body")).toContainText("Engineering Verification Gate");
+    await expect(stageBadge).toContainText("STAGE 4 / 7");
 
-    // Attempting to advance from a gated result stage must return the user to
-    // the editable calculator rather than leaving the UI in a broken state.
     await nextStage.click();
-    await expect(stageBadge).toContainText("STAGE 3 / 5");
+    await expect(stageBadge).toContainText("STAGE 4 / 7");
     await expect(concreteTypeSelect).toHaveValue("NSC");
 
-    // Backward navigation remains available and reaches the project setup.
     await previousStage.click();
-    await expect(stageBadge).toContainText("STAGE 2 / 5");
+    await expect(stageBadge).toContainText("STAGE 3 / 7");
     await previousStage.click();
-    await expect(stageBadge).toContainText("STAGE 1 / 5");
+    await expect(stageBadge).toContainText("STAGE 2 / 7");
+    await previousStage.click();
+    await expect(stageBadge).toContainText("STAGE 1 / 7");
     await expect(previousStage).toBeDisabled();
   });
 
@@ -139,7 +137,7 @@ test.describe("SnoLab application smoke flow", () => {
     await page.goto("/");
     await page.getByRole("button", { name: /🇺🇸 EN/ }).click();
     await page.getByRole("button", { name: /Start New Project/ }).first().click();
-    await page.locator("#workflow-step-btn-3").click();
+    await openStage3(page);
     const strengthInput = page.locator("#step1-project-requirements input[type=number]").first();
     await strengthInput.fill("");
     await expect(page.locator("#step1-project-requirements")).toContainText("Target strength is missing");
@@ -154,7 +152,7 @@ test.describe("SnoLab application smoke flow", () => {
     await page.goto("/");
     await page.getByRole("button", { name: /🇺🇸 EN/ }).click();
     await page.getByRole("button", { name: /Start New Project/ }).first().click();
-    await page.locator("#workflow-step-btn-3").click();
+    await openStage3(page);
     const stage3 = page.locator("#stage3-sequential-page");
     await expect(stage3).toBeVisible();
     await expect(page.locator("#step3-materials-selection")).toBeVisible();
@@ -170,9 +168,8 @@ test.describe("SnoLab application smoke flow", () => {
       await page.goto("/");
       await page.getByRole("button", { name: /🇺🇸 EN/ }).click();
       await page.getByRole("button", { name: /Start New Project/ }).first().click();
-      await page.locator("#workflow-step-btn-3").click();
+      await openStage3(page);
       const stage3 = page.locator("#stage3-sequential-page");
-      await expect(stage3).toBeVisible();
       const stageBox = await stage3.boundingBox();
       expect(stageBox?.width).toBeLessThanOrEqual(width);
       await expect(page.locator("#step1-project-requirements")).toBeVisible();
@@ -183,7 +180,7 @@ test.describe("SnoLab application smoke flow", () => {
     await page.goto("/");
     await page.getByRole("button", { name: /🇺🇸 EN/ }).click();
     await page.getByRole("button", { name: /Start New Project/ }).first().click();
-    await page.locator("#workflow-step-btn-3").click();
+    await openStage3(page);
 
     const requirements = page.locator("#step1-project-requirements");
     const strength = page.locator("#mix-fck28");
@@ -215,7 +212,7 @@ test.describe("SnoLab application smoke flow", () => {
     await page.goto("/");
     await page.getByRole("button", { name: /🇺🇸 EN/ }).click();
     await page.getByRole("button", { name: /Start New Project/ }).first().click();
-    await page.locator("#workflow-step-btn-3").click();
+    await openStage3(page);
     await page.locator("#step1-project-requirements #step1-concrete-type select").selectOption("HSC");
 
     const ratio = page.locator("#specialized-input-hscWaterBinderRatio");

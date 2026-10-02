@@ -62,7 +62,7 @@ describe("Seven-stage project workflow architecture", () => {
 
   it("blocks forward navigation at the first unmet gate with actionable reason codes", () => {
     const incomplete = baseProject({ mixDesigns: { currentInputs: {} }, materials: [], validationRecords: [], reports: [] });
-    const check = validateStageNavigation(3, true, 1, incomplete);
+    const check = validateStageNavigation(4, true, 1, incomplete);
     expect(check.allowed).toBe(false);
     expect(check.gate?.reasons).toContain("REQUIREMENTS_INCOMPLETE");
     expect(check.gate?.reasons).toContain("MATERIALS_NOT_VERIFIED");
@@ -90,7 +90,7 @@ describe("Seven-stage project workflow architecture", () => {
   it("maps primary and submodule tabs without losing the legacy calculator/library paths", () => {
     expect(getTabForStage(1)).toBe("saved_projects");
     expect(getTabForStage(2)).toBe("cloud_storage");
-    expect(getTabForStage(3)).toBe("materials_library");
+    expect(getTabForStage(3)).toBe("calculator");
     expect(getTabForStage(4)).toBe("calculator");
     expect(getTabForStage(5)).toBe("batch_preparation");
     expect(getTabForStage(6)).toBe("quality_control");
