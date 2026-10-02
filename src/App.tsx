@@ -116,6 +116,7 @@ import { CompressiveStrengthField } from "./components/CompressiveStrengthField"
 import { ConcreteTypeSelector } from "./components/ConcreteTypeSelector";
 import { DesignMethodStructuralSelector } from "./components/DesignMethodStructuralSelector";
 import { BasicMixConditionsFields } from "./components/BasicMixConditionsFields";
+import { SpecializedConcreteInputs } from "./components/SpecializedConcreteInputs";
 import {
   ResponsiveContainer,
   PieChart as RechartsPieChart,
@@ -4809,64 +4810,22 @@ export default function App() {
 
                     </div>
 
-                    {/* Specialized inputs stay beside the general engineering inputs, not inside the concrete-type card. */}
-                    {(() => {
-                      const contract = getMixDesignContract(String(inputs.concreteType || "NSC").toUpperCase());
-                      if (!contract || contract.concreteType === "NSC") return null;
-                      const coreKeys = new Set([
-                        "fck28", "dMax", "cementType", "cementClassStrength", "cementDensity",
-                        "moistureSand", "moistureGravel", "airContent", "slump"
-                      ]);
-                      const specializedKeys = contract.requiredInputs.filter((key) => !coreKeys.has(String(key)));
-                      return (
-                        <div id="step1-specialized-inputs" className="mt-4 p-4 rounded-xl border border-blue-500/20 bg-blue-500/5 space-y-3 text-right">
-                          <div>
-                            <div className="text-[11px] font-black text-blue-600 dark:text-blue-300">
-                              {language === "ar" ? `المدخلات الخاصة بـ ${contract.methodId}` : `${contract.methodId} specialized inputs`}
-                            </div>
-                            <div className="text-[9px] text-slate-500 dark:text-slate-400 mt-1">
-                              {contract.engineeringFramework} — {language === "ar" ? "تظهر بجانب المدخلات العامة ولا تستخدم قيماً افتراضية." : "Shown beside the general inputs with no silent defaults."}
-                            </div>
-                          </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-                            {specializedKeys.map((key) => {
-                              const field = String(key);
-                              const isText = field.endsWith("Type") || field.endsWith("Method") || field === "fiberType" || field === "shcHealingAgentType";
-                              const value = (inputs as any)[field];
-                              const definition = getSpecializedInputDefinition(field);
-                              const fieldError = specializedInputErrors[field];
-                              return (
-                                <label key={field} className="text-[9px] font-bold text-slate-600 dark:text-slate-300">
-                                  <span className="block mb-1">{definition.label[language as "ar" | "fr" | "en"] || definition.label.en}</span>
-                                  <input
-                                    type={isText ? "text" : "number"}
-                                    min={isText ? undefined : definition.min}
-                                    max={isText ? undefined : definition.max}
-                                    step={isText ? undefined : definition.step || "any"}
-                                    value={value ?? ""}
-                                    onChange={(event) => {
-                                      const raw = event.target.value;
-                                      const nextValue = isText ? raw : (raw === "" ? undefined : Number(raw));
-                                      const error = validateSpecializedInputValue(field, nextValue);
-                                      setSpecializedInputErrors(prev => {
-                                        const next = { ...prev };
-                                        if (error) next[field] = error;
-                                        else delete next[field];
-                                        return next;
-                                      });
-                                      if (!error) setInputs(prev => ({ ...prev, [field]: nextValue }));
-                                    }}
-                                    className={`w-full rounded border ${fieldError ? "border-rose-500 ring-1 ring-rose-300" : "border-blue-500/20"} bg-white dark:bg-slate-950 p-2 text-[10px] outline-none focus:border-blue-500`}
-                                    placeholder={language === "ar" ? "مطلوب" : "Required"}
-                                  />
-                                  {fieldError && <span className="block mt-1 text-[9px] font-bold text-rose-600 dark:text-rose-400">{specializedInputErrorMessage(field, fieldError, language as "ar" | "fr" | "en")}</span>}
-                                </label>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      );
-                    })()}
+                    <SpecializedConcreteInputs
+                      language={language as "ar" | "fr" | "en"}
+                      concreteType={String(inputs.concreteType || "NSC")}
+                      inputs={inputs as Record<string, any>}
+                      errors={specializedInputErrors}
+                      translate={t}
+                      onFieldChange={(field, nextValue, error) => {
+                        setSpecializedInputErrors(prev => {
+                          const next = { ...prev };
+                          if (error) next[field] = error;
+                          else delete next[field];
+                          return next;
+                        });
+                        if (!error) setInputs(prev => ({ ...prev, [field]: nextValue }));
+                      }}
+                    />
 
                     {/* Pumpability and details */}
                     <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-900/40 p-3 rounded-xl border border-slate-200/50 dark:border-slate-800 font-sans">
