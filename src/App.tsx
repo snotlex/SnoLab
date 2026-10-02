@@ -123,6 +123,7 @@ import { GravelSelectionCard } from "./components/GravelSelectionCard";
 import { WaterSelectionCard } from "./components/WaterSelectionCard";
 import { ChemicalAdmixtureSelectionCard } from "./components/ChemicalAdmixtureSelectionCard";
 import { MineralAdditionSelectionCard } from "./components/MineralAdditionSelectionCard";
+import { FiberSelectionCard } from "./components/FiberSelectionCard";
 import {
   ResponsiveContainer,
   PieChart as RechartsPieChart,
@@ -5220,79 +5221,42 @@ export default function App() {
                                   />
                                 )}
 
-                                {/* Fiber Reinforcement Selection */}
                                 {isFiberAllowed && (
-                                  <div className="p-3 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-slate-200/40 dark:border-slate-800 space-y-2.5">
-                                    <div className="text-xs font-black text-slate-800 dark:text-white border-b border-slate-200/50 dark:border-slate-800 pb-1 flex items-center gap-1">
-                                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                                      <span>{language === "ar" ? "ألياف التسليح الخرساني:" : language === "fr" ? "Fibres de renforcement :" : "Structural Fibers:"}</span>
-                                    </div>
-                                    <div>
-                                      <label className="text-[10px] text-slate-500 block mb-1">
-                                        {language === "ar" ? "ألياف الصلب والبوليمر المعتمدة" : language === "fr" ? "Fibres approuvées" : "Approved fibers"}
-                                      </label>
-                                      <select
-                                        value={inputs.selectedFiberId || ""}
-                                        onChange={(e) => {
-                                          const selectedId = e.target.value;
-                                          if (!selectedId) {
-                                            setInputs(prev => ({
-                                              ...prev,
-                                              selectedFiberId: "",
-                                              selectedFiberName: "",
-                                              fiberDensity: undefined,
-                                              fiberDosageKgM3: 0,
-                                              priceFiber: 0
-                                            }));
-                                            return;
-                                          }
-                                          const validation = validateMaterialSelection(selectedId, materialsDatabase, currentMethod, currentConcrete, activeProject);
-                                          if (!validation.isValid) {
-                                            alert(language === "ar" ? validation.errorAr : validation.errorEn);
-                                            return;
-                                          }
-                                          const matchedMat = validation.material;
-                                          if (matchedMat) {
-                                            const dens = matchedMat.density;
-                                            const recDos = (matchedMat as any).fiberDosageKgM3 ?? matchedMat.recommendedDosage;
-                                            if (typeof dens !== "number" || !Number.isFinite(dens) || dens <= 0 || typeof recDos !== "number" || !Number.isFinite(recDos) || recDos <= 0) {
-                                              alert(language === "ar" ? "لا يمكن اختيار هذه المادة: كثافة الألياف وجرعتها يجب أن تكونا مسجلتين في مكتبة المواد." : "This material cannot be selected: fiber density and dosage must be recorded in the material library.");
-                                              return;
-                                            }
-                                            const price = matchedMat.price;
-                                            const fType = matchedMat.fiberType ?? (matchedMat as any).type;
-                                            if (!fType) {
-                                              alert(language === "ar" ? "لا يمكن اختيار هذه المادة: نوع الألياف غير مسجل في مكتبة المواد." : "This material cannot be selected: fiber type is missing from the material library.");
-                                              return;
-                                            }
-
-                                            setInputs(prev => ({
-                                              ...prev,
-                                              selectedFiberId: selectedId,
-                                              selectedFiberName: matchedMat.name,
-                                              fiberDensity: dens,
-                                              fiberDosageKgM3: recDos,
-                                              ...(price !== undefined ? { priceFiber: price } : {}),
-                                              fiberType: fType,
-                                              concreteType: prev.concreteType === "NSC" ? "FRC" : prev.concreteType
-                                            }));
-                                          }
-                                        }}
-                                        className="w-full text-xs p-2 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-white font-semibold cursor-pointer"
-                                      >
-                                        <option value="">{language === "ar" ? "اختر مادة من المستودع (المعتمدة فقط)" : language === "fr" ? "Choisir des fibres approuvées" : "Select approved fibers"}</option>
-                                        {fiberList.map(m => (
-                                          <option key={m.id} value={m.id} className={isUserMaterial(m) ? "text-emerald-600 font-semibold" : "text-blue-600"}>
-                                            {getMaterialOptionLabel(m)}
-                                          </option>
-                                        ))}
-                                      </select>
-                                      {renderMaterialSourceBadge(inputs.selectedFiberId)}
-                                    </div>
-                                    <p className="text-[9px] text-slate-400 font-sans leading-normal">
-                                      {language === "ar" ? "تمنع شروخ الانكماش اللدن في السطح وتزيد من مرونة وتحمل المزيج." : language === "fr" ? "Prévient la fissuration et améliore la ductilité du béton." : "Prevents early cracking and improves structural ductility and toughness."}
-                                    </p>
-                                  </div>
+                                  <FiberSelectionCard
+                                    language={language as "ar" | "fr" | "en"}
+                                    materials={fiberList}
+                                    selectedId={inputs.selectedFiberId}
+                                    materialOptionLabel={getMaterialOptionLabel}
+                                    isUserMaterial={isUserMaterial}
+                                    materialBadge={renderMaterialSourceBadge(inputs.selectedFiberId)}
+                                    onSelect={(selectedId) => {
+                                      if (!selectedId) {
+                                        setInputs(prev => ({ ...prev, selectedFiberId: "", selectedFiberName: "", fiberDensity: undefined, fiberDosageKgM3: 0, priceFiber: 0 }));
+                                        return;
+                                      }
+                                      const validation = validateMaterialSelection(selectedId, materialsDatabase, currentMethod, currentConcrete, activeProject);
+                                      if (!validation.isValid) {
+                                        alert(language === "ar" ? validation.errorAr : validation.errorEn);
+                                        return;
+                                      }
+                                      const matchedMat = validation.material;
+                                      if (matchedMat) {
+                                        const dens = matchedMat.density;
+                                        const recDos = (matchedMat as any).fiberDosageKgM3 ?? matchedMat.recommendedDosage;
+                                        if (typeof dens !== "number" || !Number.isFinite(dens) || dens <= 0 || typeof recDos !== "number" || !Number.isFinite(recDos) || recDos <= 0) {
+                                          alert(language === "ar" ? "لا يمكن اختيار هذه المادة: كثافة الألياف وجرعتها يجب أن تكونا مسجلتين في مكتبة المواد." : "This material cannot be selected: fiber density and dosage must be recorded in the material library.");
+                                          return;
+                                        }
+                                        const price = matchedMat.price;
+                                        const fType = matchedMat.fiberType ?? (matchedMat as any).type;
+                                        if (!fType) {
+                                          alert(language === "ar" ? "لا يمكن اختيار هذه المادة: نوع الألياف غير مسجل في مكتبة المواد." : "This material cannot be selected: fiber type is missing from the material library.");
+                                          return;
+                                        }
+                                        setInputs(prev => ({ ...prev, selectedFiberId: selectedId, selectedFiberName: matchedMat.name, fiberDensity: dens, fiberDosageKgM3: recDos, ...(price !== undefined ? { priceFiber: price } : {}), fiberType: fType, concreteType: prev.concreteType === "NSC" ? "FRC" : prev.concreteType }));
+                                      }
+                                    }}
+                                  />
                                 )}
 
                                 {/* Special Binders Selection */}
