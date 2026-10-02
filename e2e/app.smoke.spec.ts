@@ -181,6 +181,38 @@ test.describe("SnoLab application smoke flow", () => {
     }
   });
 
+  test("exposes numeric validation feedback through accessible field descriptions", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /🇺🇸 EN/ }).click();
+    await page.getByRole("button", { name: /Start New Project/ }).first().click();
+    await page.locator("#workflow-step-btn-3").click();
+
+    const requirements = page.locator("#step1-project-requirements");
+    const strength = page.locator("#mix-fck28");
+    const slump = page.locator("#mix-slump");
+    const dmax = page.locator("#mix-dmax");
+
+    await strength.fill("");
+    await expect(strength).toHaveAttribute("aria-invalid", "true");
+    await expect(strength).toHaveAttribute("aria-describedby", "mix-fck28-message");
+    await expect(page.locator("#mix-fck28-message")).toContainText("Target strength is missing");
+    await expect(requirements.getByText("Target strength is missing")).toBeVisible();
+
+    await expect(slump).toHaveAttribute("aria-describedby", "mix-slump-hint");
+    await expect(slump).toHaveAttribute("aria-invalid", "false");
+    await expect(dmax).toHaveAttribute("aria-describedby", "mix-dmax-hint");
+    await expect(dmax).toHaveAttribute("aria-invalid", "false");
+
+    await strength.fill("40");
+    await requirements.locator("#step1-concrete-type select").selectOption("HSC");
+    const specialized = page.locator("#step1-specialized-inputs");
+    const ratio = specialized.locator("#specialized-input-hscWaterBinderRatio");
+    await ratio.fill("0.1");
+    await expect(ratio).toHaveAttribute("aria-invalid", "true");
+    await expect(ratio).toHaveAttribute("aria-describedby", /specialized-input-hscWaterBinderRatio-hint specialized-input-hscWaterBinderRatio-error/);
+    await expect(page.locator("#specialized-input-hscWaterBinderRatio-error")).toContainText("Value must be ≥ 0.22");
+  });
+
   test("creates a multi-test laboratory request and adds an independent replicate", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /🇺🇸 EN/ }).click();
