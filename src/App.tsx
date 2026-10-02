@@ -124,6 +124,7 @@ import { WaterSelectionCard } from "./components/WaterSelectionCard";
 import { ChemicalAdmixtureSelectionCard } from "./components/ChemicalAdmixtureSelectionCard";
 import { MineralAdditionSelectionCard } from "./components/MineralAdditionSelectionCard";
 import { FiberSelectionCard } from "./components/FiberSelectionCard";
+import { SpecialBinderSelectionCard } from "./components/SpecialBinderSelectionCard";
 import {
   ResponsiveContainer,
   PieChart as RechartsPieChart,
@@ -5259,69 +5260,36 @@ export default function App() {
                                   />
                                 )}
 
-                                {/* Special Binders Selection */}
                                 {isSpecialBinderAllowed && (
-                                  <div className="p-3 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-slate-200/40 dark:border-slate-800 space-y-2.5">
-                                    <div className="text-xs font-black text-slate-800 dark:text-white border-b border-slate-200/50 dark:border-slate-800 pb-1 flex items-center gap-1">
-                                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
-                                      <span>{language === "ar" ? "الروابط والمجلدات الخاصة:" : language === "fr" ? "Liants spéciaux :" : "Special Binders:"}</span>
-                                    </div>
-                                    <div>
-                                      <label className="text-[10px] text-slate-500 block mb-1">
-                                        {language === "ar" ? "روابط تخصصية وجيوبوليمر معتمدة" : language === "fr" ? "Liants spéciaux approuvés" : "Approved special binders"}
-                                      </label>
-                                      <select
-                                        value={inputs.selectedSpecialBinderId || ""}
-                                        onChange={(e) => {
-                                          const selectedId = e.target.value;
-                                          if (!selectedId) {
-                                            setInputs(prev => ({
-                                              ...prev,
-                                              selectedSpecialBinderId: "",
-                                              selectedSpecialBinderName: "",
-                                              specialBinderDensity: undefined,
-                                              priceSpecialBinder: 0
-                                            }));
-                                            return;
-                                          }
-                                          const validation = validateMaterialSelection(selectedId, materialsDatabase, currentMethod, currentConcrete, activeProject);
-                                          if (!validation.isValid) {
-                                            alert(language === "ar" ? validation.errorAr : validation.errorEn);
-                                            return;
-                                          }
-                                          const matchedMat = validation.material;
-                                          if (matchedMat) {
-                                            const dens = matchedMat.density ?? matchedMat.specificGravity;
-                                            if (typeof dens !== "number" || !Number.isFinite(dens) || dens <= 0) {
-                                              alert(language === "ar" ? "لا يمكن اختيار هذا الرابط: كثافته غير مسجلة في مكتبة المواد." : "This binder cannot be selected: its density is missing from the material library.");
-                                              return;
-                                            }
-                                            const price = matchedMat.price;
-                                            setInputs(prev => ({
-                                              ...prev,
-                                              selectedSpecialBinderId: selectedId,
-                                              selectedSpecialBinderName: matchedMat.name,
-                                              specialBinderDensity: dens,
-                                              ...(price !== undefined ? { priceSpecialBinder: price } : {}),
-                                              concreteType: matchedMat.name?.includes("جيوبوليمر") || matchedMat.name?.includes("Geopolymer") ? "GPC" : prev.concreteType
-                                            }));
-                                          }
-                                        }}
-                                        className="w-full text-xs p-2 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-white font-semibold cursor-pointer"
-                                      >
-                                        <option value="">{language === "ar" ? "اختر مادة من المستودع (المعتمدة فقط)" : language === "fr" ? "Choisir un liant approuvé" : "Select approved special binder"}</option>
-                                        {specialBinderList.map(m => (
-                                          <option key={m.id} value={m.id} className={isUserMaterial(m) ? "text-emerald-600 font-semibold" : "text-blue-600"}>
-                                            {getMaterialOptionLabel(m)}
-                                          </option>
-                                        ))}
-                                      </select>
-                                      {renderMaterialSourceBadge(inputs.selectedSpecialBinderId)}
-                                    </div>
-                                    <p className="text-[9px] text-slate-400 font-sans leading-normal">
-                                      {language === "ar" ? "للروابط الصديقة للبيئة والخرسانة ذاتية الالتئام وبدائل الإسمنت البورتلاندي." : language === "fr" ? "Pour le béton géopolymère et les liants écologiques." : "For eco-friendly binders, self-healing mixes, and green concretes."}
-                                    </p>
-                                  </div>
+                                  <SpecialBinderSelectionCard
+                                    language={language as "ar" | "fr" | "en"}
+                                    materials={specialBinderList}
+                                    selectedId={inputs.selectedSpecialBinderId}
+                                    materialOptionLabel={getMaterialOptionLabel}
+                                    isUserMaterial={isUserMaterial}
+                                    materialBadge={renderMaterialSourceBadge(inputs.selectedSpecialBinderId)}
+                                    onSelect={(selectedId) => {
+                                      if (!selectedId) {
+                                        setInputs(prev => ({ ...prev, selectedSpecialBinderId: "", selectedSpecialBinderName: "", specialBinderDensity: undefined, priceSpecialBinder: 0 }));
+                                        return;
+                                      }
+                                      const validation = validateMaterialSelection(selectedId, materialsDatabase, currentMethod, currentConcrete, activeProject);
+                                      if (!validation.isValid) {
+                                        alert(language === "ar" ? validation.errorAr : validation.errorEn);
+                                        return;
+                                      }
+                                      const matchedMat = validation.material;
+                                      if (matchedMat) {
+                                        const dens = matchedMat.density ?? matchedMat.specificGravity;
+                                        if (typeof dens !== "number" || !Number.isFinite(dens) || dens <= 0) {
+                                          alert(language === "ar" ? "لا يمكن اختيار هذا الرابط: كثافته غير مسجلة في مكتبة المواد." : "This binder cannot be selected: its density is missing from the material library.");
+                                          return;
+                                        }
+                                        const price = matchedMat.price;
+                                        setInputs(prev => ({ ...prev, selectedSpecialBinderId: selectedId, selectedSpecialBinderName: matchedMat.name, specialBinderDensity: dens, ...(price !== undefined ? { priceSpecialBinder: price } : {}), concreteType: matchedMat.name?.includes("جيوبوليمر") || matchedMat.name?.includes("Geopolymer") ? "GPC" : prev.concreteType }));
+                                      }
+                                    }}
+                                  />
                                 )}
 
                               </div>
