@@ -23,7 +23,13 @@ function pendingProposal(material: EngineeringMaterial, run: LaboratoryTestRun, 
     newValue: value,
     unit,
     status: "Pending",
-    proposedAt
+    proposedAt,
+    sourceSnapshot: {
+      status: run.status,
+      verificationStatus: run.verificationStatus,
+      standardVersion: run.standard?.version,
+      equipmentCalibrationSnapshot: run.equipmentCalibrationSnapshot
+    }
   };
 }
 
@@ -34,7 +40,7 @@ export function createPhase4MaterialUpdateProposals<TData extends Record<string,
 }): MaterialUpdateProposal[] {
   const mapping = PROPERTY_BY_DEFINITION[params.run.testDefinitionId];
   const value = params.run.result?.value;
-  if (!mapping || !params.run.validation.valid || typeof value !== "number" || !Number.isFinite(value)) return [];
+  if (!mapping || !params.run.validation.valid || !["Calculated", "Verified"].includes(params.run.status) || params.run.verificationStatus !== "VERIFIED" || params.run.standard?.status !== "Active" || typeof value !== "number" || !Number.isFinite(value)) return [];
   return [pendingProposal(params.material, params.run, mapping.propertyKey, value, mapping.unit, params.proposedAt || new Date().toISOString())];
 }
 

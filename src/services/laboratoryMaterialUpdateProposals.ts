@@ -1,5 +1,5 @@
 import type { EngineeringMaterial } from "../types";
-import type { MaterialUpdateProposal } from "../types/laboratoryDomain";
+import type { LaboratoryAuditEntry, MaterialUpdateProposal } from "../types/laboratoryDomain";
 import type { SieveAnalysisOutput } from "./aggregateSieveAnalysis";
 import type { AggregateCrushingValueOutput } from "./aggregateCrushingValue";
 import type { CementChemicalCompositionOutput } from "./cementChemicalComposition";
@@ -368,9 +368,24 @@ export function acceptMaterialUpdateProposal(
   decidedBy: string,
   reason?: string,
   decidedAt = new Date().toISOString()
-): { material: EngineeringMaterial; proposal: MaterialUpdateProposal } {
+ ): { material: EngineeringMaterial; proposal: MaterialUpdateProposal; auditEntry: LaboratoryAuditEntry } {
   if (proposal.status !== "Pending") throw new Error(`Only pending proposals can be accepted; current status is ${proposal.status}.`);
   if (proposal.materialId !== material.id) throw new Error("The proposal does not belong to the supplied material.");
+  const currentValue = (material as unknown as Record<string, unknown>)[proposal.propertyKey];
+  if (currentValue !== proposal.oldValue) throw new Error("The proposal is stale: the material value changed since proposal creation.");
+  if (!Number.isFinite(proposal.newValue)) throw new Error("Only finite proposal values can be accepted.");
+  const auditEntryId = `AUDIT-${proposal.id}-${Date.now().toString(36).toUpperCase()}`;
+  const auditEntry: LaboratoryAuditEntry = {
+    id: auditEntryId,
+    entityType: "material_update",
+    entityId: proposal.id,
+    action: "accepted",
+    actor: decidedBy,
+    timestamp: decidedAt,
+    oldValue: proposal.oldValue,
+    newValue: proposal.newValue,
+    reason,
+  };
   const updatedMaterial = {
     ...material,
     [proposal.propertyKey]: proposal.newValue,
@@ -379,7 +394,8 @@ export function acceptMaterialUpdateProposal(
   } as EngineeringMaterial;
   return {
     material: updatedMaterial,
-    proposal: { ...proposal, status: "Accepted", decidedAt, decidedBy, reason }
+    proposal: { ...proposal, status: "Accepted", decidedAt, decidedBy, reason, auditEntryId },
+    auditEntry
   };
 }
 

@@ -201,6 +201,13 @@ export interface MaterialUpdateProposal {
   decidedAt?: string;
   decidedBy?: string;
   reason?: string;
+  sourceSnapshot?: {
+    status?: LaboratoryResultStatus;
+    verificationStatus?: LaboratoryVerificationStatus;
+    standardVersion?: string;
+    equipmentCalibrationSnapshot?: LaboratoryTestRun["equipmentCalibrationSnapshot"];
+  };
+  auditEntryId?: string;
 }
 
 export interface LaboratoryAuditEntry {
