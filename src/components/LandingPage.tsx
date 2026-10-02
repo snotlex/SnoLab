@@ -318,14 +318,16 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     return field[language] || field["ar"] || "";
   };
 
+  const workflowIcons = [Building, Sliders, Layers, FileText] as const;
+
   return (
     <div 
-      className={`min-h-screen transition-colors duration-350 overflow-x-hidden ${themeMode === "dark" ? "bg-[#0B1120] text-slate-100" : "bg-[#F1F5F9] text-slate-900"}`}
+      className={`min-h-screen transition-colors duration-350 overflow-x-hidden ${themeMode === "dark" ? "bg-[#080C11] text-slate-100" : "bg-[#F1F5F9] text-slate-900"}`}
       dir={isRtl ? "rtl" : "ltr"}
       id="sno-landing-page-root"
     >
       {/* 1. TOP BAR NAVBAR */}
-      <header className={`sticky top-0 z-50 backdrop-blur-md border-b transition-colors px-4 md:px-8 py-3 ${themeMode === "dark" ? "bg-[#0B1120]/80 border-slate-800/80" : "bg-[#F1F5F9]/80 border-slate-200/80"}`}>
+      <header className={`sticky top-0 z-50 backdrop-blur-md border-b transition-colors px-4 md:px-8 py-3 ${themeMode === "dark" ? "bg-[#080C11]/85 border-white/10" : "bg-[#F1F5F9]/85 border-slate-200/80"}`}>
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
           
           {/* Logo Brand */}
@@ -340,7 +342,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               <button
                 onClick={() => setLanguage("ar")}
                 className={`px-2.5 py-1 text-[10px] font-black rounded-lg transition-all cursor-pointer ${
-                  language === "ar" ? "bg-blue-600 text-white shadow-sm" : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
+                    language === "ar" ? "bg-[#C7F43A] text-[#0A0F15] shadow-sm" : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
                 }`}
               >
                 🇸🇦 AR
@@ -348,7 +350,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               <button
                 onClick={() => setLanguage("fr")}
                 className={`px-2.5 py-1 text-[10px] font-black rounded-lg transition-all cursor-pointer ${
-                  language === "fr" ? "bg-blue-600 text-white shadow-sm" : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
+                    language === "fr" ? "bg-[#C7F43A] text-[#0A0F15] shadow-sm" : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
                 }`}
               >
                 🇫🇷 FR
@@ -356,7 +358,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               <button
                 onClick={() => setLanguage("en")}
                 className={`px-2.5 py-1 text-[10px] font-black rounded-lg transition-all cursor-pointer ${
-                  language === "en" ? "bg-blue-600 text-white shadow-sm" : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
+                    language === "en" ? "bg-[#C7F43A] text-[#0A0F15] shadow-sm" : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
                 }`}
               >
                 🇺🇸 EN
@@ -394,7 +396,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             )}
             <button
               onClick={onStartProject}
-              className="bg-blue-600 hover:bg-blue-500 hover:scale-103 active:scale-97 text-white font-black text-xs px-3.5 py-2 rounded-xl transition-all shadow-md flex items-center gap-1 cursor-pointer"
+              className="bg-[#C7F43A] hover:bg-[#D8FB71] hover:scale-103 active:scale-97 text-[#0A0F15] font-black text-xs px-3.5 py-2 rounded-xl transition-all shadow-md flex items-center gap-1 cursor-pointer"
             >
               <span>{tLanding(content.nav.enterWorkspace)}</span>
             </button>
@@ -404,10 +406,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       </header>
 
       {/* 2. HERO SECTION */}
-      <section className="relative overflow-hidden pt-12 pb-20 md:py-28" id="sno-hero-section">
+      <section className="sno-instrument-grid relative overflow-hidden pt-12 pb-20 md:py-28" id="sno-hero-section">
         {/* Subtle decorative glowing background circles */}
-        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[350px] md:w-[650px] h-[350px] md:h-[650px] bg-blue-500/10 dark:bg-blue-600/10 blur-[80px] md:blur-[130px] rounded-full pointer-events-none z-0"></div>
-        <div className="absolute top-10 right-10 w-[200px] h-[200px] bg-indigo-500/5 dark:bg-indigo-500/10 blur-[80px] rounded-full pointer-events-none z-0"></div>
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[350px] md:w-[650px] h-[350px] md:h-[650px] bg-[#C7F43A]/10 blur-[80px] md:blur-[130px] rounded-full pointer-events-none z-0"></div>
+        <div className="absolute top-10 right-10 w-[200px] h-[200px] bg-emerald-500/10 blur-[80px] rounded-full pointer-events-none z-0"></div>
 
         <div className="max-w-7xl mx-auto px-4 md:px-8 relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-12 items-center text-right">
           
@@ -420,7 +422,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               transition={{ duration: 0.5 }}
               className="self-start"
             >
-              <span className="inline-flex items-center gap-1 px-3 py-1 bg-blue-500/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 rounded-full text-[11px] font-black border border-blue-500/20 tracking-wide uppercase">
+              <span className="inline-flex items-center gap-1 px-3 py-1 bg-[#C7F43A]/10 text-[#D8FB71] rounded-full text-[11px] font-black border border-[#C7F43A]/25 tracking-wide uppercase">
                 {tLanding(content.hero.badge)}
               </span>
             </motion.div>
@@ -429,7 +431,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.1 }}
-              className="text-3xl md:text-5xl font-black text-slate-900 dark:text-slate-50 tracking-tight leading-tight"
+              className="text-3xl md:text-5xl font-black text-white tracking-tight leading-tight"
             >
               {tLanding(content.hero.title)}
             </motion.h2>
@@ -438,7 +440,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.2 }}
-              className="text-sm md:text-base text-slate-600 dark:text-slate-300 leading-relaxed font-sans max-w-2xl"
+              className="text-sm md:text-base text-slate-300 leading-relaxed font-sans max-w-2xl"
             >
               {tLanding(content.hero.desc)}
             </motion.p>
@@ -451,7 +453,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             >
               <button
                 onClick={onStartProject}
-                className="bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-xs md:text-sm px-6 py-3 rounded-xl transition-all shadow-xl hover:shadow-blue-500/10 hover:scale-102 flex items-center gap-2 cursor-pointer"
+                className="bg-[#C7F43A] hover:bg-[#D8FB71] text-[#0A0F15] font-extrabold text-xs md:text-sm px-6 py-3 rounded-xl transition-all shadow-xl shadow-[#C7F43A]/10 hover:scale-102 flex items-center gap-2 cursor-pointer"
               >
                 <FolderPlus size={16} />
                 <span>{tLanding(content.hero.ctaStart)}</span>
@@ -463,7 +465,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   onClick={onOpenProject}
                   className="bg-slate-900 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 text-white font-extrabold text-xs md:text-sm px-5 py-3 rounded-xl border border-slate-700/80 transition-all shadow-lg hover:scale-102 flex items-center gap-2 cursor-pointer"
                 >
-                  <FolderOpen size={16} className="text-emerald-400" />
+                  <FolderOpen size={16} className="text-[#C7F43A]" />
                   <span>{tLanding(content.hero.ctaOpen)}</span>
                 </button>
               )}
@@ -472,7 +474,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 onClick={() => {
                   document.getElementById("sno-benefits-section")?.scrollIntoView({ behavior: "smooth" });
                 }}
-                className={`bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs md:text-sm px-5 py-3 rounded-xl transition-all cursor-pointer flex items-center gap-1.5`}
+                className={`bg-white/5 hover:bg-white/10 border border-white/10 text-slate-200 font-bold text-xs md:text-sm px-5 py-3 rounded-xl transition-all cursor-pointer flex items-center gap-1.5`}
               >
                 <ArrowDown size={14} className="animate-bounce" />
                 <span>{tLanding(content.hero.ctaLearn)}</span>
@@ -484,17 +486,17 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.8, delay: 0.4 }}
-              className="grid grid-cols-3 gap-4 border-t border-slate-200 dark:border-slate-800 pt-8 mt-6"
+              className="grid grid-cols-3 gap-4 border-t border-white/10 pt-8 mt-6"
             >
               <div>
-                <strong className="block text-2xl md:text-3xl font-black text-blue-600 dark:text-blue-400 font-mono">
+                <strong className="block text-2xl md:text-3xl font-black text-white font-mono">
                   {content.hero.stats.recipes.val}
                 </strong>
                 <span className="text-[10px] md:text-xs text-slate-500 dark:text-slate-400 block font-bold font-sans mt-0.5">
                   {tLanding(content.hero.stats.recipes.lbl)}
                 </span>
               </div>
-              <div className="border-x border-slate-200 dark:border-slate-800 px-4">
+              <div className="border-x border-white/10 px-4">
                 <strong className="block text-2xl md:text-3xl font-black text-emerald-500 font-mono flex items-center gap-0.5 justify-start">
                   <span>{content.hero.stats.co2.val}</span>
                   <Percent size={14} className="text-emerald-500" />
@@ -504,7 +506,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 </span>
               </div>
               <div>
-                <strong className="block text-2xl md:text-3xl font-black text-indigo-600 dark:text-indigo-400 font-mono">
+                <strong className="block text-2xl md:text-3xl font-black text-white font-mono">
                   {content.hero.stats.accuracy.val}
                 </strong>
                 <span className="text-[10px] md:text-xs text-slate-500 dark:text-slate-400 block font-bold font-sans mt-0.5">
@@ -604,7 +606,39 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </div>
       </section>
 
-      {/* 3. PLATFORM BENEFITS SECTION */}
+      {/* 3. WORKFLOW RAIL: a compact explanation of the product before the detail sections. */}
+      <section className="relative z-20 -mt-2 pb-12 md:pb-16 bg-[#080C11]" id="sno-workflow-rail">
+        <div className="max-w-7xl mx-auto px-4 md:px-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {content.howItWorks.steps.map((step, index) => {
+              const IconComp = workflowIcons[index];
+              return (
+                <motion.div
+                  key={step.num}
+                  initial={{ opacity: 0, y: 12 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, margin: "-40px" }}
+                  transition={{ delay: index * 0.06 }}
+                  className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-3.5 shadow-lg shadow-black/10"
+                >
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#C7F43A]/10 text-[#C7F43A]">
+                    <IconComp size={17} />
+                  </div>
+                  <div className="min-w-0 text-right">
+                    <div className="flex items-center gap-2 text-[9px] font-mono font-bold tracking-widest text-[#C7F43A]/80">
+                      <span>{step.num}</span>
+                      <span className="h-px flex-1 bg-[#C7F43A]/20" />
+                    </div>
+                    <p className="mt-1 truncate text-xs font-black text-white">{tLanding(step.title)}</p>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* 4. PLATFORM BENEFITS SECTION */}
       <section className="py-20 bg-slate-50/50 dark:bg-[#090D1E]/40 border-y border-slate-200 dark:border-slate-850" id="sno-benefits-section">
         <div className="max-w-7xl mx-auto px-4 md:px-8">
           
