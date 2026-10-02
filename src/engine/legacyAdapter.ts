@@ -11,12 +11,15 @@
 
 import { MixDesignInput as LegacyInput, MixDesignResult as LegacyResult } from "../types";
 import { MixDesignInput as EngineInput, MixDesignResult as EngineResult } from "./types";
+import { mixDesignEngine } from "../mix-design/core/MixDesignEngine";
 
 /**
  * Transforms legacy user inputs into the structured types required by the clean engine.
  */
 export function adaptLegacyInput(legacyInput: LegacyInput): EngineInput {
   return {
+    // Preserve legacy extensions while normalizing the common engineering fields.
+    ...(legacyInput as unknown as Record<string, unknown>),
     fck28: legacyInput.fck28,
     controlClass: legacyInput.controlClass,
     cementType: legacyInput.cementType,
@@ -124,4 +127,27 @@ export function adaptEngineResultToLegacy(engineResult: EngineResult, legacyInpu
   };
 
   return result as LegacyResult;
+}
+
+/**
+ * Temporary compatibility boundary for callers that still require the legacy
+ * result shape. New application code must call calculateMixDesign() directly.
+ */
+export function calculateLegacyDiagnosticAdapter(legacyInput: LegacyInput): LegacyResult {
+  // Keep explicit legacy method semantics inside this boundary. Automatic and
+  // new application requests continue through calculateMixDesign().
+  const engineResult = mixDesignEngine.calculate({
+    methodId: "dreux-gorisse",
+    input: adaptLegacyInput(legacyInput),
+    context: { language: "ar" }
+  });
+  const legacyResult = adaptEngineResultToLegacy(engineResult, legacyInput);
+  return {
+    ...legacyResult,
+    ...(engineResult as unknown as Record<string, unknown>),
+    legacyDiagnosticOnly: true,
+    diagnosticReasonCode: "LEGACY_DIAGNOSTIC_ADAPTER",
+    releaseEligibility: "blocked",
+    warnings: engineResult.warnings
+  } as LegacyResult;
 }
