@@ -63,7 +63,7 @@ export function validateCalculationLogic(
     };
   }
 
-  if (results?.legacyDiagnosticOnly === true || results?.releaseEligibility === "blocked") {
+  if (results?.legacyDiagnosticOnly === true) {
     criticalErrors.push("legacy_diagnostic_only");
     return {
       isValidForReport: false,

@@ -27,6 +27,26 @@ function collectNonFiniteFields(value: unknown, path = "", seen = new Set<object
   );
 }
 
+function stableSerialize(value: unknown, seen = new Set<object>()): string {
+  if (value === null) return "null";
+  if (typeof value === "number") return Number.isFinite(value) ? String(value) : String(value);
+  if (typeof value !== "object") return JSON.stringify(value);
+  if (seen.has(value as object)) return "[Circular]";
+  seen.add(value as object);
+  if (Array.isArray(value)) return `[${value.map(item => stableSerialize(item, seen)).join(",")}]`;
+  return `{${Object.keys(value as Record<string, unknown>).sort().map(key => `${JSON.stringify(key)}:${stableSerialize((value as Record<string, unknown>)[key], seen)}`).join(",")}}`;
+}
+
+export function createInputHash(input: unknown): string {
+  const serialized = stableSerialize(input);
+  let hash = 2166136261;
+  for (let index = 0; index < serialized.length; index += 1) {
+    hash ^= serialized.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return `fnv1a-${(hash >>> 0).toString(16).padStart(8, "0")}`;
+}
+
 /**
  * Keeps the legacy report/UI contract stable for specialized engines.
  * Specialized engines expose their own quantity names, while older reports
@@ -43,6 +63,14 @@ export function normalizeMixDesignResult(result: any, input: any): any {
     return {
       ...raw,
       rawResult: raw,
+      inputSnapshot: input,
+      inputHash: createInputHash(input),
+      materialSnapshot: raw.materialSnapshot || input?.materialSnapshots || {},
+      calculationTrace: raw.calculationTrace || raw.trace || [],
+      units: raw.units || { mass: "kg/m³", volume: "L/m³", ratio: "-", density: "kg/m³" },
+      assumptions: Array.isArray(raw.assumptions) ? raw.assumptions : [],
+      usedDefaults: Array.isArray(raw.usedDefaults) ? raw.usedDefaults : [],
+      releaseEligibility: "blocked",
       fcm28: displayNumber(raw.fcm28),
       stdDev: displayNumber(raw.stdDev),
       wcRatio: displayNumber(raw.wcRatio),
@@ -113,12 +141,23 @@ export function normalizeMixDesignResult(result: any, input: any): any {
   const methodName = safe.methodName || safe.method?.name || methodId;
   const volumeTotal = firstNumber(safe.absoluteVolumeTotal, safe.physicalProperties?.absoluteVolume);
   const volumeError = firstNumber(safe.volumeClosureError, safe.physicalProperties?.volumeClosureError);
+  const calculationTrace = Array.isArray(safe.calculationTrace) ? safe.calculationTrace : Array.isArray(safe.trace) ? safe.trace : [];
+  const usedDefaults = Array.isArray(safe.usedDefaults) ? safe.usedDefaults : [];
+  const releaseEligibility = safe.releaseEligibility || (
+    safe.calculationStatus === "blocked" || safe.engineStatus === "blocked" || safe.status === "blocked" || safe.isValid === false
+      ? "blocked"
+      : safe.trialMixRequired === false ? "eligible" : "trial_mix_required"
+  );
   return {
     ...safe,
     methodId,
     methodName,
     method: safe.method || { id: methodId, name: methodName, version: "unknown" },
     inputSnapshot: safe.inputSnapshot || input,
+    inputHash: safe.inputHash || createInputHash(safe.inputSnapshot || input),
+    materialSnapshot: safe.materialSnapshot || input?.materialSnapshots || {},
+    calculationTrace,
+    units: safe.units || { mass: "kg/m³", volume: "L/m³", ratio: "-", density: "kg/m³" },
     cementWeight,
     cementWeightDry: firstNumber(safe.cementWeightDry, cementWeight),
     waterContentActual,
@@ -151,6 +190,8 @@ export function normalizeMixDesignResult(result: any, input: any): any {
     warnings: Array.isArray(safe.warnings) ? safe.warnings : [],
     errors: Array.isArray(safe.errors) ? safe.errors : [],
     assumptions: Array.isArray(safe.assumptions) ? safe.assumptions : [],
+    usedDefaults,
+    releaseEligibility,
     validation: safe.validation || { isValid: safe.isValid !== false, errors: [], warnings: [] },
     nonFiniteFields: [],
     valid: safe.valid !== undefined ? safe.valid : safe.isValid !== false,

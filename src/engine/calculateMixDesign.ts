@@ -1,7 +1,7 @@
 import { MixDesignInput, MixDesignResult } from "../mix-design/core/types";
 import { mixDesignEngine } from "../mix-design/core/MixDesignEngine";
 import { selectConcreteMixDesignRoute } from "../mix-design/core/concreteMixDesignSelector";
-import { normalizeMixDesignResult } from "../mix-design/shared/resultNormalization";
+import { createInputHash, normalizeMixDesignResult } from "../mix-design/shared/resultNormalization";
 import { getMixDesignContract } from "../mix-design/core/mixDesignContracts";
 
 function containsNonFiniteNumber(value: unknown): boolean {
@@ -33,10 +33,17 @@ function blockedInputResult(input: MixDesignInput): MixDesignResult {
     physicalProperties: { theoreticalFreshDensity: 0, absoluteVolume: 0, volumeClosureError: 0 },
     validation: { isValid: false, errors: [{ code: "non_finite_input", severity: "error", field: "input", message: "Input contains NaN or Infinity." }], warnings: [] },
     warnings: [],
+    assumptions: [],
+    usedDefaults: [],
+    inputHash: createInputHash(input),
+    materialSnapshot: (input as any).materialSnapshots || {},
+    calculationTrace: [],
+    units: { mass: "kg/m³", volume: "L/m³", ratio: "-", density: "kg/m³" },
+    releaseEligibility: "blocked",
     trace: [],
     calculatedAt: new Date().toISOString(),
     trialMixRequired: true
-  } as MixDesignResult;
+  } as unknown as MixDesignResult;
 }
 
 /** Unified mix-design router with concrete-specific automatic routing. */
