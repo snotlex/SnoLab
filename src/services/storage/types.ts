@@ -8,6 +8,8 @@ import {
 } from "../../types";
 import { MaterialTestRecord } from "../../types/laboratoryTypes";
 
+import type { ProjectAuditEvent, ProjectIdentity } from "./phase3Governance";
+
 export interface ProjectMetadata {
   id: string;
   name: string;
@@ -22,6 +24,9 @@ export interface ProjectMetadata {
   version: number;
   tags?: string[];
   workflowStatus?: "draft" | "under_review" | "approved" | "archived";
+  /** Optional identity metadata; the .snlab file remains usable without an account. */
+  ownerId?: string;
+  teamId?: string;
 }
 
 export interface ProjectSettings {
@@ -110,6 +115,11 @@ export interface SnoLabProjectFile {
     lastModifiedAt?: string;
     revisionCount?: number;
     revisionHistory?: string[];
+  };
+  /** Phase 3 governance metadata. Never contains credentials or access tokens. */
+  governance?: {
+    owner?: ProjectIdentity;
+    auditEvents?: ProjectAuditEvent[];
   };
 }
 
