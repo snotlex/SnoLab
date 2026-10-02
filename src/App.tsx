@@ -111,6 +111,7 @@ import { WorkspaceEmptyState } from "./components/WorkspaceEmptyState";
 import { EngineeringVerificationGate } from "./components/EngineeringVerificationGate";
 import { CalculatorScreenFrame } from "./components/CalculatorScreenFrame";
 import { CalculatorSectionHeader } from "./components/CalculatorSectionHeader";
+import { CalculatorModeSelector } from "./components/CalculatorModeSelector";
 import {
   ResponsiveContainer,
   PieChart as RechartsPieChart,
@@ -4719,30 +4720,12 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* OPERATING MODE SELECTOR (وضعان للتشغيل) */}
-                <div className="bg-gradient-to-l from-blue-500/10 to-transparent border border-blue-500/20 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-                  <div className="text-right">
-                    <span className="text-[10px] font-black uppercase text-blue-500 block font-mono">SYSTEM CONFIGURATION MODE</span>
-                    <h4 className="text-xs font-black text-slate-800 dark:text-white mt-0.5">{t("calculator.systemModeTitle")}</h4>
-                    <p className="text-[10px] text-slate-500 mt-1">{t("calculator.systemModeDescription")}</p>
-                  </div>
-                  <div className="flex gap-1.5 bg-slate-1050 p-1 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-inner">
-                    <button
-                      type="button"
-                      onClick={() => setDesignerMode("normal")}
-                      className={`px-4 py-1.5 rounded-md text-xs font-black transition-all ${designerMode === "normal" ? "bg-blue-500 text-white shadow-sm" : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"}`}
-                    >
-                      {t("calculator.autoMode")}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setDesignerMode("expert")}
-                      className={`px-4 py-1.5 rounded-md text-xs font-black transition-all ${designerMode === "expert" ? "bg-amber-500 text-slate-950 dark:text-white shadow-sm" : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"}`}
-                    >
-                      {t("calculator.manualExpertMode")}
-                    </button>
-                  </div>
-                </div>
+                <CalculatorModeSelector
+                  language={language as "ar" | "fr" | "en"}
+                  mode={designerMode}
+                  onModeChange={setDesignerMode}
+                  translate={t}
+                />
 
                 <div className="space-y-6 animate-fade-in" id="stage3-sequential-page" dir={isRtl ? "rtl" : "ltr"}>
                   <CalculatorSectionHeader language={language as "ar" | "fr" | "en"} />
