@@ -104,7 +104,7 @@ const MixOptimizationPanel = React.lazy(() => import("./components/MixOptimizati
 const CalculationJournal = React.lazy(() => import("./components/CalculationJournal").then(m => ({ default: m.CalculationJournal })));
 const ReportCompliance = React.lazy(() => import("./components/ReportCompliance").then(m => ({ default: m.ReportCompliance })));
 const ReportThermalAnalysis = React.lazy(() => import("./components/ReportThermalAnalysis").then(m => ({ default: m.ReportThermalAnalysis })));
-import { WorkflowProgress } from "./components/WorkflowProgress";
+import { WorkspaceWorkflowHeader } from "./components/WorkspaceWorkflowHeader";
 import {
   ResponsiveContainer,
   PieChart as RechartsPieChart,
@@ -3979,146 +3979,37 @@ export default function App() {
           {/* MAIN WORKSPACE CONTENT PANEL (RIGHT - occupies 9 to 11 columns depending on isSidebarCollapsed) */}
           <main className={`${isSidebarCollapsed ? "lg:col-span-11" : "lg:col-span-9"} transition-all duration-300 space-y-6`} id="mixwizard-main-workspace">
 
-            {/* WORKFLOW ENFORCEMENT & STEPPER HEADER */}
-            <div className="bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-xl text-right flex flex-col gap-5 font-sans select-none" dir="rtl">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-indigo-50 dark:border-indigo-950/40 pb-3">
-                <div className="flex flex-wrap items-center gap-2 md:gap-3">
-                  <span className="bg-[#C7F43A]/15 dark:bg-[#C7F43A]/10 text-[#5f7415] dark:text-[#C7F43A] font-extrabold text-[10px] px-2.5 py-1 rounded-full font-mono uppercase tracking-wider">
-                    SnoLab Project
-                  </span>
-                  <div className="flex items-center gap-1.5 text-xs font-black text-slate-800 dark:text-slate-100">
-                    <span className="text-slate-400 font-normal">{language === "ar" ? "المشروع:" : "Project:"}</span>
-                    <span className="truncate max-w-xs">{storageProject?.metadata?.name || currentProject || "Untitled Project"}</span>
-                  </div>
-                  <div className="flex items-center gap-1 text-[10px] font-mono text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md">
-                    <span className="text-slate-400">{language === "ar" ? "الرمز:" : "Code:"}</span>
-                    <span>{storageProject?.metadata?.code || storageProject?.metadata?.id || "N/A"}</span>
-                  </div>
-                  {(storageProject?.metadata?.client || currentClient) && (
-                    <div className="flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400 hidden md:flex">
-                      <span className="text-slate-400">{language === "ar" ? "العميل:" : "Client:"}</span>
-                      <span className="font-bold">{storageProject?.metadata?.client || currentClient}</span>
-                    </div>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-[#5f7415] dark:text-[#C7F43A] font-mono font-bold bg-[#C7F43A]/10 px-3 py-1 rounded-full border border-[#C7F43A]/30">
-                    STAGE {activeStep} / 5 • {t(workflow.activeStageInfo.nameKey)}
-                  </span>
-                  {workflow.projectIsOpen && (
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        await workflow.closeProject();
-                        setViewMode("landing");
-                      }}
-                      className="text-[10px] text-rose-500 hover:text-rose-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 px-2.5 py-1 rounded-lg border border-transparent hover:border-rose-200 dark:hover:border-rose-900/40 transition cursor-pointer flex items-center gap-1 font-bold"
-                      title={language === "ar" ? "إغلاق المشروع الحالي والعودة للبوابة" : "Close active project and return to landing"}
-                    >
-                      <FolderX size={12} />
-                      <span className="hidden sm:inline">{language === "ar" ? "إغلاق المشروع" : language === "fr" ? "Fermer" : "Close Project"}</span>
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Workflow progress: always show location, completion and next action. */}
-              <WorkflowProgress activeStep={activeStep} language={language as "ar" | "fr" | "en"} />
-
-              {/* Horizontal steps deck */}
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-                {[
-                  { num: 1, label: t("workflow.step1.label"), desc: t("workflow.step1.desc"), icon: Folder, tab: "saved_projects" },
-                  { num: 2, label: t("workflow.step2.label"), desc: t("workflow.step2.desc"), icon: Database, tab: "materials_library" },
-                  { num: 3, label: t("workflow.step3.label"), desc: t("workflow.step3.desc"), icon: Calculator, tab: "calculator" },
-                  { num: 4, label: t("workflow.step5.label"), desc: t("workflow.step5.desc"), icon: TrendingUp, tab: "cost" },
-                  { num: 5, label: t("workflow.step6.label"), desc: t("workflow.step6.desc"), icon: FileText, tab: "reports" },
-                ].map((st) => {
-                  const IconComp = st.icon;
-                  const isDone = st.num < activeStep;
-                  const isActive = st.num === activeStep;
-
-                  return (
-                    <button
-                      key={st.num}
-                      type="button"
-                      id={`workflow-step-btn-${st.num}`}
-                      onClick={() => handleStepClick(st.num)}
-                      className={`p-3 rounded-2xl border transition-all text-right flex flex-col gap-2 focus:outline-none relative overflow-hidden group cursor-pointer ${
-                        isActive
-                          ? "bg-[#C7F43A] border-[#C7F43A] text-[#0A0F15] shadow-lg shadow-[#C7F43A]/20 ring-2 ring-[#C7F43A]/30 scale-[1.02]"
-                          : isDone
-                          ? "bg-emerald-500/5 dark:bg-emerald-500/10 border-emerald-500/25 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
-                          : "bg-slate-50 dark:bg-slate-900 border-slate-200/60 dark:border-slate-800/80 text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-850"
-                      }`}
-                    >
-                      <div className="flex justify-between items-center w-full">
-                        <span className={`w-5 h-5 rounded-full text-[10px] font-black flex items-center justify-center ${
-                          isActive
-                            ? "bg-[#0A0F15] text-[#C7F43A]"
-                            : isDone
-                            ? "bg-emerald-500 text-white"
-                            : "bg-slate-200 dark:bg-slate-800 text-slate-500"
-                        }`}>
-                          {st.num}
-                        </span>
-                      <IconComp size={13} className={isActive ? "text-[#0A0F15] animate-pulse" : isDone ? "text-emerald-500" : "text-slate-400"} />
-                      </div>
-                      <div className="mt-0.5">
-                        <span className={`text-[11.5px] font-black block leading-none mb-0.5 ${isActive ? "text-[#0A0F15]" : "text-slate-800 dark:text-slate-200"}`}>
-                          {st.label}
-                        </span>
-                        <span className={`text-[9px] font-medium block truncate ${isActive ? "text-[#36430c]" : "text-slate-400 dark:text-slate-500"}`}>
-                          {st.desc}
-                        </span>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Stage Navigation Belt: Backward / Forward */}
-              <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-800/60 text-xs">
-                <button
-                  type="button"
-                  disabled={activeStep <= 1}
-                  onClick={() => {
-                    const prev = (activeStep - 1) as ProjectStageNumber;
-                    handleStepClick(prev);
-                  }}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs transition cursor-pointer ${
-                    activeStep <= 1
-                      ? "opacity-30 cursor-not-allowed text-slate-400"
-                      : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-                  }`}
-                >
-                  {isRtl ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
-                  <span>{language === "ar" ? "المرحلة السابقة" : language === "fr" ? "Étape précédente" : "Previous Stage"}</span>
-                </button>
-
-                <div className="text-[10px] font-mono text-slate-400 hidden sm:block">
-                  {t(workflow.activeStageInfo.descKey)}
-                </div>
-
-                <button
-                  type="button"
-                  disabled={activeStep >= 5}
-                  onClick={() => {
-                    const next = (activeStep + 1) as ProjectStageNumber;
-                    handleStepClick(next);
-                  }}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs transition cursor-pointer ${
-                    activeStep >= 5
-                      ? "opacity-30 cursor-not-allowed text-slate-400"
-                      : "bg-[#C7F43A]/10 text-[#5f7415] dark:text-[#C7F43A] hover:bg-[#C7F43A]/20"
-                  }`}
-                >
-                  <span>{language === "ar" ? "المرحلة التالية" : language === "fr" ? "Étape suivante" : "Next Stage"}</span>
-                  {isRtl ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
-                </button>
-              </div>
-
-            </div>
+            <WorkspaceWorkflowHeader
+              language={language as "ar" | "fr" | "en"}
+              isRtl={isRtl}
+              activeStep={activeStep}
+              projectName={storageProject?.metadata?.name || currentProject || "Untitled Project"}
+              projectCode={storageProject?.metadata?.code || storageProject?.metadata?.id || "N/A"}
+              clientName={storageProject?.metadata?.client || currentClient}
+              projectIsOpen={workflow.projectIsOpen}
+              stageName={t(workflow.activeStageInfo.nameKey)}
+              stageDescription={t(workflow.activeStageInfo.descKey)}
+              steps={[
+                { num: 1, label: t("workflow.step1.label"), desc: t("workflow.step1.desc"), icon: Folder },
+                { num: 2, label: t("workflow.step2.label"), desc: t("workflow.step2.desc"), icon: Database },
+                { num: 3, label: t("workflow.step3.label"), desc: t("workflow.step3.desc"), icon: Calculator },
+                { num: 4, label: t("workflow.step5.label"), desc: t("workflow.step5.desc"), icon: TrendingUp },
+                { num: 5, label: t("workflow.step6.label"), desc: t("workflow.step6.desc"), icon: FileText },
+              ]}
+              onStepClick={handleStepClick}
+              onCloseProject={async () => { await workflow.closeProject(); setViewMode("landing"); }}
+              onPrevious={() => handleStepClick((activeStep - 1) as ProjectStageNumber)}
+              onNext={() => handleStepClick((activeStep + 1) as ProjectStageNumber)}
+              projectLabel={language === "ar" ? "المشروع:" : "Project:"}
+              codeLabel={language === "ar" ? "الرمز:" : "Code:"}
+              clientLabel={language === "ar" ? "العميل:" : "Client:"}
+              brandLabel="SnoLab Project"
+              stageLabel="STAGE"
+              closeLabel={language === "ar" ? "إغلاق المشروع" : language === "fr" ? "Fermer" : "Close Project"}
+              closeTitle={language === "ar" ? "إغلاق المشروع الحالي والعودة للبوابة" : "Close active project and return to landing"}
+              previousLabel={language === "ar" ? "المرحلة السابقة" : language === "fr" ? "Étape précédente" : "Previous Stage"}
+              nextLabel={language === "ar" ? "المرحلة التالية" : language === "fr" ? "Étape suivante" : "Next Stage"}
+            />
 
             {activeSidebarTab === "dashboard" && null}
             {!workflow.projectIsOpen ? (
