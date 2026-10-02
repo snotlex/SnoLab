@@ -143,6 +143,7 @@ export interface LaboratorySession {
   review?: LaboratorySessionReview;
   auditLog: LaboratorySessionAuditEntry[];
   legacyRecordId?: string;
+  legacyDiagnosticOnly?: boolean;
   createdAt: string;
   updatedAt: string;
 }
