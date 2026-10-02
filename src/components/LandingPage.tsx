@@ -318,11 +318,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     return field[language] || field["ar"] || "";
   };
 
-  const workflowIcons = [Building, Sliders, Layers, FileText] as const;
-
   return (
     <div 
-      className={`min-h-screen transition-colors duration-350 overflow-x-hidden ${themeMode === "dark" ? "bg-[#080C11] text-slate-100" : "bg-[#F1F5F9] text-slate-900"}`}
+      className={`min-h-screen transition-colors duration-350 overflow-x-hidden ${themeMode === "dark" ? "dark bg-[#080C11] text-slate-100" : "bg-[#F1F5F9] text-slate-900"}`}
       dir={isRtl ? "rtl" : "ltr"}
       id="sno-landing-page-root"
     >
@@ -331,8 +329,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
           
           {/* Logo Brand */}
-          <div className="flex items-center gap-3 shrink-0 cursor-pointer" onClick={onStartProject}>
-            <SnoLabLogo themeMode={themeMode} />
+          <div className="flex items-center shrink-0 cursor-pointer transition-transform duration-200 hover:scale-[1.02]" onClick={onStartProject}>
+            <SnoLabLogo themeMode={themeMode} className="h-14 sm:h-16 md:h-[4.5rem] w-auto" />
           </div>
 
           {/* Nav Links / Quick Controls */}
@@ -396,7 +394,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             )}
             <button
               onClick={onStartProject}
-              className="bg-[#C7F43A] hover:bg-[#D8FB71] hover:scale-103 active:scale-97 text-[#0A0F15] font-black text-xs px-3.5 py-2 rounded-xl transition-all shadow-md flex items-center gap-1 cursor-pointer"
+              className="bg-[#C7F43A] hover:bg-[#D8FB71] active:scale-97 text-[#0A0F15] font-black text-xs px-3.5 py-2 rounded-xl transition-all shadow-[0_0_26px_rgba(199,244,58,0.14)] flex items-center gap-1 cursor-pointer"
             >
               <span>{tLanding(content.nav.enterWorkspace)}</span>
             </button>
@@ -406,10 +404,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       </header>
 
       {/* 2. HERO SECTION */}
-      <section className="sno-instrument-grid relative overflow-hidden pt-12 pb-20 md:py-28" id="sno-hero-section">
+      <section className="sno-instrument-grid relative overflow-hidden pt-12 pb-16 md:py-24" id="sno-hero-section">
         {/* Subtle decorative glowing background circles */}
-        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[350px] md:w-[650px] h-[350px] md:h-[650px] bg-[#C7F43A]/10 blur-[80px] md:blur-[130px] rounded-full pointer-events-none z-0"></div>
-        <div className="absolute top-10 right-10 w-[200px] h-[200px] bg-emerald-500/10 blur-[80px] rounded-full pointer-events-none z-0"></div>
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[350px] md:w-[650px] h-[350px] md:h-[650px] bg-[#C7F43A]/8 blur-[90px] md:blur-[140px] rounded-full pointer-events-none z-0"></div>
+        <div className="absolute top-10 right-10 w-[200px] h-[200px] bg-sky-500/5 dark:bg-sky-400/10 blur-[80px] rounded-full pointer-events-none z-0"></div>
 
         <div className="max-w-7xl mx-auto px-4 md:px-8 relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-12 items-center text-right">
           
@@ -422,7 +420,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               transition={{ duration: 0.5 }}
               className="self-start"
             >
-              <span className="inline-flex items-center gap-1 px-3 py-1 bg-[#C7F43A]/10 text-[#D8FB71] rounded-full text-[11px] font-black border border-[#C7F43A]/25 tracking-wide uppercase">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#C7F43A]/10 text-[#667e14] dark:text-[#D8FB71] rounded-full text-[10px] font-black border border-[#C7F43A]/25 tracking-wide uppercase">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#C7F43A] shadow-[0_0_10px_#C7F43A]"></span>
                 {tLanding(content.hero.badge)}
               </span>
             </motion.div>
@@ -431,7 +430,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.1 }}
-              className="text-3xl md:text-5xl font-black text-white tracking-tight leading-tight"
+              className="text-4xl md:text-6xl font-black text-slate-900 dark:text-slate-50 tracking-tight leading-[1.22]"
             >
               {tLanding(content.hero.title)}
             </motion.h2>
@@ -440,7 +439,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.2 }}
-              className="text-sm md:text-base text-slate-300 leading-relaxed font-sans max-w-2xl"
+              className="text-sm md:text-base text-slate-600 dark:text-slate-300 leading-8 font-sans max-w-2xl"
             >
               {tLanding(content.hero.desc)}
             </motion.p>
@@ -606,32 +605,30 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </div>
       </section>
 
-      {/* 3. WORKFLOW RAIL: a compact explanation of the product before the detail sections. */}
-      <section className="relative z-20 -mt-2 pb-12 md:pb-16 bg-[#080C11]" id="sno-workflow-rail">
+      {/* 3. REFERENCE-ALIGNED CAPABILITY STRIP */}
+      <section className="relative z-20 -mt-2 pb-12 md:pb-16" aria-label="أدوات المساحة الهندسية">
         <div className="max-w-7xl mx-auto px-4 md:px-8">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            {content.howItWorks.steps.map((step, index) => {
-              const IconComp = workflowIcons[index];
+            {[
+              { icon: Sliders, code: "01", title: language === "ar" ? "معالج الخلطة" : "Mix design wizard", desc: language === "ar" ? "مدخلات منظمة وفق Dreux–Gorisse" : "Structured Dreux–Gorisse inputs" },
+              { icon: Layers, code: "02", title: language === "ar" ? "محرك توافق المواد" : "Material compatibility", desc: language === "ar" ? "فحص الركام والإسمنت والإضافات" : "Check aggregates, cement & admixtures" },
+              { icon: CheckCircle, code: "03", title: language === "ar" ? "بوابة تحقق هندسية" : "Engineering validation", desc: language === "ar" ? "تنبيهات قابلة للتنفيذ قبل الاعتماد" : "Actionable checks before approval" },
+              { icon: BookOpen, code: "04", title: language === "ar" ? "موسوعة دروغوريس" : "Dreux knowledge center", desc: language === "ar" ? "موسوعة PDF ودليل تطبيقي موثق" : "PDF encyclopedia & worked guide" },
+            ].map((item) => {
+              const Icon = item.icon;
               return (
-                <motion.div
-                  key={step.num}
-                  initial={{ opacity: 0, y: 12 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true, margin: "-40px" }}
-                  transition={{ delay: index * 0.06 }}
-                  className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-3.5 shadow-lg shadow-black/10"
-                >
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#C7F43A]/10 text-[#C7F43A]">
-                    <IconComp size={17} />
+                <div key={item.code} className="group border border-slate-200 dark:border-white/10 bg-white/90 dark:bg-[#0D141D]/90 backdrop-blur-sm rounded-2xl p-4 flex items-start gap-3 shadow-[0_12px_28px_rgba(3,8,14,0.08)] transition-all duration-200 hover:-translate-y-1 hover:border-[#C7F43A]/50">
+                  <div className="shrink-0 h-9 w-9 rounded-xl bg-[#C7F43A]/12 text-[#77931a] dark:text-[#C7F43A] flex items-center justify-center border border-[#C7F43A]/20">
+                    <Icon size={17} />
                   </div>
-                  <div className="min-w-0 text-right">
-                    <div className="flex items-center gap-2 text-[9px] font-mono font-bold tracking-widest text-[#C7F43A]/80">
-                      <span>{step.num}</span>
-                      <span className="h-px flex-1 bg-[#C7F43A]/20" />
+                  <div className="min-w-0">
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <h3 className="text-xs font-black text-slate-900 dark:text-slate-100">{item.title}</h3>
+                      <span className="font-mono text-[9px] text-slate-400">{item.code}</span>
                     </div>
-                    <p className="mt-1 truncate text-xs font-black text-white">{tLanding(step.title)}</p>
+                    <p className="text-[10px] leading-5 text-slate-500 dark:text-slate-400">{item.desc}</p>
                   </div>
-                </motion.div>
+                </div>
               );
             })}
           </div>
