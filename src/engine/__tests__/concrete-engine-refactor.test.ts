@@ -77,7 +77,7 @@ describe("Concrete Mix Calculation Engine Refactor Suite", () => {
       expect(res.waterToAddKg).toBeLessThan(180);
     });
 
-    it("should cap waterToAdd at 0 when rawWaterToAdd is negative and log warning", () => {
+    it("should preserve negative raw water requirement and block engineering release", () => {
       const res = applyMoistureCorrection({
         sandDryKg: 1000,
         gravelDryKg: 1200,
@@ -89,7 +89,9 @@ describe("Concrete Mix Calculation Engine Refactor Suite", () => {
       });
 
       expect(res.rawWaterToAddKg).toBeLessThan(0);
-      expect(res.waterToAddKg).toBe(0);
+      expect(res.waterToAddKg).toBe(-70);
+      expect(res.isValid).toBe(false);
+      expect(res.calculationStatus).toBe("blocked");
       expect(res.warnings.some(w => w.includes("تحذير حرج") || w.includes("الركام رطب جداً"))).toBe(true);
     });
   });

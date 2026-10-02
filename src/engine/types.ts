@@ -283,6 +283,12 @@ export interface MixDesignResult {
   volumeClosureError?: number;
   calculationNotes?: string[];
   validationSummary?: string;
+  inputSnapshot?: MixDesignInput;
+  status?: "success" | "warning" | "incomplete" | "not-supported" | "needs-data" | "needs-trial-mix" | "blocked";
+  calculationStatus?: "valid" | "valid_with_warnings" | "needs_data" | "needs_trial_mix" | "blocked";
+  engineStatus?: "valid" | "valid_with_warnings" | "needs_data" | "needs_trial_mix" | "blocked";
+  reasonCode?: string;
+  calculationSteps?: unknown[];
   materialSuitability?: {
     status: "approved" | "warning" | "blocked" | "diagnostic_only";
     missingMaterials: string[];

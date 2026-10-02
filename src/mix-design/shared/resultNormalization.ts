@@ -2,7 +2,7 @@
  * Shared utility for rounding values and ensuring consistent output properties.
  */
 export function roundToPrecision(val: number, decimalPlaces = 0): number {
-  if (val === undefined || val === null || isNaN(val)) return 0;
+  if (!Number.isFinite(val)) return val;
   const factor = Math.pow(10, decimalPlaces);
   return Math.round(val * factor) / factor;
 }
@@ -14,13 +14,70 @@ export function formatResultLanguage(
   return messages[language] || messages["ar"] || "";
 }
 
+function collectNonFiniteFields(value: unknown, path = "", seen = new Set<object>()): string[] {
+  if (typeof value === "number") return Number.isFinite(value) ? [] : [path || "result"];
+  if (!value || typeof value !== "object") return [];
+  if (seen.has(value)) return [];
+  seen.add(value);
+  if (Array.isArray(value)) {
+    return value.flatMap((item, index) => collectNonFiniteFields(item, `${path}[${index}]`, seen));
+  }
+  return Object.entries(value).flatMap(([key, item]) =>
+    collectNonFiniteFields(item, path ? `${path}.${key}` : key, seen)
+  );
+}
+
 /**
  * Keeps the legacy report/UI contract stable for specialized engines.
  * Specialized engines expose their own quantity names, while older reports
- * still read the aliases below. Missing values become finite values so a
- * blocked/diagnostic result can render instead of crashing React on `toFixed`.
+ * still read the aliases below. Blocked results retain the raw calculation
+ * under `rawResult` and expose finite display aliases so rendering cannot
+ * crash React on `toFixed`.
  */
 export function normalizeMixDesignResult(result: any, input: any): any {
+  const nonFiniteFields = collectNonFiniteFields(result);
+  if (nonFiniteFields.length > 0) {
+    const message = `Calculation blocked because non-finite values were produced: ${nonFiniteFields.join(", ")}.`;
+    const displayNumber = (value: unknown): number => Number.isFinite(value) ? Number(value) : 0;
+    const raw = result && typeof result === "object" ? result : {};
+    return {
+      ...raw,
+      rawResult: raw,
+      fcm28: displayNumber(raw.fcm28),
+      stdDev: displayNumber(raw.stdDev),
+      wcRatio: displayNumber(raw.wcRatio),
+      wcRatioAdjusted: displayNumber(raw.wcRatioAdjusted),
+      cementWeight: displayNumber(raw.cementWeight),
+      waterContentActual: displayNumber(raw.waterContentActual),
+      waterWeightWet: displayNumber(raw.waterWeightWet),
+      sandWeightDry: displayNumber(raw.sandWeightDry),
+      sandWeightWet: displayNumber(raw.sandWeightWet),
+      gravelWeightDry: displayNumber(raw.gravelWeightDry),
+      gravelWeightWet: displayNumber(raw.gravelWeightWet),
+      sandPercent: displayNumber(raw.sandPercent),
+      gravelPercent: displayNumber(raw.gravelPercent),
+      totalFreshDensity: displayNumber(raw.totalFreshDensity),
+      admixtureWeights: Array.isArray(raw.admixtureWeights) ? raw.admixtureWeights : [],
+      status: "blocked",
+      calculationStatus: "blocked",
+      engineStatus: "blocked",
+      valid: false,
+      isValid: false,
+      nonFiniteFields,
+      errors: [
+        ...(Array.isArray(result?.errors) ? result.errors : []),
+        message,
+      ],
+      validation: {
+        ...(result?.validation && typeof result.validation === "object" ? result.validation : {}),
+        isValid: false,
+        errors: [
+          ...(Array.isArray(result?.validation?.errors) ? result.validation.errors : []),
+          { code: "NON_FINITE_RESULT", severity: "error", field: nonFiniteFields[0], message },
+        ],
+      },
+    };
+  }
   const numberOr = (value: unknown, fallback = 0): number => {
     const n = Number(value);
     return Number.isFinite(n) ? n : fallback;
@@ -95,6 +152,7 @@ export function normalizeMixDesignResult(result: any, input: any): any {
     errors: Array.isArray(safe.errors) ? safe.errors : [],
     assumptions: Array.isArray(safe.assumptions) ? safe.assumptions : [],
     validation: safe.validation || { isValid: safe.isValid !== false, errors: [], warnings: [] },
+    nonFiniteFields: [],
     valid: safe.valid !== undefined ? safe.valid : safe.isValid !== false,
     isValid: safe.isValid !== undefined ? safe.isValid : safe.valid !== false,
     calculationStatus: safe.calculationStatus || (safe.status === "not-supported" ? "blocked" : "needs_trial_mix"),

@@ -9,7 +9,8 @@
  * - When M < A (dry of SSD): absorptionDeficit = SSD aggregate mass * (A - M)/100 / (1 + A/100)
  * - waterToAdd = effectiveWater - totalFreeSurfaceWater + totalAbsorptionDeficit
  * - If rawWaterToAdd < 0: aggregates supply more free water than required effective water.
- *   waterToAdd is capped at 0 with an auditable critical warning.
+ *   Engineering mode preserves the negative raw requirement and blocks release; diagnostic
+ *   mode may clamp the display/batching value to 0 with an explicit warning.
  */
 
 export type AggregateMoistureState = "dryOfSSD" | "SSD" | "wetOfSSD";
@@ -40,6 +41,9 @@ export interface MoistureCorrectionResult {
   waterToAddKg: number;
   moistureState: AggregateMoistureState;
   warnings: string[];
+  isValid: boolean;
+  calculationStatus: "valid" | "blocked";
+  validationErrors: string[];
 
   // Backward compatibility aliases
   sandWetKg: number;
@@ -68,6 +72,7 @@ export interface MoistureCorrectionParams {
   gravelMoisturePercent?: number; // total moisture M (%)
   sandAbsorptionPercent?: number; // absorption capacity A (%)
   gravelAbsorptionPercent?: number; // absorption capacity A (%)
+  mode?: "engineering" | "diagnostic";
 }
 
 /**
@@ -75,13 +80,28 @@ export interface MoistureCorrectionParams {
  */
 export function applyMoistureCorrection(params: MoistureCorrectionParams): MoistureCorrectionResult {
   const warnings: string[] = [];
+  const validationErrors: string[] = [];
+  const mode = params.mode ?? "engineering";
 
-  const M_sand = Math.max(0, params.sandMoisturePercent ?? 0);
-  const M_gravel = Math.max(0, params.gravelMoisturePercent ?? 0);
-  const A_sand = Math.max(0, params.sandAbsorptionPercent ?? 0);
-  const A_gravel = Math.max(0, params.gravelAbsorptionPercent ?? 0);
+  const readNonNegative = (value: number | undefined, label: string): number => {
+    if (value === undefined || value === null) return 0;
+    if (!Number.isFinite(value)) {
+      validationErrors.push(`${label} must be finite.`);
+      return 0;
+    }
+    if (value < 0) {
+      validationErrors.push(`${label} cannot be negative.`);
+      return 0;
+    }
+    return value;
+  };
 
-  const effectiveWater = params.effectiveWaterKg ?? params.waterPureKg ?? 0;
+  const M_sand = readNonNegative(params.sandMoisturePercent, "Sand moisture");
+  const M_gravel = readNonNegative(params.gravelMoisturePercent, "Gravel moisture");
+  const A_sand = readNonNegative(params.sandAbsorptionPercent, "Sand absorption");
+  const A_gravel = readNonNegative(params.gravelAbsorptionPercent, "Gravel absorption");
+
+  const effectiveWater = readNonNegative(params.effectiveWaterKg ?? params.waterPureKg, "Effective water");
 
   // Resolve fine aggregate dry & SSD masses
   let sandDryKg = 0;
@@ -146,12 +166,15 @@ export function applyMoistureCorrection(params: MoistureCorrectionParams): Moist
   const totalAbsorptionDeficit = sandAbsorptionDeficit + gravelAbsorptionDeficit;
 
   const rawWaterToAdd = effectiveWater - totalFreeSurfaceWater + totalAbsorptionDeficit;
-  const waterToAdd = Math.max(0, rawWaterToAdd);
+  const waterToAdd = mode === "diagnostic" ? Math.max(0, rawWaterToAdd) : rawWaterToAdd;
 
   if (rawWaterToAdd < 0) {
     warnings.push(
       `تحذير حرج: الركام رطب جداً ويورد ماءً حراً (${totalFreeSurfaceWater.toFixed(1)} كجم) أكبر من ماء الخلط الفعال (${effectiveWater.toFixed(1)} كجم). تم تثبيت ماء الإضافة عند 0 كجم/م³ مع فائض ماء حر قدره ${Math.abs(rawWaterToAdd).toFixed(1)} كجم/م³، مما يزيد من نسبة W/C الفعلية ويهدد هبوط الخرسانة ومقاومتها.`
     );
+    if (mode === "engineering") {
+      validationErrors.push("Aggregate free water exceeds effective design water; batch water requirement is negative.");
+    }
   } else if (M_sand === 0 && M_gravel === 0) {
     warnings.push("ملاحظة: تم اعتبار الركام جافاً تماماً (0% رطوبة)، وتمت إضافة ماء تعويض امتصاص لتأمين حالة SSD.");
   }
@@ -210,6 +233,9 @@ export function applyMoistureCorrection(params: MoistureCorrectionParams): Moist
     sandAbsorptionDeficit,
     gravelAbsorptionDeficit,
     totalFreeSurfaceWater,
-    totalAbsorptionDeficit
+    totalAbsorptionDeficit,
+    isValid: validationErrors.length === 0 && rawWaterToAdd >= 0,
+    calculationStatus: validationErrors.length === 0 && rawWaterToAdd >= 0 ? "valid" : "blocked",
+    validationErrors
   };
 }

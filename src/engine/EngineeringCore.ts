@@ -356,6 +356,85 @@ export interface MixDesignPlugin {
   isReady: (core: ProjectSession) => boolean;
 }
 
+function createUnknownMethodResult(methodId: string, inputs: MixDesignInput): MixDesignResult {
+  const message = `Calculation method '${methodId}' is not registered. No engineering result was produced.`;
+  return {
+    methodName: methodId,
+    calculationMethod: methodId,
+    engineVersion: "unknown",
+    engineeringFramework: "Blocked calculation",
+    trialMixRequired: true,
+    cementKg: 0,
+    waterKg: 0,
+    fineAggregateKg: 0,
+    coarseAggregateKg: 0,
+    admixtureKg: 0,
+    airContentPercent: 0,
+    fcm28: 0,
+    stdDev: 0,
+    wcRatioAdjusted: 0,
+    dreuxAggregateFactor: 0,
+    compactorGamma: 0,
+    waterBeforeCorrection: 0,
+    waterAfterDmax: 0,
+    waterFromAdmixtures: 0,
+    totalAggregateVolume: 0,
+    cementWeight: 0,
+    waterContentNeeded: 0,
+    waterContentActual: 0,
+    sandPercent: 0,
+    gravelPercent: 0,
+    sandWeightDry: 0,
+    gravelWeightDry: 0,
+    admixtureWeights: [],
+    sandWeightWet: 0,
+    gravelWeightWet: 0,
+    waterWeightWet: 0,
+    totalFreshDensity: 0,
+    pivotPoint: { x: 0, y: 0 },
+    isValid: false,
+    valid: false,
+    gradingCurve: [],
+    strengthEvolution: [],
+    standardsCompliance: [],
+    wcRatio: 0,
+    freshDensityKgM3: 0,
+    absoluteVolumeCheck: {
+      isValid: false,
+      totalAbsVolumeL: 0,
+      cementVolL: 0,
+      waterVolL: 0,
+      sandVolL: 0,
+      gravelVolL: 0,
+      airVolL: 0,
+      admixtureVolL: 0,
+      deviationPercent: 100,
+    },
+    warnings: [],
+    errors: [message],
+    assumptions: [],
+    compliance: {
+      standardName: "Unknown method",
+      isCompliant: false,
+      checks: [],
+    },
+    methodApplicability: {
+      applicable: false,
+      level: "not_applicable",
+      reasons: [message],
+      recommendations: ["Select a registered calculation method before continuing."],
+    },
+    calculationNotes: [message],
+    validationSummary: message,
+    inputSnapshot: inputs,
+    status: "blocked",
+    calculationStatus: "blocked",
+    engineStatus: "blocked",
+    reasonCode: "UNKNOWN_METHOD",
+    calculationSteps: [],
+  } as unknown as MixDesignResult;
+}
+
 export class MixDesignEngine {
   private static plugins: Record<string, MixDesignPlugin> = {};
 
@@ -377,8 +456,7 @@ export class MixDesignEngine {
       return plugin.calculate(inputs, core);
     }
 
-    // Default fallback to Dreux-Gorisse
-    return calculateDreuxGorisse(inputs);
+    return createUnknownMethodResult(methodId, inputs);
   }
 }
 
