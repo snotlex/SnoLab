@@ -1,4 +1,5 @@
 import type { SampleRecord, MaterialTestRecord, TestDeviceRecord, CalibrationRecord, NcrRecord } from "./types/qualityDomain";
+import type { AIGovernanceMetadata } from "./services/aiGovernance";
 
 /**
  * Type declarations for the Dreux-Gorisse Concrete Mix Design App.
@@ -637,6 +638,7 @@ export interface EngineeringMaterial {
   createdDate?: string; // Standard created timestamp
   updatedDate?: string; // Standard updated timestamp
   updatedAt?: number; // High-precision numeric update timestamp
+  aiGovernance?: AIGovernanceMetadata;
 
   // --- AGGREGATES TECHNICAL PROPERTIES (الرمال والحصى) ---
   specificGravity?: number; // specific gravity (relative density)
