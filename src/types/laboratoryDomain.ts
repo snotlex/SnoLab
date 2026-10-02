@@ -34,6 +34,15 @@ export type LaboratoryEquipmentStatus =
 export type ValidationLevel = "data" | "physical" | "mathematical" | "engineering";
 export type ValidationSeverity = "error" | "warning" | "info";
 
+export interface LaboratoryIdentity {
+  userId: string;
+  displayName: string;
+  role: string;
+  organizationId: string;
+  authenticatedAt: string;
+  trustLevel?: "institutional" | "local-review-only";
+}
+
 export interface LaboratoryStandardReference {
   organization: "ASTM" | "EN" | "ISO" | "AASHTO" | "NF" | "Internal" | "Other";
   code: string;
@@ -153,6 +162,8 @@ export interface LaboratoryTestRun<TData extends Record<string, unknown> = Recor
   equipmentCalibrationSnapshot?: Array<Pick<LaboratoryEquipment, "id" | "equipmentId" | "serialNumber" | "calibrationDate" | "nextCalibrationDate" | "status" | "location">>;
   operator: string;
   reviewer?: string;
+  reviewerIdentity?: LaboratoryIdentity;
+  createdByIdentity?: LaboratoryIdentity;
   rawData: TData;
   calculationTrace: CalculationTraceStep[];
   result?: { value: number | string; unit?: string };
@@ -168,6 +179,7 @@ export interface LaboratoryTestRun<TData extends Record<string, unknown> = Recor
 
 export interface ApprovalRecord {
   approvedBy: string;
+  approvedByIdentity?: LaboratoryIdentity;
   approvedAt: string;
   decision: "Approved" | "Rejected";
   reason?: string;
