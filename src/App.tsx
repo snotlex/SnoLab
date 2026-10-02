@@ -104,6 +104,7 @@ const MixOptimizationPanel = React.lazy(() => import("./components/MixOptimizati
 const CalculationJournal = React.lazy(() => import("./components/CalculationJournal").then(m => ({ default: m.CalculationJournal })));
 const ReportCompliance = React.lazy(() => import("./components/ReportCompliance").then(m => ({ default: m.ReportCompliance })));
 const ReportThermalAnalysis = React.lazy(() => import("./components/ReportThermalAnalysis").then(m => ({ default: m.ReportThermalAnalysis })));
+import { WorkflowProgress } from "./components/WorkflowProgress";
 import {
   ResponsiveContainer,
   PieChart as RechartsPieChart,
@@ -4022,14 +4023,7 @@ export default function App() {
               </div>
 
               {/* Workflow progress: always show location, completion and next action. */}
-              <div className="flex items-center gap-3" aria-label={language === "ar" ? "تقدم مسار العمل" : "Workflow progress"}>
-                <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800" role="progressbar" aria-valuemin={0} aria-valuemax={5} aria-valuenow={activeStep}>
-                  <div className="h-full rounded-full bg-[#C7F43A] transition-all duration-500" style={{ width: `${(activeStep / 5) * 100}%` }} />
-                </div>
-                <span className="shrink-0 text-[10px] font-bold text-slate-500 dark:text-slate-400">
-                  {activeStep}/5 {language === "ar" ? "مراحل" : language === "fr" ? "étapes" : "stages"}
-                </span>
-              </div>
+              <WorkflowProgress activeStep={activeStep} language={language as "ar" | "fr" | "en"} />
 
               {/* Horizontal steps deck */}
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">

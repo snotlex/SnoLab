@@ -230,6 +230,55 @@ body {
 .sno-border { border-color: var(--sno-border); }
 .sno-action { background: var(--sno-action); color: var(--sno-action-ink); }
 
+.sno-card {
+  border: 1px solid var(--sno-border);
+  border-radius: var(--sno-radius-card);
+  background: var(--sno-surface);
+  color: var(--sno-text-primary);
+  padding: 1.25rem;
+  box-shadow: 0 10px 28px rgb(15 23 42 / 5%);
+}
+
+.sno-card-muted { background: var(--sno-surface-muted); }
+.sno-card-accent { border-color: rgb(199 244 58 / 35%); }
+.sno-card-danger { border-color: rgb(244 63 94 / 32%); }
+
+.sno-section-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.sno-eyebrow {
+  margin-bottom: 0.25rem;
+  color: var(--sno-text-muted);
+  font-family: "DM Mono", ui-monospace, monospace;
+  font-size: 0.625rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sno-section-title { color: var(--sno-text-primary); font-size: 0.95rem; font-weight: 900; }
+.sno-section-description { margin-top: 0.25rem; color: var(--sno-text-muted); font-size: 0.7rem; line-height: 1.6; }
+
+.sno-field { display: block; color: var(--sno-text-primary); font-size: 0.7rem; font-weight: 700; }
+.sno-field-label { display: block; margin-bottom: 0.35rem; }
+.sno-field-hint, .sno-field-error { display: block; margin-top: 0.25rem; font-size: 0.65rem; font-weight: 600; }
+.sno-field-hint { color: var(--sno-text-muted); }
+.sno-field-error { color: #e11d48; }
+.sno-field input, .sno-field select, .sno-field textarea { width: 100%; }
+
+.sno-table-wrap { width: 100%; overflow-x: auto; border: 1px solid var(--sno-border); border-radius: 0.85rem; }
+.sno-table { width: 100%; min-width: 38rem; border-collapse: collapse; color: var(--sno-text-primary); font-size: 0.72rem; text-align: start; }
+.sno-table th { background: var(--sno-surface-muted); color: var(--sno-text-muted); font-size: 0.65rem; font-weight: 800; letter-spacing: 0.03em; text-align: start; text-transform: uppercase; }
+.sno-table th, .sno-table td { padding: 0.65rem 0.75rem; border-bottom: 1px solid var(--sno-border); vertical-align: middle; }
+.sno-table tbody tr:last-child td { border-bottom: 0; }
+.sno-table tbody tr:hover { background: rgb(199 244 58 / 5%); }
+.sno-table-empty { padding: 2rem !important; color: var(--sno-text-muted); text-align: center; }
+
 /* Give dense engineering controls a readable minimum without enlarging
    chart labels or report output. */
 #main-layout-root input:not([type="checkbox"]):not([type="radio"]),
