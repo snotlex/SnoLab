@@ -3,6 +3,7 @@ export type LaboratoryResultStatus =
   | "Incomplete"
   | "Invalid"
   | "Calculated"
+  | "Verified"
   | "Under Review"
   | "Passed"
   | "Failed"
@@ -10,6 +11,7 @@ export type LaboratoryResultStatus =
   | "Approved"
   | "Rejected"
   | "Blocked"
+  | "Archived"
   | "Superseded";
 export type LaboratoryVerificationStatus = "VERIFIED" | "NEEDS_REVIEW" | "INCORRECT" | "INCOMPLETE";
 
