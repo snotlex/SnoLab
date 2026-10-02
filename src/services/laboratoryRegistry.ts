@@ -54,6 +54,25 @@ export function standardPreflightIssueMessages(preflight: StandardPreflightResul
   return preflight.errors.map(code => `Official test blocked by standards preflight: ${code}.`);
 }
 
+export function preflightEquipment(
+  requiredEquipmentIds: string[] | undefined,
+  selectedEquipmentIds: string[] | undefined,
+  registry: RegisteredEquipment[] | undefined,
+  at = new Date()
+): StandardPreflightResult {
+  if (requiredEquipmentIds === undefined) return { ready: true, errors: [] };
+  if (requiredEquipmentIds.length === 0) return { ready: false, errors: ["REQUIRED_EQUIPMENT_IDS_EMPTY"] };
+  const selected = selectedEquipmentIds || [];
+  const errors: string[] = [];
+  for (const requiredId of requiredEquipmentIds) {
+    if (!selected.includes(requiredId)) errors.push(`EQUIPMENT_NOT_SELECTED_${requiredId}`);
+    const equipment = registry?.find(item => item.id === requiredId || item.equipmentId === requiredId);
+    if (!equipment) errors.push(`EQUIPMENT_NOT_REGISTERED_${requiredId}`);
+    else if (!equipmentReadyForTest(equipment, at)) errors.push(`EQUIPMENT_NOT_CALIBRATED_${requiredId}`);
+  }
+  return { ready: errors.length === 0, errors };
+}
+
 export function deriveEquipmentStatus(equipment: Pick<LaboratoryEquipment, "status" | "nextCalibrationDate">, at = new Date()): LaboratoryEquipmentStatus {
   if (equipment.status === "Out of Service" || equipment.status === "Under Maintenance") return equipment.status;
   if (!equipment.nextCalibrationDate) return "Calibration Due";

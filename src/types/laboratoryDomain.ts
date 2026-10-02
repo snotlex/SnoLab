@@ -150,6 +150,7 @@ export interface LaboratoryTestRun<TData extends Record<string, unknown> = Recor
   testDefinitionRevision: number;
   standard?: LaboratoryStandardReference;
   equipmentIds?: string[];
+  equipmentCalibrationSnapshot?: Array<Pick<LaboratoryEquipment, "id" | "equipmentId" | "serialNumber" | "calibrationDate" | "nextCalibrationDate" | "status" | "location">>;
   operator: string;
   reviewer?: string;
   rawData: TData;

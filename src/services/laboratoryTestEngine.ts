@@ -6,7 +6,7 @@ import type {
   LaboratoryStandardReference
 } from "../types/laboratoryDomain";
 import { verifyLaboratoryCalculation } from "./laboratoryVerification";
-import { preflightStandard } from "./laboratoryRegistry";
+import { preflightEquipment, preflightStandard, RegisteredEquipment } from "./laboratoryRegistry";
 
 function issue(
   level: ValidationIssue["level"],
@@ -59,6 +59,7 @@ export function executeDefinedLaboratoryTest<TData extends Record<string, unknow
     projectId?: string;
     standard?: LaboratoryStandardReference;
     equipmentIds?: string[];
+    equipmentRegistry?: RegisteredEquipment[];
     now?: string;
     official?: boolean;
   }
@@ -92,7 +93,44 @@ export function executeDefinedLaboratoryTest<TData extends Record<string, unknow
         updatedAt: now
       };
     }
+    const equipmentPreflight = preflightEquipment(definition.requiredEquipmentIds, params.equipmentIds, params.equipmentRegistry);
+    if (!equipmentPreflight.ready) {
+      const issues = equipmentPreflight.errors.map(code => issue(
+        "engineering",
+        "error",
+        code,
+        `Official test blocked by equipment preflight: ${code}.`
+      ));
+      return {
+        id: params.runId,
+        projectId: params.projectId,
+        materialId: params.materialId,
+        sampleId: params.sampleId,
+        testDefinitionId: definition.id,
+        testDefinitionRevision: definition.revision,
+        standard: selectedStandard,
+        equipmentIds: params.equipmentIds,
+        operator: params.operator,
+        rawData: params.rawData,
+        calculationTrace: [],
+        validation: { valid: false, issues },
+        status: "Blocked",
+        createdAt: now,
+        updatedAt: now
+      };
+    }
   }
+  const equipmentCalibrationSnapshot = params.official
+    ? params.equipmentRegistry?.filter(item => (params.equipmentIds || []).includes(item.id) || (params.equipmentIds || []).includes(item.equipmentId)).map(item => ({
+      id: item.id,
+      equipmentId: item.equipmentId,
+      serialNumber: item.serialNumber,
+      calibrationDate: item.calibrationDate,
+      nextCalibrationDate: item.nextCalibrationDate,
+      status: item.status,
+      location: item.location
+    }))
+    : undefined;
   const inputValidation = validateTestInputs({ ...definition, standard: selectedStandard }, params.rawData);
   if (!inputValidation.valid) {
     return {
@@ -182,6 +220,7 @@ export function executeDefinedLaboratoryTest<TData extends Record<string, unknow
       operator: params.operator,
       rawData: params.rawData,
       calculationTrace: calculation.trace,
+      equipmentCalibrationSnapshot,
       result: { value: calculation.result, unit: calculation.unit || definition.resultUnit },
       validation,
       status: warning ? "Warning" : "Calculated",
