@@ -3,9 +3,11 @@ import {
   appendProjectAuditEvent,
   createImmutableProjectVersion,
   createProjectUploadEnvelope,
-  validateProjectUploadEnvelope
+  validateProjectUploadEnvelope,
+  exportProjectAuditTrail
 } from "../services/storage/phase3Governance";
 import { createNewProjectFile } from "../services/storage/ProjectStorageService";
+import { can, permissionsFor, separationOfDuties } from "../services/permissions";
 
 describe("Phase 3: local-first governance contracts", () => {
   it("creates an immutable version with a reproducible integrity hash", async () => {
@@ -42,5 +44,33 @@ describe("Phase 3: local-first governance contracts", () => {
     expect(updated.governance?.auditEvents?.[0].actor?.teamId).toBe("team-1");
     expect(updated.governance?.auditEvents?.[0].operation).toBe("upload");
     expect(updated.auditTrail?.revisionCount).toBe(2);
+  });
+
+  it("exports audit history as stable JSON and spreadsheet-safe CSV", () => {
+    const project = createNewProjectFile({ id: "PROJ-3-EXPORT", name: "Export" });
+    const updated = appendProjectAuditEvent(project, {
+      operation: "export",
+      actor: { subject: "user-1", displayName: "=Injected Formula" },
+      fileName: "audit.snlab",
+      details: "Exported, reviewed"
+    });
+
+    const json = JSON.parse(exportProjectAuditTrail(updated, "json"));
+    const csv = exportProjectAuditTrail(updated, "csv");
+
+    expect(json.projectId).toBe("PROJ-3-EXPORT");
+    expect(json.events[0].operation).toBe("export");
+    expect(csv.split("\n")).toHaveLength(2);
+    expect(csv).toContain("'=Injected Formula");
+    expect(csv).toContain('"Exported, reviewed"');
+  });
+
+  it("enforces the phase 3 role matrix and separation of duties", () => {
+    expect(can("design-engineer", "edit-inputs")).toBe(true);
+    expect(can("design-engineer", "approve-production")).toBe(false);
+    expect(can("approver", "approve-production")).toBe(true);
+    expect(permissionsFor("administrator")).toContain("delete-version");
+    expect(separationOfDuties("creator-1", "creator-1")).toBe(false);
+    expect(separationOfDuties("creator-1", "approver-1")).toBe(true);
   });
 });

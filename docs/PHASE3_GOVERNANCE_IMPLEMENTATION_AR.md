@@ -6,7 +6,7 @@
 
 1. **هوية وملكية اختيارية** داخل `metadata` عبر `ownerId` و`teamId`.
 2. **هوية تشغيلية اختيارية** (`subject`, `teamId`, `roles`) لا تحتوي كلمات مرور أو رموز وصول.
-3. **سجل تدقيق مستقل** للعمليات الحساسة: `upload`, `download`, `share`, `export`, `import`.
+3. **سجل تدقيق مستقل قابل للتصدير** للعمليات الحساسة: `upload`, `download`, `share`, `export`, `import`، بصيغتي JSON وCSV الآمنة.
 4. **نسخ immutable لملف `.snlab`** تتضمن `versionId` و`schemaVersion` و`contentHash` و`byteLength`.
 5. **غلاف رفع قابل للتحقق** يرفض المحتوى المعدّل قبل القبول عبر SHA-256.
 
@@ -22,10 +22,13 @@
   - إنشاء hash وتوقيع منطقي للنسخة.
   - إنشاء والتحقق من `ProjectUploadEnvelope`.
   - إضافة أحداث التدقيق مع revision مستقل.
+  - تصدير سجل التدقيق بصيغتي JSON وCSV مع تحييد قيم الصيغ.
+- `src/services/permissions.ts`
+  - مصفوفة أدوار وصلاحيات وفصل واجب الإنشاء عن الاعتماد.
 - `src/services/storage/types.ts`
   - حقول ownership/governance اختيارية ومتوافقة مع الملفات القديمة.
 - `src/__tests__/phase3-governance.test.ts`
-  - 3 اختبارات: hash ثابت، رفض العبث، وتسجيل actor/operation.
+  - 5 اختبارات: hash ثابت، رفض العبث، تسجيل actor/operation، تصدير التدقيق، ومصفوفة الصلاحيات.
 
 ## التحقق
 
@@ -35,7 +38,7 @@ npm run lint
 
 npx vitest run src/__tests__/phase3-governance.test.ts
 ✓ 1 ملف اختبار
-✓ 3 اختبارات
+✓ 5 اختبارات
 ```
 
 ## ما لم يُنفذ بعد

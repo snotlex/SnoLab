@@ -137,3 +137,42 @@ export function appendProjectAuditEvent(
     }
   };
 }
+
+export type AuditExportFormat = "json" | "csv";
+
+function csvCell(value: unknown): string {
+  const text = value == null ? "" : String(value);
+  // Prefix formula-like values so opening the export in spreadsheet software
+  // cannot interpret an actor or detail as an executable formula.
+  const safe = /^[=+\-@]/.test(text) ? `'${text}` : text;
+  return `"${safe.replace(/"/g, '""')}"`;
+}
+
+/** Serializes the immutable audit history for download or external archiving. */
+export function exportProjectAuditTrail(
+  project: SnoLabProjectFile,
+  format: AuditExportFormat = "json"
+): string {
+  const events = project.governance?.auditEvents || [];
+  if (format === "json") {
+    return JSON.stringify({
+      projectId: project.metadata.id,
+      exportedAt: new Date().toISOString(),
+      events
+    }, null, 2);
+  }
+
+  const header = ["id", "timestamp", "operation", "projectId", "actor", "fileName", "revision", "contentHash", "details"];
+  const rows = events.map(event => [
+    event.id,
+    event.timestamp,
+    event.operation,
+    event.projectId,
+    event.actor?.displayName || event.actor?.email || event.actor?.subject || "",
+    event.fileName || "",
+    event.revision,
+    event.contentHash || "",
+    event.details || ""
+  ]);
+  return [header, ...rows].map(row => row.map(csvCell).join(",")).join("\n");
+}
