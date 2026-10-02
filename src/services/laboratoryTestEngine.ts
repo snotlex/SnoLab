@@ -3,7 +3,8 @@ import type {
   ValidationIssue,
   ValidationReport,
   LaboratoryTestRun,
-  LaboratoryStandardReference
+  LaboratoryStandardReference,
+  LaboratoryIdentity
 } from "../types/laboratoryDomain";
 import { verifyLaboratoryCalculation } from "./laboratoryVerification";
 import { preflightEquipment, preflightStandard, RegisteredEquipment } from "./laboratoryRegistry";
@@ -253,20 +254,34 @@ export function executeDefinedLaboratoryTest<TData extends Record<string, unknow
 
 export function approveLaboratoryTestRun<TData extends Record<string, unknown>>(
   run: LaboratoryTestRun<TData>,
-  reviewer: string,
+  reviewer: string | LaboratoryIdentity,
   decision: "Approved" | "Rejected",
   reason?: string,
-  now = new Date().toISOString()
+  now = new Date().toISOString(),
+  options: { official?: boolean; creator?: LaboratoryIdentity } = {}
 ): LaboratoryTestRun<TData> {
   if (run.status !== "Calculated" && run.status !== "Warning" && run.status !== "Under Review") {
     throw new Error(`Only calculated or reviewable runs can be approved; current status is ${run.status}.`);
   }
+  const reviewerIdentity = typeof reviewer === "object" ? reviewer : undefined;
+  if (options.official) {
+    if (!reviewerIdentity) throw new Error("Official approval requires a structured reviewer identity.");
+    if (!reviewerIdentity.userId || !reviewerIdentity.displayName || !reviewerIdentity.role || !reviewerIdentity.organizationId || !reviewerIdentity.authenticatedAt) {
+      throw new Error("Official approval requires a complete reviewer identity.");
+    }
+    const creator = options.creator || run.createdByIdentity;
+    if (creator && creator.userId === reviewerIdentity.userId) {
+      throw new Error("The creator cannot approve the same laboratory result.");
+    }
+  }
   const auditEntryId = `AUDIT-${run.id}-${Date.now().toString(36).toUpperCase()}`;
+  const reviewerName = reviewerIdentity?.displayName || (typeof reviewer === "string" ? reviewer : reviewer.userId);
   return {
     ...run,
-    reviewer,
+    reviewer: reviewerName,
+    reviewerIdentity,
     status: decision === "Approved" ? "Approved" : "Rejected",
-    approval: { approvedBy: reviewer, approvedAt: now, decision, reason, auditEntryId },
+    approval: { approvedBy: reviewerName, approvedByIdentity: reviewerIdentity, approvedAt: now, decision, reason, auditEntryId },
     updatedAt: now
   };
 }
