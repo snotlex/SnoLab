@@ -14,7 +14,8 @@
     "test:qr": "node scripts/qr-generation-smoke.mjs",
     "test:security": "node scripts/security-smoke.mjs",
     "test:load": "node scripts/api-load-smoke.mjs",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:performance": "playwright test e2e/performance.spec.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
