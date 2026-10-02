@@ -113,6 +113,7 @@ import { CalculatorScreenFrame } from "./components/CalculatorScreenFrame";
 import { CalculatorSectionHeader } from "./components/CalculatorSectionHeader";
 import { CalculatorModeSelector } from "./components/CalculatorModeSelector";
 import { CompressiveStrengthField } from "./components/CompressiveStrengthField";
+import { ConcreteTypeSelector } from "./components/ConcreteTypeSelector";
 import {
   ResponsiveContainer,
   PieChart as RechartsPieChart,
@@ -4753,111 +4754,18 @@ export default function App() {
                         onChange={(value) => setInputs(prev => ({ ...prev, fck28: value }))}
                       />
 
-                      {/* Concrete Type Selection */}
-                      <div id="step1-concrete-type" className={`p-3.5 bg-amber-500/5 rounded-xl border border-amber-500/10 space-y-1.5 ${isRtl ? "text-right" : "text-left"} font-sans`}>
-                        <label className="text-xs font-black text-slate-850 dark:text-slate-200 block">{t("concrete_type_label")}</label>
-                        <select
-                          value={inputs.concreteType || "NSC"}
-                          onChange={(e) => {
-                            const val = e.target.value.toUpperCase();
-                            const current = String(inputs.concreteType || "NSC").toUpperCase();
-                            const hasTypeSpecificData = Object.keys(specializedInputErrors).length > 0 || Object.entries(inputs as any).some(([key, value]) => key !== "concreteType" && (key.startsWith("hsc") || key.startsWith("scc") || key.startsWith("uhpc") || key.startsWith("gpc") || key.startsWith("frc") || key.startsWith("lwc") || key.startsWith("hwc") || key.startsWith("fiber")) && value !== undefined && value !== "");
-                            if (val !== current && hasTypeSpecificData && !window.confirm(language === "ar" ? "سيتم تغيير النوع مع الاحتفاظ بالمدخلات الخاصة الحالية. قد تصبح بعض الحقول غير مطلوبة لهذا النوع. هل تريد المتابعة؟" : language === "fr" ? "Le type va changer et les données spécifiques seront conservées. Certains champs peuvent devenir non requis. Continuer ?" : "The type will change while current specialized inputs are preserved. Some fields may no longer apply. Continue?")) return;
-                            setInputs(prev => {
-                              let next = { ...prev, concreteType: val };
-
-                              // Changing the concrete type must never replace or invent a material selection.
-                              // The active material selectors and recommendation engine report what is missing.
-
-                              return next;
-                            });
-                          }}
-                          className="w-full text-xs p-2.5 rounded border border-amber-300/30 dark:border-amber-700/40 bg-white dark:bg-slate-900/50 text-slate-900 dark:text-white font-semibold focus:outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer"
-                        >
-                          <option value="NSC">{t("type_NSC")}</option>
-                          <option value="RC">{language === "ar" ? "الخرسانة المسلحة (RC)" : language === "fr" ? "Béton armé (RC)" : "Reinforced Concrete (RC)"}</option>
-                          <option value="PUMPED">{language === "ar" ? "الخرسانة القابلة للضخ (PUMPED)" : language === "fr" ? "Béton pompable (PUMPED)" : "Pumped Concrete (PUMPED)"}</option>
-                          <option value="MASS">{language === "ar" ? "الخرسانة الكتلية (MASS)" : language === "fr" ? "Béton de masse (MASS)" : "Mass Concrete (MASS)"}</option>
-                          <option value="MARINE">{language === "ar" ? "الخرسانة البحرية (MARINE)" : language === "fr" ? "Béton marin (MARINE)" : "Marine Concrete (MARINE)"}</option>
-                          <option value="PRECAST">{language === "ar" ? "الخرسانة مسبقة الصب (PRECAST)" : language === "fr" ? "Béton préfabriqué (PRECAST)" : "Precast Concrete (PRECAST)"}</option>
-                          <option value="PRESTRESSED">{language === "ar" ? "الخرسانة سابقة الإجهاد (PRESTRESSED)" : language === "fr" ? "Béton précontraint (PRESTRESSED)" : "Prestressed Concrete (PRESTRESSED)"}</option>
-                          <option value="HSC">{t("type_HSC")}</option>
-                          <option value="HPC">{t("type_HPC")}</option>
-                          <option value="SCC">{t("type_SCC")}</option>
-                          <option value="FRC">{t("type_FRC")}</option>
-                          <option value="LWC">{t("type_LWC")}</option>
-                          <option value="HWC">{t("type_HWC")}</option>
-                          <option value="RCC">{t("type_RCC")}</option>
-                          <option value="SHOTCRETE">{t("type_SHOTCRETE")}</option>
-                          <option value="GPC">{t("type_GPC")}</option>
-                          <option value="SHC">{t("type_SHC")}</option>
-                          <option value="RAC">{t("type_RAC")}</option>
-                          <option value="PERVIOUS">{t("type_PERVIOUS")}</option>
-                          <option value="UHPC">{t("type_UHPC")}</option>
-                          <option value="BFUP">{t("type_BFUP")}</option>
-                        </select>
-
-                        {(() => {
-                          const meta = CONCRETE_TYPES_CATALOG.find(t => t.code === (inputs.concreteType || "NSC"));
-                          if (!meta) return null;
-                          const details = getConcreteTypeDetails(meta.code, language);
-                          return (
-                            <div className="mt-3 p-3 bg-white dark:bg-slate-900/60 rounded-lg border border-amber-500/10 space-y-2 text-xs font-sans shadow-sm leading-relaxed text-right">
-                              <div className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400 font-extrabold flex-row-reverse">
-                                <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
-                                <span>
-                                  {language === "ar" ? "خصائص ومميزات صنف الخرسانة المحدد:" : "Characteristics of selected concrete type:"}
-                                </span>
-                              </div>
-                              <div className="space-y-2 text-right">
-                                <div>
-                                  <strong className="text-slate-800 dark:text-slate-200 block text-[11px] font-black mb-0.5">
-                                    {language === "ar" ? "✦ بماذا تتميز:" : "✦ Key Features:"}
-                                  </strong>
-                                  <p className="text-slate-600 dark:text-slate-400 text-[11px] leading-relaxed">
-                                    {details.description}
-                                  </p>
-                                </div>
-                                <div className="border-t border-slate-100 dark:border-slate-800/80 my-1"></div>
-                                <div>
-                                  <strong className="text-slate-800 dark:text-slate-200 block text-[11px] font-black mb-0.5">
-                                    {language === "ar" ? "✦ أين تُستعمل:" : "✦ Standard Applications:"}
-                                  </strong>
-                                  <p className="text-slate-600 dark:text-slate-400 text-[11px] leading-relaxed">
-                                    {details.usage}
-                                  </p>
-                                </div>
-                                {details.materials && (
-                                  <>
-                                    <div className="border-t border-slate-100 dark:border-slate-800/80 my-1"></div>
-                                    <div>
-                                      <strong className="text-slate-800 dark:text-slate-200 block text-[11px] font-black mb-0.5">
-                                        {language === "ar" ? "✦ المواد المستخدمة:" : "✦ Materials Used:"}
-                                      </strong>
-                                      <p className="text-slate-600 dark:text-slate-400 text-[11px] leading-relaxed">
-                                        {details.materials}
-                                      </p>
-                                    </div>
-                                  </>
-                                )}
-                                {details.mixing && (
-                                  <>
-                                    <div className="border-t border-slate-100 dark:border-slate-800/80 my-1"></div>
-                                    <div>
-                                      <strong className="text-slate-800 dark:text-slate-200 block text-[11px] font-black mb-0.5">
-                                        {language === "ar" ? "✦ طريقة التحضير والخلط:" : "✦ Preparation & Mixing:"}
-                                      </strong>
-                                      <p className="text-slate-600 dark:text-slate-400 text-[11px] leading-relaxed">
-                                        {details.mixing}
-                                      </p>
-                                    </div>
-                                  </>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })()}
-                      </div>
+                      <ConcreteTypeSelector
+                        language={language as "ar" | "fr" | "en"}
+                        value={String(inputs.concreteType || "NSC")}
+                        translate={t}
+                        isRtl={isRtl}
+                        onChange={(val) => {
+                          const current = String(inputs.concreteType || "NSC").toUpperCase();
+                          const hasTypeSpecificData = Object.keys(specializedInputErrors).length > 0 || Object.entries(inputs as any).some(([key, value]) => key !== "concreteType" && (key.startsWith("hsc") || key.startsWith("scc") || key.startsWith("uhpc") || key.startsWith("gpc") || key.startsWith("frc") || key.startsWith("lwc") || key.startsWith("hwc") || key.startsWith("fiber")) && value !== undefined && value !== "");
+                          if (val !== current && hasTypeSpecificData && !window.confirm(language === "ar" ? "سيتم تغيير النوع مع الاحتفاظ بالمدخلات الخاصة الحالية. قد تصبح بعض الحقول غير مطلوبة لهذا النوع. هل تريد المتابعة؟" : language === "fr" ? "Le type va changer et les données spécifiques seront conservées. Certains champs peuvent devenir non requis. Continuer ?" : "The type will change while current specialized inputs are preserved. Some fields may no longer apply. Continue?")) return;
+                          setInputs(prev => ({ ...prev, concreteType: val }));
+                        }}
+                      />
 
                       {/* Design Method: Dreux-Gorisse exclusively */}
                       <div className={`p-4 bg-indigo-500/5 rounded-xl border border-indigo-500/20 space-y-2 ${isRtl ? "text-right" : "text-left"} font-sans`}>
