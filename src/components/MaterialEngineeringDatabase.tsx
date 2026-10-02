@@ -2929,12 +2929,18 @@ export function MaterialEngineeringDatabase({
   };
 
   const [isAILoading, setIsAILoading] = useState(false);
+  const [aiPrivacyConsent, setAiPrivacyConsent] = useState(false);
 
   // AI assistant heuristic property guesser (10. AI MATERIAL ASSISTANT)
   const handleAIAssistSuggest = async () => {
     const name = formState.name || "";
     const cat = formState.category || "رمال";
     const region = formState.provenance || formState.region || "الجزائر";
+
+    if (!aiPrivacyConsent) {
+      setAIAssistSuccessMessage("يلزم تفعيل موافقة الخصوصية أولاً. سيتم إرسال الاسم والفئة والمنطقة فقط إلى خدمة AI.");
+      return;
+    }
 
     setIsAILoading(true);
     setAIAssistSuccessMessage("يقوم مساعد SNO AI بالاستجابة وتخمين الخصائص الهندسية مع خوادمنا بالذكاء الاصطناعي...");
@@ -6995,6 +7001,10 @@ export function MaterialEngineeringDatabase({
                 <p className="text-[9.5px] text-slate-500 dark:text-slate-400 leading-normal">
                   أدخل <strong>اسم المادة</strong>، <strong>الفئة</strong>، و <strong>المنطقة الجغرافية</strong> أولاً، ثم اضغط على زر تفعيل مساعد AI لتخمين واقتراح كافة المواصفات الفيزيائية والكيميائية تلقائياً كمقترح قابل للتعديل!
                 </p>
+                <label className="flex items-start gap-2 rounded-lg border border-indigo-200/60 bg-white/70 p-2 text-[9px] leading-normal text-slate-600 dark:border-indigo-900/60 dark:bg-slate-950/40 dark:text-slate-300">
+                  <input type="checkbox" checked={aiPrivacyConsent} onChange={(event) => setAiPrivacyConsent(event.target.checked)} className="mt-0.5 accent-indigo-600" />
+                  <span>أوافق على إرسال اسم المادة وفئتها ومنطقتها فقط إلى خدمة AI الخارجية لغرض إعداد مسودة؛ لن تُرسل بيانات العميل أو المرفقات، ولن تصبح القيم صالحة للحساب قبل التحقق والمراجعة.</span>
+                </label>
                 <button
                   type="button"
                   disabled={isAILoading}
