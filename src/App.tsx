@@ -3982,7 +3982,7 @@ export default function App() {
             <div className="bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-xl text-right flex flex-col gap-5 font-sans select-none" dir="rtl">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-indigo-50 dark:border-indigo-950/40 pb-3">
                 <div className="flex flex-wrap items-center gap-2 md:gap-3">
-                  <span className="bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400 font-extrabold text-[10px] px-2.5 py-1 rounded-full font-mono uppercase tracking-wider">
+                  <span className="bg-[#C7F43A]/15 dark:bg-[#C7F43A]/10 text-[#5f7415] dark:text-[#C7F43A] font-extrabold text-[10px] px-2.5 py-1 rounded-full font-mono uppercase tracking-wider">
                     SnoLab Project
                   </span>
                   <div className="flex items-center gap-1.5 text-xs font-black text-slate-800 dark:text-slate-100">
@@ -4001,7 +4001,7 @@ export default function App() {
                   )}
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-blue-600 dark:text-blue-400 font-mono font-bold bg-blue-50 dark:bg-blue-950/60 px-3 py-1 rounded-full border border-blue-200 dark:border-blue-900/40">
+                  <span className="text-[10px] text-[#5f7415] dark:text-[#C7F43A] font-mono font-bold bg-[#C7F43A]/10 px-3 py-1 rounded-full border border-[#C7F43A]/30">
                     STAGE {activeStep} / 5 • {t(workflow.activeStageInfo.nameKey)}
                   </span>
                   {workflow.projectIsOpen && (
@@ -4019,6 +4019,16 @@ export default function App() {
                     </button>
                   )}
                 </div>
+              </div>
+
+              {/* Workflow progress: always show location, completion and next action. */}
+              <div className="flex items-center gap-3" aria-label={language === "ar" ? "تقدم مسار العمل" : "Workflow progress"}>
+                <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800" role="progressbar" aria-valuemin={0} aria-valuemax={5} aria-valuenow={activeStep}>
+                  <div className="h-full rounded-full bg-[#C7F43A] transition-all duration-500" style={{ width: `${(activeStep / 5) * 100}%` }} />
+                </div>
+                <span className="shrink-0 text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                  {activeStep}/5 {language === "ar" ? "مراحل" : language === "fr" ? "étapes" : "stages"}
+                </span>
               </div>
 
               {/* Horizontal steps deck */}
@@ -4042,7 +4052,7 @@ export default function App() {
                       onClick={() => handleStepClick(st.num)}
                       className={`p-3 rounded-2xl border transition-all text-right flex flex-col gap-2 focus:outline-none relative overflow-hidden group cursor-pointer ${
                         isActive
-                          ? "bg-gradient-to-br from-blue-600 to-blue-700 border-blue-700 text-white shadow-lg shadow-blue-500/20 ring-2 ring-blue-500/30 scale-[1.02]"
+                          ? "bg-[#C7F43A] border-[#C7F43A] text-[#0A0F15] shadow-lg shadow-[#C7F43A]/20 ring-2 ring-[#C7F43A]/30 scale-[1.02]"
                           : isDone
                           ? "bg-emerald-500/5 dark:bg-emerald-500/10 border-emerald-500/25 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
                           : "bg-slate-50 dark:bg-slate-900 border-slate-200/60 dark:border-slate-800/80 text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-850"
@@ -4051,20 +4061,20 @@ export default function App() {
                       <div className="flex justify-between items-center w-full">
                         <span className={`w-5 h-5 rounded-full text-[10px] font-black flex items-center justify-center ${
                           isActive
-                            ? "bg-white text-blue-600"
+                            ? "bg-[#0A0F15] text-[#C7F43A]"
                             : isDone
                             ? "bg-emerald-500 text-white"
                             : "bg-slate-200 dark:bg-slate-800 text-slate-500"
                         }`}>
                           {st.num}
                         </span>
-                        <IconComp size={13} className={isActive ? "text-white animate-pulse" : isDone ? "text-emerald-500" : "text-slate-400"} />
+                      <IconComp size={13} className={isActive ? "text-[#0A0F15] animate-pulse" : isDone ? "text-emerald-500" : "text-slate-400"} />
                       </div>
                       <div className="mt-0.5">
-                        <span className={`text-[11.5px] font-black block leading-none mb-0.5 ${isActive ? "text-white" : "text-slate-800 dark:text-slate-200"}`}>
+                        <span className={`text-[11.5px] font-black block leading-none mb-0.5 ${isActive ? "text-[#0A0F15]" : "text-slate-800 dark:text-slate-200"}`}>
                           {st.label}
                         </span>
-                        <span className={`text-[9px] font-medium block truncate ${isActive ? "text-blue-100" : "text-slate-400 dark:text-slate-500"}`}>
+                        <span className={`text-[9px] font-medium block truncate ${isActive ? "text-[#36430c]" : "text-slate-400 dark:text-slate-500"}`}>
                           {st.desc}
                         </span>
                       </div>
@@ -4106,7 +4116,7 @@ export default function App() {
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs transition cursor-pointer ${
                     activeStep >= 5
                       ? "opacity-30 cursor-not-allowed text-slate-400"
-                      : "bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/60"
+                      : "bg-[#C7F43A]/10 text-[#5f7415] dark:text-[#C7F43A] hover:bg-[#C7F43A]/20"
                   }`}
                 >
                   <span>{language === "ar" ? "المرحلة التالية" : language === "fr" ? "Étape suivante" : "Next Stage"}</span>

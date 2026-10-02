@@ -204,7 +204,31 @@ body {
   --sno-control-height: 2.35rem;
   --sno-radius-control: 0.75rem;
   --sno-radius-card: 1rem;
+  --sno-surface: #ffffff;
+  --sno-surface-muted: #f8fafc;
+  --sno-surface-elevated: #ffffff;
+  --sno-text-primary: #0f172a;
+  --sno-text-secondary: #475569;
+  --sno-text-muted: #64748b;
+  --sno-border: #e2e8f0;
+  --sno-action: #c7f43a;
+  --sno-action-ink: #0a0f15;
 }
+
+#main-layout-root.dark {
+  --sno-surface: #0f172a;
+  --sno-surface-muted: #111827;
+  --sno-surface-elevated: #172033;
+  --sno-text-primary: #f8fafc;
+  --sno-text-secondary: #cbd5e1;
+  --sno-text-muted: #94a3b8;
+  --sno-border: #1e293b;
+}
+
+.sno-surface { background: var(--sno-surface); color: var(--sno-text-primary); }
+.sno-surface-muted { background: var(--sno-surface-muted); color: var(--sno-text-secondary); }
+.sno-border { border-color: var(--sno-border); }
+.sno-action { background: var(--sno-action); color: var(--sno-action-ink); }
 
 /* Give dense engineering controls a readable minimum without enlarging
    chart labels or report output. */

@@ -48,7 +48,7 @@ export interface SidebarShellProps {
 }
 
 const STORAGE_KEY = "snolab-sidebar-groups";
-const defaultGroups: Record<string, boolean> = { workspace: false, laboratory: false, reports: false, resources: false };
+const defaultGroups: Record<string, boolean> = { design: false, materials: false, production: false, reports: false, resources: false };
 
 function label(value: Copy, language: Language) { return value[language] || value.en; }
 
@@ -84,21 +84,22 @@ export const SidebarShell = React.memo(function SidebarShell({
   const statusLabel = language === "ar" ? ({ draft: "مسودة", "needs-review": "تحتاج مراجعة", ready: "جاهز", approved: "معتمد", blocked: "محظور" } as Record<string, string>)[projectStatus] || "مسودة" : language === "fr" ? ({ draft: "Brouillon", "needs-review": "À revoir", ready: "Prêt", approved: "Approuvé", blocked: "Bloqué" } as Record<string, string>)[projectStatus] || "Brouillon" : ({ draft: "Draft", "needs-review": "Needs review", ready: "Ready", approved: "Approved", blocked: "Blocked" } as Record<string, string>)[projectStatus] || "Draft";
 
   const groupsConfig = useMemo<SidebarGroup[]>(() => [
-    { id: "workspace", label: c("مساحة العمل", "Espace de travail", "Workspace"), icon: Sliders, items: [
-      { id: "dashboard", label: c("لوحة التحكم", "Tableau de bord", "Dashboard"), icon: Home, target: "dashboard", targetType: "tab" },
+    { id: "design", label: c("تصميم الخلطة", "Formulation", "Mix design"), icon: Calculator, items: [
       { id: "projects", label: c("المشاريع المحفوظة", "Projets enregistrés", "Saved projects"), icon: FolderOpen, target: "saved_projects", targetType: "tab", badge: draftCount },
-      { id: "mix-design", label: c("تصميم الخلطة", "Formulation", "Mix design"), icon: Calculator, target: "calculator", targetType: "tab", requiresProject: true },
+      { id: "mix-design", label: c("الحساب والتصميم", "Calcul et formulation", "Design calculator"), icon: Calculator, target: "calculator", targetType: "tab", requiresProject: true },
+      { id: "materials", label: c("مكتبة المواد", "Bibliothèque des matériaux", "Materials library"), icon: Database, target: "materials_library", targetType: "tab" },
+      { id: "optimization", label: c("تحسين الخلطة", "Optimisation", "Optimization"), icon: Activity, target: "optimization", targetType: "tab", requiresProject: true },
+      { id: "versions", label: c("إصدارات الخلطات", "Versions des mélanges", "Mix versions"), icon: History, target: "versions", targetType: "tab", requiresProject: true }
+    ] },
+    { id: "materials", label: c("المواد والمختبر", "Matériaux et laboratoire", "Materials & laboratory"), icon: FlaskConical, items: [
+      { id: "lab", label: c("التحقق والتحكم المخبري", "Validation de laboratoire", "Laboratory validation"), icon: FlaskConical, target: "materials_lab", targetType: "tab", badge: readyTests, requiresProject: true },
+      { id: "lab-sessions", label: c("طلبات الاختبارات", "Demandes multi-essais", "Test requests"), icon: FlaskConical, target: "academic_lab", targetType: "tab", badge: blockedTests, requiresProject: true },
+      { id: "quality-assets", label: c("العينات والمعايرة", "Échantillons et étalonnage", "Samples & calibration"), icon: Beaker, target: "quality_assets", targetType: "tab", requiresProject: true }
+    ] },
+    { id: "production", label: c("الإنتاج وضبط الجودة", "Production et qualité", "Production & QA/QC"), icon: ClipboardCheck, items: [
       { id: "batch-preparation", label: c("تحضير الدفعة", "Préparation de gâchée", "Batch preparation"), icon: Scale, target: "batch_preparation", targetType: "tab", requiresProject: true },
       { id: "quality-control", label: c("ضبط الجودة QA/QC", "Contrôle qualité QA/QC", "QA/QC control"), icon: ClipboardCheck, target: "quality_control", targetType: "tab", requiresProject: true },
-      { id: "batch-ticket", label: c("تذكرة الوزن", "Ticket de pesée", "Batch ticket"), icon: TicketCheck, target: "batch_ticket", targetType: "tab", requiresProject: true },
-      { id: "quality-assets", label: c("مركز عمليات المختبر · العينات والمعايرة", "Opérations du laboratoire · Échantillons et étalonnage", "Laboratory operations · Samples & calibration"), icon: Beaker, target: "quality_assets", targetType: "tab", requiresProject: true },
-      { id: "versions", label: c("إصدارات الخلطات", "Versions des mélanges", "Mix versions"), icon: History, target: "versions", targetType: "tab", requiresProject: true },
-      { id: "optimization", label: c("تحسين الخلطة", "Optimisation", "Optimization"), icon: Activity, target: "optimization", targetType: "tab", requiresProject: true }
-    ] },
-    { id: "laboratory", label: c("مختبر المواد", "Laboratoire des matériaux", "Materials laboratory"), icon: FlaskConical, items: [
-      { id: "lab", label: c("التحقق والتحكم المخبري", "Validation de laboratoire", "Laboratory Performance Validation"), icon: FlaskConical, target: "materials_lab", targetType: "tab", badge: readyTests, requiresProject: true },
-      { id: "lab-sessions", label: c("مركز الطلبات متعددة الاختبارات", "Centre des demandes multi-essais", "Multi-test request center"), icon: FlaskConical, target: "academic_lab", targetType: "tab", badge: blockedTests, requiresProject: true },
-      { id: "materials", label: c("مكتبة المواد", "Bibliothèque des matériaux", "Materials library"), icon: Database, target: "materials_library", targetType: "tab" }
+      { id: "batch-ticket", label: c("تذكرة الوزن", "Ticket de pesée", "Batch ticket"), icon: TicketCheck, target: "batch_ticket", targetType: "tab", requiresProject: true }
     ] },
     { id: "reports", label: c("التقارير والتحليل", "Rapports et analyse", "Reports & analysis"), icon: FileText, items: [
       { id: "reports", label: c("التقارير", "Rapports", "Reports"), icon: FileText, target: "reports", targetType: "tab", requiresProject: true },
@@ -106,7 +107,7 @@ export const SidebarShell = React.memo(function SidebarShell({
       { id: "cost", label: c("تحليل التكلفة", "Analyse des coûts", "Cost analysis"), icon: Coins, target: "cost", targetType: "tab", requiresProject: true },
       { id: "journal", label: c("دفتر الحسابات", "Journal des calculs", "Calculation journal"), icon: FileText, target: "journal", targetType: "tab", requiresProject: true }
     ] },
-    { id: "resources", label: c("الموارد والإعدادات", "Ressources et paramètres", "Resources & settings"), icon: BookOpen, items: [
+    { id: "resources", label: c("المعرفة والإعدادات", "Ressources et paramètres", "Knowledge & settings"), icon: BookOpen, items: [
       { id: "knowledge", label: c("مركز المعرفة الهندسي", "Centre de connaissances", "Engineering knowledge"), icon: BookOpen, target: "methodology", targetType: "tab" },
       { id: "assistant", label: c("المساعد الهندسي", "Assistant ingénierie", "Engineering assistant"), icon: Sparkles, target: "engineering_assistant", targetType: "tab" },
       { id: "settings", label: c("الإعدادات", "Paramètres", "Settings"), icon: Settings, target: "settings", targetType: "tab" }
@@ -127,9 +128,9 @@ export const SidebarShell = React.memo(function SidebarShell({
     {groupsConfig.map(group => <section key={group.id} aria-labelledby={`sidebar-group-${group.id}`} className="border-b border-slate-100 pb-2 dark:border-slate-800/70"><button type="button" aria-expanded={!groups[group.id]} aria-controls={`sidebar-group-items-${group.id}`} onClick={() => !isCollapsed && toggleGroup(group.id)} className={`flex min-h-9 w-full items-center gap-2 rounded-lg px-2 py-1.5 text-start text-[10px] font-black uppercase tracking-wide text-slate-400 hover:bg-slate-50 dark:text-slate-500 dark:hover:bg-slate-800/50 ${isCollapsed ? "justify-center" : ""}`} title={isCollapsed ? label(group.label, language) : undefined}><group.icon size={14} /><span id={`sidebar-group-${group.id}`} className={isCollapsed ? "sr-only" : "flex-1"}>{label(group.label, language)}</span>{!isCollapsed && (groups[group.id] ? <ChevronDown size={14} /> : <ChevronRight size={14} />)}</button>{(!groups[group.id] || isCollapsed) && <div id={`sidebar-group-items-${group.id}`} className="mt-1 space-y-1">{group.items.map(renderItem)}</div>}</section>)}
   </nav>;
 
-  const content = <div className={`flex h-full min-h-0 flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-xl dark:border-slate-800 dark:bg-[#0F172A] ${isCollapsed ? "items-center" : ""}`} dir={isRtl ? "rtl" : "ltr"}>
+  const content = <div className={`sno-surface sno-border flex h-full min-h-0 flex-col gap-3 rounded-2xl border p-3 shadow-xl ${isCollapsed ? "items-center" : ""}`} dir={isRtl ? "rtl" : "ltr"}>
     <header className={`flex w-full items-center gap-2 border-b border-slate-200 pb-3 dark:border-slate-800 ${isCollapsed ? "justify-center" : "justify-between"}`}><SnoLabLogo iconOnly={isCollapsed} themeMode={themeMode} className="h-7" />{!isCollapsed && <button type="button" aria-label={language === "ar" ? "طي الشريط الجانبي" : language === "fr" ? "Réduire la barre latérale" : "Collapse sidebar"} onClick={onToggleCollapsed} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"><PanelLeftClose size={17} /></button>}</header>
-    {!isCollapsed && <section aria-label={language === "ar" ? "المشروع الحالي" : "Current project"} className="rounded-xl border border-indigo-100 bg-indigo-50/60 p-2.5 dark:border-indigo-900/40 dark:bg-indigo-950/20"><div className="truncate text-xs font-black text-slate-800 dark:text-slate-100">{projectName || (language === "ar" ? "لا يوجد مشروع نشط" : language === "fr" ? "Aucun projet actif" : "No active project")}</div>{projectCode && <div className="mt-0.5 font-mono text-[9px] text-slate-500">{projectCode}</div>}<span className={`mt-2 inline-flex rounded-full px-2 py-0.5 text-[9px] font-black ${projectStatus === "blocked" ? "bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300" : projectStatus === "approved" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300" : "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300"}`}>{statusLabel}</span></section>}
+    {!isCollapsed && <section aria-label={language === "ar" ? "المشروع الحالي" : "Current project"} className="sno-surface-muted rounded-xl border sno-border p-2.5"><div className="truncate text-xs font-black text-slate-800 dark:text-slate-100">{projectName || (language === "ar" ? "لا يوجد مشروع نشط" : language === "fr" ? "Aucun projet actif" : "No active project")}</div>{projectCode && <div className="mt-0.5 font-mono text-[9px] text-slate-500">{projectCode}</div>}<span className={`mt-2 inline-flex rounded-full px-2 py-0.5 text-[9px] font-black ${projectStatus === "blocked" ? "bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300" : projectStatus === "approved" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300" : "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300"}`}>{statusLabel}</span></section>}
     {isCollapsed && <button type="button" aria-label={language === "ar" ? "توسيع الشريط الجانبي" : language === "fr" ? "Développer la barre latérale" : "Expand sidebar"} onClick={onToggleCollapsed} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"><PanelLeftOpen size={17} /></button>}
     {navigation}
     <footer className="w-full border-t border-slate-200 pt-2 dark:border-slate-800"><div className={`flex items-center gap-1 ${isCollapsed ? "flex-col" : "justify-between"}`}><button type="button" onClick={onToggleTheme} disabled={!onToggleTheme} title={language === "ar" ? "تبديل الثيم" : language === "fr" ? "Changer le thème" : "Toggle theme"} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 disabled:opacity-50 dark:hover:bg-slate-800"><Activity size={16} /></button>{!isCollapsed && <span className="text-[9px] text-slate-400">{language === "ar" ? "واجهة SnoLab" : language === "fr" ? "Interface SnoLab" : "SnoLab workspace"}</span>}<span className="relative rounded-lg p-2 text-slate-500" title={language === "ar" ? "التنبيهات" : language === "fr" ? "Alertes" : "Alerts"}><span className="sr-only">{label(c("التنبيهات", "Alertes", "Alerts"), language)}</span><ShieldCheck size={16} />{unreadAlerts > 0 && <span className="absolute -end-0.5 -top-0.5 min-w-4 rounded-full bg-rose-500 px-1 text-center text-[8px] font-black text-white">{unreadAlerts}</span>}</span></div></footer>

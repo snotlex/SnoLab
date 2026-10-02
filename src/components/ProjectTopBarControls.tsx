@@ -276,6 +276,7 @@ export const ProjectTopBarControls: React.FC<ProjectTopBarControlsProps> = ({
           >
             <CheckCircle2 className="w-3 h-3 text-emerald-500" />
             <span className="hidden md:inline">{language === "ar" ? "محفوظ محلياً" : "Saved"}</span>
+            {lastSavedAt && <span className="hidden xl:inline text-[10px] opacity-70 font-mono">{lastSavedAt.toLocaleTimeString(language === "ar" ? "ar-SA" : language === "fr" ? "fr-FR" : "en-US", { hour: "2-digit", minute: "2-digit" })}</span>}
           </span>
         )}
 
