@@ -15,6 +15,7 @@ import {
   SievePoint,
   Admixture
 } from "./types";
+import { calculateLegacyDiagnosticAdapter } from "./engine/legacyAdapter";
 
 /**
  * Standard list of admixtures for easy quick addition
@@ -288,15 +289,9 @@ export function getRecommendedCoefficients(
   };
 }
 
-import { mixDesignEngine } from "./mix-design/core/MixDesignEngine";
-
 /**
  * Main core calculations wrapper calling unified dreuxGorisseCore
  */
 export function calculateDreuxGorisse(input: MixDesignInput): MixDesignResult {
-  return mixDesignEngine.calculate({
-    methodId: "dreux-gorisse",
-    input,
-    context: { language: "ar" }
-  }) as any;
+  return calculateLegacyDiagnosticAdapter(input);
 }

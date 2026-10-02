@@ -63,6 +63,21 @@ export function validateCalculationLogic(
     };
   }
 
+  if (results?.legacyDiagnosticOnly === true || results?.releaseEligibility === "blocked") {
+    criticalErrors.push("legacy_diagnostic_only");
+    return {
+      isValidForReport: false,
+      criticalErrors,
+      warnings,
+      infos,
+      validationSummary: language === "ar"
+        ? "هذه النتيجة تشخيصية من محول legacy ولا تصلح للتقرير أو الإصدار."
+        : language === "fr"
+          ? "Ce résultat provient d'un adaptateur legacy diagnostique et ne peut pas être publié."
+          : "This result came from a legacy diagnostic adapter and cannot be released."
+    };
+  }
+
   // Helper to check for invalid/missing numbers
   const isInvalidNum = (val: any) => 
     val === undefined || 
