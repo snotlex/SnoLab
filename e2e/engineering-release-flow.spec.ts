@@ -42,7 +42,7 @@ test.describe("engineering release governance flow", () => {
     await page.getByRole("button", { name: /🇺🇸 EN/ }).click();
     await page.getByRole("button", { name: /Start New Project/ }).first().click();
     await page.locator("#workflow-step-btn-3").click();
-    await expect(page.locator("#phase3-input-wizard")).toBeVisible();
+    await expect(page.locator("#stage3-sequential-page")).toBeVisible();
     await expect(page.locator('section[aria-label="Mix lifecycle and approval"]')).toHaveCount(0);
   });
 

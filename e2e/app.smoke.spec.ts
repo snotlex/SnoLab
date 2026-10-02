@@ -111,7 +111,7 @@ test.describe("SnoLab application smoke flow", () => {
     await page.getByRole("button", { name: /Start New Project/ }).first().click();
     await page.locator("#main-layout-root").waitFor();
 
-    await page.getByRole("button", { name: /Laboratory Performance Validation/ }).click();
+    await page.getByRole("button", { name: "Laboratory validation" }).click();
     await expect(page.locator("#materials-lab-screen")).toBeVisible();
     await page.getByRole("button", { name: "New test" }).click();
 
@@ -143,7 +143,7 @@ test.describe("SnoLab application smoke flow", () => {
     const strengthInput = page.locator("#step1-project-requirements input[type=number]").first();
     await strengthInput.fill("");
     await expect(page.locator("#step1-project-requirements")).toContainText("Target strength is missing");
-    await expect(page.locator("#phase3-input-wizard")).toBeVisible();
+    await expect(page.locator("#stage3-sequential-page")).toBeVisible();
     await expect(page.locator('section[aria-label="Mix lifecycle and approval"]')).toHaveCount(0);
     await expect(page.locator('section[aria-label="Staged calculation and auditable values"]')).toHaveCount(0);
     await strengthInput.fill("25");
@@ -155,14 +155,11 @@ test.describe("SnoLab application smoke flow", () => {
     await page.getByRole("button", { name: /🇺🇸 EN/ }).click();
     await page.getByRole("button", { name: /Start New Project/ }).first().click();
     await page.locator("#workflow-step-btn-3").click();
-    const sectionNav = page.locator('nav[aria-label="Stage 3 sections"]');
-    await sectionNav.getByRole("button", { name: "Materials" }).click();
+    const stage3 = page.locator("#stage3-sequential-page");
+    await expect(stage3).toBeVisible();
     await expect(page.locator("#step3-materials-selection")).toBeVisible();
-    await expect(page.locator("#step1-project-requirements")).toBeHidden();
-    await sectionNav.getByRole("button", { name: "Design requirements" }).click();
     await expect(page.locator("#step1-project-requirements")).toBeVisible();
     await page.locator("#step1-concrete-type select").selectOption("HSC");
-    await sectionNav.getByRole("button", { name: "Concrete type & options" }).click();
     await expect(page.locator("#step1-concrete-type")).toBeVisible();
     await expect(page.locator("#step1-concrete-type select")).toHaveValue("HSC");
   });
@@ -174,10 +171,11 @@ test.describe("SnoLab application smoke flow", () => {
       await page.getByRole("button", { name: /🇺🇸 EN/ }).click();
       await page.getByRole("button", { name: /Start New Project/ }).first().click();
       await page.locator("#workflow-step-btn-3").click();
-      await expect(page.locator("#phase3-input-wizard")).toBeVisible();
-      const navBox = await page.locator('nav[aria-label="Stage 3 sections"]').boundingBox();
-      expect(navBox?.width).toBeLessThanOrEqual(width);
-      await expect(page.getByRole("button", { name: "Design requirements" })).toBeVisible();
+      const stage3 = page.locator("#stage3-sequential-page");
+      await expect(stage3).toBeVisible();
+      const stageBox = await stage3.boundingBox();
+      expect(stageBox?.width).toBeLessThanOrEqual(width);
+      await expect(page.locator("#step1-project-requirements")).toBeVisible();
     }
   });
 
@@ -236,7 +234,7 @@ test.describe("SnoLab application smoke flow", () => {
     await page.goto("/");
     await page.getByRole("button", { name: /🇺🇸 EN/ }).click();
     await page.getByRole("button", { name: /Start New Project/ }).first().click();
-    await page.getByRole("button", { name: /Laboratory Performance Validation/ }).click();
+    await page.getByRole("button", { name: "Laboratory validation" }).click();
     await page.locator("#materials-lab-screen").getByRole("button", { name: "Multi-test request center" }).click();
     const panel = page.locator("section").filter({ hasText: "Laboratory requests & sessions" }).last();
     await expect(panel).toBeVisible();
