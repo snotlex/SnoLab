@@ -183,10 +183,16 @@ export function summarizeLaboratorySession(session: LaboratorySession): Laborato
   const runningTests = session.tests.filter(test => test.status === "RUNNING").length;
   const incompleteTests = session.tests.filter(test => ["DRAFT", "CANCELLED"].includes(test.status)).length;
   const completionPercent = totalTests ? Math.round((completedTests / totalTests) * 100) : 0;
+  const verifiableCompletedTests = session.tests.filter(test =>
+    ["PASS", "WARNING", "FAIL"].includes(test.status)
+    && test.replicates.some(replicate => replicate.status === "VALID")
+    && test.result !== undefined
+  ).length;
+  const completionIsVerifiable = totalTests > 0 && verifiableCompletedTests === totalTests;
   let status: LaboratoryRequestStatus = "DRAFT";
   if (!totalTests) status = session.samples.length ? "IN_PROGRESS" : "DRAFT";
   else if (session.status === "CLOSED" || session.status === "CANCELLED") status = session.status;
-  else if (completedTests === totalTests) status = session.status === "UNDER_REVIEW" || session.status === "APPROVED" ? session.status : "COMPLETED";
+  else if (completedTests === totalTests && completionIsVerifiable) status = session.status === "UNDER_REVIEW" || session.status === "APPROVED" ? session.status : "COMPLETED";
   else if (completedTests > 0) status = "PARTIALLY_COMPLETED";
   else if (readyTests === totalTests) status = "READY";
   else if (runningTests > 0) status = "IN_PROGRESS";
@@ -205,6 +211,7 @@ export function canApproveLaboratorySession(session: LaboratorySession): { allow
 }
 
 export function approveLaboratorySession(session: LaboratorySession, reviewer: string, notes?: string): LaboratorySession {
+  if (session.legacyDiagnosticOnly) throw new Error("Legacy diagnostic sessions cannot be approved as official laboratory results.");
   const approval = canApproveLaboratorySession(session);
   if (!approval.allowed) throw new Error(`Session cannot be approved: ${approval.reasons.join(" ")}`);
   const review = { reviewer, reviewedAt: nowIso(), decision: "APPROVED" as const, notes };
@@ -340,6 +347,7 @@ export function legacyRecordToLaboratorySession(record: MaterialTestRecord): Lab
     tests: [sessionTest],
     auditLog: [audit("LEGACY_RECORD_WRAPPED", "session", `LEGACY-SESSION-${record.id}`, "system", "Non-destructive compatibility view", undefined, { legacyRecordId: record.id })],
     legacyRecordId: record.id,
+    legacyDiagnosticOnly: true,
     createdAt: record.createdAt || timestamp,
     updatedAt: timestamp
   };

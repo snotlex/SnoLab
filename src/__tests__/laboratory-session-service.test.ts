@@ -79,6 +79,15 @@ describe("Laboratory multi-test session service", () => {
     expect(session.tests[0].sourceRecordId).toBe(legacy.id);
     expect(session.tests[0].result).toEqual(legacy.results);
     expect(session.samples[0].sampleNumber).toBe(legacy.sampleId);
+    expect(session.legacyDiagnosticOnly).toBe(true);
+    expect(() => approveLaboratorySession(session, "reviewer")).toThrow("Legacy diagnostic sessions");
+  });
+
+  it("does not report COMPLETED when result evidence is missing", () => {
+    let session = addSessionSample(createLaboratorySession({ requestNumber: "LAB-INCOMPLETE-1" }), baseSample);
+    session = addSessionTest(session, { testType: "T-INCOMPLETE", testTitleAr: "ناقص", testTitleFr: "Incomplet", testTitleEn: "Incomplete", standard: "Internal", materialId: "MAT-SAND", sampleId: session.samples[0].id, status: "PASS" });
+    expect(summarizeLaboratorySession(session).status).toBe("PARTIALLY_COMPLETED");
+    expect(summarizeLaboratorySession(session).status).not.toBe("COMPLETED");
   });
 
   it("requires completed valid tests before approval and exposes a traceable sync plan", () => {
