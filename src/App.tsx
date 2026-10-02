@@ -105,6 +105,7 @@ const CalculationJournal = React.lazy(() => import("./components/CalculationJour
 const ReportCompliance = React.lazy(() => import("./components/ReportCompliance").then(m => ({ default: m.ReportCompliance })));
 const ReportThermalAnalysis = React.lazy(() => import("./components/ReportThermalAnalysis").then(m => ({ default: m.ReportThermalAnalysis })));
 import { WorkspaceWorkflowHeader } from "./components/WorkspaceWorkflowHeader";
+import { WorkspaceTopBar } from "./components/WorkspaceTopBar";
 import {
   ResponsiveContainer,
   PieChart as RechartsPieChart,
@@ -3748,203 +3749,29 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* TOP BAR & PLATFORM NAVIGATION GATEWAY */}
-      <header className={`border-b font-sans sticky top-0 z-40 shadow-2xl print:hidden select-none transition-colors duration-200 ${
-        themeMode === "dark"
-          ? "bg-[#0B1120] border-slate-800 text-white"
-          : "bg-white border-slate-200 text-slate-800 shadow-md"
-      }`} id="concrete.ai-premium-topbar">
-        <div className="max-w-7xl mx-auto px-4 md:px-6">
-          <div className="h-16 flex items-center justify-between gap-4">
-
-            {/* BRAND LOGO CONCRETE.AI FEEL */}
-            <div className="flex items-center gap-3 shrink-0 cursor-pointer" onClick={() => setViewMode("landing")}>
-              <SnoLabLogo themeMode={themeMode} />
-            </div>
-
-            {/* SPACER */}
-            <div className="flex-grow flex items-center justify-center">
-              <ProjectTopBarControls
-                onOpenProjectProperties={() => setShowProjectPropertiesModal(true)}
-                onOpenNewProjectModal={() => setShowNewProjectModal(true)}
-              />
-            </div>
-
-            {/* CONTROLS AREA: Language toggle, Notifications Bell, Settings Cog & Profile */}
-            <div className="flex items-center gap-3 shrink-0">
-
-
-
-              {/* NOTIFICATIONS BELL */}
-              <div className="relative">
-                <button
-                  onClick={() => {
-                    setShowNotificationDropdown(!showNotificationDropdown);
-                    setShowPlantDropdown(false);
-                    setShowProjectDropdown(false);
-                  }}
-                  className={`p-2 rounded-xl border cursor-pointer relative transition-all duration-200 ${
-                    themeMode === "dark"
-                      ? "bg-slate-900 hover:bg-slate-850 text-slate-200 border-slate-800"
-                      : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200"
-                  }`}
-                  title="الرسائل والتنبيهات الهندسية الفعالة"
-                >
-                  <Bell size={14} />
-                  {notifications.filter(n => !n.read).length > 0 && (
-                    <span className="absolute -top-1.5 -left-1.5 h-4 w-4 bg-rose-500 text-white text-[8px] font-black rounded-full flex items-center justify-center animate-pulse">
-                      {notifications.filter(n => !n.read).length}
-                    </span>
-                  )}
-                </button>
-
-                {showNotificationDropdown && (
-                  <div className={`absolute left-0 top-10 mt-1 w-80 rounded-2xl shadow-2xl py-2 z-55 text-right animate-fade-in animate-duration-150 transition-colors duration-200 ${
-                    themeMode === "dark"
-                      ? "bg-slate-950 border border-slate-800"
-                      : "bg-white border border-slate-200 shadow-xl"
-                  }`}>
-                    <div className={`px-3 py-2 border-b flex items-center justify-between mb-2 transition-colors duration-200 ${
-                      themeMode === "dark" ? "border-slate-850" : "border-slate-100"
-                    }`}>
-                      <button
-                        onClick={() => {
-                          setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-                        }}
-                        className="text-[9.5px] font-bold text-blue-500 hover:underline cursor-pointer focus:outline-none"
-                      >
-                        {language === "ar" ? "قراءة الكل" : language === "fr" ? "Marquer tout lu" : "Read all"}
-                      </button>
-                      <span className={`text-[11px] font-black transition-colors ${themeMode === "dark" ? "text-slate-300" : "text-slate-700"}`}>
-                        {language === "ar" ? "رسائل تنبيه السيستم" : language === "fr" ? "Alertes & Messages" : "Alerts & Notifications"}
-                      </span>
-                    </div>
-
-                    <div className={`max-h-64 overflow-y-auto divide-y px-2 space-y-1 transition-colors ${
-                      themeMode === "dark" ? "divide-slate-850/60" : "divide-slate-100"
-                    }`}>
-                      {notifications.map((notif) => (
-                        <div
-                          key={notif.id}
-                          className={`p-2 rounded-lg text-right transition-all ${notif.read ? "bg-transparent opacity-60" : "bg-blue-500/10 border-r-2 border-blue-500"}`}
-                        >
-                          <p className={`text-[10px] leading-relaxed font-sans transition-colors ${
-                            themeMode === "dark" ? "text-slate-200" : "text-slate-700 font-semibold"
-                          }`}>
-                            {language === "ar" ? notif.textAr : language === "fr" ? notif.textFr : notif.textEn}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className={`p-2 border-t mt-2 text-center transition-colors ${
-                      themeMode === "dark" ? "border-slate-850" : "border-slate-100"
-                    }`}>
-                      <button
-                        onClick={() => setShowNotificationDropdown(false)}
-                        className={`text-[10px] font-bold transition-colors ${themeMode === "dark" ? "text-slate-400 hover:text-white" : "text-slate-500 hover:text-slate-900"}`}
-                      >
-                        {language === "ar" ? "إغلاق التنبيهات" : language === "fr" ? "Fermer" : "Close Panel"}
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* COG SETTINGS SHORTCUT */}
-              <button
-                onClick={() => setActiveSidebarTab("settings")}
-                className={`p-2 rounded-xl border transition-all cursor-pointer ${
-                  activeSidebarTab === "settings"
-                    ? "bg-blue-600 text-white border-blue-650"
-                    : themeMode === "dark"
-                      ? "bg-slate-900 hover:bg-slate-850 text-slate-200 border-slate-800"
-                      : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200"
-                }`}
-                title={language === "ar" ? "إعدادات المنصة" : "System Settings"}
-              >
-                <Settings size={14} className={activeSidebarTab === "settings" ? "animate-spin-slow" : ""} />
-              </button>
-
-              <div className={`w-px h-6 hidden sm:block ${themeMode === "dark" ? "bg-slate-800" : "bg-slate-200"}`}></div>
-
-              {/* USER PROFILE INFO card */}
-              <div className="flex items-center gap-2 shrink-0">
-                {user ? (
-                  <div className="flex items-center gap-2">
-                    <div className="hidden lg:flex flex-col text-right">
-                      <span className={`text-[10.5px] font-extrabold leading-tight ${themeMode === "dark" ? "text-blue-200" : "text-slate-800"}`}>
-                        {user.displayName || "مهندس معتمد"}
-                      </span>
-                      <span className="text-[9px] text-emerald-600 text-right font-bold">
-                        {language === "ar" ? "تخزين محلي" : "Local storage"}
-                      </span>
-                    </div>
-                    {user.photoURL ? (
-                      <img
-                        src={user.photoURL}
-                        alt="Profile"
-                        className="w-7 h-7 rounded-full border border-blue-500/20 select-none shadow-md"
-                        referrerPolicy="no-referrer"
-                      />
-                    ) : (
-                      <div className="w-7 h-7 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-black select-none uppercase shadow-md">
-                        {user.displayName?.charAt(0) || "M"}
-                      </div>
-                    )}
-                  </div>
-                ) : null}
-              </div>
-
-            </div>
-
-          </div>
-        </div>
-
-        {/* SUBHEADER QUICK ACTION TOOLBAR (PRESETS, QUICK OPTIMIZE, RESET CMD) */}
-        <div className={`px-4 md:px-6 py-2 border-t transition-colors duration-200 ${
-          themeMode === "dark"
-            ? "bg-slate-900 border-slate-800/80 text-white"
-            : "bg-slate-50 border-slate-200 text-slate-700"
-        }`}>
-          <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 text-xs">
-
-            {/* Left part: active crumb details about recipe */}
-            <div className={`flex items-center gap-2 text-[10px] font-mono transition-colors duration-200 ${
-              themeMode === "dark" ? "text-slate-400" : "text-slate-500"
-            }`}>
-              <span className={`px-2 py-0.5 rounded font-black font-sans transition-colors duration-200 ${
-                themeMode === "dark" ? "bg-slate-850 text-emerald-400" : "bg-emerald-50 text-emerald-700"
-              }`}>
-                {language === "ar" ? "الوجبة النشطة:" : language === "fr" ? "Recette active:" : "Active Recipe:"} C{inputs.fck28} MPa
-              </span>
-              <span>•</span>
-              <span className={themeMode === "dark" ? "text-slate-400" : "text-slate-500"}>{inputs.selectedMethod?.toUpperCase()} METHOD</span>
-              <span>•</span>
-              <span className="truncate max-w-[200px] hidden lg:inline">{language === "ar" ? `العميل: ${currentClient}` : `Client: ${currentClient}`}</span>
-            </div>
-
-            {/* Right part: core controls buttons belt */}
-            <div className="flex flex-wrap items-center justify-end gap-2 text-[11px]">
-
-              <button
-                onClick={handleReset}
-                className={`flex items-center gap-1 py-1 px-2.5 font-bold cursor-pointer rounded-lg border transition ${
-                  themeMode === "dark"
-                    ? "bg-slate-950 hover:bg-slate-850 text-slate-350 hover:text-white border-slate-850"
-                    : "bg-white hover:bg-slate-100 text-slate-600 hover:text-slate-900 border-slate-200 shadow-sm"
-                }`}
-                title="تصفير وإعادة ضبط المتغيرات الأساسية"
-              >
-                <RefreshCw size={11} />
-                <span>{language === "ar" ? "تصفير" : "Reset"}</span>
-              </button>
-
-            </div>
-
-          </div>
-        </div>
-      </header>
+      <WorkspaceTopBar
+        language={language as "ar" | "fr" | "en"}
+        themeMode={themeMode}
+        activeSidebarTab={activeSidebarTab}
+        notifications={notifications}
+        notificationOpen={showNotificationDropdown}
+        user={user}
+        fck28={inputs.fck28}
+        selectedMethod={inputs.selectedMethod}
+        currentClient={currentClient}
+        onToggleNotification={() => {
+          setShowNotificationDropdown(!showNotificationDropdown);
+          setShowPlantDropdown(false);
+          setShowProjectDropdown(false);
+        }}
+        onMarkAllNotificationsRead={() => setNotifications(prev => prev.map(n => ({ ...n, read: true })))}
+        onCloseNotifications={() => setShowNotificationDropdown(false)}
+        onOpenSettings={() => setActiveSidebarTab("settings")}
+        onOpenProjectProperties={() => setShowProjectPropertiesModal(true)}
+        onOpenNewProjectModal={() => setShowNewProjectModal(true)}
+        onNavigateLanding={() => setViewMode("landing")}
+        onReset={handleReset}
+      />
 
       {/* PRIMARY CONTAINER BLOCK WITH SIDEBAR & ACTIVE AREA */}
       <div className="max-w-7xl mx-auto px-4 md:px-6 py-6" id="mixwizard-primary-container">
