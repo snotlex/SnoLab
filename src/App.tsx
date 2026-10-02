@@ -120,6 +120,7 @@ import { SpecializedConcreteInputs } from "./components/SpecializedConcreteInput
 import { CementSelectionCard } from "./components/CementSelectionCard";
 import { SandSelectionCard } from "./components/SandSelectionCard";
 import { GravelSelectionCard } from "./components/GravelSelectionCard";
+import { WaterSelectionCard } from "./components/WaterSelectionCard";
 import {
   ResponsiveContainer,
   PieChart as RechartsPieChart,
@@ -5100,80 +5101,32 @@ export default function App() {
                               />
                             )}
 
-                            {/* Water Selection */}
                             {isWaterAllowed && (
-                              <div className="p-3 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-slate-200/40 dark:border-slate-800 space-y-2.5">
-                                <div className="text-xs font-black text-slate-800 dark:text-white border-b border-slate-200/50 dark:border-slate-800 pb-1 flex items-center gap-1">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
-                                  <span>{language === "ar" ? "معايرة مياه الخلط" : language === "fr" ? "Calibrage de l'eau" : "Water Calibration"}</span>
-                                </div>
-                                <div>
-                                  <label className="text-[10px] text-slate-500 block mb-1">
-                                    {language === "ar" ? "مياه الخلط المعتمدة في المستودع" : language === "fr" ? "Eaux approuvées du dépôt" : "Approved mixing water"}
-                                  </label>
-                                  <select
-                                    value={inputs.selectedWaterId || ""}
-                                    onChange={(e) => {
-                                      const selectedId = e.target.value;
-                                      if (!selectedId) {
-                                        setInputs(prev => ({
-                                          ...prev,
-                                          selectedWaterId: "",
-                                          selectedWaterName: "",
-                                          priceWater: 0,
-                                          selectedWaterPH: 7,
-                                          selectedWaterChlorideContent: 0,
-                                          selectedWaterSulphateContent: 0,
-                                          selectedWaterTemperature: 20
-                                        }));
-                                        return;
-                                      }
-                                      const validation = validateMaterialSelection(selectedId, materialsDatabase, currentMethod, currentConcrete, activeProject);
-                                      if (!validation.isValid) {
-                                        alert(language === "ar" ? validation.errorAr : validation.errorEn);
-                                        return;
-                                      }
-                                      const matchedMat = validation.material;
-                                      const pH = matchedMat?.engineeringData?.pH || (matchedMat as any)?.pH || 7;
-                                      const chloride = matchedMat?.engineeringData?.chloride || (matchedMat as any)?.chlorideContent || 0;
-                                      const sulphate = matchedMat?.engineeringData?.sulphate || (matchedMat as any)?.sulphateContent || 0;
-                                      const temp = matchedMat?.engineeringData?.temperature || (matchedMat as any)?.temperature || 20;
-                                      setInputs(prev => ({
-                                        ...prev,
-                                        selectedWaterId: selectedId,
-                                        selectedWaterName: matchedMat ? matchedMat.name : "",
-                                        priceWater: matchedMat?.price || prev.priceWater,
-                                        selectedWaterPH: pH,
-                                        selectedWaterChlorideContent: chloride,
-                                        selectedWaterSulphateContent: sulphate,
-                                        selectedWaterTemperature: temp
-                                      }));
-                                    }}
-                                    className="w-full text-xs p-2 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-white font-semibold cursor-pointer"
-                                  >
-                                    <option value="">{language === "ar" ? "اختر مادة من المستودع (المعتمدة فقط)" : language === "fr" ? "Choisir une eau approuvée" : "Select approved water"}</option>
-                                    {waterList.map(m => (
-                                      <option key={m.id} value={m.id} className={isUserMaterial(m) ? "text-emerald-600 font-semibold" : "text-blue-600"}>
-                                        {getMaterialOptionLabel(m)}
-                                      </option>
-                                    ))}
-                                  </select>
-                                  {renderMaterialSourceBadge(inputs.selectedWaterId)}
-                                </div>
-                                <p className="text-[9px] text-slate-400 font-sans leading-normal">
-                                  {language === "ar" ? "مياه خلط خرسانية معالجة ومطابقة لمعايير المتانة الكيميائية." : language === "fr" ? "Eau traitée conforme aux normes de durabilité chimique." : "Treated mixing water complying with chemical durability standards."}
-                                </p>
-                                {waterList.length === 0 && (
-                                  <div className="mt-2 p-2 bg-amber-500/10 border border-amber-500/20 rounded-lg text-[10px] text-amber-700 dark:text-amber-300 font-bold">
-                                    ⚠️ {language === "ar" ? "لا توجد مياه مسجلة في المستودع." : "No water in repository."}
-                                  </div>
-                                )}
-                                {waterList.length > 0 && !inputs.selectedWaterId && (
-                                  <div className="mt-1.5 p-1.5 bg-amber-500/5 border border-amber-500/15 rounded text-[10px] text-amber-600 dark:text-amber-400 font-semibold">
-                                    ⚠️ {language === "ar" ? "الرجاء اختيار مياه الخلط المعتمدة." : "Please select approved water."}
-                                  </div>
-                                )}
-                              </div>
+                              <WaterSelectionCard
+                                language={language as "ar" | "fr" | "en"}
+                                materials={waterList}
+                                selectedId={inputs.selectedWaterId}
+                                materialOptionLabel={getMaterialOptionLabel}
+                                isUserMaterial={isUserMaterial}
+                                materialBadge={renderMaterialSourceBadge(inputs.selectedWaterId)}
+                                onSelect={(selectedId) => {
+                                  if (!selectedId) {
+                                    setInputs(prev => ({ ...prev, selectedWaterId: "", selectedWaterName: "", priceWater: 0, selectedWaterPH: 7, selectedWaterChlorideContent: 0, selectedWaterSulphateContent: 0, selectedWaterTemperature: 20 }));
+                                    return;
+                                  }
+                                  const validation = validateMaterialSelection(selectedId, materialsDatabase, currentMethod, currentConcrete, activeProject);
+                                  if (!validation.isValid) {
+                                    alert(language === "ar" ? validation.errorAr : validation.errorEn);
+                                    return;
+                                  }
+                                  const matchedMat = validation.material;
+                                  const pH = matchedMat?.engineeringData?.pH || (matchedMat as any)?.pH || 7;
+                                  const chloride = matchedMat?.engineeringData?.chloride || (matchedMat as any)?.chlorideContent || 0;
+                                  const sulphate = matchedMat?.engineeringData?.sulphate || (matchedMat as any)?.sulphateContent || 0;
+                                  const temp = matchedMat?.engineeringData?.temperature || (matchedMat as any)?.temperature || 20;
+                                  setInputs(prev => ({ ...prev, selectedWaterId: selectedId, selectedWaterName: matchedMat ? matchedMat.name : "", priceWater: matchedMat?.price || prev.priceWater, selectedWaterPH: pH, selectedWaterChlorideContent: chloride, selectedWaterSulphateContent: sulphate, selectedWaterTemperature: temp }));
+                                }}
+                              />
                             )}
 
                           </div>
