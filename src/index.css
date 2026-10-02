@@ -157,6 +157,40 @@ body {
   color: #0f172a !important;
 }
 
+/* Components commonly declare dark:text-white alongside a light-theme text
+   utility. Resolve that explicit dark-only color back to the light foreground. */
+#main-layout-root:not(.dark) [class*="dark:text-white"],
+#sno-landing-page-root:not(.dark) [class*="dark:text-white"] {
+  color: #0f172a !important;
+}
+
+/* Improve muted-copy readability on the deep navy workspace without changing
+   semantic status colors or chart palettes. */
+#main-layout-root.dark .text-slate-500,
+#sno-landing-page-root.dark .text-slate-500,
+#main-layout-root.dark .text-slate-505,
+#sno-landing-page-root.dark .text-slate-505 {
+  color: #94a3b8 !important;
+}
+
+#main-layout-root.dark .text-blue-600,
+#sno-landing-page-root.dark .text-blue-600 { color: #60a5fa !important; }
+#main-layout-root.dark .text-emerald-600,
+#sno-landing-page-root.dark .text-emerald-600 { color: #34d399 !important; }
+#main-layout-root.dark .text-amber-600,
+#sno-landing-page-root.dark .text-amber-600 { color: #fbbf24 !important; }
+#main-layout-root.dark .text-indigo-600,
+#sno-landing-page-root.dark .text-indigo-600 { color: #a5b4fc !important; }
+#main-layout-root.dark .text-rose-600,
+#sno-landing-page-root.dark .text-rose-600 { color: #fb7185 !important; }
+#main-layout-root.dark .text-cyan-600,
+#sno-landing-page-root.dark .text-cyan-600 { color: #67e8f9 !important; }
+
+#main-layout-root.dark,
+#sno-landing-page-root.dark { color-scheme: dark; }
+#main-layout-root:not(.dark),
+#sno-landing-page-root:not(.dark) { color-scheme: light; }
+
 
 /* 
 =============================================================================
