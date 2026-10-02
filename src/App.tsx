@@ -2,18 +2,18 @@ import React, { useState, useMemo, useEffect, Suspense, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { useLanguage, getLocalizedValue } from "./services/localization";
 import { useTheme } from "./hooks/useTheme";
-import { 
-  AggregateType, 
-  AggregateQuality, 
-  MixDesignInput, 
+import {
+  AggregateType,
+  AggregateQuality,
+  MixDesignInput,
   Admixture,
   ActiveProject,
   EngineeringMaterial
 } from "./types";
 import { ExpandedMaterial } from "./data/expandedMaterials";
-import { 
-  calculateDreuxGorisse, 
-  CEMENT_TYPES, 
+import {
+  calculateDreuxGorisse,
+  CEMENT_TYPES,
   STANDARD_ADMIXTURES_LIST,
   ALGERIAN_MATERIALS_PRESETS,
   getRecommendedCoefficients
@@ -43,16 +43,15 @@ import { MaterialsIntegrationAudit } from "./components/MaterialsIntegrationAudi
 import { validateCalculationLogic } from "./engine/validationGate";
 import { EngineeringCore, ProjectSession } from "./engine/EngineeringCore";
 import { CalculationValidationGatePanel } from "./components/CalculationValidationGatePanel";
-import { Phase3InputWizard } from "./components/Phase3InputWizard";
 import type { MixLifecycleStatus } from "./components/MixLifecyclePanel";
 import { CONCRETE_TYPES_CATALOG, getConcreteTypeDetails, CONCRETE_TYPE_CONFIGS } from "./concreteTypes";
 import { LogicalResultsSummary } from "./components/LogicalResultsSummary";
 import { isUserMaterial } from "./engine/suitabilityGate";
-import { 
-  getEligibleMaterials, 
+import {
+  getEligibleMaterials,
   getAvailableMaterialsForRole,
-  validateMaterialSelection, 
-  isMaterialEligible 
+  validateMaterialSelection,
+  isMaterialEligible
 } from "./services/materialEligibilityService";
 import { DreuxInputResolver, DreuxResolvedInputs } from "./services/dreuxInputResolver";
 import { DreuxPreCalculationValidator, DreuxPreCalculationReport } from "./services/dreuxPreCalculationValidator";
@@ -105,33 +104,33 @@ const MixOptimizationPanel = React.lazy(() => import("./components/MixOptimizati
 const CalculationJournal = React.lazy(() => import("./components/CalculationJournal").then(m => ({ default: m.CalculationJournal })));
 const ReportCompliance = React.lazy(() => import("./components/ReportCompliance").then(m => ({ default: m.ReportCompliance })));
 const ReportThermalAnalysis = React.lazy(() => import("./components/ReportThermalAnalysis").then(m => ({ default: m.ReportThermalAnalysis })));
-import { 
-  ResponsiveContainer, 
-  PieChart as RechartsPieChart, 
-  Pie, 
-  Cell, 
-  BarChart as RechartsBarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  Legend 
+import {
+  ResponsiveContainer,
+  PieChart as RechartsPieChart,
+  Pie,
+  Cell,
+  BarChart as RechartsBarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend
 } from "recharts";
-import { 
-  Cpu, 
-  Settings, 
-  Compass, 
-  HardHat, 
-  Droplet, 
-  FileText, 
-  Activity, 
-  Layout, 
-  Sparkles, 
-  Layers, 
-  AlertTriangle, 
-  Scale, 
-  Flame, 
+import {
+  Cpu,
+  Settings,
+  Compass,
+  HardHat,
+  Droplet,
+  FileText,
+  Activity,
+  Layout,
+  Sparkles,
+  Layers,
+  AlertTriangle,
+  Scale,
+  Flame,
   RefreshCw,
   Printer,
   ChevronLeft,
@@ -195,8 +194,8 @@ const getInitialPrice = (key: string, defaultVal: number): number => {
 
 export function normalizeInputsToDreux(inputs: any): MixDesignInput {
   if (!inputs) return inputs;
-  const rawConcrete = typeof inputs.concreteType === "string" 
-    ? inputs.concreteType 
+  const rawConcrete = typeof inputs.concreteType === "string"
+    ? inputs.concreteType
     : (inputs.concreteType as any)?.code || (inputs.concreteType as any)?.type || "NSC";
   return {
     ...inputs,
@@ -282,7 +281,7 @@ const PriceInput: React.FC<PriceInputProps> = ({ label, value, onChange, step = 
     const val = parseFloat((Math.max(0, value - step)).toFixed(2));
     onChange(val);
   };
-  
+
   const handleIncrement = () => {
     const val = parseFloat((value + step).toFixed(2));
     onChange(val);
@@ -303,7 +302,7 @@ const PriceInput: React.FC<PriceInputProps> = ({ label, value, onChange, step = 
         >
           -
         </button>
-        
+
         {/* Actual Number Input */}
         <div className="relative flex-1">
           <input
@@ -321,7 +320,7 @@ const PriceInput: React.FC<PriceInputProps> = ({ label, value, onChange, step = 
             {currencySymbol}
           </span>
         </div>
-        
+
         {/* Increment Button */}
         <button
           type="button"
@@ -362,12 +361,12 @@ export const enrichMaterials = (mats: EngineeringMaterial[]): EngineeringMateria
     } else if (m.id && (m.id.startsWith("SYS-") || m.id.startsWith("preset-") || m.id.startsWith("standard-"))) {
       finalId = m.id;
     } else if (!m.id || !m.id.startsWith("MAT-")) {
-      const prefix = 
+      const prefix =
         m.category === "رمال" ? "MAT-SND" :
         m.category === "حصى" ? "MAT-GRV" :
         m.category === "إسمنت" ? "MAT-CEM" :
         m.category === "إضافات كيميائية" || m.category === "إضافات معدنية" ? "MAT-ADM" : "MAT-OTH";
-      
+
       // Generate a stable hash from material's ID or name
       const stableStr = m.id || m.name || "";
       let hash = 0;
@@ -388,8 +387,8 @@ export const enrichMaterials = (mats: EngineeringMaterial[]): EngineeringMateria
     }
     seenIds.add(deDupId);
 
-    const isSystemMat = 
-      m.isSystem === true || 
+    const isSystemMat =
+      m.isSystem === true ||
       (m as any).sourceType === "SYSTEM" ||
       (m as any).sourceType === "system_demo" ||
       (m.id && (m.id.startsWith("SYS-") || m.id.startsWith("preset-") || m.id.startsWith("standard-")));
@@ -398,7 +397,7 @@ export const enrichMaterials = (mats: EngineeringMaterial[]): EngineeringMateria
     let quarryName = m.quarryName;
     let supplierContact = m.supplierContact;
     let certificationStatus = m.certificationStatus;
-    
+
     // Map status accurately to one of the allowed union types
     let approvalStatus: any = "Approved";
     if (isSystemMat) {
@@ -624,8 +623,8 @@ export default function App() {
 
   const getMaterialOptionLabel = (m: any) => {
     const isUser = isUserMaterial(m);
-    const prefix = isUser 
-      ? (language === "ar" ? "👤 [مستودع مخصّص - معتمد من المهندس ✅] " : "👤 [Custom - Eng. Approved ✅] ") 
+    const prefix = isUser
+      ? (language === "ar" ? "👤 [مستودع مخصّص - معتمد من المهندس ✅] " : "👤 [Custom - Eng. Approved ✅] ")
       : (language === "ar" ? "⚙️ [مستودع النظام - مرجع قياسي ⚙️] " : "⚙️ [System - Standard Ref ⚙️] ");
     const name = language === "ar" ? m.name : (m.englishName || m.name);
     return `${prefix}${name}`;
@@ -688,7 +687,7 @@ export default function App() {
     setGeneratingMaterialKey(key);
     setGenerationError(null);
     try {
-      const newUrl = mat.type === "sand" 
+      const newUrl = mat.type === "sand"
         ? "https://images.unsplash.com/photo-1621416894569-0f39ed31d247?auto=format&fit=crop&w=600&h=450&q=80"
         : mat.type === "gravel"
         ? "https://images.unsplash.com/photo-1583089892943-e02e5b017b6a?auto=format&fit=crop&w=600&h=450&q=80"
@@ -708,14 +707,14 @@ export default function App() {
   const [showPlantDropdown, setShowPlantDropdown] = useState<boolean>(false);
   const [showProjectDropdown, setShowProjectDropdown] = useState<boolean>(false);
   const [showNotificationDropdown, setShowNotificationDropdown] = useState<boolean>(false);
-  
+
   const plantsList = [
     "Algiers Central (A101)",
     "Oran East Batching (O202)",
     "Hassi Messaoud Oil Rig Mixers (H303)",
     "Constantine Rock Co. (C404)"
   ];
-  
+
   const projectsList = [
     "Trident Mosque Tower (#PROJ-99)",
     "East-West Highway Viaduct (#PROJ-108)",
@@ -730,7 +729,7 @@ export default function App() {
     "Sonatrach Refinement Group"
   ];
 
-  
+
   // State for Materials Laboratory Characterization System
   const [materialTestRecords, setMaterialTestRecords] = useState<MaterialTestRecord[]>(() => {
     try {
@@ -1103,7 +1102,7 @@ export default function App() {
 
   // Synchronize inputs selected IDs if they are missing or mismatched - Auto-selection disabled per strict governance
   useEffect(() => {
-    // No auto-selection to prevent hidden assignments. 
+    // No auto-selection to prevent hidden assignments.
     // Calculations remain blocked until user explicitly selects materials.
   }, [materialsDatabase]);
 
@@ -1630,7 +1629,7 @@ export default function App() {
       localStorage.setItem("mixwizard_price_Slag", inputs.priceSlag.toString());
       localStorage.setItem("mixwizard_price_Labor", inputs.priceLabor.toString());
       localStorage.setItem("mixwizard_default_currency", currency);
-      
+
       setShowSavedFeedback(true);
       setTimeout(() => setShowSavedFeedback(false), 3000);
     } catch (e) {
@@ -1818,14 +1817,14 @@ export default function App() {
             const oldUnit = getUnitForMaterial(key, mix.currency);
             const isOldPerTon = oldUnit.includes("طن") || oldUnit.includes("ton");
             const pricePerUnitInOld = isOldPerTon ? oldVal / 1000 : oldVal;
-            
+
             const pricePerUnitInDZD = pricePerUnitInOld * fromRate;
             const pricePerUnitInNew = pricePerUnitInDZD / toRate;
-            
+
             const newUnit = getUnitForMaterial(key, currency);
             const isNewPerTon = newUnit.includes("طن") || newUnit.includes("ton");
             const newVal = isNewPerTon ? pricePerUnitInNew * 1000 : pricePerUnitInNew;
-            
+
             convertedInputs[key] = parseFloat(newVal.toFixed(newVal < 1 ? 4 : 2));
           }
         });
@@ -1923,7 +1922,7 @@ export default function App() {
 
   const handleCurrencyChange = (newCurrency: "DZD" | "USD" | "EUR" | "GBP") => {
     if (newCurrency === currency) return;
-    
+
     const pricesKeys = [
       "priceCement", "priceSand", "priceGravel", "priceWater",
       "priceSuper", "priceAir", "priceRetarder", "priceAccelerator",
@@ -1935,23 +1934,23 @@ export default function App() {
       pricesKeys.forEach(key => {
         const oldValue = prev[key as keyof MixDesignInput] as number;
         if (typeof oldValue !== "number") return;
-        
+
         // 1. Get unit for material in old currency
         const oldUnit = getUnitForMaterial(key, currency);
         const isOldPerTon = oldUnit.includes("طن") || oldUnit.includes("ton");
         const pricePerUnitInOld = isOldPerTon ? oldValue / 1000 : oldValue;
-        
+
         // 2. Convert to DZD
         const pricePerUnitInDZD = pricePerUnitInOld * rates[currency];
-        
+
         // 3. Convert to new currency
         const pricePerUnitInNew = pricePerUnitInDZD / rates[newCurrency];
-        
+
         // 4. Scale according to new unit
         const newUnit = getUnitForMaterial(key, newCurrency);
         const isNewPerTon = newUnit.includes("طن") || newUnit.includes("ton");
         const newValue = isNewPerTon ? pricePerUnitInNew * 1000 : pricePerUnitInNew;
-        
+
         // Save back with appropriate rounding
         nextInputs[key as keyof MixDesignInput] = parseFloat(newValue.toFixed(newValue < 1 ? 4 : 2)) as any;
       });
@@ -2021,7 +2020,7 @@ export default function App() {
 
   // TODO: Refactor and segment the massive recipe calculations inputs state below into a modular, clean custom hook
   // named 'useMixInputs' within src/hooks/useMixInputs.ts when doing major visual or database refactoring.
-  
+
   // 2. Initial State for inputs matching parameters
   const [inputs, setInputs] = useState<MixDesignInput>({
     fck28: 25, // Default C25 standard structural mix
@@ -2038,20 +2037,20 @@ export default function App() {
     selectedSandId: "",
     selectedGravelId: "",
     selectedWaterId: "",
-    
+
      // Custom absolute densities in kg/m³
     sandRelativeDensity: 0,
     gravelRelativeDensity: 0,
     cementDensity: 0,
     airContent: 1.0, // 1% default air content
-    
+
     moistureSand: 0, // default sand dampness
     moistureGravel: 0, // default gravel moisture
     sandAbsorption: 0, // default sand water absorption
     gravelAbsorption: 0, // default gravel water absorption
     admixtures: [],
     costBasis: "wet",
-    
+
     // Sliders for admixtures
     dosageSuper: 0, // default superplasticizer
     dosageAir: 0.0,
@@ -2060,7 +2059,7 @@ export default function App() {
     dosageSilicaFume: 0.0,
     dosageFlyAsh: 0.0,
     dosageSlag: 0.0,
-    
+
     // presets and metadata
     sandType: "رمل متوسط (Medium Sand)",
     gravelType: "حصى 8/15",
@@ -2195,7 +2194,7 @@ export default function App() {
             </button>
           </div>
           <p className="text-slate-600 dark:text-slate-400">
-            {evalRes.reasonsAr && evalRes.reasonsAr.length > 0 
+            {evalRes.reasonsAr && evalRes.reasonsAr.length > 0
               ? (language === "ar" ? evalRes.reasonsAr[0] : (evalRes.reasonsEn[0] || evalRes.reasonsAr[0]))
               : (language === "ar" ? "توجد خصائص ناقصة يمكن إكمالها مباشرة من هنا." : "Missing required properties.")}
           </p>
@@ -2205,14 +2204,14 @@ export default function App() {
 
     return (
       <div className={`mt-1.5 flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded border w-fit ${
-        isUser 
-          ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20" 
+        isUser
+          ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20"
           : "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20"
       }`}>
         <span className={`w-1.5 h-1.5 rounded-full ${isUser ? "bg-emerald-500" : "bg-blue-500"}`}></span>
         <span>
-          {isUser 
-            ? (language === "ar" ? "مستودع المستخدم (معتمد رسمياً من المهندس ✅)" : "User Material (Engineer Approved ✅)") 
+          {isUser
+            ? (language === "ar" ? "مستودع المستخدم (معتمد رسمياً من المهندس ✅)" : "User Material (Engineer Approved ✅)")
             : (language === "ar" ? "مستودع النظام (مرجع قياسي معتمد ⚙️)" : "System Material (Standard & Verified ⚙️)")}
         </span>
       </div>
@@ -2498,7 +2497,7 @@ export default function App() {
       const moisture = matched.moisture !== undefined ? matched.moisture : 0;
       const maxS = matched.dMax !== undefined ? matched.dMax : inputs.dMax;
       const shape = (matched.particleShape === "مكسر" || matched.particleShape === "زاوي") ? AggregateType.CONCASSE : AggregateType.ROULE;
-      
+
       let qualityVal = AggregateQuality.STANDARD;
       if (matched.aggregateQuality === "excellent") {
         qualityVal = AggregateQuality.EXCELLENT;
@@ -2758,31 +2757,6 @@ export default function App() {
     }, results, language);
   }, [inputs, results, language, currentProject, currentClient, currentPlant]);
 
-  // Dynamically count the number of engineering properties imported from Material Library
-  const countLoadedProperties = useMemo(() => {
-    let count = 0;
-    const selectedIds = [
-      inputs.selectedCementId,
-      inputs.selectedSandId,
-      inputs.selectedGravelId,
-      inputs.selectedWaterId,
-      inputs.selectedAdmixtureId,
-      inputs.selectedScmId
-    ].filter(Boolean);
-    
-    selectedIds.forEach(id => {
-      const mat = materialsDatabase.find(m => m.id === id);
-      if (mat) {
-        Object.keys(mat).forEach(key => {
-          if (mat[key] !== undefined && mat[key] !== null && mat[key] !== "") {
-            count++;
-          }
-        });
-      }
-    });
-    return count;
-  }, [inputs, materialsDatabase]);
-
   // Synchronize active project details with dynamic EMMS traceability and material snapshots
   useEffect(() => {
     setProjects(prev => prev.map(p => {
@@ -2813,7 +2787,7 @@ export default function App() {
 
         // Now resolve materials with this template prioritizing our frozen snapshots
         const resolvedAll = resolveMaterials(inputs, filteredSnapshots, materialsDatabase);
-        
+
         // Define active material IDs for project tracking
         const materialIds = [
           resolvedAll.cement?.id || "",
@@ -2834,7 +2808,7 @@ export default function App() {
 
         const currentMixId = p.mixId || `mix_${Date.now()}`;
         const hasMaterialChanges = p.materialIds ? JSON.stringify(p.materialIds) !== JSON.stringify(materialIds) : true;
-        
+
         const revisionHistory = [...(p.auditTrail?.revisionHistory || [])];
         if (hasMaterialChanges && p.materialIds) {
           revisionHistory.push(`Material selections updated. Active constituent list: [${materialIds.join(", ")}]`);
@@ -3004,7 +2978,7 @@ export default function App() {
     };
 
     setProjects(prev => [...prev, newProj]);
-    
+
     // Switch to new project
     setActiveProjectId(newId);
     setCurrentProject(newProj.name);
@@ -3037,7 +3011,7 @@ export default function App() {
     // Locate currently active project to use its snapshots as fallback prior to liveDatabase
     const activeProj = projects.find(p => p.id === activeProjectId);
     const resolvedAll = resolveMaterials(inputs, activeProj?.materialSnapshots, materialsDatabase);
-    
+
     // Define active material IDs for project tracking
     const materialIds = [
       resolvedAll.cement?.id || "",
@@ -3070,7 +3044,7 @@ export default function App() {
         for (let index = 0; index < serializedSnapshot.length; index++) snapshotHash = ((snapshotHash << 5) - snapshotHash + serializedSnapshot.charCodeAt(index)) | 0;
         const immutableHash = `sha1-lite-${Math.abs(snapshotHash).toString(16)}`;
         const revisionHistory = [...(p.auditTrail?.revisionHistory || []), revisionStr];
-        
+
         const newVer = {
           id: `VER-${Date.now()}`,
           name,
@@ -3138,7 +3112,7 @@ export default function App() {
   const handleRestoreVersion = (version: any) => {
     const clonedInputs = JSON.parse(JSON.stringify(version.inputs));
     setInputs(normalizeInputsToDreux(clonedInputs));
-    
+
     setProjects(prev => prev.map(p => {
       if (p.id === activeProjectId) {
         return {
@@ -3256,7 +3230,7 @@ export default function App() {
       enabledCount: 0,
       disabledCount: 0
     });
-    
+
     // Add real-time activity log tracing reset event (without database or permanent modifications)
     setActivityLogs(prev => [
       {
@@ -3461,10 +3435,10 @@ export default function App() {
     const vol = inputs.batchVolume || 1.0;
     const waterToAdd = results.waterWeightWet !== undefined ? results.waterWeightWet : results.waterContentActual;
     return Math.round(
-      (results.cementWeight + 
-       waterToAdd + 
-       results.sandWeightWet + 
-       results.gravelWeightWet + 
+      (results.cementWeight +
+       waterToAdd +
+       results.sandWeightWet +
+       results.gravelWeightWet +
        (results.admixtureWeights || []).reduce((s, a) => s + (a?.weight || 0), 0)) * vol
     );
   }, [results, inputs]);
@@ -3473,21 +3447,21 @@ export default function App() {
   const costBreakdown = useMemo(() => {
     const vol = inputs.batchVolume || 1.0;
     const costBasis = inputs.costBasis || "wet";
-    
+
     const cementWeight = results.cementWeight * vol;
     const sandWeight = (costBasis === "wet" ? results.sandWeightWet : results.sandWeightDry) * vol;
     const gravelWeight = (costBasis === "wet" ? results.gravelWeightWet : results.gravelWeightDry) * vol;
     const waterVolume = (results.waterWeightWet !== undefined ? results.waterWeightWet : results.waterContentActual) * vol; // in Liters
-    
+
     // Mineral additions weights
     const silicaWeight = inputs.dosageSilicaFume > 0 ? (results.cementWeight * (inputs.dosageSilicaFume / 100)) * vol : 0;
     const flyAshWeight = inputs.dosageFlyAsh > 0 ? (results.cementWeight * (inputs.dosageFlyAsh / 100)) * vol : 0;
     const slagWeight = inputs.dosageSlag > 0 ? (results.cementWeight * (inputs.dosageSlag / 100)) * vol : 0;
-    
+
     // Chemical admixtures weights
     const chemicalAdmixtures = results.admixtureWeights || [];
     const chemWeight = chemicalAdmixtures.reduce((sum, adm) => sum + adm.weight * vol, 0);
-    
+
     const additionsWeight = silicaWeight + flyAshWeight + slagWeight + chemWeight;
 
     // Costs (in DZD/DA)
@@ -3639,7 +3613,7 @@ export default function App() {
 
   if (viewMode === "landing") {
     return (
-      <LandingPage 
+      <LandingPage
         onStartProject={async () => {
           await workflow.startNewProject();
           setActiveSidebarTab("saved_projects");
@@ -3665,10 +3639,34 @@ export default function App() {
     );
   }
 
+  const selectedAdmixtureMaterial = materialsDatabase.find((material) => material.id === inputs.selectedAdmixtureId);
+  const selectedScmMaterial = materialsDatabase.find((material) => material.id === inputs.selectedScmId);
+  const selectedFiberMaterial = materialsDatabase.find((material) => material.id === inputs.selectedFiberId);
+  const selectedSpecialBinderMaterial = materialsDatabase.find((material) => material.id === inputs.selectedSpecialBinderId);
+  const selectedAdmixtureName = (selectedAdmixtureMaterial?.name || "").toLowerCase();
+  const selectedScmName = (selectedScmMaterial?.name || "").toLowerCase();
+  const selectedAdmixtureDoseKind = /retard|مؤخر|مبطئ/.test(selectedAdmixtureName)
+    ? "retarder"
+    : /acceler|معجل|مسرع/.test(selectedAdmixtureName)
+      ? "accelerator"
+      : /air|هواء|تهوية/.test(selectedAdmixtureName)
+        ? "air"
+        : "superplasticizer";
+  const selectedScmDoseKind = /silica|fume|سيليكا|دخان/.test(selectedScmName)
+    ? "silica"
+    : /fly|ash|رماد|متطاير/.test(selectedScmName)
+      ? "flyAsh"
+      : /slag|خبث/.test(selectedScmName)
+        ? "slag"
+        : "other";
+  const hasSelectedMixModifiers = Boolean(
+    inputs.selectedAdmixtureId || inputs.selectedScmId || inputs.selectedFiberId || inputs.selectedSpecialBinderId
+  );
+
   return (
-    <div 
-      className={`min-h-screen ${themeMode === "dark" ? "dark bg-[#0B1120] text-slate-200" : "bg-[#F1F5F9] text-slate-900"} font-sans transition-colors duration-200 select-none pb-12`} 
-      id="main-layout-root" 
+    <div
+      className={`min-h-screen ${themeMode === "dark" ? "dark bg-[#0B1120] text-slate-200" : "bg-[#F1F5F9] text-slate-900"} font-sans transition-colors duration-200 select-none pb-12`}
+      id="main-layout-root"
       dir={language === "ar" ? "rtl" : "ltr"}
     >
       <Suspense fallback={
@@ -3678,7 +3676,7 @@ export default function App() {
           <span className="text-xs text-slate-500">يرجى الانتظار لتجهيز الواجهات والرسومات والتحاليل المعملية</span>
         </div>
       }>
-      
+
       {/* SMART TRANSITION NOTIFICATION OVERLAY */}
       <AnimatePresence>
         {transitionState.show && (
@@ -3701,14 +3699,14 @@ export default function App() {
                   <h3 className="text-sm font-black text-slate-100 flex items-center gap-1.5">
                     <span>تم الانتقال الذكي للمنهجية!</span>
                   </h3>
-                  <button 
+                  <button
                     onClick={() => setTransitionState(prev => ({ ...prev, show: false }))}
                     className="text-slate-400 hover:text-white text-xs font-bold px-1.5 py-0.5 rounded hover:bg-slate-800 transition"
                   >
                     ✕
                   </button>
                 </div>
-                
+
                 <p className="text-[11px] text-slate-300 leading-relaxed font-sans mt-1">
                   تم تبديل نظام إدخال البيانات تلقائياً للتكيّف مع معايير وحسابات الطريقة المستهدفة:
                 </p>
@@ -3751,13 +3749,13 @@ export default function App() {
 
       {/* TOP BAR & PLATFORM NAVIGATION GATEWAY */}
       <header className={`border-b font-sans sticky top-0 z-40 shadow-2xl print:hidden select-none transition-colors duration-200 ${
-        themeMode === "dark" 
-          ? "bg-[#0B1120] border-slate-800 text-white" 
+        themeMode === "dark"
+          ? "bg-[#0B1120] border-slate-800 text-white"
           : "bg-white border-slate-200 text-slate-800 shadow-md"
       }`} id="concrete.ai-premium-topbar">
         <div className="max-w-7xl mx-auto px-4 md:px-6">
           <div className="h-16 flex items-center justify-between gap-4">
-            
+
             {/* BRAND LOGO CONCRETE.AI FEEL */}
             <div className="flex items-center gap-3 shrink-0 cursor-pointer" onClick={() => setViewMode("landing")}>
               <SnoLabLogo themeMode={themeMode} />
@@ -3773,12 +3771,12 @@ export default function App() {
 
             {/* CONTROLS AREA: Language toggle, Notifications Bell, Settings Cog & Profile */}
             <div className="flex items-center gap-3 shrink-0">
-              
+
 
 
               {/* NOTIFICATIONS BELL */}
               <div className="relative">
-                <button 
+                <button
                   onClick={() => {
                     setShowNotificationDropdown(!showNotificationDropdown);
                     setShowPlantDropdown(false);
@@ -3798,7 +3796,7 @@ export default function App() {
                     </span>
                   )}
                 </button>
-                
+
                 {showNotificationDropdown && (
                   <div className={`absolute left-0 top-10 mt-1 w-80 rounded-2xl shadow-2xl py-2 z-55 text-right animate-fade-in animate-duration-150 transition-colors duration-200 ${
                     themeMode === "dark"
@@ -3808,7 +3806,7 @@ export default function App() {
                     <div className={`px-3 py-2 border-b flex items-center justify-between mb-2 transition-colors duration-200 ${
                       themeMode === "dark" ? "border-slate-850" : "border-slate-100"
                     }`}>
-                      <button 
+                      <button
                         onClick={() => {
                           setNotifications(prev => prev.map(n => ({ ...n, read: true })));
                         }}
@@ -3820,13 +3818,13 @@ export default function App() {
                         {language === "ar" ? "رسائل تنبيه السيستم" : language === "fr" ? "Alertes & Messages" : "Alerts & Notifications"}
                       </span>
                     </div>
-                    
+
                     <div className={`max-h-64 overflow-y-auto divide-y px-2 space-y-1 transition-colors ${
                       themeMode === "dark" ? "divide-slate-850/60" : "divide-slate-100"
                     }`}>
                       {notifications.map((notif) => (
-                        <div 
-                          key={notif.id} 
+                        <div
+                          key={notif.id}
                           className={`p-2 rounded-lg text-right transition-all ${notif.read ? "bg-transparent opacity-60" : "bg-blue-500/10 border-r-2 border-blue-500"}`}
                         >
                           <p className={`text-[10px] leading-relaxed font-sans transition-colors ${
@@ -3837,11 +3835,11 @@ export default function App() {
                         </div>
                       ))}
                     </div>
-                    
+
                     <div className={`p-2 border-t mt-2 text-center transition-colors ${
                       themeMode === "dark" ? "border-slate-850" : "border-slate-100"
                     }`}>
-                      <button 
+                      <button
                         onClick={() => setShowNotificationDropdown(false)}
                         className={`text-[10px] font-bold transition-colors ${themeMode === "dark" ? "text-slate-400 hover:text-white" : "text-slate-500 hover:text-slate-900"}`}
                       >
@@ -3882,9 +3880,9 @@ export default function App() {
                       </span>
                     </div>
                     {user.photoURL ? (
-                      <img 
-                        src={user.photoURL} 
-                        alt="Profile" 
+                      <img
+                        src={user.photoURL}
+                        alt="Profile"
                         className="w-7 h-7 rounded-full border border-blue-500/20 select-none shadow-md"
                         referrerPolicy="no-referrer"
                       />
@@ -3904,12 +3902,12 @@ export default function App() {
 
         {/* SUBHEADER QUICK ACTION TOOLBAR (PRESETS, QUICK OPTIMIZE, RESET CMD) */}
         <div className={`px-4 md:px-6 py-2 border-t transition-colors duration-200 ${
-          themeMode === "dark" 
-            ? "bg-slate-900 border-slate-800/80 text-white" 
+          themeMode === "dark"
+            ? "bg-slate-900 border-slate-800/80 text-white"
             : "bg-slate-50 border-slate-200 text-slate-700"
         }`}>
           <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 text-xs">
-            
+
             {/* Left part: active crumb details about recipe */}
             <div className={`flex items-center gap-2 text-[10px] font-mono transition-colors duration-200 ${
               themeMode === "dark" ? "text-slate-400" : "text-slate-500"
@@ -3931,8 +3929,8 @@ export default function App() {
               <button
                 onClick={handleReset}
                 className={`flex items-center gap-1 py-1 px-2.5 font-bold cursor-pointer rounded-lg border transition ${
-                  themeMode === "dark" 
-                    ? "bg-slate-950 hover:bg-slate-850 text-slate-350 hover:text-white border-slate-850" 
+                  themeMode === "dark"
+                    ? "bg-slate-950 hover:bg-slate-850 text-slate-350 hover:text-white border-slate-850"
                     : "bg-white hover:bg-slate-100 text-slate-600 hover:text-slate-900 border-slate-200 shadow-sm"
                 }`}
                 title="تصفير وإعادة ضبط المتغيرات الأساسية"
@@ -3949,9 +3947,9 @@ export default function App() {
 
       {/* PRIMARY CONTAINER BLOCK WITH SIDEBAR & ACTIVE AREA */}
       <div className="max-w-7xl mx-auto px-4 md:px-6 py-6" id="mixwizard-primary-container">
-        
+
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          
+
           <SidebarShell
             language={language as "ar" | "fr" | "en"}
             themeMode={themeMode}
@@ -4052,8 +4050,8 @@ export default function App() {
                     >
                       <div className="flex justify-between items-center w-full">
                         <span className={`w-5 h-5 rounded-full text-[10px] font-black flex items-center justify-center ${
-                          isActive 
-                            ? "bg-white text-blue-600" 
+                          isActive
+                            ? "bg-white text-blue-600"
                             : isDone
                             ? "bg-emerald-500 text-white"
                             : "bg-slate-200 dark:bg-slate-800 text-slate-500"
@@ -4116,212 +4114,6 @@ export default function App() {
                 </button>
               </div>
 
-              {/* Engineering Data Flow Pipeline Visualizer */}
-              <div className="bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-200/60 dark:border-slate-800/80 p-5 font-sans relative overflow-hidden mt-1">
-                <div className="absolute top-0 left-0 w-24 h-24 bg-blue-500/5 dark:bg-blue-500/10 rounded-br-3xl pointer-events-none"></div>
-                
-                {/* Header */}
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4 pb-3.5 border-b border-slate-200/60 dark:border-slate-800/60">
-                  <div className="flex items-center gap-2">
-                    <div className="p-1.5 bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 rounded-lg">
-                      <Cpu size={14} className="animate-pulse" />
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-black text-slate-800 dark:text-slate-100">
-                        {language === "ar" ? "منظومة تدفق ومعايرة البيانات الهندسية المؤتمتة" : language === "fr" ? "Pipeline Automatisé de Données d'Ingénierie" : "Automated Engineering Data Flow & Calibration Pipeline"}
-                      </h3>
-                      <p className="text-[10px] text-slate-450 dark:text-slate-400 mt-0.5">
-                        {language === "ar" ? "ربط فوري ومباشر لمكتبة المواد ومركز الغربلة بمحرك الحسابات الرئيسي SNO" : language === "fr" ? "Liaison directe de la base de matériaux et granulométrie au moteur de calcul" : "Direct telemetry linking materials library and sieve granulometry to the core calculation engine"}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="flex items-center gap-1 text-[9px] font-black tracking-wider text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full font-mono uppercase animate-pulse">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                      {language === "ar" ? "البث المؤتمت: نشط" : language === "fr" ? "Pipeline: Actif" : "Pipeline: Live"}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Pipeline Flowchart Grid */}
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch relative z-10">
-                  
-                  {/* Column 1: Source A - Materials Library Link (4 Cols) */}
-                  <div className="lg:col-span-4 bg-white dark:bg-slate-950/60 rounded-xl border border-slate-200/60 dark:border-slate-800/80 p-4 flex flex-col gap-3 shadow-sm relative group hover:border-blue-500/45 dark:hover:border-blue-500/40 transition-all duration-300">
-                    <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-900/60">
-                      <span className="text-[9.5px] font-black text-blue-600 dark:text-blue-400 bg-blue-500/15 px-2 py-0.5 rounded-md font-mono">
-                        {language === "ar" ? "المصدر الأول: مستودع المواد" : language === "fr" ? "Source A: Base Matériaux" : "Source A: Materials Repository"}
-                      </span>
-                      <Database size={13} className="text-blue-550 dark:text-blue-400" />
-                    </div>
-
-                    <div className="flex flex-col gap-2.5">
-                      {/* Cement Material Telemetry */}
-                      <div className="bg-slate-50/50 dark:bg-slate-900/30 p-2 rounded-lg border border-slate-100/80 dark:border-slate-800/40 text-right">
-                        <div className="flex justify-between items-center mb-1">
-                          <span className="text-[9px] text-slate-400 font-bold">
-                            {inputs.selectedCementId ? `🟢 ID: ${inputs.selectedCementId.substring(0, 12)}...` : "⚠️ DEFAULT FALLBACK"}
-                          </span>
-                          <span className="text-[10px] font-black text-slate-700 dark:text-slate-300">
-                            {language === "ar" ? "الأسمنت المعتمد" : language === "fr" ? "Ciment Sélectionné" : "Selected Cement"}
-                          </span>
-                        </div>
-                        <div className="grid grid-cols-2 gap-1.5 text-[9.5px] font-mono text-slate-500 mt-1 pt-1 border-t border-slate-100/40 dark:border-slate-800/20">
-                          <div className="text-left">
-                            <span className="text-slate-400">{language === "ar" ? "كثافة:" : "Density:"}</span> <strong className="text-slate-700 dark:text-slate-200">{normalizedInputsForCalc.cementDensity || inputs.cementDensity}</strong> kg/m³
-                          </div>
-                          <div>
-                            <span className="text-slate-400">{language === "ar" ? "رتبة:" : "Class:"}</span> <strong className="text-slate-700 dark:text-slate-200">{normalizedInputsForCalc.cementClassStrength || inputs.cementClassStrength}</strong> MPa
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Sand & Gravel Density Telemetry */}
-                      <div className="bg-slate-50/50 dark:bg-slate-900/30 p-2 rounded-lg border border-slate-100/80 dark:border-slate-800/40 text-right">
-                        <div className="flex justify-between items-center mb-1">
-                          <span className="text-[9px] text-slate-400 font-bold">
-                            {inputs.selectedSandId ? `🟢 ID: ${inputs.selectedSandId.substring(0, 10)}...` : "⚠️ DEFAULT"}
-                          </span>
-                          <span className="text-[10px] font-black text-slate-700 dark:text-slate-300">
-                            {language === "ar" ? "الركام الطبيعي والمكسر" : language === "fr" ? "Sable & Gravier" : "Sand & Gravel Specs"}
-                          </span>
-                        </div>
-                        <div className="grid grid-cols-2 gap-1.5 text-[9.5px] font-mono text-slate-500 mt-1 pt-1 border-t border-slate-100/40 dark:border-slate-800/20">
-                          <div className="text-left">
-                            <span className="text-slate-400">{language === "ar" ? "رمل:" : "Sand:"}</span> <strong className="text-slate-700 dark:text-slate-200">{normalizedInputsForCalc.sandRelativeDensity || inputs.sandRelativeDensity}</strong>
-                          </div>
-                          <div>
-                            <span className="text-slate-400">{language === "ar" ? "حصى:" : "Gravel:"}</span> <strong className="text-slate-700 dark:text-slate-200">{normalizedInputsForCalc.gravelRelativeDensity || inputs.gravelRelativeDensity}</strong>
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-1.5 text-[9.5px] font-mono text-slate-500 mt-1">
-                          <div className="text-left">
-                            <span className="text-slate-400">{language === "ar" ? "امتصاص رمل:" : "Sand Abs:"}</span> <strong className="text-slate-700 dark:text-slate-200">{normalizedInputsForCalc.sandAbsorption || inputs.sandAbsorption}%</strong>
-                          </div>
-                          <div>
-                            <span className="text-slate-400">{language === "ar" ? "امتصاص حصى:" : "Gravel Abs:"}</span> <strong className="text-slate-700 dark:text-slate-200">{normalizedInputsForCalc.gravelAbsorption || inputs.gravelAbsorption}%</strong>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Chemical Admixtures */}
-                      {inputs.selectedAdmixtureId && (
-                        <div className="bg-amber-500/5 dark:bg-amber-500/10 p-2 rounded-lg border border-amber-500/15 text-right">
-                          <div className="flex justify-between items-center">
-                            <span className="text-[8.5px] font-bold text-amber-600 dark:text-amber-400">
-                              {normalizedInputsForCalc.selectedAdmixtureWaterReduction ? `-%${normalizedInputsForCalc.selectedAdmixtureWaterReduction} Water` : "Linked"}
-                            </span>
-                            <span className="text-[10px] font-black text-slate-800 dark:text-slate-300">
-                              🧪 {language === "ar" ? "المضافات الكيميائية الفعالة" : "Admixture telemetry"}
-                            </span>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Column 2: Source B - Laboratory QC & Characterization (4 Cols) */}
-                  <div className="lg:col-span-4 bg-white dark:bg-slate-950/60 rounded-xl border border-slate-200/60 dark:border-slate-800/80 p-4 flex flex-col gap-3 shadow-sm relative group hover:border-indigo-500/45 dark:hover:border-indigo-500/40 transition-all duration-300">
-                    <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-900/60">
-                      <span className="text-[9.5px] font-black text-indigo-600 dark:text-indigo-400 bg-indigo-500/15 px-2 py-0.5 rounded-md font-mono">
-                        {language === "ar" ? "المصدر الثاني: بيانات التحقق والتحكم المخبري" : language === "fr" ? "Source B: Contrôle & Vérification Labo" : "Source B: Laboratory QC & Verification"}
-                      </span>
-                      <FlaskConical size={13} className="text-indigo-500 dark:text-indigo-400" />
-                    </div>
-
-                    <div className="flex flex-col gap-2.5">
-                      {/* QC Stream Info */}
-                      <div className="bg-indigo-500/5 dark:bg-indigo-500/10 p-3 rounded-lg border border-indigo-500/15 text-right flex flex-col gap-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[9.5px] font-bold text-indigo-600 dark:text-indigo-300 font-mono">
-                            {inputs.finenessModulus ? `FM: ${inputs.finenessModulus}` : "FM: 2.65"}
-                          </span>
-                          <span className="text-[10.5px] font-black text-slate-800 dark:text-slate-200">
-                            {language === "ar" ? "خصائص وتوصيف المواد المخبرية" : "Material Lab Specifications"}
-                          </span>
-                        </div>
-                        <p className="text-[9px] text-slate-500 dark:text-slate-400 leading-tight">
-                          {language === "ar" ? "تُربط نتائج الفحوصات المخبرية (الكثافة، الامتصاص، النعومة، الغربلة، المكافئ الرملي) بالمواد وتُغذى تلقائياً لمحرك الحساب دون إقحامها كخطوة في مخطط العمليات." : "Material test data (density, absorption, fineness, granulometry, sand equivalent) feeds into the engine automatically without being a workflow step."}
-                        </p>
-                      </div>
-
-                      {/* Blending Optimization Target */}
-                      <div className="bg-slate-50/50 dark:bg-slate-900/30 p-2.5 rounded-lg border border-slate-100/80 dark:border-slate-800/40 text-right flex flex-col gap-1.5">
-                        <span className="text-[10px] font-black text-slate-700 dark:text-slate-300">
-                          {language === "ar" ? "الخصائص الحبيبية المستهدفة" : "Target Physical Properties"}
-                        </span>
-                        <div className="grid grid-cols-2 gap-1.5 text-[9px] font-mono text-slate-500">
-                          <div>
-                            <span className="text-slate-400">{language === "ar" ? "أقصى قطر Dmax:" : "Max aggregate Dmax:"}</span> <strong className="text-slate-700 dark:text-slate-200">{normalizedInputsForCalc.dMax || inputs.dMax} mm</strong>
-                          </div>
-                          <div>
-                            <span className="text-slate-400">{language === "ar" ? "نوع الركام:" : "Shape:"}</span> <strong className="text-slate-700 dark:text-slate-200">{inputs.aggregateType === "CONCASSE" ? (language === "ar" ? "مكسر" : "Crushed") : (language === "ar" ? "مدور" : "Rounded")}</strong>
-                          </div>
-                        </div>
-                        <div className="text-[8.5px] font-bold text-blue-600 dark:text-blue-400 border-t border-slate-100/40 dark:border-slate-800/20 pt-1 mt-1 text-left">
-                          {language === "ar" ? "← تغذية محرك الخلطات تلقائياً" : "← Auto-fed to calculation engine"}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Column 3: The Brain - Mix Calculation Engine (4 Cols) */}
-                  <div className="lg:col-span-4 bg-gradient-to-br from-slate-900 to-[#1E293B] dark:from-slate-950 dark:to-slate-900 rounded-xl border border-blue-500/25 p-4 flex flex-col gap-3 shadow-md text-white">
-                    <div className="flex justify-between items-center pb-2 border-b border-slate-800">
-                      <span className="text-[9.5px] font-black text-emerald-400 bg-emerald-500/15 px-2 py-0.5 rounded-md font-mono uppercase tracking-wider">
-                        {language === "ar" ? "محرك الحساب والتحسين SNO" : language === "fr" ? "Moteur de Calcul" : "SNO Core Mix Engine"}
-                      </span>
-                      <Settings size={13} className="text-emerald-400 animate-spin-slow" />
-                    </div>
-
-                    <div className="flex flex-col gap-2">
-                      {/* Active Recipe Synthesis */}
-                      <div className="bg-slate-900/60 p-2.5 rounded-lg border border-slate-800 text-right flex flex-col gap-1">
-                        <span className="text-[8.5px] text-emerald-400 font-bold font-mono tracking-wide">
-                          {language === "ar" ? "تخليق النسب الحجمية فائق الدقة" : "VOLUMETRIC SYNTHESIS ENGINES"}
-                        </span>
-                        <div className="text-[11px] font-black text-slate-100">
-                          {activeStep === 1 && (language === "ar" ? "سجل المشاريع الهندسي" : "Project specifications processor")}
-                          {activeStep === 2 && (language === "ar" ? "تصفية وفرز قاعدة الخامات والمواد" : "Materials DB live querying")}
-                          {activeStep === 3 && (language === "ar" ? "صياغة وتحضير الخلطة الخرسانية" : "Mix Proportioning & Formulation Engine")}
-                          {activeStep === 4 && (language === "ar" ? "تحليل النفقات والميزانية والجدوى الكلفية" : "Expense & Budget Analysis Engine")}
-                          {activeStep === 5 && (language === "ar" ? "توليد التقرير النهائي ووثيقة الاعتماد PDF" : "Certified PDF Compiler")}
-                        </div>
-                      </div>
-
-                      {/* Outflowing Telemetry Result Snapshot */}
-                      <div className="bg-emerald-500/10 p-2.5 rounded-lg border border-emerald-500/20 text-right">
-                        <div className="flex justify-between items-center text-[10.5px] font-black text-emerald-400 mb-1">
-                          <span>{results?.cementWeightDry ? `${Math.round(results.cementWeightDry)} kg` : "Pending..."}</span>
-                          <span>{language === "ar" ? "الأسمنت الفعلي الجاف" : "Cement Weight"}</span>
-                        </div>
-                        <div className="flex justify-between items-center text-[10.5px] font-black text-indigo-400">
-                          <span>{results?.sandWeightDry ? `${Math.round(results.sandWeightDry)} kg` : "Pending..."}</span>
-                          <span>{language === "ar" ? "الرمل الفعلي الجاف" : "Sand Weight"}</span>
-                        </div>
-                        <div className="flex justify-between items-center text-[10.5px] font-black text-slate-300 mt-1 pt-1 border-t border-slate-800">
-                          <span>{results?.waterContentActual ? `${Math.round(results.waterContentActual)} L` : "Pending..."}</span>
-                          <span>{language === "ar" ? "مياه الخلط الفعلية" : "Actual Mix Water"}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                </div>
-
-                {/* Animated progress indicators representing flow */}
-                <div className="mt-4 flex items-center justify-between text-[9px] font-black tracking-wider uppercase font-mono text-slate-400 dark:text-slate-500 select-none">
-                  <span>{language === "ar" ? "تتبع سريان تدفق البيانات الهندسية" : "Process Flow Telemetry"}</span>
-                  <div className="flex gap-2 items-center">
-                    <span className="text-[10px] text-blue-500 dark:text-blue-400 font-bold">{language === "ar" ? "المشروع والمواد" : "Setup & Materials"}</span>
-                    <span className="w-4 h-[1px] bg-slate-300 dark:bg-slate-800"></span>
-                    <span className="text-[10px] text-indigo-500 dark:text-indigo-400 font-bold">{language === "ar" ? "التحضير والمعايرة" : "Formulation & Calibration"}</span>
-                    <span className="w-4 h-[1px] bg-slate-300 dark:bg-slate-800"></span>
-                    <span className="text-[10px] text-emerald-500 dark:text-emerald-400 font-bold">{language === "ar" ? "النتائج والتقرير" : "Results & Report"}</span>
-                  </div>
-                  <span>{language === "ar" ? "اعتماد كودي متكامل 100%" : "SNO COMPLIANCE 100%"}</span>
-                </div>
-              </div>
             </div>
 
             {activeSidebarTab === "dashboard" && null}
@@ -4390,7 +4182,7 @@ export default function App() {
                     {language === "ar" ? "بوابة التحقق الهندسي: متطلبات الخلطة غير مكتملة" : "Engineering Verification Gate: Incomplete Mix Requirements"}
                   </h2>
                   <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed font-sans max-w-lg">
-                    {language === "ar" 
+                    {language === "ar"
                       ? engineeringGate.summaryMessageAr
                       : engineeringGate.summaryMessageEn}
                   </p>
@@ -4405,7 +4197,7 @@ export default function App() {
                       {inputs.selectedMethod?.toUpperCase()} | {inputs.concreteType || "NSC"}
                     </span>
                   </div>
-                  
+
                   {/* Dynamic Role Cards */}
                   {engineeringGate.roles.map((r) => {
                     const isReady = r.status === "ready";
@@ -4415,10 +4207,10 @@ export default function App() {
                     const isIncompatible = r.status === "incompatible";
 
                     return (
-                      <div 
-                        key={r.role} 
+                      <div
+                        key={r.role}
                         className={`flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-xl border transition-all gap-3 ${
-                          isReady 
+                          isReady
                             ? "bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200/60 dark:border-emerald-900/40"
                             : isUnselected
                             ? "bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800"
@@ -4440,7 +4232,7 @@ export default function App() {
                                 </span>
                               )}
                             </div>
-                            
+
                             {r.selectedMaterial ? (
                               <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block mt-0.5">
                                 🏷️ {r.selectedMaterial.name}
@@ -4450,7 +4242,7 @@ export default function App() {
                                 {language === "ar" ? "لم يتم تعيين مادة لهذا البند بعد" : "No material assigned yet"}
                               </span>
                             )}
-                            
+
                             <span className="text-[10px] text-slate-400 dark:text-slate-500 block mt-0.5 font-sans">
                               ℹ️ {language === "ar" ? r.sourceReasonAr : r.sourceReasonEn}
                             </span>
@@ -4526,9 +4318,9 @@ export default function App() {
             {false && (
               <div className="space-y-6 animate-fade-in" id="mixwizard-dashboard-screen">
                 {/* Central Calculation Validation Gate Panel */}
-                <CalculationValidationGatePanel 
-                  validation={validationGate} 
-                  onNavigateToInputs={() => setActiveSidebarTab("calculator")} 
+                <CalculationValidationGatePanel
+                  validation={validationGate}
+                  onNavigateToInputs={() => setActiveSidebarTab("calculator")}
                   language={language}
                   setActiveSidebarTab={setActiveSidebarTab}
                   materialsDatabase={materialsDatabase}
@@ -4540,7 +4332,7 @@ export default function App() {
                 <div className="relative overflow-hidden rounded-3xl bg-gradient-to-l from-blue-600 via-indigo-600 to-slate-900 text-white p-6 md:p-8 shadow-xl animate-fade-in" id="dashboard-saas-hero">
                   <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full blur-2xl pointer-events-none"></div>
                   <div className="absolute bottom-0 left-0 w-48 h-48 bg-blue-500/10 rounded-full blur-3xl pointer-events-none"></div>
-                  
+
                   <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                     <div className="text-right w-full md:w-auto">
                       <div className="flex items-center gap-2 justify-end mb-2">
@@ -4555,7 +4347,7 @@ export default function App() {
                         {language === "ar" ? "لوحة التحكم الرئيسية للمشروع" : "Central Project Workspace Hub"}
                       </h2>
                       <p className="text-sm text-blue-100/90 mt-1 max-w-2xl font-sans font-bold text-right w-full block">
-                        {language === "ar" 
+                        {language === "ar"
                           ? "مرحباً بك في المركز الاستشاري الهندسي المعتمد لتصميم ومعايرة الخلطات الخرسانية وإدارة المشاريع بشكل متكامل وبكفاءة عالية."
                           : "Welcome to the central certified engineering hub for concrete recipe design and integrated project management."}
                       </p>
@@ -4573,9 +4365,9 @@ export default function App() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                    
+
                     {/* 1. Mix Design Card */}
-                    <div 
+                    <div
                       onClick={() => setActiveSidebarTab("calculator")}
                       className="group cursor-pointer relative overflow-hidden bg-white dark:bg-[#1E293B] border border-slate-205/80 dark:border-slate-805 rounded-2xl p-5 shadow-lg transition-all duration-300 hover:shadow-xl hover:-translate-y-1 hover:border-blue-500 text-right flex flex-col justify-between"
                       id="card-portal-mix-design"
@@ -4596,7 +4388,7 @@ export default function App() {
                           </h4>
                         </div>
                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 leading-relaxed font-sans">
-                          {language === "ar" 
+                          {language === "ar"
                             ? "تصميم وصياغة التركيبة الخرسانية وتحصين تدرج الركام بطرق درو-غوريس المتكاملة."
                             : "Formulate concrete recipes and evaluate sieve grading matching Dreux-Gorisse norms."}
                         </p>
@@ -4608,7 +4400,7 @@ export default function App() {
                     </div>
 
                     {/* 2. Optimization Card */}
-                    <div 
+                    <div
                       onClick={() => setActiveSidebarTab("optimization")}
                       className="group cursor-pointer relative overflow-hidden bg-white dark:bg-[#1E293B] border border-slate-205/80 dark:border-slate-805 rounded-2xl p-5 shadow-lg transition-all duration-300 hover:shadow-xl hover:-translate-y-1 hover:border-emerald-500 text-right flex flex-col justify-between"
                       id="card-portal-optimization"
@@ -4629,7 +4421,7 @@ export default function App() {
                           </h4>
                         </div>
                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 leading-relaxed font-sans">
-                          {language === "ar" 
+                          {language === "ar"
                             ? "تحسين استهلاك الأسمنت البورتلاندي، توفير كلفة خلطة المواد، وتقليص البصمة الكربونية CO2."
                             : "Minimize Portland cement dosage and carbon emissions via automated volumetric algorithm."}
                         </p>
@@ -4641,7 +4433,7 @@ export default function App() {
                     </div>
 
                     {/* 3. Prediction Card */}
-                    <div 
+                    <div
                       onClick={() => setActiveSidebarTab("forecasting")}
                       className="group cursor-pointer relative overflow-hidden bg-white dark:bg-[#1E293B] border border-slate-205/80 dark:border-slate-805 rounded-2xl p-5 shadow-lg transition-all duration-300 hover:shadow-xl hover:-translate-y-1 hover:border-amber-500 text-right flex flex-col justify-between"
                       id="card-portal-prediction"
@@ -4662,7 +4454,7 @@ export default function App() {
                           </h4>
                         </div>
                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 leading-relaxed font-sans">
-                          {language === "ar" 
+                          {language === "ar"
                             ? "توقع حركية مقاومة الخرسانة (t)fck، منحنى تفاعل إماهة غرويات الأسمنت وتجنب حرارة التشققات."
                             : "Map strength maturation kinetics and simulate critical hydration thermal crack prevention."}
                         </p>
@@ -4674,7 +4466,7 @@ export default function App() {
                     </div>
 
                     {/* 4. Materials Library Card */}
-                    <div 
+                    <div
                       onClick={() => setActiveSidebarTab("materials_library")}
                       className="group cursor-pointer relative overflow-hidden bg-white dark:bg-[#1E293B] border border-slate-205/80 dark:border-slate-805 rounded-2xl p-5 shadow-lg transition-all duration-300 hover:shadow-xl hover:-translate-y-1 hover:border-indigo-500 text-right flex flex-col justify-between"
                       id="card-portal-materials"
@@ -4695,7 +4487,7 @@ export default function App() {
                           </h4>
                         </div>
                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 leading-relaxed font-sans">
-                          {language === "ar" 
+                          {language === "ar"
                             ? "إدارة بنك رمال وديان المحاجر ومعايرات الغربال، مصانع الأسمنت، والوظائف المضافة الفعالة."
                             : "Maintain quarry sand gradation registries, cement varieties, and chemical admixtures."}
                         </p>
@@ -4707,7 +4499,7 @@ export default function App() {
                     </div>
 
                     {/* 5. Cost Analysis Card */}
-                    <div 
+                    <div
                       onClick={() => setActiveSidebarTab("cost")}
                       className="group cursor-pointer relative overflow-hidden bg-white dark:bg-[#1E293B] border border-slate-205/80 dark:border-slate-805 rounded-2xl p-5 shadow-lg transition-all duration-300 hover:shadow-xl hover:-translate-y-1 hover:border-rose-500 text-right flex flex-col justify-between"
                       id="card-portal-cost"
@@ -4728,7 +4520,7 @@ export default function App() {
                           </h4>
                         </div>
                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 leading-relaxed font-sans">
-                          {language === "ar" 
+                          {language === "ar"
                             ? "تقدير الكلفة الاقتصادية التفصيلية للمتر المكعب الخرساني وجدوى نسب ومواد الخليط."
                             : "Calculate direct financial cost breakdown and volumetric yield of concrete recipes."}
                         </p>
@@ -4740,7 +4532,7 @@ export default function App() {
                     </div>
 
                     {/* 6. Reports Center Card */}
-                    <div 
+                    <div
                       onClick={() => setActiveSidebarTab("reports")}
                       className="group cursor-pointer relative overflow-hidden bg-white dark:bg-[#1E293B] border border-slate-205/80 dark:border-slate-850 rounded-2xl p-5 shadow-lg transition-all duration-300 hover:shadow-xl hover:-translate-y-1 hover:border-violet-500 text-right flex flex-col justify-between"
                       id="card-portal-reports"
@@ -4761,7 +4553,7 @@ export default function App() {
                           </h4>
                         </div>
                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 leading-relaxed font-sans">
-                          {language === "ar" 
+                          {language === "ar"
                             ? "توليد الملفات والتقارير الاستشارية الرسمية المعتمدة لتقديمها مباشرة للجهات الفنية المختصة."
                             : "Generate enterprise-grade engineering reports with executive summaries & cover sheets."}
                         </p>
@@ -4773,7 +4565,7 @@ export default function App() {
                     </div>
 
                     {/* 7. AI Assistant Card */}
-                    <div 
+                    <div
                       onClick={() => setActiveSidebarTab("engineering_assistant")}
                       className="group cursor-pointer relative overflow-hidden bg-white dark:bg-[#1E293B] border border-slate-205/80 dark:border-slate-850 rounded-2xl p-5 shadow-lg transition-all duration-300 hover:shadow-xl hover:-translate-y-1 hover:border-purple-500 text-right flex flex-col justify-between"
                       id="card-portal-ai-assistant"
@@ -4794,7 +4586,7 @@ export default function App() {
                           </h4>
                         </div>
                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 leading-relaxed font-sans">
-                          {language === "ar" 
+                          {language === "ar"
                             ? "تحليل الخلطة الحالية واقتراح التعديلات والتوجيهات التقنية استناداً لأفضل الممارسات الإنشائية."
                             : "Analyze context-aware recipes and generate real-time structural optimizations."}
                         </p>
@@ -5103,11 +4895,11 @@ export default function App() {
                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                   {/* Quality Ring (4 cols) */}
                   <div className="lg:col-span-4 block">
-                    <MixQualityScore 
-                      wcRatio={results.wcRatioAdjusted} 
-                      fck28={inputs.fck28} 
-                      controlClass={inputs.controlClass} 
-                      aggregateQuality={inputs.aggregateQuality} 
+                    <MixQualityScore
+                      wcRatio={results.wcRatioAdjusted}
+                      fck28={inputs.fck28}
+                      controlClass={inputs.controlClass}
+                      aggregateQuality={inputs.aggregateQuality}
                       hasPumping={inputs.hasPumping}
                       admixturesCount={results?.admixtureWeights?.length ?? 0}
                       exposureClass={inputs.exposureClass}
@@ -5122,7 +4914,7 @@ export default function App() {
 
                   {/* Insights (8 cols) */}
                   <div className="lg:col-span-8 block">
-                    <EngineeringInsights 
+                    <EngineeringInsights
                       inputs={inputs}
                       result={results}
                     />
@@ -5131,7 +4923,7 @@ export default function App() {
 
                 {/* 4.1 Real-time Interactive Slump & Consistency Rheology Visualizer (12 columns) */}
                 <div className="block mt-6" id="concrete-rheology-visualizer-section">
-                  <ConcreteSlumpVisualizer 
+                  <ConcreteSlumpVisualizer
                     slumpValue={inputs.slump}
                     waterContent={results.waterContentActual}
                     cementWeight={results.cementWeight}
@@ -5143,7 +4935,7 @@ export default function App() {
 
                 {/* 4.2 Real-time AI / Procedural Mix Texture Imaging (12 columns) */}
                 <div className="block mt-6" id="concrete-image-visualizer-section">
-                  <ConcreteImageVisualizer 
+                  <ConcreteImageVisualizer
                     slumpValue={inputs.slump}
                     waterContent={results.waterContentActual}
                     cementWeight={results.cementWeight}
@@ -5154,7 +4946,7 @@ export default function App() {
 
                 {/* 4.3 2D thermal distribution heat map and cracking prediction simulation (d3 based) */}
                 <div className="block mt-6" id="concrete-thermal-heatmap-section">
-                  <ConcreteHeatMap 
+                  <ConcreteHeatMap
                     cementWeight={Math.round(results.cementWeight)}
                     cementType={inputs.cementType}
                   />
@@ -5235,213 +5027,6 @@ export default function App() {
             {activeSidebarTab === "calculator" && (
               <div className="space-y-6 animate-fade-in" id="mixwizard-calculator-screen">
 
-                {/* ENGINEERING DATA IMPORT STATUS PANEL */}
-                <div className="bg-[#FAFBFD] dark:bg-[#1A2333] border border-blue-150/40 dark:border-blue-900/30 rounded-xl p-5 shadow-sm space-y-4 text-right">
-                  <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-                    <div className="flex items-center gap-2">
-                      <div className="bg-blue-100 dark:bg-blue-950/50 p-1.5 rounded-lg text-blue-600 dark:text-blue-400">
-                        <ArrowLeftRight size={18} />
-                      </div>
-                      <div>
-                        <h4 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider font-sans text-left">
-                          {language === "ar" ? "مركز استيراد ومزامنة البيانات الهندسية" : language === "fr" ? "Centre d'Importation & Synchronisation" : "Engineering Data Import & Sync Center"}
-                        </h4>
-                        <p className="text-[10px] text-slate-500 mt-0.5 text-left">
-                          {language === "ar" ? "مراقبة تدفق البيانات من مستودع المواد والتحسين الحبيبي" : "Monitor live data flow from the Material Library & Granular Engineering Center"}
-                        </p>
-                      </div>
-                    </div>
-                    <span className={`text-[10px] font-mono px-2 py-0.5 rounded font-bold ${inputs.isGranularOptimizedApproved ? "bg-emerald-500/10 text-emerald-600" : "bg-blue-500/10 text-blue-600"}`}>
-                      {inputs.isGranularOptimizedApproved ? (language === "ar" ? "نشط ومقفل" : "ACTIVE & LOCKED") : (language === "ar" ? "قيد الانتظار" : "AWAITING APPROVAL")}
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {/* Col 1: Materials & Properties */}
-                    <div className="p-3 bg-white dark:bg-[#121A2A] rounded-lg border border-slate-100 dark:border-slate-800 space-y-2 text-left">
-                      <div className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-300">
-                        <span>{language === "ar" ? "المواد المستوردة" : "Materials Imported"}</span>
-                        <span className="text-blue-500 font-mono">
-                          {[inputs.selectedCementId, inputs.selectedSandId, inputs.selectedGravelId, inputs.selectedWaterId].filter(Boolean).length}/4
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-slate-400">{language === "ar" ? "الخصائص المحملة" : "Properties Loaded"}</span>
-                        <span className="text-emerald-500 font-mono font-bold">
-                          ✓ {countLoadedProperties} {language === "ar" ? "خاصية" : "Properties"}
-                        </span>
-                      </div>
-                      <div className="text-[10px] text-slate-500">
-                        {language === "ar" ? "مستورد مباشرة من مستودع المواد" : "Imported directly from Material Library"}
-                      </div>
-                    </div>
-
-                    {/* Col 2: Granular Center Approval */}
-                    <div className="p-3 bg-white dark:bg-[#121A2A] rounded-lg border border-slate-100 dark:border-slate-800 space-y-2 text-left">
-                      <div className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-300">
-                        <span>{language === "ar" ? "التحسين الحبيبي" : "Granular Optimization"}</span>
-                        {inputs.isGranularOptimizedApproved ? (
-                          <span className="text-emerald-500 font-black flex items-center gap-1">
-                            ✓ {language === "ar" ? "معتمد" : "Approved"}
-                          </span>
-                        ) : (
-                          <span className="text-amber-500 font-black flex items-center gap-1">
-                            ⚠️ {language === "ar" ? "قيد الانتظار" : "Awaiting"}
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-slate-400">{language === "ar" ? "نسب خلط الأركام" : "Mix Ratios"}</span>
-                        <span className="font-mono text-slate-600 dark:text-slate-300">
-                          {inputs.isGranularOptimizedApproved ? "Sand 0/3 + Gravel G1, G2, G3" : (language === "ar" ? "غير منقول" : "Not Transferred")}
-                        </span>
-                      </div>
-                      <div className="text-[10px] text-slate-500">
-                        {language === "ar" ? "تاريخ الإصدار:" : "Revision Date:"} <span className="font-mono">{inputs.granularApprovedAt ? new Date(inputs.granularApprovedAt).toLocaleString() : "N/A"}</span>
-                      </div>
-                    </div>
-
-                    {/* Col 3: Calculation Gate Status */}
-                    <div className="p-3 bg-white dark:bg-[#121A2A] rounded-lg border border-slate-100 dark:border-slate-800 space-y-2 text-left">
-                      <div className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-300">
-                        <span>{language === "ar" ? "بوابة التحقق الهندسية" : "Validation Gate"}</span>
-                        {validationGate.isValidForReport ? (
-                          <span className="text-emerald-500 font-black flex items-center gap-1">
-                            ✓ {language === "ar" ? "جاهز" : "Ready"}
-                          </span>
-                        ) : (
-                          <span className="text-red-500 font-black flex items-center gap-1">
-                            ❌ {language === "ar" ? "محظور" : "Blocked"}
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-slate-400">{language === "ar" ? "حالة المزامنة" : "Sync Status"}</span>
-                        <span className="text-emerald-500 font-bold">
-                          {language === "ar" ? "نشط ومزامن" : "Live Sync active"}
-                        </span>
-                      </div>
-                      <div className="text-[10px] text-slate-500">
-                        {validationGate.criticalErrors.length > 0 
-                          ? `${validationGate.criticalErrors.length} ${language === "ar" ? "مشكلة تمنع الحساب" : "issues blocking calculation"}`
-                          : (language === "ar" ? "جاهز تماماً للتصميم الفني" : "Ready for Dreux-Gorisse Calculations")
-                        }
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Detailed list of issues if materials are missing or unselected */}
-                  {(() => {
-                    const cList = materialsDatabase.filter(m => (m.category === "إسمنت" || m.category === "مجلدات خاصة"));
-                    const sList = materialsDatabase.filter(m => m.category === "رمال");
-                    const gList = materialsDatabase.filter(m => (m.category === "حصى" || m.category === "ركام خفيف" || m.category === "ركام ثقيل"));
-                    const wList = materialsDatabase.filter(m => (m.category === "ماء" || m.type === "water"));
-
-                    const hasMissingOrUnselected = !inputs.selectedCementId || !inputs.selectedSandId || !inputs.selectedGravelId || !inputs.selectedWaterId;
-
-                    if (!hasMissingOrUnselected && mixMaterialsPropertiesSummary.totalMissingRequired === 0) return null;
-
-                    return (
-                      <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl space-y-2 text-right">
-                        <h4 className="text-xs font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1.5 justify-start">
-                          <ShieldAlert size={14} className="text-amber-600 shrink-0" />
-                          <span>{language === "ar" ? "تنبيه: يلزم تحديد جميع المكونات وتدقيق الخصائص لتفعيل الحسابات" : "Alert: Constituents & properties must be verified"}</span>
-                        </h4>
-                        <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed font-sans">
-                          {language === "ar" 
-                            ? "يرجى تحديد مكونات الخلطة أدناه، واستكمال أي خصائص ناقصة دفعة واحدة من خلال النافذة المخصصة دون مغادرة هذه الصفحة." 
-                            : "Please select mix constituents below and complete any missing properties directly without leaving this page."}
-                        </p>
-                        <div className="flex flex-wrap gap-2 pt-1 justify-start">
-                          {!inputs.selectedCementId && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const el = document.getElementById("step3-materials-selection");
-                                if (el) {
-                                  el.scrollIntoView({ behavior: "smooth", block: "center" });
-                                  el.classList.add("ring-4", "ring-amber-500/30", "transition-all");
-                                  setTimeout(() => el.classList.remove("ring-4", "ring-amber-500/30"), 2000);
-                                }
-                              }}
-                              className="text-[10px] bg-amber-500/15 text-amber-700 dark:text-amber-300 px-2.5 py-1 rounded-lg font-black hover:bg-amber-500/25 transition-all border border-amber-500/20 flex items-center gap-1 cursor-pointer"
-                            >
-                              ⚙️ {language === "ar" ? "يرجى تحديد الإسمنت بالخلطة" : "Please select cement (Click to select)"}
-                            </button>
-                          )}
-
-                          {!inputs.selectedSandId && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const el = document.getElementById("step3-materials-selection");
-                                if (el) {
-                                  el.scrollIntoView({ behavior: "smooth", block: "center" });
-                                  el.classList.add("ring-4", "ring-amber-500/30", "transition-all");
-                                  setTimeout(() => el.classList.remove("ring-4", "ring-amber-500/30"), 2000);
-                                }
-                              }}
-                              className="text-[10px] bg-amber-500/15 text-amber-700 dark:text-amber-300 px-2.5 py-1 rounded-lg font-black hover:bg-amber-500/25 transition-all border border-amber-500/20 flex items-center gap-1 cursor-pointer"
-                            >
-                              ⚙️ {language === "ar" ? "يرجى تحديد الرمل بالخلطة" : "Please select sand (Click to select)"}
-                            </button>
-                          )}
-
-                          {!inputs.selectedGravelId && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const el = document.getElementById("step3-materials-selection");
-                                if (el) {
-                                  el.scrollIntoView({ behavior: "smooth", block: "center" });
-                                  el.classList.add("ring-4", "ring-amber-500/30", "transition-all");
-                                  setTimeout(() => el.classList.remove("ring-4", "ring-amber-500/30"), 2000);
-                                }
-                              }}
-                              className="text-[10px] bg-amber-500/15 text-amber-700 dark:text-amber-300 px-2.5 py-1 rounded-lg font-black hover:bg-amber-500/25 transition-all border border-amber-500/20 flex items-center gap-1 cursor-pointer"
-                            >
-                              ⚙️ {language === "ar" ? "يرجى تحديد الحصى بالخلطة" : "Please select gravel (Click to select)"}
-                            </button>
-                          )}
-
-                          {!inputs.selectedWaterId && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const el = document.getElementById("step3-materials-selection");
-                                if (el) {
-                                  el.scrollIntoView({ behavior: "smooth", block: "center" });
-                                  el.classList.add("ring-4", "ring-amber-500/30", "transition-all");
-                                  setTimeout(() => el.classList.remove("ring-4", "ring-amber-500/30"), 2000);
-                                }
-                              }}
-                              className="text-[10px] bg-amber-500/15 text-amber-700 dark:text-amber-300 px-2.5 py-1 rounded-lg font-black hover:bg-amber-500/25 transition-all border border-amber-500/20 flex items-center gap-1 cursor-pointer"
-                            >
-                              ⚙️ {language === "ar" ? "يرجى تحديد الماء بالخلطة" : "Please select water (Click to select)"}
-                            </button>
-                          )}
-                        </div>
-
-                        {mixMaterialsPropertiesSummary.totalMissingRequired > 0 && (
-                          <div className="pt-2 border-t border-amber-500/20 flex items-center justify-between">
-                            <span className="text-xs font-black text-amber-800 dark:text-amber-300">
-                              ⚠ {language === "ar" ? `توجد ${mixMaterialsPropertiesSummary.totalMissingRequired} خصائص ناقصة في المواد المختارة.` : `${mixMaterialsPropertiesSummary.totalMissingRequired} missing properties.`}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => setIsBatchPropertiesModalOpen(true)}
-                              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-black shadow transition-all cursor-pointer flex items-center gap-1.5"
-                            >
-                              <Sliders size={13} />
-                              <span>{language === "ar" ? "إكمال خصائص المواد الناقصة" : "Complete Missing Material Properties"}</span>
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })()}
-                </div>
-                
                 {/* HEAD DETAILS WITH CUSTOM AREA & VOLUME ESTIMATION CONTROLS */}
                 <div className="bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm flex flex-col gap-5 text-right">
                   <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
@@ -5469,8 +5054,8 @@ export default function App() {
                         onClick={() => {
                           const area = inputs.areaM2 || 10;
                           const thick = inputs.thicknessCm || 10;
-                          setInputs(prev => ({ 
-                            ...prev, 
+                          setInputs(prev => ({
+                            ...prev,
                             volumeInputMode: "area",
                             batchVolume: Math.max(0.01, parseFloat((area * (thick / 100)).toFixed(3)) || 1.0)
                           }));
@@ -5612,17 +5197,22 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* THE REDESIGNED STEPWISE GRID */}
-                <Phase3InputWizard
-                  inputs={inputs}
-                  results={results}
-                  language={language}
-                  validationGate={validationGate}
-                  specializedInputErrors={specializedInputErrors}
-                  materialsDatabase={materialsDatabase}
-                >
+                <div className="space-y-6 animate-fade-in" id="stage3-sequential-page" dir={isRtl ? "rtl" : "ltr"}>
+                  <header className="rounded-2xl border border-blue-500/15 bg-blue-500/5 px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-xs font-black text-white">03</span>
+                      <div>
+                        <h3 className="text-sm font-black text-slate-900 dark:text-white">
+                          {language === "ar" ? "تحضير الخلطة — جميع الأقسام متتابعة في صفحة واحدة" : language === "fr" ? "Préparation du mélange — toutes les sections sur une seule page" : "Mix preparation — all sections in one continuous page"}
+                        </h3>
+                        <p className="mt-1 text-[10px] leading-relaxed text-slate-500 dark:text-slate-400">
+                          {language === "ar" ? "ابدأ بمتطلبات المشروع، ثم المواد وخصائصها، فظروف الورشة والتحقق والنتائج." : language === "fr" ? "Commencez par les exigences, puis les matériaux, les conditions du chantier, la validation et les résultats." : "Start with project requirements, then materials, site conditions, validation and results."}
+                        </p>
+                      </div>
+                    </div>
+                  </header>
                 <div className="space-y-6" id="calculator-input-cards-grid">
-                  
+
                   {/* STEP 1: PROJECT REQUIREMENTS & SPECS */}
                   <div className={`bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm space-y-4 ${isRtl ? "text-right" : "text-left"}`} id="step1-project-requirements">
                     <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
@@ -5634,7 +5224,7 @@ export default function App() {
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      
+
                       {/* Compressive Strength fck28 */}
                       <div className={`p-3.5 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-800 space-y-2 ${isFieldDisabled("fck28") ? "opacity-35 pointer-events-none select-none grayscale" : ""}`}>
                         <div className="flex justify-between items-center text-xs">
@@ -5659,7 +5249,7 @@ export default function App() {
                           />
                           <span className={`absolute text-[10px] font-extrabold text-blue-500 font-mono ${language === "ar" ? "left-3" : "right-3"}`}>MPa</span>
                         </div>
-                        
+
                         {/* Real-time Engineering Validation Feedback */}
                         {(() => {
                           const fckVal = Number(inputs.fck28);
@@ -5694,7 +5284,7 @@ export default function App() {
                           if (fckVal > 0 && isWarn) {
                             return (
                               <p className="text-[9.5px] leading-snug text-amber-600 dark:text-amber-450 bg-amber-500/5 p-1.5 rounded-lg border border-amber-500/10 text-right">
-                                ⚠ {language === "ar" 
+                                ⚠ {language === "ar"
                                   ? `تنبيه: المقاومة الموصى بها لخرسانة ${typeLabel} هي بين ${minRec} و ${maxRec} MPa.`
                                   : `Note: Recommended strength range for ${typeLabel} is ${minRec} to ${maxRec} MPa.`}
                               </p>
@@ -5892,9 +5482,9 @@ export default function App() {
                             );
                           })()}
                         </div>
-                        
+
                         <div className="mt-2.5">
-                          <MethodReadinessChecklist 
+                          <MethodReadinessChecklist
                             methodId="dreux-gorisse"
                             inputs={normalizedInputsForCalc}
                             language={language}
@@ -6117,15 +5707,7 @@ export default function App() {
                             activeProject={activeProject}
                             language={language}
                           />
-                          <CalculationValidationGatePanel
-                            validation={validationGate}
-                            onNavigateToInputs={() => setActiveSidebarTab("calculator")}
-                            language={language}
-                            setActiveSidebarTab={setActiveSidebarTab}
-                            materialsDatabase={materialsDatabase}
-                            inputs={inputs}
-                            onOpenBatchModal={() => setIsBatchPropertiesModalOpen(true)}
-                          />
+
 
                           {/* قسم حالة/تحقق المواد في مرحلة تحضير الخلطة */}
                           <div className={`p-4 rounded-2xl border transition-all ${
@@ -6156,7 +5738,7 @@ export default function App() {
                                     {mixMaterialsPropertiesSummary.totalMissingRequired > 0 ? (
                                       <>
                                         <strong className="text-xs md:text-sm font-black text-amber-900 dark:text-amber-300">
-                                          {language === "ar" 
+                                          {language === "ar"
                                             ? `⚠ توجد ${mixMaterialsPropertiesSummary.totalMissingRequired} خصائص ناقصة في المواد المختارة.`
                                             : `⚠ ${mixMaterialsPropertiesSummary.totalMissingRequired} missing properties in selected materials.`}
                                         </strong>
@@ -6181,12 +5763,12 @@ export default function App() {
                                   </div>
 
                                   <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-1 leading-relaxed">
-                                    {mixMaterialsPropertiesSummary.totalMissingRequired > 0 
-                                      ? (language === "ar" 
+                                    {mixMaterialsPropertiesSummary.totalMissingRequired > 0
+                                      ? (language === "ar"
                                           ? "توجد خصائص هندسية لم تُسجل بعد للمواد المستخدمة فعليًا في الخلطة. يمكنك إكمال جميع الخصائص الناقصة دفعة واحدة من هنا دون الانتقال للمكتبة."
                                           : "Some selected materials have missing properties. You can complete all missing properties directly from here.")
                                       : activeMixMaterialsList.length > 0
-                                      ? (language === "ar" 
+                                      ? (language === "ar"
                                           ? "جميع خصائص المواد المختارة محققة وجاهزة بنسبة 100% للحسابات والمعادلات الهندسية."
                                           : "All material properties in current mix are verified and ready for calculation.")
                                       : (language === "ar"
@@ -6218,7 +5800,7 @@ export default function App() {
                           </div>
 
                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                            
+
                             {/* Cement selection */}
                             {isCementAllowed && (
                               <div className="p-3 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-slate-200/40 dark:border-slate-800 space-y-2.5">
@@ -6251,8 +5833,8 @@ export default function App() {
                                       const dens = matchedMat ? matchedMat.density : 0;
                                       const price = matchedMat?.price || 17;
                                       const strClass = matchedMat ? parseFloat(matchedMat.strengthClass || (matchedMat as any).cementClassStrength) : undefined;
-                                      setInputs(prev => ({ 
-                                        ...prev, 
+                                      setInputs(prev => ({
+                                        ...prev,
                                         cementType: matchedMat ? matchedMat.name : prev.cementType,
                                         cementDensity: dens,
                                         priceCement: price,
@@ -6419,7 +6001,7 @@ export default function App() {
                                       }
                                       const maxS = matchedMat.dMax;
                                       const shape = matchedMat?.particleShape === "مكسر" || matchedMat?.particleShape === "زاوي" ? AggregateType.CONCASSE : AggregateType.ROULE;
-                                      
+
                                       let qualityVal = AggregateQuality.STANDARD;
                                       if (matchedMat) {
                                         if (matchedMat.aggregateQuality === "excellent") {
@@ -6437,7 +6019,7 @@ export default function App() {
                                           } else {
                                             qualityVal = AggregateQuality.STANDARD;
                                           }
-                                          
+
                                           if (matchedMat.losAngelesAbrasion !== undefined) {
                                             const la = matchedMat.losAngelesAbrasion;
                                             if (la < 15) qualityVal = AggregateQuality.EXCELLENT;
@@ -6479,7 +6061,7 @@ export default function App() {
                                     <div className="text-[10px] font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1">
                                       <span className="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
                                       <span>
-                                        {inputs.aggregateType === AggregateType.CONCASSE 
+                                        {inputs.aggregateType === AggregateType.CONCASSE
                                           ? (language === "ar" ? "مكسر / زاوي (آلي)" : "Crushed / Angular (Auto)")
                                           : (language === "ar" ? "مستدير (آلي)" : "Rounded (Auto)")}
                                       </span>
@@ -6490,7 +6072,7 @@ export default function App() {
                                     <div className="text-[10px] font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1">
                                       <span className="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
                                       <span>
-                                        {inputs.aggregateQuality === AggregateQuality.EXCELLENT 
+                                        {inputs.aggregateQuality === AggregateQuality.EXCELLENT
                                           ? (language === "ar" ? "ممتاز (آلي)" : "Excellent (Auto)")
                                           : inputs.aggregateQuality === AggregateQuality.POOR
                                           ? (language === "ar" ? "ضعيف (آلي)" : "Poor (Auto)")
@@ -6720,7 +6302,7 @@ export default function App() {
                                               return;
                                             }
                                             const price = matchedMat.price;
-                                            
+
                                             const scmNameLower = (matchedMat.name || "").toLowerCase();
                                             const scmEngLower = (matchedMat.englishName || "").toLowerCase();
 
@@ -6961,8 +6543,8 @@ export default function App() {
                           </button>
                         </div>
                         <p className="text-[11px] text-amber-700 leading-normal">
-                          {language === "ar" 
-                            ? `أنت تقوم بتعديل خاصية "${activeOverrideProperty}" يدويًا. لضمان الموثوقية والمطابقة الفنية، يجب توثيق أسباب هذا التعديل المخبري.` 
+                          {language === "ar"
+                            ? `أنت تقوم بتعديل خاصية "${activeOverrideProperty}" يدويًا. لضمان الموثوقية والمطابقة الفنية، يجب توثيق أسباب هذا التعديل المخبري.`
                             : `You are manually overriding the property "${activeOverrideProperty}". To ensure engineering traceability, you must document the reason.`}
                         </p>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
@@ -7156,19 +6738,228 @@ export default function App() {
                               </div>
                             )}
                           </div>
- 
 
- 
+
+
                         </div>
                       </div>
                     )}
                   </div>
 
-{/* STEP 4: SITE Moisture levels AND ACTUAL FIELDS CONDITIONS */}
-                  <div className={`bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm space-y-4 ${isRtl ? "text-right" : "text-left"}`} id="step5-field-conditions">
+{/* STEP 5: DYNAMIC METHOD DESIGN PARAMETERS (NORMAL AUTO VS EXPERT SLIDERS) */}
+                  <div className={`bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm space-y-4 ${isRtl ? "text-right" : "text-left"}`} id="step6-design-coefficients">
                     <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
                       <h4 className="text-xs font-black text-blue-500 uppercase tracking-widest flex items-center gap-2">
                         <span className="bg-blue-500 text-white w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-mono">4</span>
+                        <span>{t("step6_header")}</span>
+                      </h4>
+                      <span className="text-[10px] bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-slate-500 font-sans">
+                        {designerMode === "normal" ? t("auto_coeffs_active") : t("manual_experimental_adjust")}
+                      </span>
+                    </div>
+
+                    {designerMode === "normal" ? (
+                      /* Readonly Elegant Grid for Normal Auto mode (الوضع العادي يبسط عرض المعاملات ببطاقات) */
+                      <div className={`space-y-3 animate-fade-in ${isRtl ? "text-right" : "text-left"}`}>
+                        <div className="bg-emerald-500/5 border border-emerald-500/20 p-3 rounded-xl flex items-start gap-2">
+                          <span className="p-1 px-1.5 bg-emerald-500 text-slate-950 font-black rounded text-[9px]">ACTIVE</span>
+                          <p className="text-xs text-emerald-800 dark:text-emerald-350">
+                            <strong>{t("intelligent_hydrological_integration_active")} ({inputs.selectedMethod?.toUpperCase()}) {t("intelligent_hydrological_integration_active_end")}</strong>
+                          </p>
+                        </div>
+
+                        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                          <div className="p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800 rounded-lg">
+                            <span className="text-[10px] text-slate-400 block">{t("wc_ratio_label")}</span>
+                            <strong className="text-sm font-mono text-blue-500 block mt-1">{inputs.internalWcOverride}</strong>
+                          </div>
+
+                          <div className="p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800 rounded-lg">
+                            <span className="text-[10px] text-slate-400 block">{t("packing_index_label")}</span>
+                            <strong className="text-sm font-mono text-blue-500 block mt-1">{inputs.packingFactor}</strong>
+                          </div>
+
+                        </div>
+                      </div>
+                    ) : (
+                      /* Active Sliders for Expert Mode (وضع الخبير يطلق يد المهندس للتعديل المباشر) */
+                      <div className={`grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-slate-100 dark:border-slate-800 pt-3 animate-fade-in ${isRtl ? "text-right" : "text-left"}`}>
+
+                        {/* W/C slider */}
+                        <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
+                          <div className="flex justify-between items-center text-xs mb-1.5 font-bold">
+                            <span>{t("wc_ratio_label")}</span>
+                            <strong className="text-blue-500 font-mono">{inputs.internalWcOverride}</strong>
+                          </div>
+                          <input
+                            type="range"
+                            min="0.30"
+                            max="0.75"
+                            step="0.01"
+                            value={inputs.internalWcOverride || 0.45}
+                            onChange={(e) => setInputs(prev => ({ ...prev, internalWcOverride: parseFloat(e.target.value) }))}
+                            className="w-full h-1 accent-amber-500 cursor-pointer"
+                          />
+                        </div>
+
+                        {/* packing factor */}
+                        <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
+                          <div className="flex justify-between items-center text-xs mb-1.5 font-bold">
+                            <span>{t("packing_index_label")}</span>
+                            <strong className="text-blue-500 font-mono">{inputs.packingFactor}</strong>
+                          </div>
+                          <input
+                            type="range"
+                            min="0.70"
+max="0.95"
+                            step="0.01"
+                            value={inputs.packingFactor}
+                            onChange={(e) => setInputs(prev => ({ ...prev, packingFactor: parseFloat(e.target.value) }))}
+                            className="w-full h-1 accent-amber-500 cursor-pointer"
+                          />
+                        </div>
+
+                      </div>
+                    )}
+                  </div>
+
+                  {/* STEP 6: CHEMICAL MODIFIERS AND ADDITIONS DOSAGES */}
+                  <div className={`bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm space-y-4 ${isRtl ? "text-right" : "text-left"}`} id="step7-chemical-additions">
+                    <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
+                      <h4 className="text-xs font-black text-blue-500 uppercase tracking-widest flex items-center gap-2">
+                        <span className="bg-blue-500 text-white w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-mono">5</span>
+                        <span>{t("step7_header")}</span>
+                      </h4>
+                      <span className="text-[10px] bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-slate-500 font-sans">{t("independent_chemical_lab")}</span>
+                    </div>
+
+                    <p className="text-xs text-slate-500 leading-relaxed font-sans mt-1">
+                      {t("step7_desc")}
+                    </p>
+
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                      {inputs.selectedAdmixtureId && (
+                        <div className="rounded-xl border border-emerald-500/15 bg-slate-50 p-3 dark:bg-slate-900">
+                          <div className="mb-2 flex items-center justify-between gap-2 text-xs font-bold">
+                            <span className="min-w-0 truncate">{selectedAdmixtureMaterial?.name || (language === "ar" ? "المضاف الكيميائي المختار" : "Selected chemical admixture")}</span>
+                            <strong className="shrink-0 text-emerald-500">
+                              {selectedAdmixtureDoseKind === "retarder" ? inputs.dosageRetarder : selectedAdmixtureDoseKind === "accelerator" ? inputs.dosageAccelerator : selectedAdmixtureDoseKind === "air" ? inputs.dosageAir : inputs.dosageSuper}%
+                            </strong>
+                          </div>
+                          <input
+                            type="range"
+                            min="0"
+                            max={selectedAdmixtureDoseKind === "air" ? "10" : "3"}
+                            step="0.1"
+                            value={selectedAdmixtureDoseKind === "retarder" ? inputs.dosageRetarder : selectedAdmixtureDoseKind === "accelerator" ? inputs.dosageAccelerator : selectedAdmixtureDoseKind === "air" ? inputs.dosageAir : inputs.dosageSuper}
+                            onChange={(event) => {
+                              const value = parseFloat(event.target.value);
+                              if (selectedAdmixtureDoseKind === "retarder") setInputs((prev) => ({ ...prev, dosageRetarder: value }));
+                              else if (selectedAdmixtureDoseKind === "accelerator") setInputs((prev) => ({ ...prev, dosageAccelerator: value }));
+                              else if (selectedAdmixtureDoseKind === "air") setInputs((prev) => ({ ...prev, dosageAir: value }));
+                              else setInputs((prev) => ({ ...prev, dosageSuper: value }));
+                            }}
+                            className="h-1 w-full cursor-pointer accent-emerald-500"
+                          />
+                          <span className="mt-1 block text-[9px] text-slate-400">
+                            {language === "ar" ? "جرعة المادة الكيميائية المختارة من المستودع" : language === "fr" ? "Dosage de l’adjuvant sélectionné dans la bibliothèque" : "Dosage for the selected admixture from the library"}
+                          </span>
+                        </div>
+                      )}
+
+                      {inputs.selectedScmId && selectedScmDoseKind === "silica" && (
+                        <div className="rounded-xl border border-blue-500/15 bg-slate-50 p-3 dark:bg-slate-900">
+                          <div className="mb-2 flex items-center justify-between gap-2 text-xs font-bold">
+                            <span>{selectedScmMaterial?.name || (language === "ar" ? "غبار السيليكا المختار" : "Selected silica fume")}</span>
+                            <strong className="text-blue-500">{inputs.dosageSilicaFume}%</strong>
+                          </div>
+                          <input type="range" min="0" max="12" step="1" value={inputs.dosageSilicaFume} onChange={(event) => setInputs((prev) => ({ ...prev, dosageSilicaFume: parseFloat(event.target.value) }))} className="h-1 w-full cursor-pointer accent-blue-500" />
+                        </div>
+                      )}
+
+                      {inputs.selectedScmId && selectedScmDoseKind === "flyAsh" && (
+                        <div className="rounded-xl border border-indigo-500/15 bg-slate-50 p-3 dark:bg-slate-900">
+                          <div className="mb-2 flex items-center justify-between gap-2 text-xs font-bold">
+                            <span>{selectedScmMaterial?.name || (language === "ar" ? "الرماد المتطاير المختار" : "Selected fly ash")}</span>
+                            <strong className="text-indigo-500">{inputs.dosageFlyAsh}%</strong>
+                          </div>
+                          <input type="range" min="0" max="20" step="1" value={inputs.dosageFlyAsh} onChange={(event) => setInputs((prev) => ({ ...prev, dosageFlyAsh: parseFloat(event.target.value) }))} className="h-1 w-full cursor-pointer accent-indigo-500" />
+                        </div>
+                      )}
+
+                      {inputs.selectedScmId && selectedScmDoseKind === "slag" && (
+                        <div className="rounded-xl border border-amber-500/15 bg-slate-50 p-3 dark:bg-slate-900">
+                          <div className="mb-2 flex items-center justify-between gap-2 text-xs font-bold">
+                            <span>{selectedScmMaterial?.name || (language === "ar" ? "خبث الأفران المختار" : "Selected slag")}</span>
+                            <strong className="text-amber-600">{inputs.dosageSlag}%</strong>
+                          </div>
+                          <input type="range" min="0" max="40" step="1" value={inputs.dosageSlag} onChange={(event) => setInputs((prev) => ({ ...prev, dosageSlag: parseFloat(event.target.value) }))} className="h-1 w-full cursor-pointer accent-amber-500" />
+                        </div>
+                      )}
+
+                      {inputs.selectedScmId && selectedScmDoseKind === "other" && (
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs dark:border-slate-800 dark:bg-slate-900">
+                          <strong>{selectedScmMaterial?.name || inputs.selectedScmName}</strong>
+                          <p className="mt-1 text-[10px] leading-relaxed text-slate-500 dark:text-slate-400">
+                            {language === "ar" ? "خصائص هذه المادة مرتبطة بسجلها المختار في مكتبة المواد." : language === "fr" ? "Les propriétés de cet ajout sont liées à sa fiche dans la bibliothèque." : "Properties for this selected addition are linked to its material-library record."}
+                          </p>
+                        </div>
+                      )}
+
+                      {inputs.selectedFiberId && (
+                        <div className="rounded-xl border border-violet-500/15 bg-slate-50 p-3 dark:bg-slate-900">
+                          <div className="mb-2 flex items-center justify-between gap-2 text-xs font-bold">
+                            <span className="min-w-0 truncate">{inputs.selectedFiberName || selectedFiberMaterial?.name || (language === "ar" ? "الألياف المختارة" : "Selected fibers")}</span>
+                            <strong className="shrink-0 text-violet-500">{inputs.fiberDosageKgM3 || 0} kg/m³</strong>
+                          </div>
+                          <input type="range" min="0" max="100" step="1" value={inputs.fiberDosageKgM3 || 0} onChange={(event) => setInputs((prev) => ({ ...prev, fiberDosageKgM3: parseFloat(event.target.value) }))} className="h-1 w-full cursor-pointer accent-violet-500" />
+                        </div>
+                      )}
+
+                      {inputs.selectedSpecialBinderId && (
+                        <div className="rounded-xl border border-rose-500/15 bg-slate-50 p-3 text-xs dark:bg-slate-900">
+                          <strong>{inputs.selectedSpecialBinderName || selectedSpecialBinderMaterial?.name || (language === "ar" ? "الرابط الخاص المختار" : "Selected special binder")}</strong>
+                          <p className="mt-1 text-[10px] leading-relaxed text-slate-500 dark:text-slate-400">
+                            {language === "ar" ? "تظهر خصائص الرابط المختار فقط وتُدار نسبته ضمن متطلبات نوع الخرسانة." : language === "fr" ? "Seules les propriétés du liant sélectionné sont affichées; son dosage dépend du type de béton." : "Only the selected binder’s properties are shown; its dosage follows the concrete-type requirements."}
+                          </p>
+                        </div>
+                      )}
+
+                      {!hasSelectedMixModifiers && (
+                        <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400 md:col-span-2">
+                          {language === "ar" ? "لم تُحدد إضافات كيميائية أو معدنية أو ألياف؛ لن تظهر هنا إلا خصائص المواد التي تختارها." : language === "fr" ? "Aucun ajout chimique, minéral ou fibre n’est sélectionné; seules les propriétés des matériaux choisis apparaîtront ici." : "No chemical, mineral or fiber additions are selected; only properties for materials you choose will appear here."}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Dosage Alarm system monitor */}
+                    {(inputs.selectedAdmixtureId || inputs.selectedScmId) && (
+                      <div className={`p-4 rounded-xl transition-colors duration-200 ${
+                        themeMode === "dark"
+                          ? "bg-slate-900 text-white"
+                          : "bg-slate-100/70 border border-slate-200 text-slate-800"
+                      }`}>
+                        <ChemicalDosageMonitor
+                          fck28={inputs.fck28}
+                          dosageSuper={inputs.dosageSuper}
+                          dosageSilicaFume={inputs.dosageSilicaFume}
+                          dosageFlyAsh={inputs.dosageFlyAsh}
+                          selectedAdmixtureId={inputs.selectedAdmixtureId}
+                          materialsDatabase={materialsDatabase}
+                          dosageRetarder={inputs.dosageRetarder}
+                          dosageAccelerator={inputs.dosageAccelerator}
+                          dosageAir={inputs.dosageAir}
+                        />
+                      </div>
+                    )}
+
+                  </div>
+
+                  {/* STEP 4: SITE Moisture levels AND ACTUAL FIELDS CONDITIONS */}
+                  <div className={`bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm space-y-4 ${isRtl ? "text-right" : "text-left"}`} id="step5-field-conditions">
+                    <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
+                      <h4 className="text-xs font-black text-blue-500 uppercase tracking-widest flex items-center gap-2">
+                        <span className="bg-blue-500 text-white w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-mono">6</span>
                         <span>{t("step5_header")}</span>
                       </h4>
                       <span className="text-[10px] bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-slate-500">{t("scale_weights_calibration")}</span>
@@ -7189,8 +6980,8 @@ export default function App() {
                               {language === "ar" ? "الخصائص الفيزيائية وقيم الرطوبة مستوردة وتلقائية" : "Imported Engineering Physical & Moisture Properties"}
                             </h5>
                             <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
-                              {language === "ar" 
-                                ? "يتم إدارة هذه القيم بالكامل بواسطة مستودع المواد والتحسين في مركز الهندسة الحبيبية لمنع التكرار وضمان تطابق البيانات." 
+                              {language === "ar"
+                                ? "يتم إدارة هذه القيم بالكامل بواسطة مستودع المواد والتحسين في مركز الهندسة الحبيبية لمنع التكرار وضمان تطابق البيانات."
                                 : "These physical, absorption and moisture parameters are managed by the Material Library or the Granular Engineering Center to prevent data duplication and maintain engineering traceability."}
                             </p>
                           </div>
@@ -7366,185 +7157,35 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* STEP 5: DYNAMIC METHOD DESIGN PARAMETERS (NORMAL AUTO VS EXPERT SLIDERS) */}
-                  <div className={`bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm space-y-4 ${isRtl ? "text-right" : "text-left"}`} id="step6-design-coefficients">
-                    <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
-                      <h4 className="text-xs font-black text-blue-500 uppercase tracking-widest flex items-center gap-2">
-                        <span className="bg-blue-500 text-white w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-mono">5</span>
-                        <span>{t("step6_header")}</span>
-                      </h4>
-                      <span className="text-[10px] bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-slate-500 font-sans">
-                        {designerMode === "normal" ? t("auto_coeffs_active") : t("manual_experimental_adjust")}
-                      </span>
-                    </div>
-
-                    {designerMode === "normal" ? (
-                      /* Readonly Elegant Grid for Normal Auto mode (الوضع العادي يبسط عرض المعاملات ببطاقات) */
-                      <div className={`space-y-3 animate-fade-in ${isRtl ? "text-right" : "text-left"}`}>
-                        <div className="bg-emerald-500/5 border border-emerald-500/20 p-3 rounded-xl flex items-start gap-2">
-                          <span className="p-1 px-1.5 bg-emerald-500 text-slate-950 font-black rounded text-[9px]">ACTIVE</span>
-                          <p className="text-xs text-emerald-800 dark:text-emerald-350">
-                            <strong>{t("intelligent_hydrological_integration_active")} ({inputs.selectedMethod?.toUpperCase()}) {t("intelligent_hydrological_integration_active_end")}</strong>
-                          </p>
-                        </div>
-
-                        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-                          <div className="p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800 rounded-lg">
-                            <span className="text-[10px] text-slate-400 block">{t("wc_ratio_label")}</span>
-                            <strong className="text-sm font-mono text-blue-500 block mt-1">{inputs.internalWcOverride}</strong>
-                          </div>
-
-                          <div className="p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800 rounded-lg">
-                            <span className="text-[10px] text-slate-400 block">{t("packing_index_label")}</span>
-                            <strong className="text-sm font-mono text-blue-500 block mt-1">{inputs.packingFactor}</strong>
-                          </div>
-
-                        </div>
-                      </div>
-                    ) : (
-                      /* Active Sliders for Expert Mode (وضع الخبير يطلق يد المهندس للتعديل المباشر) */
-                      <div className={`grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-slate-100 dark:border-slate-800 pt-3 animate-fade-in ${isRtl ? "text-right" : "text-left"}`}>
-                        
-                        {/* W/C slider */}
-                        <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
-                          <div className="flex justify-between items-center text-xs mb-1.5 font-bold">
-                            <span>{t("wc_ratio_label")}</span>
-                            <strong className="text-blue-500 font-mono">{inputs.internalWcOverride}</strong>
-                          </div>
-                          <input
-                            type="range"
-                            min="0.30"
-                            max="0.75"
-                            step="0.01"
-                            value={inputs.internalWcOverride || 0.45}
-                            onChange={(e) => setInputs(prev => ({ ...prev, internalWcOverride: parseFloat(e.target.value) }))}
-                            className="w-full h-1 accent-amber-500 cursor-pointer"
-                          />
-                        </div>
-
-                        {/* packing factor */}
-                        <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
-                          <div className="flex justify-between items-center text-xs mb-1.5 font-bold">
-                            <span>{t("packing_index_label")}</span>
-                            <strong className="text-blue-500 font-mono">{inputs.packingFactor}</strong>
-                          </div>
-                          <input
-                            type="range"
-                            min="0.70"
-max="0.95"
-                            step="0.01"
-                            value={inputs.packingFactor}
-                            onChange={(e) => setInputs(prev => ({ ...prev, packingFactor: parseFloat(e.target.value) }))}
-                            className="w-full h-1 accent-amber-500 cursor-pointer"
-                          />
-                        </div>
-
-                      </div>
-                    )}
-                  </div>
-
-                  {/* STEP 6: CHEMICAL MODIFIERS AND ADDITIONS DOSAGES */}
-                  <div className={`bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm space-y-4 ${isRtl ? "text-right" : "text-left"}`} id="step7-chemical-additions">
-                    <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
-                      <h4 className="text-xs font-black text-blue-500 uppercase tracking-widest flex items-center gap-2">
-                        <span className="bg-blue-500 text-white w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-mono">6</span>
-                        <span>{t("step7_header")}</span>
-                      </h4>
-                      <span className="text-[10px] bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-slate-500 font-sans">{t("independent_chemical_lab")}</span>
-                    </div>
-
-                    <p className="text-xs text-slate-500 leading-relaxed font-sans mt-1">
-                      {t("step7_desc")}
-                    </p>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      
-                      {/* dosageSuper */}
-                      <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200/50 dark:border-slate-800">
-                        <div className="flex justify-between text-xs font-bold mb-1">
-                          <span>{t("superplasticizer_label")}</span>
-                          <span className="text-emerald-500">{inputs.dosageSuper}%</span>
-                        </div>
-                        <input
-                          type="range"
-                          min="0.0"
-                          max="3.0"
-                          step="0.1"
-                          value={inputs.dosageSuper}
-                          onChange={(e) => setInputs(prev => ({ ...prev, dosageSuper: parseFloat(e.target.value) }))}
-                          className="w-full h-1 accent-emerald-500 cursor-pointer"
-                        />
-                        <span className="text-[9px] text-slate-400 block mt-1">{t("superplasticizer_desc")}</span>
-                      </div>
-
-                      {/* dosageSilicaFume */}
-                      <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200/50 dark:border-slate-800">
-                        <div className="flex justify-between text-xs font-bold mb-1 col-span-1">
-                          <span>{t("silica_fume_label")}</span>
-                          <span className="text-blue-500">{inputs.dosageSilicaFume}%</span>
-                        </div>
-                        <input
-                          type="range"
-                          min="0"
-                          max="12"
-                          step="1"
-                          value={inputs.dosageSilicaFume}
-                          onChange={(e) => setInputs(prev => ({ ...prev, dosageSilicaFume: parseFloat(e.target.value) }))}
-                          className="w-full h-1 accent-blue-500 cursor-pointer"
-                        />
-                        <span className="text-[9px] text-slate-400 block mt-1">{t("silica_fume_desc")}</span>
-                      </div>
-
-                      {/* dosageFlyAsh */}
-                      <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200/50 dark:border-slate-800">
-                        <div className="flex justify-between text-xs font-bold mb-1">
-                          <span>{t("fly_ash_label")}</span>
-                          <span className="text-indigo-500">{inputs.dosageFlyAsh}%</span>
-                        </div>
-                        <input
-                          type="range"
-                          min="0"
-                          max="20"
-                          step="1"
-                          value={inputs.dosageFlyAsh}
-                          onChange={(e) => setInputs(prev => ({ ...prev, dosageFlyAsh: parseFloat(e.target.value) }))}
-                          className="w-full h-1 accent-indigo-500 cursor-pointer"
-                        />
-                        <span className="text-[9px] text-slate-400 block mt-1">{t("fly_ash_desc")}</span>
-                      </div>
-
-                    </div>
-
-                    {/* Dosage Alarm system monitor */}
-                    <div className={`p-4 rounded-xl transition-colors duration-200 ${
-                      themeMode === "dark" 
-                        ? "bg-slate-900 text-white" 
-                        : "bg-slate-100/70 border border-slate-200 text-slate-800"
-                    }`}>
-                      <ChemicalDosageMonitor 
-                        fck28={inputs.fck28} 
-                        dosageSuper={inputs.dosageSuper} 
-                        dosageSilicaFume={inputs.dosageSilicaFume} 
-                        dosageFlyAsh={inputs.dosageFlyAsh} 
-                        selectedAdmixtureId={inputs.selectedAdmixtureId}
-                        materialsDatabase={materialsDatabase}
-                        dosageRetarder={inputs.dosageRetarder}
-                        dosageAccelerator={inputs.dosageAccelerator}
-                        dosageAir={inputs.dosageAir}
-                      />
-                    </div>
-                  </div>
-
                 </div>
-                </Phase3InputWizard>
+                <section className="space-y-4 rounded-2xl border border-indigo-500/15 bg-white p-4 shadow-sm dark:bg-slate-900/70" id="stage3-validation-gate">
+                  <header className="flex items-center gap-3 border-b border-slate-100 pb-3 dark:border-slate-800">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-600 text-xs font-black text-white">7</span>
+                    <div>
+                      <h3 className="text-sm font-black text-slate-900 dark:text-white">{language === "ar" ? "بوابة التحقق الهندسية" : language === "fr" ? "Portail de validation technique" : "Engineering validation gate"}</h3>
+                    <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">{language === "ar" ? "راجع اكتمال المواد والمدخلات قبل الانتقال إلى النتائج." : language === "fr" ? "Vérifiez les matériaux et les données avant de consulter les résultats." : "Review material and input completeness before viewing results."}</p>
+                  </div>
+                  </header>
+<CalculationValidationGatePanel
+                            validation={validationGate}
+                            onNavigateToInputs={() => setActiveSidebarTab("calculator")}
+                            language={language}
+                            setActiveSidebarTab={setActiveSidebarTab}
+                            materialsDatabase={materialsDatabase}
+                            inputs={inputs}
+                            onOpenBatchModal={() => setIsBatchPropertiesModalOpen(true)}
+                          />
+                </section>
 
-                {/* تم نقل دورة الاعتماد وإدارة الإصدارات إلى تبويباتها المخصصة،
-                    وإخفاء لوحة الحساب المرحلي من شاشة التحضير لتقليل طول المرحلة الثالثة.
-                    تبقى وظائف الحفظ والإصدارات والتحقق متاحة عبر الخدمات والتبويبات المتخصصة. */}
-
-                {/* LOGICAL ENGINEERING SEQUENCE RESULTS SUMMARY */}
-                <div className="pt-2 space-y-4">
-                  <LogicalResultsSummary 
+                <header className="flex items-center gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3" id="stage3-final-results">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-600 text-xs font-black text-white">8</span>
+                  <div>
+                    <h3 className="text-sm font-black text-slate-900 dark:text-white">{language === "ar" ? "النتائج والمخطط الهندسي المتكامل" : language === "fr" ? "Résultats et schéma d’ingénierie intégré" : "Results and integrated engineering diagram"}</h3>
+                    <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">{language === "ar" ? "تظهر هنا مخرجات الخلطة وملخصها بعد اجتياز بوابة التحقق." : language === "fr" ? "Les résultats et le résumé de la formulation suivent la validation." : "Mix outputs and their summary follow the validation gate."}</p>
+                  </div>
+                </header>
+                <div className="pt-2 space-y-4" id="stage3-integrated-results">
+                  <LogicalResultsSummary
                     inputs={inputs}
                     results={results}
                     language={language}
@@ -7563,41 +7204,42 @@ max="0.95"
                     <div className="p-3 bg-slate-850 rounded border border-slate-800 text-center">
                       <span className="text-[10px] text-slate-400 block">{language === "fr" ? "Ciment Pur" : language === "en" ? "Pure Cement" : "الإسمنت المصفي"}</span>
                       <strong className="text-lg font-mono text-white block mt-1">
-                        {Math.round(results.cementWeight)} 
+                        {Math.round(results.cementWeight)}
                         <span className="text-[10px] mr-1">kg</span>
                       </strong>
                     </div>
                     <div className="p-3 bg-slate-850 rounded border border-slate-800 text-center">
                       <span className="text-[10px] text-slate-400 block">{language === "fr" ? "Eau Net Additionnelle" : language === "en" ? "Net Added Water" : "مياه الإضافة الصافية"}</span>
                       <strong className="text-lg font-mono text-blue-400 block mt-1">
-                        {Math.round(results.waterContentActual)} 
+                        {Math.round(results.waterContentActual)}
                         <span className="text-[10px] mr-1">L</span>
                       </strong>
                     </div>
                     <div className="p-3 bg-slate-850 rounded border border-slate-800 text-center">
                       <span className="text-[10px] text-slate-400 block">{language === "fr" ? "Sable Sec de Base" : language === "en" ? "Base Dry Sand" : "الرمل الجاف الأساسي"}</span>
                       <strong className="text-lg font-mono text-white block mt-1">
-                        {Math.round(results.sandWeightDry)} 
+                        {Math.round(results.sandWeightDry)}
                         <span className="text-[10px] mr-1">kg</span>
                       </strong>
                     </div>
                     <div className="p-3 bg-slate-850 rounded border border-slate-800 text-center">
                       <span className="text-[10px] text-slate-400 block">{language === "fr" ? "Gravier Sec de Base" : language === "en" ? "Base Dry Gravel" : "الحصى الجاف الأساسي"}</span>
                       <strong className="text-lg font-mono text-white block mt-1">
-                        {Math.round(results.gravelWeightDry)} 
+                        {Math.round(results.gravelWeightDry)}
                         <span className="text-[10px] mr-1">kg</span>
                       </strong>
                     </div>
                     <div className="p-3 bg-slate-850 rounded border border-slate-800 text-center">
                       <span className="text-[10px] text-slate-400 block">{language === "fr" ? "Masse Volumique du Béton Frais" : language === "en" ? "Fresh Wet Density" : "كثافة الخرسانة الرطبة"}</span>
                       <strong className="text-lg font-mono text-emerald-400 block mt-1">
-                        {Math.round(results.totalFreshDensity)} 
+                        {Math.round(results.totalFreshDensity)}
                         <span className="text-[10px] mr-1">kg/m³</span>
                       </strong>
                     </div>
                   </div>
                 </div>
 
+                </div>
               </div>
             )}
 
@@ -7605,12 +7247,12 @@ max="0.95"
 
 {activeSidebarTab === "cost" && (
               <div className={`bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm space-y-6 animate-fade-in ${isRtl ? "text-right" : "text-left"}`} id="cost-analysis-screen">
-                
+
                 {/* Save Feedback Banner */}
                 {showSavedFeedback && (
                   <div className={`bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 p-3.5 rounded-xl flex items-center justify-between gap-3 animate-fade-in ${language === "ar" ? "flex-row-reverse" : ""}`}>
                     <span className="text-xs font-bold font-sans">
-                      {language === "ar" 
+                      {language === "ar"
                         ? "تم حفظ الأسعار الحالية كتعريفات افتراضية بنجاح وسيتم تحميلها تلقائيًا في الجلسات القادمة!"
                         : language === "fr"
                           ? "Les prix actuels ont été enregistrés avec succès comme tarifs par défaut et seront chargés automatiquement lors des prochaines sessions !"
@@ -7626,10 +7268,10 @@ max="0.95"
                     <h3 className={`text-sm font-black text-slate-900 dark:text-white flex items-center gap-1.5 ${language === "ar" ? "justify-end" : "justify-start"}`}>
                       {language === "ar" && <Coins size={16} className="text-[#10B981]" />}
                       <span>
-                        {language === "ar" 
-                          ? "الكلفة المالية وجرعات الموازين للوجبة" 
-                          : language === "fr" 
-                            ? "Évaluation financière et dosages de gâchée" 
+                        {language === "ar"
+                          ? "الكلفة المالية وجرعات الموازين للوجبة"
+                          : language === "fr"
+                            ? "Évaluation financière et dosages de gâchée"
                             : "Concrete Valuation & Batch Scale Dosages"}
                       </span>
                       {language !== "ar" && <Coins size={16} className="text-[#10B981]" />}
@@ -7671,8 +7313,8 @@ max="0.95"
                       <button
                         onClick={() => handleCurrencyChange("DZD")}
                         className={`px-3 py-1 text-[10px] font-black rounded-md transition-all cursor-pointer ${
-                          currency === "DZD" 
-                            ? "bg-[#10B981] text-white shadow-sm font-extrabold" 
+                          currency === "DZD"
+                            ? "bg-[#10B981] text-white shadow-sm font-extrabold"
                             : "text-slate-600 dark:text-slate-400 hover:text-slate-850 dark:hover:text-slate-200"
                         }`}
                       >
@@ -7681,8 +7323,8 @@ max="0.95"
                       <button
                         onClick={() => handleCurrencyChange("USD")}
                         className={`px-3 py-1 text-[10px] font-black rounded-md transition-all cursor-pointer ${
-                          currency === "USD" 
-                            ? "bg-[#10B981] text-white shadow-sm font-extrabold" 
+                          currency === "USD"
+                            ? "bg-[#10B981] text-white shadow-sm font-extrabold"
                             : "text-slate-600 dark:text-slate-400 hover:text-slate-850 dark:hover:text-slate-200"
                         }`}
                       >
@@ -7691,8 +7333,8 @@ max="0.95"
                       <button
                         onClick={() => handleCurrencyChange("EUR")}
                         className={`px-3 py-1 text-[10px] font-black rounded-md transition-all cursor-pointer ${
-                          currency === "EUR" 
-                            ? "bg-[#10B981] text-white shadow-sm font-extrabold" 
+                          currency === "EUR"
+                            ? "bg-[#10B981] text-white shadow-sm font-extrabold"
                             : "text-slate-600 dark:text-slate-400 hover:text-slate-850 dark:hover:text-slate-200"
                         }`}
                       >
@@ -7701,8 +7343,8 @@ max="0.95"
                       <button
                         onClick={() => handleCurrencyChange("GBP")}
                         className={`px-3 py-1 text-[10px] font-black rounded-md transition-all cursor-pointer ${
-                          currency === "GBP" 
-                            ? "bg-[#10B981] text-white shadow-sm font-extrabold" 
+                          currency === "GBP"
+                            ? "bg-[#10B981] text-white shadow-sm font-extrabold"
                             : "text-slate-600 dark:text-slate-400 hover:text-slate-850 dark:hover:text-slate-200"
                         }`}
                       >
@@ -7714,15 +7356,15 @@ max="0.95"
 
                 {/* 1. Price Configuration Form */}
                 <div className="space-y-6 bg-slate-50/50 dark:bg-slate-900/40 p-5 rounded-2xl border border-slate-150 dark:border-slate-800">
-                  
+
                   {/* Costing Basis Selector */}
                   <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-teal-50/40 dark:bg-teal-950/20 rounded-2xl border border-teal-100/50 dark:border-teal-900/40 mb-2 ${language === "ar" ? "" : "flex-row-reverse"}`}>
                     <div className={language === "ar" ? "text-right" : "text-left"}>
                       <h4 className="text-xs font-bold text-teal-850 dark:text-teal-300">
-                        {language === "ar" 
-                          ? "طريقة احتساب كلفة الركام" 
-                          : language === "fr" 
-                            ? "Mode d'évaluation du sable/gravier" 
+                        {language === "ar"
+                          ? "طريقة احتساب كلفة الركام"
+                          : language === "fr"
+                            ? "Mode d'évaluation du sable/gravier"
                             : "Aggregate Costing Basis (Sand/Gravel)"}
                       </h4>
                       <p className="text-[10px] text-slate-500 mt-0.5">
@@ -7765,7 +7407,7 @@ max="0.95"
                       {language === "ar" ? "أولاً: أسعار المواد الأساسية" : language === "fr" ? "I. Prix des matériaux de base" : "I. Base Materials Prices"}
                     </h4>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                      <PriceInput 
+                      <PriceInput
                         label={localizedLabel("سعر الإسمنت", "Prix du ciment", "Cement Unit Cost")}
                         unit={getUnitForMaterial("priceCement")}
                         value={inputs.priceCement}
@@ -7773,7 +7415,7 @@ max="0.95"
                         step={1}
                         currencySymbol={getCurrencySymbol()}
                       />
-                      <PriceInput 
+                      <PriceInput
                         label={localizedLabel("سعر الرمل", "Prix du sable", "Sand Unit Cost")}
                         unit={getUnitForMaterial("priceSand")}
                         value={inputs.priceSand}
@@ -7781,7 +7423,7 @@ max="0.95"
                         step={0.1}
                         currencySymbol={getCurrencySymbol()}
                       />
-                      <PriceInput 
+                      <PriceInput
                         label={localizedLabel("سعر الحصى", "Prix du gravier", "Gravel Unit Cost")}
                         unit={getUnitForMaterial("priceGravel")}
                         value={inputs.priceGravel}
@@ -7789,7 +7431,7 @@ max="0.95"
                         step={0.1}
                         currencySymbol={getCurrencySymbol()}
                       />
-                      <PriceInput 
+                      <PriceInput
                         label={localizedLabel("سعر الماء", "Prix de l'eau", "Water Unit Cost")}
                         unit={getUnitForMaterial("priceWater")}
                         value={inputs.priceWater}
@@ -7806,7 +7448,7 @@ max="0.95"
                       {language === "ar" ? "ثانياً: أسعار الإضافات والملدنات" : language === "fr" ? "II. Prix des adjuvants et additions" : "II. Admixtures & Additions Prices"}
                     </h4>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                      <PriceInput 
+                      <PriceInput
                         label={localizedLabel("الملدن الفائق (Super)", "Superplastifiant (Super)", "Superplasticizer (Super)")}
                         unit={getUnitForMaterial("priceSuper")}
                         value={inputs.priceSuper}
@@ -7814,7 +7456,7 @@ max="0.95"
                         step={5}
                         currencySymbol={getCurrencySymbol()}
                       />
-                      <PriceInput 
+                      <PriceInput
                         label={localizedLabel("حابس الهواء (Air)", "Entraîneur d'air (Air)", "Air Entraining (Air)")}
                         unit={getUnitForMaterial("priceAir")}
                         value={inputs.priceAir}
@@ -7822,7 +7464,7 @@ max="0.95"
                         step={5}
                         currencySymbol={getCurrencySymbol()}
                       />
-                      <PriceInput 
+                      <PriceInput
                         label={localizedLabel("مؤخر الشك (Retarder)", "Retardateur (Retarder)", "Set Retarder (Retarder)")}
                         unit={getUnitForMaterial("priceRetarder")}
                         value={inputs.priceRetarder}
@@ -7830,7 +7472,7 @@ max="0.95"
                         step={5}
                         currencySymbol={getCurrencySymbol()}
                       />
-                      <PriceInput 
+                      <PriceInput
                         label={localizedLabel("مسرع التصلد (Accel)", "Accélérateur (Accel)", "Set Accelerator (Accel)")}
                         unit={getUnitForMaterial("priceAccelerator")}
                         value={inputs.priceAccelerator}
@@ -7838,7 +7480,7 @@ max="0.95"
                         step={5}
                         currencySymbol={getCurrencySymbol()}
                       />
-                      <PriceInput 
+                      <PriceInput
                         label={localizedLabel("غبار السيليكا (Silica)", "Fumée de silice (Silica)", "Silica Fume (Silica)")}
                         unit={getUnitForMaterial("priceSilicaFume")}
                         value={inputs.priceSilicaFume}
@@ -7846,7 +7488,7 @@ max="0.95"
                         step={5}
                         currencySymbol={getCurrencySymbol()}
                       />
-                      <PriceInput 
+                      <PriceInput
                         label={localizedLabel("الرماد المتطاير (Fly Ash)", "Cendres volantes (Fly Ash)", "Fly Ash (Fly Ash)")}
                         unit={getUnitForMaterial("priceFlyAsh")}
                         value={inputs.priceFlyAsh}
@@ -7854,7 +7496,7 @@ max="0.95"
                         step={5}
                         currencySymbol={getCurrencySymbol()}
                       />
-                      <PriceInput 
+                      <PriceInput
                         label={localizedLabel("خبث الأفران (Slag)", "Laitier de haut fourneau (Slag)", "Ground Granulated Slag (Slag)")}
                         unit={getUnitForMaterial("priceSlag")}
                         value={inputs.priceSlag}
@@ -7872,7 +7514,7 @@ max="0.95"
                     </h4>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                       <div className="lg:col-span-1">
-                        <PriceInput 
+                        <PriceInput
                           label={localizedLabel("أجور اليد العاملة الفنية", "Coût de la main d'œuvre", "Technical Labor Cost")}
                           unit={getUnitForMaterial("priceLabor")}
                           value={inputs.priceLabor}
@@ -7888,7 +7530,7 @@ max="0.95"
 
                 {/* 4 Summary Cards */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
-                  
+
                   {/* Card 1: Cost per m³ */}
                   <div className={`p-4 bg-slate-50 dark:bg-slate-800/20 border border-slate-200 dark:border-slate-800/80 rounded-xl space-y-1 ${language === "ar" ? "text-right" : "text-left"}`}>
                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">
@@ -7948,7 +7590,7 @@ max="0.95"
                   </div>
                 </div>
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 pt-2">
-                  
+
                   {/* Table Box (7 Cols) */}
                   <div className="lg:col-span-7 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm flex flex-col justify-between">
                     <div>
@@ -7962,7 +7604,7 @@ max="0.95"
                               : `Materials Unit Cost & Batch of ${inputs.batchVolume} m³`}
                         </span>
                       </div>
-                      
+
                       <table className={`w-full text-xs ${language === "ar" ? "text-right" : "text-left"}`}>
                         <thead>
                           <tr className="bg-slate-50 dark:bg-slate-850/20 text-slate-500 border-b border-slate-200 dark:border-slate-800">
@@ -7981,7 +7623,7 @@ max="0.95"
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-150 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
-                          
+
                            {/* Row 1: Cement */}
                           <tr>
                             <td className="p-3 font-bold text-slate-900 dark:text-slate-100">
@@ -8336,8 +7978,8 @@ max="0.95"
       </div>
 
       {/* Modals & Dialogs */}
-      <BatchMaterialPropertiesModal 
-        isOpen={isBatchPropertiesModalOpen} 
+      <BatchMaterialPropertiesModal
+        isOpen={isBatchPropertiesModalOpen}
         onClose={() => setIsBatchPropertiesModalOpen(false)}
         materials={materialsDatabase}
         inputs={inputs}
@@ -8347,20 +7989,20 @@ max="0.95"
         userId={user?.uid}
       />
 
-      <ProjectFileManagerModal 
+      <ProjectFileManagerModal
         mode="new"
         isOpen={showNewProjectModal}
         onClose={() => setShowNewProjectModal(false)}
       />
 
-      <ProjectFileManagerModal 
+      <ProjectFileManagerModal
         mode="properties"
         isOpen={showProjectPropertiesModal}
         onClose={() => setShowProjectPropertiesModal(false)}
       />
 
       {/* Bottom Status Bar */}
-      <StatusBar 
+      <StatusBar
         fck28={inputs.fck28}
         selectedMethod={inputs.selectedMethod}
         exposureClass={inputs.exposureClass}
