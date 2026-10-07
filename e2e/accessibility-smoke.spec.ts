@@ -13,7 +13,7 @@ test.describe("SnoLab accessibility smoke", () => {
     await page.getByRole("button", { name: /🇺🇸 EN/ }).click();
     await page.getByRole("button", { name: /Start New Project/ }).first().click();
 
-    const unnamedInteractive = await page.locator("button:not([aria-label]),a[href]:not([aria-label])").evaluateAll((nodes) =>
+    const unnamedInteractive = await page.locator("button:not([aria-label]):not([aria-labelledby]),a[href]:not([aria-label]):not([aria-labelledby])").evaluateAll((nodes) =>
       nodes.filter((node) => !(node.textContent || "").trim() && !node.getAttribute("title")).length
     );
     expect(unnamedInteractive).toBe(0);
