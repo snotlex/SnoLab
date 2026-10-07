@@ -75,6 +75,7 @@ import { CompletenessChecker } from "../services/import/CompletenessChecker";
 import { ExportService } from "../services/ExportService";
 import { MaterialService } from "../services/MaterialService";
 import { createAIDraftMetadata } from "../services/aiGovernance";
+import { createAIRequestEnvelope } from "../services/aiRequestGovernance";
 import { getActiveMaterialBatch, upsertMaterialBatch } from "../services/materialBatchService";
 import * as XLSX from "xlsx";
 
@@ -3074,11 +3075,36 @@ export function MaterialEngineeringDatabase({
       return suggested;
     };
 
+    const buildAIAdvisoryPatch = (base: Partial<EngineeringMaterial>, aiData: Record<string, any> = {}): Partial<EngineeringMaterial> => {
+      const engineeringKeys = new Set(["density", "ssdDensity", "absorption", "moisture", "finenessModulus", "dMax", "specificGravity", "bulkDensity", "waterReduction", "recommendedDosage", "heatOfHydration", "strength2d", "strength28d", "clayContent", "organicContent", "losAngelesAbrasion", "gradationData", "sieveAnalysisDetail", "cementClass", "strengthClass", "hydrationClass", "solidContent", "chlorideContent", "pozzolanicIndex", "waterDemandFactor"]);
+      const combined = { ...base, ...aiData } as Record<string, any>;
+      const aiSuggestions = Object.fromEntries(Object.entries(combined).filter(([key]) => engineeringKeys.has(key)));
+      const narrative = Object.fromEntries(Object.entries(combined).filter(([key]) => !engineeringKeys.has(key)));
+      return { ...narrative, aiSuggestions } as Partial<EngineeringMaterial>;
+    };
+
     try {
+      const requestEnvelope = createAIRequestEnvelope({
+        provider: "google",
+        purpose: "material advisor recommendation",
+        outputKind: "recommendation",
+        promptVersion: "material-advisor-v2-governed",
+        context: { name, category: cat, region },
+        consent: {
+          granted: true,
+          grantedAt: new Date().toISOString(),
+          userId: "local-user",
+          purpose: "material advisor recommendation",
+          provider: "google",
+          fieldsShared: ["name", "category", "region"],
+          attachmentsShared: []
+        },
+        policy: { allowedFields: ["name", "category", "region"], maxPromptCharacters: 2000 }
+      });
       const resp = await fetch("/api/material-advisor", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, category: cat, region })
+        body: JSON.stringify({ name, category: cat, region, requestEnvelope })
       });
       const resData = await resp.json();
 
@@ -3088,7 +3114,7 @@ export function MaterialEngineeringDatabase({
         
         setFormState(prev => ({
           ...prev,
-          ...baseHeuristics,
+          ...buildAIAdvisoryPatch(baseHeuristics, aiData),
           // Assign dynamic, single source of truth assets
           desc: aiData.description || baseHeuristics.desc,
           Description: aiData.description || baseHeuristics.Description,
@@ -3097,10 +3123,6 @@ export function MaterialEngineeringDatabase({
           ConcreteClasses: aiData.concreteClasses || "C25/30, C30/37",
           Warnings: aiData.warnings || "تنبيه: راقب نسبة المحتوى الناعم",
           
-          density: aiData.density || baseHeuristics.density,
-          absorption: aiData.absorption || baseHeuristics.absorption,
-          moisture: aiData.moisture || baseHeuristics.moisture,
-          finenessModulus: aiData.finenessModulus || baseHeuristics.finenessModulus,
           quality: aiData.quality || baseHeuristics.quality,
           
           createdBy: "SNO AI Assistant (Gemini 3.5)",
@@ -3116,7 +3138,7 @@ export function MaterialEngineeringDatabase({
         const baseHeuristics = getHeuristicSuggested();
         setFormState(prev => ({
           ...prev,
-          ...baseHeuristics,
+          ...buildAIAdvisoryPatch(baseHeuristics),
           name: prev.name,
           englishName: prev.englishName || `${cat} Custom Spec`,
           category: prev.category,
@@ -3132,7 +3154,7 @@ export function MaterialEngineeringDatabase({
       const baseHeuristics = getHeuristicSuggested();
       setFormState(prev => ({
         ...prev,
-        ...baseHeuristics,
+        ...buildAIAdvisoryPatch(baseHeuristics),
         name: prev.name,
         englishName: prev.englishName || `${cat} Custom Spec`,
         category: prev.category,

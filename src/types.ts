@@ -639,6 +639,7 @@ export interface EngineeringMaterial {
   updatedDate?: string; // Standard updated timestamp
   updatedAt?: number; // High-precision numeric update timestamp
   aiGovernance?: AIGovernanceMetadata;
+  aiSuggestions?: Record<string, unknown>; // Advisory only; never an engineering source of truth
 
   // --- AGGREGATES TECHNICAL PROPERTIES (الرمال والحصى) ---
   specificGravity?: number; // specific gravity (relative density)

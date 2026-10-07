@@ -7,6 +7,7 @@ import dotenv from "dotenv";
 import nodemailer from "nodemailer";
 import { generateMixDesignPdf } from "./src/services/pdf";
 import { createReportToken, storeReport, verifyReportToken } from "./server/reportDownloadService";
+import { sanitizeAIContext, validateAIConsent } from "./src/services/aiRequestGovernance";
 
 dotenv.config();
 
@@ -1387,7 +1388,7 @@ function getLocalMaterialFallback(name: string, category: string, region: string
 
 // API: Material Advisor Assistant utilizing server-side Gemini AI with schema validation
 app.post("/api/material-advisor", async (req, res) => {
-  const { name, category, region } = req.body;
+  const { name, category, region, requestEnvelope } = req.body;
   try {
     if (!name || !category) {
       return res.status(400).json({ success: false, error: "Missing name or category" });
@@ -1401,6 +1402,15 @@ app.post("/api/material-advisor", async (req, res) => {
         message: "No API key found. Using heuristic suggestions."
       });
     }
+
+    if (!requestEnvelope || requestEnvelope.provider !== "google" || requestEnvelope.outputKind !== "recommendation") {
+      return res.status(400).json({ success: false, error: "AI_CONSENT_REQUIRED" });
+    }
+    const sanitizedContext = sanitizeAIContext({ name, category, region }, {
+      allowedFields: ["name", "category", "region"],
+      maxPromptCharacters: 2000
+    });
+    validateAIConsent(requestEnvelope.consent, Object.keys(sanitizedContext.context), [], { maxAttachments: 0 });
 
     const ai = new GoogleGenAI({
       apiKey: apiKey,
