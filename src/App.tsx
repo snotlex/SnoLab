@@ -30,7 +30,6 @@ import { WelcomeBanner } from "./components/WelcomeBanner";
 import { StatusBar } from "./components/StatusBar";
 import { MixQualityScore } from "./components/MixQualityScore";
 import { ConcreteImageVisualizer } from "./components/ConcreteImageVisualizer";
-import { StrengthDevelopmentChart } from "./components/StrengthDevelopmentChart";
 import { MethodInfoCard } from "./components/MethodInfoCard";
 import { MethodReadinessChecklist } from "./components/MethodReadinessChecklist";
 import { checkMixCompliance } from "./mix-design-methods/complianceChecker";
@@ -105,6 +104,7 @@ const MixOptimizationPanel = React.lazy(() => import("./components/MixOptimizati
 const CalculationJournal = React.lazy(() => import("./components/CalculationJournal").then(m => ({ default: m.CalculationJournal })));
 const ReportCompliance = React.lazy(() => import("./components/ReportCompliance").then(m => ({ default: m.ReportCompliance })));
 const ReportThermalAnalysis = React.lazy(() => import("./components/ReportThermalAnalysis").then(m => ({ default: m.ReportThermalAnalysis })));
+const StrengthDevelopmentChart = React.lazy(() => import("./components/StrengthDevelopmentChart").then(m => ({ default: m.StrengthDevelopmentChart })));
 import { WorkspaceWorkflowHeader } from "./components/WorkspaceWorkflowHeader";
 import { WorkspaceTopBar } from "./components/WorkspaceTopBar";
 import { WorkspaceLayout } from "./components/WorkspaceLayout";
@@ -128,19 +128,6 @@ import { ChemicalAdmixtureSelectionCard } from "./components/ChemicalAdmixtureSe
 import { MineralAdditionSelectionCard } from "./components/MineralAdditionSelectionCard";
 import { FiberSelectionCard } from "./components/FiberSelectionCard";
 import { SpecialBinderSelectionCard } from "./components/SpecialBinderSelectionCard";
-import {
-  ResponsiveContainer,
-  PieChart as RechartsPieChart,
-  Pie,
-  Cell,
-  BarChart as RechartsBarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend
-} from "recharts";
 import {
   Cpu,
   Settings,

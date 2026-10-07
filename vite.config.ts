@@ -21,6 +21,14 @@ export default defineConfig(() => {
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
     },
     build: {
+      modulePreload: {
+        resolveDependencies(_filename, dependencies) {
+          // Heavy feature code is fetched after the user opens the feature, not during boot.
+          return dependencies.filter((dependency) =>
+            !/(pdf|spreadsheet|xlsx|charts-vendor)/i.test(dependency)
+          );
+        },
+      },
       rollupOptions: {
         output: {
           manualChunks(id) {

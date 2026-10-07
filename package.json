@@ -14,6 +14,7 @@
     "test:qr": "node scripts/qr-generation-smoke.mjs",
     "test:security": "node scripts/security-smoke.mjs",
     "test:load": "node scripts/api-load-smoke.mjs",
+    "test:bundle": "node scripts/bundle-budget.mjs",
     "test:e2e": "playwright test",
     "test:performance": "playwright test e2e/performance.spec.ts"
   },
