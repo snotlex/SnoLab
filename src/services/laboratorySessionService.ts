@@ -48,6 +48,7 @@ export function createLaboratorySession(input: LaboratorySessionCreateInput = {}
     site: input.site,
     supplier: input.supplier,
     requestOwner: input.requestOwner,
+    createdByIdentity: input.createdByIdentity,
     requestedAt: input.requestedAt || timestamp,
     priority: input.priority || "NORMAL",
     reason: input.reason,

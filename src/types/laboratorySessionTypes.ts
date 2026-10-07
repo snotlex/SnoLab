@@ -1,5 +1,6 @@
 import type { EngineeringMaterial } from "../types";
 import type { MaterialTestRecord, TestStatus } from "./laboratoryTypes";
+import type { LaboratoryIdentity } from "./laboratoryDomain";
 
 export type LaboratoryRequestStatus =
   | "DRAFT"
@@ -123,6 +124,7 @@ export interface LaboratorySessionAuditEntry {
 
 export interface LaboratorySessionReview {
   reviewer: string;
+  reviewerIdentity?: LaboratoryIdentity;
   reviewedAt: string;
   decision: "APPROVED" | "REJECTED" | "PARTIAL";
   notes?: string;
@@ -148,6 +150,7 @@ export interface LaboratorySession {
   site?: string;
   supplier?: string;
   requestOwner?: string;
+  createdByIdentity?: LaboratoryIdentity;
   requestedAt: string;
   priority?: "LOW" | "NORMAL" | "HIGH" | "URGENT";
   reason?: string;
@@ -173,6 +176,7 @@ export interface LaboratorySessionCreateInput {
   site?: string;
   supplier?: string;
   requestOwner?: string;
+  createdByIdentity?: LaboratoryIdentity;
   requestedAt?: string;
   priority?: LaboratorySession["priority"];
   reason?: string;
