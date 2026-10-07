@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useId, useMemo } from "react";
 import { SievePoint } from "../types";
 import { useLanguage } from "../services/localization";
 
@@ -14,6 +14,9 @@ export const GradingChart: React.FC<GradingChartProps> = ({
   dMax
 }) => {
   const { language } = useLanguage();
+  const chartId = useId();
+  const chartTitleId = `${chartId}-title`;
+  const chartDescId = `${chartId}-desc`;
 
   // SVG Dimensions
   const width = 600;
@@ -100,11 +103,23 @@ export const GradingChart: React.FC<GradingChartProps> = ({
       </div>
 
       <div className="overflow-x-auto">
-        <svg 
+        <svg
+          role="img"
+          aria-labelledby={`${chartTitleId} ${chartDescId}`}
           viewBox={`0 0 ${width} ${height}`} 
           className="w-full min-w-[500px] h-auto font-mono text-[10px] text-zinc-800 dark:text-zinc-100 fill-zinc-800 dark:fill-zinc-100 select-none"
-          id="dreux-grading-svg"
+          id={`${chartId}-svg`}
         >
+          <title id={chartTitleId}>
+            {language === "ar" ? "منحنى التدرج الحبيبي المستهدف" : language === "fr" ? "Courbe granulométrique cible" : "Target sieve grading curve"}
+          </title>
+          <desc id={chartDescId}>
+            {language === "ar"
+              ? "منحنى لوغاريتمي للتدرج الحبيبي مع نقطة الكسر M وحجم الركام الأقصى."
+              : language === "fr"
+                ? "Courbe logarithmique de granulométrie avec point de cassure M et dimension maximale des granulats."
+                : "Logarithmic grading curve with the pivot point M and maximum aggregate size."}
+          </desc>
           {/* Background grid - horizontal lines */}
           {horizontalGridPercents.map((pct) => (
             <g key={`h-grid-${pct}`}>

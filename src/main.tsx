@@ -41,14 +41,22 @@ class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorBoundary
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
+    <a
+      href="#main-content"
+      className="sr-only focus:not-sr-only focus:fixed focus:start-4 focus:top-4 focus:z-[100] focus:rounded-lg focus:bg-[#C7F43A] focus:px-4 focus:py-3 focus:font-bold focus:text-[#0A0F15] focus:shadow-xl"
+    >
+      تخطي إلى المحتوى الرئيسي / Skip to main content
+    </a>
     <AppErrorBoundary>
-      <LanguageProvider>
+      <div id="main-content" tabIndex={-1}>
+        <LanguageProvider>
         <ProjectProvider>
-          <ProjectWorkflowProvider>
-            <App />
-          </ProjectWorkflowProvider>
-        </ProjectProvider>
-      </LanguageProvider>
+            <ProjectWorkflowProvider>
+              <App />
+            </ProjectWorkflowProvider>
+          </ProjectProvider>
+        </LanguageProvider>
+      </div>
     </AppErrorBoundary>
   </StrictMode>,
 );

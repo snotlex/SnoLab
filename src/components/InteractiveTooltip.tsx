@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useId, useState } from "react";
 import { HelpCircle, Info } from "lucide-react";
 import { ENCYCLOPEDIA_TERMS } from "../data/engineeringEncyclopedia";
 import { AnimatePresence, motion } from "motion/react";
@@ -17,6 +17,7 @@ export const InteractiveTooltip: React.FC<InteractiveTooltipProps> = ({
   position = "top"
 }) => {
   const [isVisible, setIsVisible] = useState(false);
+  const tooltipId = useId();
 
   const term = ENCYCLOPEDIA_TERMS.find((t) => t.key === termKey);
 
@@ -58,19 +59,30 @@ export const InteractiveTooltip: React.FC<InteractiveTooltipProps> = ({
       onMouseLeave={() => setIsVisible(false)}
     >
       {children ? (
-        <span 
+        <button
+          type="button"
           onClick={handleToggle}
-          className="cursor-help border-b border-dashed border-blue-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+          onFocus={() => setIsVisible(true)}
+          onBlur={() => setIsVisible(false)}
+          aria-expanded={isVisible}
+          aria-describedby={isVisible ? tooltipId : undefined}
+          className="cursor-help border-b border-dashed border-blue-400 bg-transparent p-0 text-inherit hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
         >
           {children}
-        </span>
+        </button>
       ) : (
-        <span 
+        <button
+          type="button"
           onClick={handleToggle}
-          className="cursor-help text-slate-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors inline-flex p-0.5"
+          onFocus={() => setIsVisible(true)}
+          onBlur={() => setIsVisible(false)}
+          aria-label={language === "ar" ? `شرح المصطلح: ${title}` : language === "fr" ? `Définition : ${title}` : `Definition: ${title}`}
+          aria-expanded={isVisible}
+          aria-describedby={isVisible ? tooltipId : undefined}
+          className="cursor-help rounded p-0.5 text-slate-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors inline-flex"
         >
-          <Info size={11} className="inline-block" />
-        </span>
+          <Info size={11} className="inline-block" aria-hidden="true" />
+        </button>
       )}
 
       {/* TOOLTIP CONTENT BOX */}
