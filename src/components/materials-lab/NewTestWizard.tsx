@@ -50,6 +50,7 @@ import { createSieveMaterialUpdateProposals, createSpecificGravityMaterialUpdate
 import { runAggregateSpecificGravityPhase2, runAggregateBulkDensityPhase2, runAggregateMoisturePhase2, runSandEquivalentPhase2, runSandBulkingPhase2, runLosAngelesPhase2, runMicroDevalPhase2, runFlakinessPhase2, runMethyleneBluePhase2, runCementSpecificGravityPhase2, runBlaineFinenessPhase2, runCementSettingTimePhase2, runCementSoundnessPhase2, runCementMortarStrengthPhase2, runCementNormalConsistencyPhase2 } from "../../services/laboratoryTestDefinitions";
 import { getCompatibleMaterials, validateTestMaterialCompatibility, compatibilityMessage } from "../../services/laboratoryMaterialCompatibility";
 import { createBlankLaboratoryInputs, getLaboratoryFieldLabel, getLaboratoryFieldUnit, localizeLaboratoryIssue, validateLaboratoryInputs } from "../../services/laboratoryInputValidation";
+import { Field } from "../ui/Field";
 
 interface NewTestWizardProps {
   isOpen: boolean;
@@ -1415,15 +1416,24 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
                   {Object.keys(inputsState).filter(k => !Array.isArray(inputsState[k]) && (inputsState[k] === null || typeof inputsState[k] !== "object")).map(key => {
                     const isNumeric = typeof currentTestDef.defaultInputs[key] === "number" || key === "waterVolumeMl";
                     const unit = getLaboratoryFieldUnit(key);
-                    return <div key={key} className="space-y-1">
-                      <label className="text-xs font-bold text-slate-600 dark:text-slate-400">{getLaboratoryFieldLabel(key, language)}{unit && <span className="ms-1 text-[10px] text-slate-400">({unit})</span>}</label>
-                      <input type={isNumeric ? "number" : "text"} inputMode={isNumeric ? "decimal" : undefined} step="any" value={inputsState[key] ?? ""} aria-invalid={runAttempted && inputIssues.some(issue => issue.path === key)} onChange={(e) => {
+                    const issue = inputIssues.find(candidate => candidate.path === key);
+                    const error = runAttempted && issue ? localizeLaboratoryIssue(issue, language) : undefined;
+                    return <Field
+                      key={key}
+                      id={`laboratory-input-${key}`}
+                      label={getLaboratoryFieldLabel(key, language)}
+                      unit={unit}
+                      error={error}
+                      required
+                      focusOnError={Boolean(error) && inputIssues[0]?.path === key}
+                      className="text-xs font-bold text-slate-600 dark:text-slate-400"
+                    >
+                      <input type={isNumeric ? "number" : "text"} inputMode={isNumeric ? "decimal" : undefined} step="any" value={inputsState[key] ?? ""} onChange={(e) => {
                         const raw = e.target.value;
                         const val = isNumeric ? (raw.trim() === "" ? undefined : Number.isFinite(Number(raw.replace(/,/g, ".")) ) ? Number(raw.replace(/,/g, ".")) : raw) : raw;
                         setInputsState(prev => ({ ...prev, [key]: val }));
                       }} className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold font-mono" />
-                      {runAttempted && inputIssues.some(issue => issue.path === key) && <span className="block text-[10px] text-rose-600">{localizeLaboratoryIssue(inputIssues.find(issue => issue.path === key)!, language)}</span>}
-                    </div>;
+                    </Field>;
                   })}
                 </div>
                 {Object.keys(inputsState).filter(key => Array.isArray(inputsState[key])).map(key => {
