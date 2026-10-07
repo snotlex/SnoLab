@@ -16,7 +16,8 @@ export const InteractiveTooltip: React.FC<InteractiveTooltipProps> = ({
   children,
   position = "top"
 }) => {
-  const [isVisible, setIsVisible] = useState(false);\n  const tooltipId = useId();
+  const [isVisible, setIsVisible] = useState(false);
+  const tooltipId = useId();
 
   const term = ENCYCLOPEDIA_TERMS.find((t) => t.key === termKey);
 
