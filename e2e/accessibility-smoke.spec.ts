@@ -40,4 +40,11 @@ test.describe("SnoLab accessibility smoke", () => {
       expect(await dialog.getAttribute("aria-labelledby")).toBeTruthy();
     }
   });
+
+  test("provides a keyboard-accessible skip link to the main content", async ({ page }) => {
+    await page.goto("/");
+    await page.keyboard.press("Tab");
+    await expect(page.locator('a[href="#main-content"]')).toBeFocused();
+    await expect(page.locator('a[href="#main-content"]')).toHaveText(/Skip to main content/);
+  });
 });
