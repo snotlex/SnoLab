@@ -626,7 +626,6 @@ export class EngineeringCore {
     // Keep material resolution here, but never re-run a second method/plugin registry.
     const resolvedInputs: MixDesignInput = {
       ...inputs,
-      methodId: (inputs as any).methodId || (inputs as any).selectedMethod || "auto",
       cementClassStrength: materialsState.resolvedProperties.cementClassStrength,
       cementDensity: materialsState.resolvedProperties.cementDensity,
       sandRelativeDensity: materialsState.resolvedProperties.sandRelativeDensity,
@@ -640,7 +639,7 @@ export class EngineeringCore {
       aggregateType: materialsState.resolvedProperties.aggregateType as any,
       aggregateQuality: materialsState.resolvedProperties.aggregateQuality as any,
     };
-    const methodId = String((resolvedInputs as any).methodId || "auto");
+    const methodId = String((inputs as any).methodId || (inputs as any).selectedMethod || "auto");
 
     // Create temporary session stub for orchestration/reporting only.
     const tempSession: ProjectSession = {
@@ -693,7 +692,7 @@ export class EngineeringCore {
     };
 
     // Single calculation entry point: calculateMixDesign().
-    const results = calculateMixDesign(resolvedInputs as any) as unknown as MixDesignResult;
+    const results = calculateMixDesign({ ...resolvedInputs, methodId } as any) as unknown as MixDesignResult;
     tempSession.mixDesignState.results = results;
 
     // 2️⃣ Granular Engine
