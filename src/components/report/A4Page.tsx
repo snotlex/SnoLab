@@ -35,7 +35,7 @@ export const A4Page: React.FC<A4PageProps> = ({
       <div className="flex justify-between items-center text-[9px] text-slate-400 border-b border-slate-100 pb-1.5 mb-3 font-sans uppercase tracking-wider">
         <span className="font-semibold text-slate-500">{companyName || "SNO Quality Lab"}</span>
         <span className="font-extrabold text-blue-600 dark:text-amber-500">{title}</span>
-        <span className="font-mono">SNO-MX-2026-CERT</span>
+        <span className="font-mono">SNO-MX-2026-REPORT</span>
       </div>
 
       {/* Watermark background */}
@@ -51,7 +51,7 @@ export const A4Page: React.FC<A4PageProps> = ({
       {/* Page Footer */}
       <div className="flex justify-between items-center text-[9px] text-slate-400 border-t border-slate-100 pt-1.5 mt-3 font-sans">
         <span>{new Date().toLocaleDateString(reportLanguage === "ar" ? "ar-EG" : "en-US")}</span>
-        <span className="font-semibold tracking-wider text-slate-500">SNO® PLATFORM CERTIFICATION</span>
+        <span className="font-semibold tracking-wider text-slate-500">SNO® ENGINEERING REPORT — REVIEW REQUIRED</span>
         <span>Page {pageNumber} of {totalPages}</span>
       </div>
     </div>
