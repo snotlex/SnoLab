@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useId, useRef } from "react";
 
 type Tone = "neutral" | "info" | "success" | "warning" | "danger";
 
@@ -118,21 +118,30 @@ export function ConfirmDialog({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
+  const titleId = useId();
+  const descriptionId = useId();
+  const cancelRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    cancelRef.current?.focus();
+  }, [open]);
+
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="presentation" onMouseDown={onCancel}>
       <div
         role="dialog"
         aria-modal="true"
-        aria-labelledby="snolab-confirm-title"
-        aria-describedby={description ? "snolab-confirm-description" : undefined}
+        aria-labelledby={titleId}
+        aria-describedby={description ? descriptionId : undefined}
         className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-slate-800 dark:bg-slate-950"
         onMouseDown={(event) => event.stopPropagation()}
       >
-        <h2 id="snolab-confirm-title" className="text-base font-black">{title}</h2>
-        {description ? <p id="snolab-confirm-description" className="mt-2 text-sm text-slate-600 dark:text-slate-300">{description}</p> : null}
+        <h2 id={titleId} className="text-base font-black">{title}</h2>
+        {description ? <p id={descriptionId} className="mt-2 text-sm text-slate-600 dark:text-slate-300">{description}</p> : null}
         <div className="mt-5 flex justify-end gap-2">
-          <button type="button" onClick={onCancel} className="rounded-lg border px-3 py-2 text-sm">{cancelLabel}</button>
+          <button ref={cancelRef} type="button" onClick={onCancel} className="rounded-lg border px-3 py-2 text-sm">{cancelLabel}</button>
           <button type="button" onClick={onConfirm} className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white dark:bg-white dark:text-slate-900">{confirmLabel}</button>
         </div>
       </div>
