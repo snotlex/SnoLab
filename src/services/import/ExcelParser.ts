@@ -5,6 +5,7 @@ import { PropertyMapper } from "./PropertyMapper";
 import { UnitNormalizer } from "./UnitNormalizer";
 import { MaterialDetector } from "./MaterialDetector";
 import { Validator } from "./Validator";
+import { assertSafeImportKey, assertWorkbookLimits } from "./importSecurity";
 
 export class ExcelParser {
   /**
@@ -27,9 +28,11 @@ export class ExcelParser {
     unmappedColumns: Array<{ source: string; header: string; sampleValues: any[] }>;
   }> {
     const workbook = XLSX.read(fileBuffer, { type: "array" });
+    assertWorkbookLimits(workbook.SheetNames.length, 0);
     const drafts: ParsedMaterialDraft[] = [];
     const sheetsProcessed: string[] = [];
     const unmappedColumnsMap = new Map<string, { source: string; header: string; sampleValues: any[] }>();
+    let cellCount = 0;
 
     for (const sheetName of workbook.SheetNames) {
       if (ExcelParser.shouldIgnoreSheet(sheetName)) {
@@ -44,6 +47,8 @@ export class ExcelParser {
       // Convert worksheet to 2D array of raw values
       const grid = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false }) as any[][];
       if (!grid || grid.length === 0) continue;
+      cellCount += grid.reduce((sum, row) => sum + row.length, 0);
+      assertWorkbookLimits(workbook.SheetNames.length, cellCount);
 
       // Detect tables within the grid
       const tables = TableDetector.detectTables(grid);
@@ -90,6 +95,7 @@ export class ExcelParser {
 
           // Populate mapped properties and preserve unmapped in extraProperties (ZERO data loss)
           for (const header of table.headers) {
+            assertSafeImportKey(String(header));
             const val = rawRow[header];
             const match = mappings[header];
 

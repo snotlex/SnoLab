@@ -17,6 +17,7 @@ import { EngineeringMaterial } from "../../types";
 import { MaterialService } from "../MaterialService";
 import { isSystemMaterial } from "../../utils/materialSourceHelper";
 import { handleMaterialMutationWithGovernance } from "../materialEligibilityService";
+import { assertSafeImportObject, parseSafeJson, preflightImportFile, ImportSecurityError } from "./importSecurity";
 
 export class ImportManager {
   /**
@@ -30,36 +31,32 @@ export class ImportManager {
   ): Promise<ImportPipelineReport> {
     const startTime = Date.now();
     const fileName = file.name;
-    const lowerName = fileName.toLowerCase();
     const buffer = await file.arrayBuffer();
+    const fileType = preflightImportFile(fileName, buffer, (file as File).type);
 
     let drafts: ParsedMaterialDraft[] = [];
     let sheetsOrPages: string[] = [];
     let unmappedHeaders: UnmappedHeaderEntry[] = [];
-    let fileType: "EXCEL" | "PDF" | "CSV" | "JSON" = "EXCEL";
     let hasOcrItems = false;
 
-    if (lowerName.endsWith(".pdf")) {
-      fileType = "PDF";
+    if (fileType === "PDF") {
       const pdfResult = await PDFParser.parsePdf(buffer, fileName, onProgress);
       drafts = pdfResult.drafts;
       hasOcrItems = pdfResult.hasOcrItems;
       sheetsOrPages = Array.from({ length: pdfResult.pagesProcessed }, (_, i) => `صفحة ${i + 1}`);
       unmappedHeaders = pdfResult.unmappedColumns;
-    } else if (lowerName.endsWith(".csv")) {
-      fileType = "CSV";
+    } else if (fileType === "CSV") {
       if (onProgress) onProgress("جاري تحليل ملف CSV وقراءة الأعمدة...", 30);
       const excelResult = await ExcelParser.parseWorkbook(buffer, fileName);
       drafts = excelResult.drafts;
       sheetsOrPages = excelResult.sheetsProcessed;
       unmappedHeaders = excelResult.unmappedColumns;
-    } else if (lowerName.endsWith(".json")) {
-      fileType = "JSON";
+    } else if (fileType === "JSON") {
       if (onProgress) onProgress("جاري قراءة ملف JSON وفحص المواصفات الهندسية...", 40);
       try {
-        const text = new TextDecoder().decode(buffer);
-        const jsonContent = JSON.parse(text);
+        const jsonContent = parseSafeJson(buffer) as any;
         const rawArray = Array.isArray(jsonContent) ? jsonContent : jsonContent.materials || jsonContent.data || [jsonContent];
+        if (!Array.isArray(rawArray)) throw new ImportSecurityError("INVALID_JSON_ROOT", "بنية JSON يجب أن تحتوي على مصفوفة مواد.");
         
         drafts = rawArray.filter((item: any) => item && typeof item === "object").map((item: any, idx: number) => {
           const draftName = String(item.name || item.ArabicName || item.arabicName || item.EnglishName || item.englishName || `مادة JSON #${idx + 1}`).trim();
@@ -160,16 +157,25 @@ export class ImportManager {
           };
         });
       } catch (e) {
-        drafts = [];
+        if (e instanceof ImportSecurityError) throw e;
+        throw new ImportSecurityError("JSON_IMPORT_FAILED", "تعذر تحليل ملف JSON بأمان.");
       }
     } else {
       // Standard Excel (.xlsx, .xls)
-      fileType = "EXCEL";
       if (onProgress) onProgress("جاري فحص أوراق العمل وتحليل الجداول الهندسية...", 30);
       const excelResult = await ExcelParser.parseWorkbook(buffer, fileName);
       drafts = excelResult.drafts;
       sheetsOrPages = excelResult.sheetsProcessed;
       unmappedHeaders = excelResult.unmappedColumns;
+    }
+
+    for (const draft of drafts) {
+      assertSafeImportObject(draft.extraProperties, `draft:${draft.id}.extraProperties`);
+      if (!draft.sourceTracking?.fileName || !draft.source) {
+        draft.status = "Invalid";
+        draft.validation.errors.push("مصدر المادة ومعلومات التتبع مطلوبان قبل الاستيراد.");
+        draft.selectedForImport = false;
+      }
     }
 
     if (onProgress) onProgress("جاري مطابقة المواد مع المكتبة الحالية وفحص التكرار...", 85);

@@ -16,6 +16,15 @@ describe("report format exporters", () => {
     expect(csv).toContain("input,fck28,25");
   });
 
+  it("neutralizes formula-like report values in CSV", () => {
+    const csv = reportToCsv(buildReportEnvelope({
+      input: { fck28: 25 } as any,
+      result: { notes: "=HYPERLINK(\"https://example.com\")" } as any,
+      language: "en",
+    }));
+    expect(csv).toContain("'=HYPERLINK");
+  });
+
   it("emits standalone RTL HTML and escapes user data", () => {
     const html = reportToHtml(report);
     expect(html).toContain('dir="rtl"');

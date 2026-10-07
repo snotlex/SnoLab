@@ -7,6 +7,7 @@ import {
 import { PropertyService } from "./PropertyService";
 import { MaterialTypeSchemaService } from "./MaterialTypeSchemaService";
 import { MaterialService } from "./MaterialService";
+import { sanitizeWorkbookStrings } from "./export/spreadsheetSanitizer";
 
 /**
  * Standard Multi-Sheet Excel Workbook Export Service
@@ -290,6 +291,7 @@ export class ExportService {
     const wsMeta = XLSX.utils.json_to_sheet(metaRows);
     XLSX.utils.book_append_sheet(wb, wsMeta, "Import Metadata");
 
+    sanitizeWorkbookStrings(wb);
     return wb;
   }
 

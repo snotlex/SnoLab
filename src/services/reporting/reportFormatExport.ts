@@ -1,4 +1,5 @@
 import { flattenReportRows, type ReportEnvelope } from "./reportContract";
+import { sanitizeSpreadsheetValue } from "../export/spreadsheetSanitizer";
 
 function downloadBlob(content: BlobPart, mime: string, filename: string): void {
   if (typeof window === "undefined") return;
@@ -18,7 +19,8 @@ function safeFilename(value: string): string {
 }
 
 function csvCell(value: unknown): string {
-  const text = value === null || value === undefined ? "" : typeof value === "object" ? JSON.stringify(value) : String(value);
+  const raw = value === null || value === undefined ? "" : typeof value === "object" ? JSON.stringify(value) : String(value);
+  const text = String(sanitizeSpreadsheetValue(raw));
   return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 

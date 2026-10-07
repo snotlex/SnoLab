@@ -9,3 +9,4 @@ export * from "./ExcelParser";
 export * from "./PDFParser";
 export * from "./OCRVisionParser";
 export * from "./ImportManager";
+export * from "./importSecurity";
