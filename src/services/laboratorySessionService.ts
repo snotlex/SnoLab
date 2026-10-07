@@ -17,6 +17,8 @@ import {
   SessionTestRunner,
   TEST_STATUS_TO_SESSION_STATUS
 } from "../types/laboratorySessionTypes";
+import type { LaboratoryIdentity } from "../types/laboratoryDomain";
+import { evaluateLaboratorySessionGovernance } from "./laboratorySessionGovernance";
 
 const nowIso = () => new Date().toISOString();
 const id = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -243,12 +245,20 @@ export function canApproveLaboratorySession(session: LaboratorySession): { allow
   return { allowed: session.tests.length > 0 && reasons.length === 0, reasons };
 }
 
-export function approveLaboratorySession(session: LaboratorySession, reviewer: string, notes?: string): LaboratorySession {
+export function approveLaboratorySessionOfficial(session: LaboratorySession, reviewerIdentity: LaboratoryIdentity, notes?: string): LaboratorySession {
   if (session.legacyDiagnosticOnly) throw new Error("Legacy diagnostic sessions cannot be approved as official laboratory results.");
+  if (!reviewerIdentity.userId || !reviewerIdentity.displayName || !reviewerIdentity.role || !reviewerIdentity.organizationId || !reviewerIdentity.authenticatedAt) {
+    throw new Error("Official approval requires a complete structured reviewer identity.");
+  }
+  if (session.createdByIdentity?.userId === reviewerIdentity.userId) {
+    throw new Error("Official approval requires a reviewer who is independent from the session creator.");
+  }
   const approval = canApproveLaboratorySession(session);
   if (!approval.allowed) throw new Error(`Session cannot be approved: ${approval.reasons.join(" ")}`);
-  const review = { reviewer, reviewedAt: nowIso(), decision: "APPROVED" as const, notes };
-  return touch({ ...session, status: "APPROVED", review }, audit("SESSION_APPROVED", "approval", session.id, reviewer, notes, session.review, review));
+  const governed = evaluateLaboratorySessionGovernance({ ...session, review: { reviewer: reviewerIdentity.displayName, reviewerIdentity, reviewedAt: nowIso(), decision: "APPROVED", notes } });
+  if (!governed.official) throw new Error(`Official approval is blocked by governance: ${governed.blockingReasons.join(", ")}`);
+  const review = { reviewer: reviewerIdentity.displayName, reviewerIdentity, reviewedAt: nowIso(), decision: "APPROVED" as const, notes };
+  return touch({ ...session, status: "APPROVED", review }, audit("SESSION_APPROVED", "approval", session.id, reviewerIdentity.userId, notes, session.review, review));
 }
 
 function isSyncableValue(value: unknown): value is number | string | boolean {

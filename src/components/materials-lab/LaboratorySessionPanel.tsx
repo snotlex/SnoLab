@@ -8,8 +8,6 @@ import {
   addSessionSample,
   addSessionTest,
   addTestReplicate,
-  approveLaboratorySession,
-  canApproveLaboratorySession,
   createLaboratorySession,
   legacyRecordToLaboratorySession,
   runReadyLaboratoryTests,
@@ -155,24 +153,6 @@ export const LaboratorySessionPanel: React.FC<LaboratorySessionPanelProps> = ({ 
     setMessage(text(language, `تم تنفيذ ${result.results.length} عنصر مستقل دون إلغاء بقية الاختبارات.`, ` ${result.results.length} élément(s) exécuté(s) indépendamment.`, `${result.results.length} item(s) executed independently.`));
   };
 
-  const approveActive = () => {
-    if (!activeSession) return;
-    if (!governance?.official) {
-      setMessage(text(language, "الاعتماد الرسمي محظور: أكمل بوابة المعيار والجهاز والبيانات وهوية المراجع أولًا. الجلسة الحالية تشخيصية فقط.", "Approbation officielle bloquée : complétez la norme, l'appareil, les données et l'identité du réviseur. Cette session reste diagnostique.", "Official approval is blocked: complete the standard, equipment, data, and reviewer identity gates first. This session remains diagnostic-only."));
-      return;
-    }
-    const gate = canApproveLaboratorySession(activeSession);
-    if (!gate.allowed) {
-      setMessage(text(language, `منع الاعتماد: ${gate.reasons[0] || "الطلب غير مكتمل"}`, `Approbation refusée : ${gate.reasons[0] || "demande incomplète"}`, `Approval blocked: ${gate.reasons[0] || "request incomplete"}`));
-      return;
-    }
-    try {
-      const approved = approveLaboratorySession(activeSession, "مسؤول المختبر");
-      setSessions(prev => prev.map(session => session.id === approved.id ? approved : session));
-      setMessage(text(language, "تم اعتماد الطلب بعد التحقق من جميع الاختبارات.", "Demande approuvée après vérification des essais.", "Request approved after all tests passed review."));
-    } catch (error) { setMessage(error instanceof Error ? error.message : "Approval failed."); }
-  };
-
   const exportSessionReport = async (format: "pdf" | "html" | "json" | "csv") => {
     if (!activeSession) return;
     const report = buildLaboratorySessionReport(activeSession, { language: language as "ar" | "fr" | "en" });
@@ -190,7 +170,7 @@ export const LaboratorySessionPanel: React.FC<LaboratorySessionPanelProps> = ({ 
         <h2 className="mt-1 text-xl font-black text-slate-900 dark:text-white">{activeSession?.requestNumber || text(language, "ابدأ طلبًا متعدد الاختبارات", "Créer une demande multi-essais", "Start a multi-test request")}</h2>
         <p className="mt-1 text-xs text-slate-500">{text(language, "كل اختبار وعينة وتكرار يحتفظ بمدخلاته وحالته وسجل تدقيقه بشكل مستقل.", "Chaque essai, échantillon et répétition conserve ses données et son statut.", "Each test, sample, and replicate keeps independent inputs, status, and audit data.")}</p>
       </div>
-      <div className="flex flex-wrap gap-2"><button type="button" onClick={() => setShowCreate(value => !value)} className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-black text-white hover:bg-indigo-700"><Plus className="h-4 w-4" />{text(language, "طلب جديد متعدد الاختبارات", "Nouvelle demande multi-essais", "New multi-test request")}</button>{activeSession && <><button type="button" disabled={running} onClick={runReady} className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-black text-white disabled:opacity-50"><Play className="h-4 w-4" />{running ? text(language, "جارٍ التنفيذ...", "Exécution...", "Running...") : text(language, "تشغيل الجاهز", "Exécuter les prêts", "Run ready tests")}</button><button type="button" onClick={approveActive} disabled={!governance?.official} title={!governance?.official ? text(language, "الجلسة تشخيصية حتى اكتمال بوابة الحوكمة", "Session diagnostique jusqu'à la fin de la gouvernance", "Diagnostic-only until governance is complete") : undefined} className="inline-flex items-center gap-2 rounded-xl border border-emerald-300 bg-white px-4 py-2 text-xs font-black text-emerald-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-900"><CheckCircle2 className="h-4 w-4" />{text(language, "مراجعة واعتماد الطلب", "Revoir et approuver", "Review & approve")}</button><div className="flex items-center gap-1 rounded-xl border border-slate-200 bg-white p-1 dark:border-slate-700 dark:bg-slate-900"><Download className="mx-1 h-3.5 w-3.5 text-slate-500" /><button type="button" onClick={() => void exportSessionReport("pdf")} className="rounded-lg px-2 py-1 text-[10px] font-black text-slate-700 hover:bg-slate-100 dark:text-slate-200">PDF</button><button type="button" onClick={() => void exportSessionReport("html")} className="rounded-lg px-2 py-1 text-[10px] font-black text-slate-700 hover:bg-slate-100 dark:text-slate-200">HTML</button><button type="button" onClick={() => void exportSessionReport("json")} className="rounded-lg px-2 py-1 text-[10px] font-black text-slate-700 hover:bg-slate-100 dark:text-slate-200">JSON</button><button type="button" onClick={() => void exportSessionReport("csv")} className="rounded-lg px-2 py-1 text-[10px] font-black text-slate-700 hover:bg-slate-100 dark:text-slate-200">CSV</button></div></>}</div>
+      <div className="flex flex-wrap gap-2"><button type="button" onClick={() => setShowCreate(value => !value)} className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-black text-white hover:bg-indigo-700"><Plus className="h-4 w-4" />{text(language, "طلب جديد متعدد الاختبارات", "Nouvelle demande multi-essais", "New multi-test request")}</button>{activeSession && <><button type="button" disabled={running} onClick={runReady} className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-black text-white disabled:opacity-50"><Play className="h-4 w-4" />{running ? text(language, "جارٍ التنفيذ...", "Exécution...", "Running...") : text(language, "تشغيل الجاهز", "Exécuter les prêts", "Run ready tests")}</button><div className="flex items-center gap-1 rounded-xl border border-slate-200 bg-white p-1 dark:border-slate-700 dark:bg-slate-900"><Download className="mx-1 h-3.5 w-3.5 text-slate-500" /><button type="button" onClick={() => void exportSessionReport("pdf")} className="rounded-lg px-2 py-1 text-[10px] font-black text-slate-700 hover:bg-slate-100 dark:text-slate-200">PDF</button><button type="button" onClick={() => void exportSessionReport("html")} className="rounded-lg px-2 py-1 text-[10px] font-black text-slate-700 hover:bg-slate-100 dark:text-slate-200">HTML</button><button type="button" onClick={() => void exportSessionReport("json")} className="rounded-lg px-2 py-1 text-[10px] font-black text-slate-700 hover:bg-slate-100 dark:text-slate-200">JSON</button><button type="button" onClick={() => void exportSessionReport("csv")} className="rounded-lg px-2 py-1 text-[10px] font-black text-slate-700 hover:bg-slate-100 dark:text-slate-200">CSV</button></div></>}</div>
     </div>
     {activeSession && governance && <div data-testid="laboratory-governance-panel" className={`mt-4 rounded-2xl border p-3 ${governance.official ? "border-emerald-200 bg-emerald-50 dark:border-emerald-900/60 dark:bg-emerald-950/20" : "border-amber-200 bg-amber-50 dark:border-amber-900/60 dark:bg-amber-950/20"}`}>
       <div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex items-center gap-2 text-xs font-black"><AlertTriangle className="h-4 w-4 text-amber-600" />{text(language, governance.official ? "بوابة الحوكمة الرسمية جاهزة" : "الجلسة في الوضع التشخيصي فقط", governance.official ? "Gouvernance officielle prête" : "Session en mode diagnostique", governance.official ? "Official governance ready" : "Diagnostic-only session")}</div><p className="mt-1 text-[10px] text-slate-600 dark:text-slate-300">{text(language, governance.official ? "يمكن الانتقال إلى مراجعة مستقلة وفق السجل الموثق." : "لا تُستخدم هذه الجلسة كاعتماد مختبري رسمي قبل استكمال السجل الموثق.", governance.official ? "La revue indépendante peut commencer avec les preuves enregistrées." : "Cette session ne constitue pas une approbation officielle avant complétion des preuves.", governance.official ? "Independent review may proceed with recorded evidence." : "This session is not an official laboratory approval until traceable evidence is complete.")}</p></div><span className="rounded-full bg-white/70 px-2 py-1 text-[10px] font-black text-amber-700 dark:bg-slate-900/60">{governance.releaseEligibility}</span></div>

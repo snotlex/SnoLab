@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { createLaboratorySession, addSessionSample, addSessionTest, addTestReplicate, approveLaboratorySession, buildLaboratorySessionSyncPlan, canApproveLaboratorySession, findLaboratorySessionSyncConflicts, legacyRecordToLaboratorySession, recordSampleCustodyEvent, runReadyLaboratoryTests, summarizeLaboratorySession, summarizeReplicates, validateLaboratorySession } from "../services/laboratorySessionService";
+import { createLaboratorySession, addSessionSample, addSessionTest, addTestReplicate, approveLaboratorySessionOfficial, buildLaboratorySessionSyncPlan, canApproveLaboratorySession, findLaboratorySessionSyncConflicts, legacyRecordToLaboratorySession, recordSampleCustodyEvent, runReadyLaboratoryTests, summarizeLaboratorySession, summarizeReplicates, validateLaboratorySession } from "../services/laboratorySessionService";
 import type { MaterialTestRecord } from "../types/laboratoryTypes";
+import type { LaboratoryIdentity } from "../types/laboratoryDomain";
 
 describe("Laboratory multi-test session service", () => {
+  const reviewer: LaboratoryIdentity = { userId: "reviewer-1", displayName: "Independent reviewer", role: "quality-manager", organizationId: "lab-1", authenticatedAt: "2026-10-01T00:00:00.000Z" };
   const baseSample = {
     sampleNumber: "AGG-001",
     sampleCode: "AGG-001-A",
@@ -80,7 +82,7 @@ describe("Laboratory multi-test session service", () => {
     expect(session.tests[0].result).toEqual(legacy.results);
     expect(session.samples[0].sampleNumber).toBe(legacy.sampleId);
     expect(session.legacyDiagnosticOnly).toBe(true);
-    expect(() => approveLaboratorySession(session, "reviewer")).toThrow("Legacy diagnostic sessions");
+    expect(() => approveLaboratorySessionOfficial(session, reviewer)).toThrow("Legacy diagnostic sessions");
   });
 
   it("does not report COMPLETED when result evidence is missing", () => {
@@ -113,6 +115,21 @@ describe("Laboratory multi-test session service", () => {
     expect(plan).toHaveLength(2);
     expect(findLaboratorySessionSyncConflicts(plan)).toHaveLength(1);
     expect(canApproveLaboratorySession(session).allowed).toBe(true);
-    expect(approveLaboratorySession(session, "reviewer", "Reviewed manually").status).toBe("APPROVED");
+    expect(() => approveLaboratorySessionOfficial(session, reviewer, "Reviewed manually")).toThrow("Official approval is blocked by governance");
+  });
+
+  it("requires a structured independent identity and complete governance for official approval", () => {
+    let session = createLaboratorySession({ requestNumber: "LAB-OFFICIAL-1", createdByIdentity: { userId: "creator-1", displayName: "Operator", role: "lab-technician", organizationId: "lab-1", authenticatedAt: "2026-10-01T00:00:00.000Z" }, governance: {
+      standardSnapshot: { id: "STD-1", organization: "EN", code: "EN 123", version: "2026", status: "Active" },
+      equipmentIds: ["EQ-1"], equipmentCalibrationSnapshots: [{ id: "EQ-1", equipmentId: "EQ-1", status: "Active" }]
+    }});
+    session = addSessionSample(session, { ...baseSample, receivedAt: "2026-10-01T10:00:00.000Z", custodyEvents: [{ id: "CUST-1", action: "RECEIVED", actor: "lab-tech", timestamp: "2026-10-01T10:00:00.000Z" }] });
+    session = addSessionTest(session, { testType: "T-OFFICIAL", testTitleAr: "اختبار رسمي", testTitleFr: "Essai officiel", testTitleEn: "Official test", standard: "EN 123", materialId: "MAT-SAND", sampleId: session.samples[0].id, status: "PASS", result: { density: 2.65 }, sourceProperties: ["density"] });
+    session = { ...session, tests: session.tests.map(test => ({ ...test, auditEntryIds: ["AUD-RESULT"], replicates: [{ id: "REP-1", sequence: 1, sampleId: session.samples[0].id, status: "VALID" as const, rawInputs: { density: 2.65 }, numericResult: 2.65 }] })) };
+    const approved = approveLaboratorySessionOfficial(session, reviewer, "Independent review complete");
+    expect(approved.status).toBe("APPROVED");
+    expect(approved.review?.reviewerIdentity).toEqual(reviewer);
+    expect(approved.auditLog.at(-1)).toMatchObject({ action: "SESSION_APPROVED", actor: reviewer.userId });
+    expect(() => approveLaboratorySessionOfficial(session, "reviewer" as unknown as LaboratoryIdentity)).toThrow("complete structured reviewer identity");
   });
 });
