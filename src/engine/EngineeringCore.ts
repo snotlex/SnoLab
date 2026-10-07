@@ -639,7 +639,8 @@ export class EngineeringCore {
       aggregateType: materialsState.resolvedProperties.aggregateType as any,
       aggregateQuality: materialsState.resolvedProperties.aggregateQuality as any,
     };
-    const methodId = String((inputs as any).methodId || (inputs as any).selectedMethod || "auto");
+    const requestedMethodId = String((inputs as any).methodId || (inputs as any).selectedMethod || "auto");
+    const methodId = requestedMethodId === "dreux" ? "dreux-gorisse" : requestedMethodId;
 
     // Create temporary session stub for orchestration/reporting only.
     const tempSession: ProjectSession = {
