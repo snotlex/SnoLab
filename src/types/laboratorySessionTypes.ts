@@ -130,6 +130,30 @@ export interface LaboratorySessionReview {
   notes?: string;
 }
 
+export interface LaboratorySessionGovernanceConfig {
+  standardId?: string;
+  standardSnapshot?: {
+    id: string;
+    organization: string;
+    code: string;
+    version?: string;
+    status: string;
+    effectiveFrom?: string;
+    effectiveTo?: string;
+    acceptanceRule?: string;
+  };
+  equipmentIds?: string[];
+  equipmentCalibrationSnapshots?: Array<{
+    id: string;
+    equipmentId: string;
+    serialNumber?: string;
+    calibrationDate?: string;
+    nextCalibrationDate?: string;
+    status: string;
+    location?: string;
+  }>;
+}
+
 export interface LaboratorySessionSyncPlanItem {
   sessionId: string;
   requestNumber: string;
@@ -156,6 +180,7 @@ export interface LaboratorySession {
   reason?: string;
   notes?: string;
   status: LaboratoryRequestStatus;
+  governance?: LaboratorySessionGovernanceConfig;
   parentSampleIds: string[];
   samples: LaboratorySessionSample[];
   tests: LaboratorySessionTestItem[];
@@ -181,6 +206,7 @@ export interface LaboratorySessionCreateInput {
   priority?: LaboratorySession["priority"];
   reason?: string;
   notes?: string;
+  governance?: LaboratorySessionGovernanceConfig;
 }
 
 export interface LaboratorySessionValidationIssue {

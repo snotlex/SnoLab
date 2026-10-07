@@ -81,6 +81,8 @@ import { evaluateProductionRelease } from "./services/productionReleaseGate";
 import { can, resolveUserRole, separationOfDuties, UserRole } from "./services/permissions";
 import type { CalibrationRecord, SampleRecord, TestDeviceRecord } from "./types/qualityDomain";
 import type { LaboratorySession } from "./types/laboratorySessionTypes";
+import { LABORATORY_STANDARD_REGISTRY } from "./services/laboratoryStandardRegistry";
+import type { RegisteredEquipment } from "./services/laboratoryRegistry";
 const RecipeReport = React.lazy(() => import("./components/RecipeReport").then(m => ({ default: m.RecipeReport })));
 const ChemicalDosageMonitor = React.lazy(() => import("./components/ChemicalDosageMonitor").then(m => ({ default: m.ChemicalDosageMonitor })));
 const SieveGradingCurves = React.lazy(() => import("./components/SieveGradingCurves").then(m => ({ default: m.SieveGradingCurves })));
@@ -6708,6 +6710,16 @@ max="0.95"
                   projectName={activeProject?.name}
                   projectSessions={activeProject?.laboratorySessions}
                   onSessionsChange={handleLaboratorySessionsChange}
+                  standardRegistry={LABORATORY_STANDARD_REGISTRY}
+                  equipmentRegistry={(activeProject?.testDevices || []).map(device => ({
+                    id: device.id,
+                    equipmentId: device.id,
+                    name: device.name,
+                    serialNumber: device.serialNumber,
+                    status: device.calibrationStatus === "valid" ? "Active" : device.calibrationStatus === "expired" ? "Expired" : "Calibration Due",
+                    nextCalibrationDate: device.calibrationDueAt,
+                    certificateAttachmentId: device.calibrationCertificate
+                  } as RegisteredEquipment))}
                   language={language as "ar" | "fr" | "en"}
                 />
               </div>

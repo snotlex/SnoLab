@@ -47,3 +47,18 @@ describe("laboratory session governance", () => {
     expect(result.releaseEligibility).toBe("diagnostic_only");
   });
 });
+
+it("recognizes controlled standard and calibration snapshots when attached to a session", () => {
+  const base = sessionWithTest();
+  const result = evaluateLaboratorySessionGovernance({
+    ...base,
+    governance: {
+      standardId: "STD-EN933-1-2012",
+      standardSnapshot: { id: "STD-EN933-1-2012", organization: "EN", code: "EN 933-1", version: "2012", status: "Active", acceptanceRule: "laboratory-approved-range" },
+      equipmentIds: ["EQ-1"],
+      equipmentCalibrationSnapshots: [{ id: "EQ-1", equipmentId: "EQ-1", serialNumber: "SN-1", status: "Active", nextCalibrationDate: "2027-01-01" }],
+    },
+  });
+  expect(result.checks.find(check => check.id === "standard")?.ready).toBe(true);
+  expect(result.checks.find(check => check.id === "equipment")?.ready).toBe(true);
+});

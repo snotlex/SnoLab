@@ -54,6 +54,12 @@ export function createLaboratorySession(input: LaboratorySessionCreateInput = {}
     reason: input.reason,
     notes: input.notes,
     status: "DRAFT",
+    governance: input.governance ? {
+      ...input.governance,
+      equipmentIds: input.governance.equipmentIds ? [...input.governance.equipmentIds] : undefined,
+      equipmentCalibrationSnapshots: input.governance.equipmentCalibrationSnapshots ? input.governance.equipmentCalibrationSnapshots.map(snapshot => ({ ...snapshot })) : undefined,
+      standardSnapshot: input.governance.standardSnapshot ? { ...input.governance.standardSnapshot } : undefined,
+    } : undefined,
     parentSampleIds: [],
     samples: [],
     tests: [],

@@ -1,4 +1,5 @@
 import type { LaboratorySession } from "../types/laboratorySessionTypes";
+import { preflightStandard } from "./laboratoryRegistry";
 
 export interface LaboratorySessionGovernanceCheck {
   id: "standard" | "equipment" | "rawData" | "trace" | "custody" | "reviewer" | "separation";
@@ -24,11 +25,12 @@ export interface LaboratorySessionGovernanceResult {
 export function evaluateLaboratorySessionGovernance(session: LaboratorySession): LaboratorySessionGovernanceResult {
   const tests = session.tests;
   const samples = session.samples;
-  const standardReady = tests.length > 0 && tests.every(test => {
-    const value = test.standard.trim().toLowerCase();
-    return value.length > 0 && !value.includes("configured by laboratory") && !value.includes("draft");
-  });
-  const equipmentReady = tests.length > 0 && tests.every(test => Boolean((test as any).equipmentIds?.length && (test as any).equipmentCalibrationSnapshot?.length));
+  const standardReady = Boolean(session.governance?.standardSnapshot && preflightStandard(session.governance.standardSnapshot as any).ready);
+  const equipmentReady = Boolean(
+    session.governance?.equipmentIds?.length &&
+    session.governance.equipmentCalibrationSnapshots?.length &&
+    session.governance.equipmentCalibrationSnapshots.every(snapshot => snapshot.status === "Active")
+  );
   const rawDataReady = tests.length > 0 && tests.every(test => test.replicates.length > 0 && test.replicates.every(replicate => Object.keys(replicate.rawInputs || {}).length > 0));
   const traceReady = tests.length > 0 && tests.every(test => Boolean(test.result && test.auditEntryIds.length > 0));
   const custodyReady = samples.length > 0 && samples.every(sample => Boolean(sample.receivedAt && sample.custodyEvents?.length));
