@@ -15,6 +15,10 @@ export class MixDesignEngine {
    * Executes mix design calculation after validation, routing to the correct registered strategy.
    * Seamlessly handles legacy inputs lacking a methodId by defaulting to 'dreux-gorisse'.
    */
+  public listActive(): MixDesignMethodRegistry["listActive"] extends () => infer T ? T : never {
+    return this.registry.listActive();
+  }
+
   public calculate(request: MixDesignRequest): MixDesignResult {
     const requestedMethodId = request.methodId || "auto";
     const context = request.context || { language: "ar" };
