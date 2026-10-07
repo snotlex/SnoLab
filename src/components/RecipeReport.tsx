@@ -48,6 +48,7 @@ import { ReportDownloadQr } from "./report/ReportDownloadQr";
 import type { ReportDownloadMetadata } from "../services/reportDownloadService";
 import { buildReportEnvelope, type ReportEnvelope } from "../services/reporting/reportContract";
 import { downloadReportFormat } from "../services/reporting/reportFormatExport";
+import type { SnoLabProjectFile } from "../services/storage/types";
 
 const customTranslations: Record<"ar" | "fr" | "en", Record<string, string>> = {
   ar: {
@@ -249,6 +250,7 @@ interface RecipeReportProps {
   input: MixDesignInput;
   activeProject?: any;
   materialsDatabase?: EngineeringMaterial[];
+  onReportGenerated?: (report: NonNullable<SnoLabProjectFile["reports"]>[number]) => void;
   onChangeInputs?: (updatedInputs: Partial<MixDesignInput>) => void;
   onChangeProjectDetails?: (details: { name?: string; client?: string; plant?: string }) => void;
 }
@@ -258,6 +260,7 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
   input, 
   activeProject, 
   materialsDatabase = [],
+  onReportGenerated,
   onChangeInputs,
   onChangeProjectDetails
 }) => {
@@ -549,6 +552,7 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
       totalDryPerM3,
       scale
     );
+    registerExportedReport("docx");
   };
 
   const triggerExportExcel = () => {
@@ -569,6 +573,7 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
       totalDryPerM3,
       batchVolume
     );
+    registerExportedReport("xlsx");
   };
 
   const handleExportPDF = async () => {
@@ -588,6 +593,7 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
         qrUrl: reportDownloadUrl || undefined
       });
       console.log("Native Vector PDF successfully generated and downloaded.");
+      registerExportedReport("pdf");
     } catch (err) {
       console.error("PDF generation engine caught an exception:", err);
       window.print();
@@ -622,8 +628,27 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
     ],
   }), [input, result, reportLanguage, activeProject, projectName, clientOwner, siteLocation, validation]);
 
+  const registerExportedReport = (format: string) => {
+    onReportGenerated?.({
+      id: reportEnvelope.metadata.reportId,
+      name: reportEnvelope.metadata.projectName || "SnoLab Engineering Report",
+      type: reportEnvelope.metadata.reportType,
+      generatedAt: reportEnvelope.metadata.createdAt,
+      dataSnapshot: {
+        reportId: reportEnvelope.metadata.reportId,
+        revision: reportEnvelope.metadata.revision,
+        format,
+        status: reportEnvelope.metadata.status,
+        verificationStatus: reportEnvelope.metadata.verificationStatus,
+        approvalStatus: reportEnvelope.metadata.approvalStatus,
+        integrityHash: reportEnvelope.metadata.integrityHash,
+      },
+    });
+  };
+
   const handleExportStructured = (format: "csv" | "json" | "html") => {
     downloadReportFormat(reportEnvelope, format);
+    registerExportedReport(format);
   };
 
   const dryWater = Math.round(result.waterContentActual) + " L";

@@ -56,6 +56,7 @@ interface ProjectContextValue {
   saveNamedMix: (name: string, inputs: MixDesignInput, results?: MixDesignResult, currency?: string) => void;
   deleteNamedMix: (mixId: string) => void;
   updateValidationRecords: (records: LabValidationRecord[]) => void;
+  registerGeneratedReport: (report: NonNullable<SnoLabProjectFile["reports"]>[number]) => void;
   updateNotes: (notes: ProjectNote[]) => void;
   addHistoryEntry: (action: string, details?: string, category?: ProjectHistoryEntry["category"], prev?: any, next?: any) => void;
   markDirty: () => void;
@@ -587,6 +588,17 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     markDirty();
   };
 
+  // Data Mutator: Register an exported report snapshot without issuing it as approved.
+  const registerGeneratedReport = (report: NonNullable<SnoLabProjectFile["reports"]>[number]) => {
+    setProject(prev => ({
+      ...prev,
+      reports: [report, ...(prev.reports || []).filter(existing => existing.id !== report.id)],
+      metadata: { ...prev.metadata, lastModified: new Date().toISOString() }
+    }));
+    addHistoryEntry("REPORT_EXPORTED", `Registered report ${report.id} (${report.type})`, "system");
+    markDirty();
+  };
+
   // Data Mutator: Update Notes
   const updateNotes = (notes: ProjectNote[]) => {
     setProject(prev => ({
@@ -649,6 +661,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     saveNamedMix,
     deleteNamedMix,
     updateValidationRecords,
+    registerGeneratedReport,
     updateNotes,
     addHistoryEntry,
     markDirty

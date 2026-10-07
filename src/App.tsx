@@ -616,6 +616,7 @@ export default function App() {
     updateMixResults: updateProjectMixResults,
     saveNamedMix: saveNamedMixToProject,
     deleteNamedMix: deleteNamedMixFromProject,
+    registerGeneratedReport,
     updateProjectMetadata
   } = useProjectStorage();
 
@@ -3892,7 +3893,7 @@ export default function App() {
                 onHome={() => setViewMode("landing")}
               />
             ) : engineeringGate.isBlocked && [
-              "cost", "reports", "simulation", "sieve",
+              "cost", "simulation", "sieve",
               "optimization", "journal", "compliance_reports"
             ].includes(activeSidebarTab) ? (
               <EngineeringVerificationGate
@@ -6733,6 +6734,7 @@ max="0.95"
                   input={inputs}
                   result={results}
                   materialsDatabase={materialsDatabase}
+                  onReportGenerated={registerGeneratedReport}
                   onChangeInputs={(up) => setInputs(prev => ({ ...prev, ...up }))}
                   activeProject={activeProject}
                 />
