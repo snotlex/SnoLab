@@ -1,5 +1,4 @@
 import { ActiveProject, EngineeringMaterial, MixDesignInput, MixDesignResult } from "../types";
-import { calculateDreuxGorisse } from "../utils";
 import { validateCalculationLogic, ValidationGateResult } from "./validationGate";
 import { calculateMixDesign } from "./calculateMixDesign";
 import { mixDesignEngine as unifiedMixDesignEngine } from "../mix-design/core/MixDesignEngine";
@@ -348,9 +347,6 @@ export class GranularEngine {
 }
 
 // ============================================================================
-// 3️⃣ MIX DESIGN ENGINE (PLUGIN-BASED ARCHITECTURE)
-// ============================================================================
-// ============================================================================
 // 4️⃣ VALIDATION ENGINE
 // ============================================================================
 export class ValidationEngine {
@@ -667,7 +663,7 @@ export class EngineeringCore {
       },
       mixDesignState: {
         methodId,
-        inputs,
+        inputs: resolvedInputs,
         results: initialResults,
         availableMethods: unifiedMixDesignEngine.listActive().map((method) => ({
           id: method.metadata.id,
