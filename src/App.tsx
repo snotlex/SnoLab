@@ -12,7 +12,6 @@ import {
 } from "./types";
 import { ExpandedMaterial } from "./data/expandedMaterials";
 import {
-  calculateDreuxGorisse,
   CEMENT_TYPES,
   STANDARD_ADMIXTURES_LIST,
   ALGERIAN_MATERIALS_PRESETS,
@@ -82,6 +81,8 @@ import { evaluateProductionRelease } from "./services/productionReleaseGate";
 import { can, resolveUserRole, separationOfDuties, UserRole } from "./services/permissions";
 import type { CalibrationRecord, SampleRecord, TestDeviceRecord } from "./types/qualityDomain";
 import type { LaboratorySession } from "./types/laboratorySessionTypes";
+import { LABORATORY_STANDARD_REGISTRY } from "./services/laboratoryStandardRegistry";
+import type { RegisteredEquipment } from "./services/laboratoryRegistry";
 const RecipeReport = React.lazy(() => import("./components/RecipeReport").then(m => ({ default: m.RecipeReport })));
 const ChemicalDosageMonitor = React.lazy(() => import("./components/ChemicalDosageMonitor").then(m => ({ default: m.ChemicalDosageMonitor })));
 const SieveGradingCurves = React.lazy(() => import("./components/SieveGradingCurves").then(m => ({ default: m.SieveGradingCurves })));
@@ -615,10 +616,11 @@ export default function App() {
     updateMixResults: updateProjectMixResults,
     saveNamedMix: saveNamedMixToProject,
     deleteNamedMix: deleteNamedMixFromProject,
+    registerGeneratedReport,
     updateProjectMetadata
   } = useProjectStorage();
 
-  // Central Six-Stage Project Workflow Controller
+  // Central seven-stage Project Workflow Controller; stage definitions live in ProjectWorkflowController.
   const workflow = useProjectWorkflow();
 
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
@@ -2758,7 +2760,11 @@ export default function App() {
       };
     }
 
-    const calcResult = calculateDreuxGorisse(normalizedInputsForCalc);
+    const calcResult = calculateMixDesign({
+      ...normalizedInputsForCalc,
+      methodId: "auto",
+      enforceInputContract: true
+    } as any) as any;
     if (calcResult.materialSuitability && (calcResult.materialSuitability.status as string) === "diagnostic_only") {
       calcResult.materialSuitability.status = "blocked";
     }
@@ -2950,7 +2956,11 @@ export default function App() {
     if (initialResolved.admixture) materialIds.push(initialResolved.admixture.id);
     if (initialResolved.scm) materialIds.push(initialResolved.scm.id);
 
-    const initialResults = calculateDreuxGorisse(newProjFields);
+    const initialResults = calculateMixDesign({
+      ...newProjFields,
+      methodId: "auto",
+      enforceInputContract: true
+    } as any) as any;
     if (initialResults.materialSuitability && (initialResults.materialSuitability.status as string) === "diagnostic_only") {
       initialResults.materialSuitability.status = "blocked";
     }
@@ -3834,6 +3844,7 @@ export default function App() {
               projectIsOpen={workflow.projectIsOpen}
               stageName={t(workflow.activeStageInfo.nameKey)}
               stageDescription={t(workflow.activeStageInfo.descKey)}
+              workspaceRoleLabel={workflow.onboardingRole === "lab-quality" ? (language === "ar" ? "مسار المختبر / الجودة" : language === "fr" ? "Parcours laboratoire / qualité" : "Lab / Quality path") : workflow.onboardingRole === "design-engineer" ? (language === "ar" ? "مسار مهندس التصميم" : language === "fr" ? "Parcours ingénieur de formulation" : "Design Engineer path") : undefined}
               steps={workflow.allStages.map(stage => {
                 const gate = workflow.getStageGate(stage.number);
                 const icons = {
@@ -3874,15 +3885,15 @@ export default function App() {
               <WorkspaceEmptyState
                 language={language as "ar" | "fr" | "en"}
                 onStartNewProject={async (role: OnboardingRole) => {
-                  await workflow.startNewProject();
+                  await workflow.startNewProject(undefined, role);
                   setActiveSidebarTab(role === "lab-quality" ? "materials_library" : "saved_projects");
                 }}
                 onOpenExistingProject={async () => { const ok = await workflow.openExistingProject(); if (ok) setActiveSidebarTab("saved_projects"); }}
-                onOpenAdvanced={async () => { await workflow.startNewProject(); setActiveSidebarTab("calculator"); }}
+                onOpenAdvanced={async () => { await workflow.startNewProject(undefined, "design-engineer"); setActiveSidebarTab("calculator"); }}
                 onHome={() => setViewMode("landing")}
               />
             ) : engineeringGate.isBlocked && [
-              "cost", "reports", "simulation", "sieve",
+              "cost", "simulation", "sieve",
               "optimization", "journal", "compliance_reports"
             ].includes(activeSidebarTab) ? (
               <EngineeringVerificationGate
@@ -6701,6 +6712,16 @@ max="0.95"
                   projectName={activeProject?.name}
                   projectSessions={activeProject?.laboratorySessions}
                   onSessionsChange={handleLaboratorySessionsChange}
+                  standardRegistry={LABORATORY_STANDARD_REGISTRY}
+                  equipmentRegistry={(activeProject?.testDevices || []).map(device => ({
+                    id: device.id,
+                    equipmentId: device.id,
+                    name: device.name,
+                    serialNumber: device.serialNumber,
+                    status: device.calibrationStatus === "valid" ? "Active" : device.calibrationStatus === "expired" ? "Expired" : "Calibration Due",
+                    nextCalibrationDate: device.calibrationDueAt,
+                    certificateAttachmentId: device.calibrationCertificate
+                  } as RegisteredEquipment))}
                   language={language as "ar" | "fr" | "en"}
                 />
               </div>
@@ -6713,6 +6734,7 @@ max="0.95"
                   input={inputs}
                   result={results}
                   materialsDatabase={materialsDatabase}
+                  onReportGenerated={registerGeneratedReport}
                   onChangeInputs={(up) => setInputs(prev => ({ ...prev, ...up }))}
                   activeProject={activeProject}
                 />

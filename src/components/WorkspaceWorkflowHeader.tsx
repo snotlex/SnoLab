@@ -22,6 +22,7 @@ export interface WorkspaceWorkflowHeaderProps {
   projectCode: string;
   clientName?: string;
   projectIsOpen: boolean;
+  workspaceRoleLabel?: string;
   stageName: string;
   stageDescription: string;
   steps: WorkspaceWorkflowStep[];
@@ -41,7 +42,7 @@ export interface WorkspaceWorkflowHeaderProps {
 }
 
 export const WorkspaceWorkflowHeader: React.FC<WorkspaceWorkflowHeaderProps> = ({
-  language, isRtl, activeStep, projectName, projectCode, clientName, projectIsOpen,
+  language, isRtl, activeStep, projectName, projectCode, clientName, projectIsOpen, workspaceRoleLabel,
   stageName, stageDescription, steps, onStepClick, onCloseProject, onPrevious, onNext,
   projectLabel, codeLabel, clientLabel, brandLabel, stageLabel, closeLabel, closeTitle,
   previousLabel, nextLabel,
@@ -54,7 +55,7 @@ export const WorkspaceWorkflowHeader: React.FC<WorkspaceWorkflowHeaderProps> = (
         <div className="flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 font-mono text-[10px] text-slate-500 dark:bg-slate-800"><span className="text-slate-400">{codeLabel}</span><span>{projectCode}</span></div>
         {clientName && <div className="hidden items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400 md:flex"><span className="text-slate-400">{clientLabel}</span><span className="font-bold">{clientName}</span></div>}
       </div>
-      <div className="flex items-center gap-2"><span className="rounded-full border border-[#C7F43A]/30 bg-[#C7F43A]/10 px-3 py-1 font-mono text-[10px] font-bold text-[#5f7415] dark:text-[#C7F43A]">{stageLabel} {activeStep} / {steps.length} • {stageName}</span>{projectIsOpen && <button type="button" onClick={onCloseProject} className="flex cursor-pointer items-center gap-1 rounded-lg border border-transparent px-2.5 py-1 text-[10px] font-bold text-rose-500 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 dark:text-rose-400 dark:hover:border-rose-900/40 dark:hover:bg-rose-950/30" title={closeTitle}><FolderX size={12} /><span className="hidden sm:inline">{closeLabel}</span></button>}</div>
+      <div className="flex flex-wrap items-center justify-end gap-2"><span className="rounded-full border border-[#C7F43A]/30 bg-[#C7F43A]/10 px-3 py-1 font-mono text-[10px] font-bold text-[#5f7415] dark:text-[#C7F43A]">{stageLabel} {activeStep} / {steps.length} • {stageName}</span>{workspaceRoleLabel && <span className="rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-[10px] font-bold text-indigo-700 dark:border-indigo-900/60 dark:bg-indigo-950/30 dark:text-indigo-300">{workspaceRoleLabel}</span>}{projectIsOpen && <button type="button" onClick={onCloseProject} className="flex cursor-pointer items-center gap-1 rounded-lg border border-transparent px-2.5 py-1 text-[10px] font-bold text-rose-500 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 dark:text-rose-400 dark:hover:border-rose-900/40 dark:hover:bg-rose-950/30" title={closeTitle}><FolderX size={12} /><span className="hidden sm:inline">{closeLabel}</span></button>}</div>
     </div>
 
     <WorkflowProgress activeStep={activeStep} totalSteps={steps.length} language={language} />

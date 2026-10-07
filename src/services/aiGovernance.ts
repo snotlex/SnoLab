@@ -61,6 +61,7 @@ export function verifyAIDraft(params: {
   }
   if (!params.reviewer.trim()) throw new Error("A reviewer is required to verify an AI draft.");
   if (params.evidence.length === 0) throw new Error("Evidence is required to verify an AI draft.");
+  if (params.evidence.some(item => !item.reference.trim())) throw new Error("Every AI evidence item requires a traceable reference.");
   return {
     ...params.draft,
     status: "USER_VERIFIED",

@@ -7,6 +7,8 @@ import dotenv from "dotenv";
 import nodemailer from "nodemailer";
 import { generateMixDesignPdf } from "./src/services/pdf";
 import { createReportToken, storeReport, verifyReportToken } from "./server/reportDownloadService";
+import { sanitizeAIContext, validateAIConsent } from "./src/services/aiRequestGovernance";
+import { createAIDraftMetadata } from "./src/services/aiGovernance";
 
 dotenv.config();
 
@@ -537,9 +539,11 @@ app.post("/api/extract-pdf-materials", async (req, res) => {
       }
     }
 
+    const governance = createAIDraftMetadata({ modelId: "gemini-2.5-flash", promptVersion: "pdf-material-extraction-v2" });
     return res.json({
       success: true,
-      materials: parsed.materials || [],
+      governance,
+      materials: (parsed.materials || []).map((item: any) => ({ ...item, aiGovernance: governance })),
       count: parsed.materials?.length || 0
     });
   } catch (error: any) {
@@ -698,7 +702,8 @@ ${admixtures && admixtures.length > 0 ? admixtures.map((adm: any) => `- ${adm.na
 
     res.json({
       success: true,
-      text: response.text
+      text: response.text,
+      governance: createAIDraftMetadata({ modelId: process.env.GEMINI_TEXT_MODEL || "gemini-3.1-pro-preview", promptVersion: "concrete-advisor-v2" })
     });
 
   } catch (error: any) {
@@ -725,7 +730,8 @@ ${admixtures && admixtures.length > 0 ? admixtures.map((adm: any) => `- ${adm.na
 
       res.json({
         success: true,
-        text: fallbackText
+        text: fallbackText,
+        governance: createAIDraftMetadata({ modelId: "local-advisor-fallback", promptVersion: "concrete-advisor-v2" })
       });
     } catch (fallbackError: any) {
       console.log("Local advisor fallback was unable to build text response.");
@@ -1387,7 +1393,7 @@ function getLocalMaterialFallback(name: string, category: string, region: string
 
 // API: Material Advisor Assistant utilizing server-side Gemini AI with schema validation
 app.post("/api/material-advisor", async (req, res) => {
-  const { name, category, region } = req.body;
+  const { name, category, region, requestEnvelope } = req.body;
   try {
     if (!name || !category) {
       return res.status(400).json({ success: false, error: "Missing name or category" });
@@ -1401,6 +1407,15 @@ app.post("/api/material-advisor", async (req, res) => {
         message: "No API key found. Using heuristic suggestions."
       });
     }
+
+    if (!requestEnvelope || requestEnvelope.provider !== "google" || requestEnvelope.outputKind !== "recommendation") {
+      return res.status(400).json({ success: false, error: "AI_CONSENT_REQUIRED" });
+    }
+    const sanitizedContext = sanitizeAIContext({ name, category, region }, {
+      allowedFields: ["name", "category", "region"],
+      maxPromptCharacters: 2000
+    });
+    validateAIConsent(requestEnvelope.consent, Object.keys(sanitizedContext.context), [], { maxAttachments: 0 });
 
     const ai = new GoogleGenAI({
       apiKey: apiKey,
@@ -1479,7 +1494,8 @@ Ensure values are extremely realistic for Algerian industry standards. Return a 
 
     return res.json({
       success: true,
-      data: result
+      data: result,
+      governance: createAIDraftMetadata({ modelId: process.env.GEMINI_FAST_MODEL || "gemini-3.5-flash", promptVersion: "material-advisor-v2-governed" })
     });
 
   } catch (error: any) {
@@ -1489,6 +1505,7 @@ Ensure values are extremely realistic for Algerian industry standards. Return a 
       success: true,
       isFallback: true,
       data: fallbackData,
+      governance: createAIDraftMetadata({ modelId: "local-heuristic-fallback", promptVersion: "material-advisor-v2-governed" }),
       message: "Model experiencing high demand, fell back to local structural heuristics successfully."
     });
   }

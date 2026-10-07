@@ -9,6 +9,7 @@ import {
   getPrevStage,
   getStageForTab,
   getTabForStage,
+  WORKFLOW_STAGE_COUNT,
   ProjectStageNumber
 } from "../services/workflow/ProjectWorkflowController";
 
@@ -38,6 +39,7 @@ const baseProject = (overrides: any = {}): any => ({
 describe("Seven-stage project workflow architecture", () => {
   it("defines exactly seven canonical stages in the requested order", () => {
     expect(WORKFLOW_STAGES).toHaveLength(7);
+    expect(WORKFLOW_STAGE_COUNT).toBe(WORKFLOW_STAGES.length);
     expect(PROJECT_STAGES).toHaveLength(7);
     expect(WORKFLOW_STAGES.map(stage => stage.id)).toEqual([
       "project_setup", "requirements", "materials_verification", "mix_calculation", "trial_mix", "lab_review", "release_report"

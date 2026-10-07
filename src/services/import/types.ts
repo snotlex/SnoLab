@@ -1,5 +1,6 @@
 import { EngineeringMaterial } from "../../types";
 import { MaterialCoreRecord, GranulometrySieveEntry } from "../../types/materialCoreTypes";
+import type { AIGovernanceMetadata } from "../../services/aiGovernance";
 
 export type ConfidenceLevel = "HIGH" | "MEDIUM" | "LOW" | "NEEDS_REVIEW";
 
@@ -88,6 +89,7 @@ export interface ParsedMaterialDraft {
   validation: MaterialDraftValidation;
   status: "Complete" | "Incomplete" | "Needs Review" | "Invalid";
   selectedForImport: boolean;
+  aiGovernance?: AIGovernanceMetadata;
 }
 
 export interface DuplicateMatch {

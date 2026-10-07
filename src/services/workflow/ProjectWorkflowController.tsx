@@ -8,6 +8,7 @@ import React, {
 } from "react";
 import { useProjectStorage } from "../storage/ProjectContext";
 import type { ProjectMetadata, SnoLabProjectFile } from "../storage/types";
+import type { OnboardingRole } from "./onboarding";
 
 export type ProjectStageNumber = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
@@ -32,6 +33,7 @@ export const WORKFLOW_STAGES: ProjectStageDefinition[] = [
 ];
 
 export const PROJECT_STAGES = WORKFLOW_STAGES;
+export const WORKFLOW_STAGE_COUNT = WORKFLOW_STAGES.length;
 
 export interface StageGateResult {
   stage: ProjectStageNumber;
@@ -106,7 +108,7 @@ export function validateStageNavigation(
   currentStage: ProjectStageNumber = 1,
   project?: SnoLabProjectFile
 ): NavigationCheckResult {
-  if (typeof targetStage !== "number" || targetStage < 1 || targetStage > 7 || !Number.isInteger(targetStage)) {
+  if (typeof targetStage !== "number" || targetStage < 1 || targetStage > WORKFLOW_STAGE_COUNT || !Number.isInteger(targetStage)) {
     return { allowed: false, reason: "Invalid stage range (must be integer 1..7)" };
   }
   if (!effectiveProjectIsOpen) return { allowed: false, reason: "No active project is open. Please start or open a project." };
@@ -118,7 +120,7 @@ export function validateStageNavigation(
 }
 
 export function getNextStage(current: ProjectStageNumber): ProjectStageNumber | null {
-  return current < 7 ? (current + 1) as ProjectStageNumber : null;
+  return current < WORKFLOW_STAGE_COUNT ? (current + 1) as ProjectStageNumber : null;
 }
 export function getPrevStage(current: ProjectStageNumber): ProjectStageNumber | null {
   return current > 1 ? (current - 1) as ProjectStageNumber : null;
@@ -140,12 +142,13 @@ export interface ProjectWorkflowContextValue {
   projectIsOpen: boolean;
   activeProjectId: string | null;
   activeProjectMeta: ProjectMetadata | null;
+  onboardingRole: OnboardingRole | null;
   getStageGate: (stage: ProjectStageNumber) => StageGateResult;
   canNavigateToStage: (targetStage: ProjectStageNumber) => NavigationCheckResult;
   goToStage: (targetStage: ProjectStageNumber) => boolean;
   nextStage: () => boolean;
   prevStage: () => boolean;
-  startNewProject: (meta?: Partial<ProjectMetadata>) => Promise<void>;
+  startNewProject: (meta?: Partial<ProjectMetadata>, role?: OnboardingRole) => Promise<void>;
   openExistingProject: () => Promise<boolean>;
   openFromFileObject: (file: File) => Promise<boolean>;
   closeProject: () => Promise<void>;
@@ -156,12 +159,19 @@ export interface ProjectWorkflowContextValue {
 
 const ProjectWorkflowContext = createContext<ProjectWorkflowContextValue | null>(null);
 const SESSION_STORAGE_KEY = "snolab_active_project_is_open";
+const SESSION_ROLE_KEY = "snolab_onboarding_role";
 
 export const ProjectWorkflowProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { project: storageProject, createNewProject: storageCreateNew, openProject: storageOpen, openFromFileObject: storageOpenFromFile, saveProject: storageSave, hasUnsavedChanges: storageHasUnsaved } = useProjectStorage();
   const [currentStage, setCurrentStage] = useState<ProjectStageNumber>(1);
   const [projectIsOpen, setProjectIsOpen] = useState<boolean>(() => {
     try { return typeof window !== "undefined" && window.sessionStorage?.getItem(SESSION_STORAGE_KEY) === "true"; } catch { return false; }
+  });
+  const [onboardingRole, setOnboardingRole] = useState<OnboardingRole | null>(() => {
+    try {
+      const role = typeof window !== "undefined" ? window.sessionStorage?.getItem(SESSION_ROLE_KEY) : null;
+      return role === "design-engineer" || role === "lab-quality" ? role : null;
+    } catch { return null; }
   });
   const effectiveProjectIsOpen = computeEffectiveProjectIsOpen(projectIsOpen, storageProject?.metadata?.id);
 
@@ -180,19 +190,21 @@ export const ProjectWorkflowProvider: React.FC<{ children: React.ReactNode }> = 
   const prevStage = useCallback(() => { const prev = getPrevStage(currentStage); return prev === null ? false : goToStage(prev); }, [currentStage, goToStage]);
   const syncStageWithTab = useCallback((tab: string) => { const stage = getStageForTab(tab); if (stage !== null) setCurrentStage(stage); }, []);
 
-  const markOpen = useCallback(() => {
+  const markOpen = useCallback((role?: OnboardingRole) => {
     setProjectIsOpen(true); setCurrentStage(1);
+    if (role) setOnboardingRole(role);
     try { window.sessionStorage?.setItem(SESSION_STORAGE_KEY, "true"); } catch { /* ignore */ }
+    try { if (role) window.sessionStorage?.setItem(SESSION_ROLE_KEY, role); } catch { /* ignore */ }
   }, []);
-  const startNewProject = useCallback(async (meta?: Partial<ProjectMetadata>) => { await storageCreateNew(meta); markOpen(); }, [storageCreateNew, markOpen]);
+  const startNewProject = useCallback(async (meta?: Partial<ProjectMetadata>, role?: OnboardingRole) => { await storageCreateNew(meta); markOpen(role); }, [storageCreateNew, markOpen]);
   const openExistingProject = useCallback(async () => { const success = await storageOpen(); if (success) markOpen(); return success; }, [storageOpen, markOpen]);
   const openFromFileObject = useCallback(async (file: File) => { const success = await storageOpenFromFile(file); if (success) markOpen(); return success; }, [storageOpenFromFile, markOpen]);
   const closeProject = useCallback(async () => {
     if (storageHasUnsaved) { let confirmSave = false; try { confirmSave = window.confirm("لديك تعديلات غير محفوظة في المشروع الحالي. هل تريد حفظها قبل الإغلاق؟\nYou have unsaved changes. Save before closing?"); } catch { /* ignore */ } if (confirmSave) await storageSave(); }
-    setProjectIsOpen(false); setCurrentStage(1); try { window.sessionStorage?.removeItem(SESSION_STORAGE_KEY); } catch { /* ignore */ }
+    setProjectIsOpen(false); setCurrentStage(1); setOnboardingRole(null); try { window.sessionStorage?.removeItem(SESSION_STORAGE_KEY); window.sessionStorage?.removeItem(SESSION_ROLE_KEY); } catch { /* ignore */ }
   }, [storageHasUnsaved, storageSave]);
 
-  const value = useMemo<ProjectWorkflowContextValue>(() => ({ currentStage, activeStageInfo, allStages: WORKFLOW_STAGES, totalStages: 7, projectIsOpen: effectiveProjectIsOpen, activeProjectId, activeProjectMeta, getStageGate, canNavigateToStage, goToStage, nextStage, prevStage, startNewProject, openExistingProject, openFromFileObject, closeProject, getStageForTab, getTabForStage, syncStageWithTab }), [currentStage, activeStageInfo, effectiveProjectIsOpen, activeProjectId, activeProjectMeta, getStageGate, canNavigateToStage, goToStage, nextStage, prevStage, startNewProject, openExistingProject, openFromFileObject, closeProject, syncStageWithTab]);
+  const value = useMemo<ProjectWorkflowContextValue>(() => ({ currentStage, activeStageInfo, allStages: WORKFLOW_STAGES, totalStages: WORKFLOW_STAGE_COUNT, projectIsOpen: effectiveProjectIsOpen, activeProjectId, activeProjectMeta, onboardingRole, getStageGate, canNavigateToStage, goToStage, nextStage, prevStage, startNewProject, openExistingProject, openFromFileObject, closeProject, getStageForTab, getTabForStage, syncStageWithTab }), [currentStage, activeStageInfo, effectiveProjectIsOpen, activeProjectId, activeProjectMeta, onboardingRole, getStageGate, canNavigateToStage, goToStage, nextStage, prevStage, startNewProject, openExistingProject, openFromFileObject, closeProject, syncStageWithTab]);
   return <ProjectWorkflowContext.Provider value={value}>{children}</ProjectWorkflowContext.Provider>;
 };
 

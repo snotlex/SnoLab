@@ -383,11 +383,11 @@ export class ImportManager {
           propertyMetadata[propK] = {
             key: propK,
             value: propV,
-            sourceType: "imported",
-            sourceLabel: `مستورد من ${draft.sourceTracking.fileName}`,
-            source: "import",
+            sourceType: draft.aiGovernance ? "AI_DRAFT" : "imported",
+            sourceLabel: draft.aiGovernance ? `AI Draft مستخرج من ${draft.sourceTracking.fileName}` : `مستورد من ${draft.sourceTracking.fileName}`,
+            source: draft.aiGovernance ? "AI" : "import",
             confidence: "High",
-            requiresConfirmation: false,
+            requiresConfirmation: Boolean(draft.aiGovernance),
             lastUpdated: todayIso
           };
           propertySources[propK] = {
@@ -457,6 +457,7 @@ export class ImportManager {
         lastModified: new Date().toISOString().split("T")[0],
         propertyMetadata,
         propertySources,
+        aiGovernance: draft.aiGovernance,
         engineerApproval: {
           status: "pending",
           engineerName: undefined,

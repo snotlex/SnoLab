@@ -1,5 +1,6 @@
 import type { EngineeringMaterial } from "../types";
 import type { MaterialTestRecord, TestStatus } from "./laboratoryTypes";
+import type { LaboratoryIdentity } from "./laboratoryDomain";
 
 export type LaboratoryRequestStatus =
   | "DRAFT"
@@ -123,9 +124,34 @@ export interface LaboratorySessionAuditEntry {
 
 export interface LaboratorySessionReview {
   reviewer: string;
+  reviewerIdentity?: LaboratoryIdentity;
   reviewedAt: string;
   decision: "APPROVED" | "REJECTED" | "PARTIAL";
   notes?: string;
+}
+
+export interface LaboratorySessionGovernanceConfig {
+  standardId?: string;
+  standardSnapshot?: {
+    id: string;
+    organization: string;
+    code: string;
+    version?: string;
+    status: string;
+    effectiveFrom?: string;
+    effectiveTo?: string;
+    acceptanceRule?: string;
+  };
+  equipmentIds?: string[];
+  equipmentCalibrationSnapshots?: Array<{
+    id: string;
+    equipmentId: string;
+    serialNumber?: string;
+    calibrationDate?: string;
+    nextCalibrationDate?: string;
+    status: string;
+    location?: string;
+  }>;
 }
 
 export interface LaboratorySessionSyncPlanItem {
@@ -148,11 +174,13 @@ export interface LaboratorySession {
   site?: string;
   supplier?: string;
   requestOwner?: string;
+  createdByIdentity?: LaboratoryIdentity;
   requestedAt: string;
   priority?: "LOW" | "NORMAL" | "HIGH" | "URGENT";
   reason?: string;
   notes?: string;
   status: LaboratoryRequestStatus;
+  governance?: LaboratorySessionGovernanceConfig;
   parentSampleIds: string[];
   samples: LaboratorySessionSample[];
   tests: LaboratorySessionTestItem[];
@@ -173,10 +201,12 @@ export interface LaboratorySessionCreateInput {
   site?: string;
   supplier?: string;
   requestOwner?: string;
+  createdByIdentity?: LaboratoryIdentity;
   requestedAt?: string;
   priority?: LaboratorySession["priority"];
   reason?: string;
   notes?: string;
+  governance?: LaboratorySessionGovernanceConfig;
 }
 
 export interface LaboratorySessionValidationIssue {
