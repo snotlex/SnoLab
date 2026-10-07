@@ -6,7 +6,7 @@ test.describe("engineering release governance flow", () => {
     await page.getByRole("button", { name: /🇺🇸 EN/ }).click();
     await page.getByRole("button", { name: /Start New Project/ }).first().click();
     await expect(page.locator("#main-layout-root")).toBeVisible();
-    await page.getByRole("button", { name: /Batch preparation/i }).click();
+    await page.getByTestId("sidebar-navigation").getByRole("button", { name: /Batch preparation/i }).click();
     await expect(page.getByTestId("batch-preparation-center")).toBeVisible();
     await page.getByRole("button", { name: /QA\/QC control/i }).click();
     await expect(page.getByTestId("quality-control-dashboard")).toBeVisible();

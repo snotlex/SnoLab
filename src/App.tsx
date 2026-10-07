@@ -12,7 +12,6 @@ import {
 } from "./types";
 import { ExpandedMaterial } from "./data/expandedMaterials";
 import {
-  calculateDreuxGorisse,
   CEMENT_TYPES,
   STANDARD_ADMIXTURES_LIST,
   ALGERIAN_MATERIALS_PRESETS,
@@ -2758,7 +2757,11 @@ export default function App() {
       };
     }
 
-    const calcResult = calculateDreuxGorisse(normalizedInputsForCalc);
+    const calcResult = calculateMixDesign({
+      ...normalizedInputsForCalc,
+      methodId: "auto",
+      enforceInputContract: true
+    } as any) as any;
     if (calcResult.materialSuitability && (calcResult.materialSuitability.status as string) === "diagnostic_only") {
       calcResult.materialSuitability.status = "blocked";
     }
@@ -2950,7 +2953,11 @@ export default function App() {
     if (initialResolved.admixture) materialIds.push(initialResolved.admixture.id);
     if (initialResolved.scm) materialIds.push(initialResolved.scm.id);
 
-    const initialResults = calculateDreuxGorisse(newProjFields);
+    const initialResults = calculateMixDesign({
+      ...newProjFields,
+      methodId: "auto",
+      enforceInputContract: true
+    } as any) as any;
     if (initialResults.materialSuitability && (initialResults.materialSuitability.status as string) === "diagnostic_only") {
       initialResults.materialSuitability.status = "blocked";
     }
