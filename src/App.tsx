@@ -619,7 +619,7 @@ export default function App() {
     updateProjectMetadata
   } = useProjectStorage();
 
-  // Central Six-Stage Project Workflow Controller
+  // Central seven-stage Project Workflow Controller; stage definitions live in ProjectWorkflowController.
   const workflow = useProjectWorkflow();
 
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
@@ -3843,6 +3843,7 @@ export default function App() {
               projectIsOpen={workflow.projectIsOpen}
               stageName={t(workflow.activeStageInfo.nameKey)}
               stageDescription={t(workflow.activeStageInfo.descKey)}
+              workspaceRoleLabel={workflow.onboardingRole === "lab-quality" ? (language === "ar" ? "مسار المختبر / الجودة" : language === "fr" ? "Parcours laboratoire / qualité" : "Lab / Quality path") : workflow.onboardingRole === "design-engineer" ? (language === "ar" ? "مسار مهندس التصميم" : language === "fr" ? "Parcours ingénieur de formulation" : "Design Engineer path") : undefined}
               steps={workflow.allStages.map(stage => {
                 const gate = workflow.getStageGate(stage.number);
                 const icons = {
@@ -3883,11 +3884,11 @@ export default function App() {
               <WorkspaceEmptyState
                 language={language as "ar" | "fr" | "en"}
                 onStartNewProject={async (role: OnboardingRole) => {
-                  await workflow.startNewProject();
+                  await workflow.startNewProject(undefined, role);
                   setActiveSidebarTab(role === "lab-quality" ? "materials_library" : "saved_projects");
                 }}
                 onOpenExistingProject={async () => { const ok = await workflow.openExistingProject(); if (ok) setActiveSidebarTab("saved_projects"); }}
-                onOpenAdvanced={async () => { await workflow.startNewProject(); setActiveSidebarTab("calculator"); }}
+                onOpenAdvanced={async () => { await workflow.startNewProject(undefined, "design-engineer"); setActiveSidebarTab("calculator"); }}
                 onHome={() => setViewMode("landing")}
               />
             ) : engineeringGate.isBlocked && [
