@@ -284,10 +284,61 @@ export class MixDesignEngine {
           ? `Mix design method '${methodId}' is not currently registered in SnoLab.`
           : `طريقة تصميم الخلطات '${methodId}' غير مسجلة حاليًا في SnoLab.`;
 
-    return this.buildUnavailableRouteResult(input, {
-      ...route,
-      methodId
-    }, language);
+    return {
+      methodId,
+      method: { id: methodId, name: methodId, version: "unknown" },
+      status: "blocked",
+      category: "complete-design",
+      implementationStatus: "not-registered",
+      isStandaloneCompleteMethod: false,
+      inputSnapshot: input,
+      quantities: {
+        totalBinder: 0,
+        effectiveWater: 0,
+        addedWater: 0,
+        fineAggregates: 0,
+        coarseAggregates: 0,
+        admixtures: []
+      },
+      ratios: { waterBinderRatio: 0 },
+      physicalProperties: {
+        theoreticalFreshDensity: 0,
+        absoluteVolume: 0,
+        volumeClosureError: 100
+      },
+      validation: {
+        isValid: false,
+        errors: [{
+          code: "UNKNOWN_METHOD",
+          severity: "error",
+          field: "methodId",
+          message
+        }],
+        warnings: []
+      },
+      warnings: [message],
+      internalWarnings: [],
+      trace: [],
+      calculatedAt: new Date().toISOString(),
+      assumptions: [],
+      calculationSteps: [],
+      limitations: [message],
+      isValid: false,
+      valid: false,
+      errors: ["UNKNOWN_METHOD"],
+      recommendations: ["Select a registered calculation method before continuing."],
+      calculationStatus: "blocked",
+      engineStatus: "blocked",
+      confidenceLevel: "low",
+      reasonCode: "UNKNOWN_METHOD",
+      releaseEligibility: "blocked",
+      methodApplicability: {
+        applicable: false,
+        level: "not_applicable",
+        reasons: [message],
+        recommendations: ["Select a registered calculation method before continuing."]
+      }
+    } as any;
   }
 
   private buildBlockedApplicabilityResult(
