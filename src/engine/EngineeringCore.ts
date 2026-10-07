@@ -693,7 +693,7 @@ export class EngineeringCore {
     };
 
     // Single calculation entry point: calculateMixDesign().
-    const results = calculateMixDesign(resolvedInputs);
+    const results = calculateMixDesign(resolvedInputs as any) as unknown as MixDesignResult;
     tempSession.mixDesignState.results = results;
 
     // 2️⃣ Granular Engine
