@@ -1,6 +1,8 @@
 import { ActiveProject, EngineeringMaterial, MixDesignInput, MixDesignResult } from "../types";
 import { calculateDreuxGorisse } from "../utils";
 import { validateCalculationLogic, ValidationGateResult } from "./validationGate";
+import { calculateMixDesign } from "./calculateMixDesign";
+import { mixDesignEngine as unifiedMixDesignEngine } from "../mix-design/core/MixDesignEngine";
 
 // ============================================================================
 // CENTRAL ENGINEERING CORE DATA MODEL
@@ -348,213 +350,6 @@ export class GranularEngine {
 // ============================================================================
 // 3️⃣ MIX DESIGN ENGINE (PLUGIN-BASED ARCHITECTURE)
 // ============================================================================
-export interface MixDesignPlugin {
-  id: string;
-  nameEn: string;
-  nameAr: string;
-  calculate: (inputs: MixDesignInput, core: ProjectSession) => MixDesignResult;
-  isReady: (core: ProjectSession) => boolean;
-}
-
-function createUnknownMethodResult(methodId: string, inputs: MixDesignInput): MixDesignResult {
-  const message = `Calculation method '${methodId}' is not registered. No engineering result was produced.`;
-  return {
-    methodName: methodId,
-    calculationMethod: methodId,
-    engineVersion: "unknown",
-    engineeringFramework: "Blocked calculation",
-    trialMixRequired: true,
-    cementKg: 0,
-    waterKg: 0,
-    fineAggregateKg: 0,
-    coarseAggregateKg: 0,
-    admixtureKg: 0,
-    airContentPercent: 0,
-    fcm28: 0,
-    stdDev: 0,
-    wcRatioAdjusted: 0,
-    dreuxAggregateFactor: 0,
-    compactorGamma: 0,
-    waterBeforeCorrection: 0,
-    waterAfterDmax: 0,
-    waterFromAdmixtures: 0,
-    totalAggregateVolume: 0,
-    cementWeight: 0,
-    waterContentNeeded: 0,
-    waterContentActual: 0,
-    sandPercent: 0,
-    gravelPercent: 0,
-    sandWeightDry: 0,
-    gravelWeightDry: 0,
-    admixtureWeights: [],
-    sandWeightWet: 0,
-    gravelWeightWet: 0,
-    waterWeightWet: 0,
-    totalFreshDensity: 0,
-    pivotPoint: { x: 0, y: 0 },
-    isValid: false,
-    valid: false,
-    gradingCurve: [],
-    strengthEvolution: [],
-    standardsCompliance: [],
-    wcRatio: 0,
-    freshDensityKgM3: 0,
-    absoluteVolumeCheck: {
-      isValid: false,
-      totalAbsVolumeL: 0,
-      cementVolL: 0,
-      waterVolL: 0,
-      sandVolL: 0,
-      gravelVolL: 0,
-      airVolL: 0,
-      admixtureVolL: 0,
-      deviationPercent: 100,
-    },
-    warnings: [],
-    errors: [message],
-    assumptions: [],
-    compliance: {
-      standardName: "Unknown method",
-      isCompliant: false,
-      checks: [],
-    },
-    methodApplicability: {
-      applicable: false,
-      level: "not_applicable",
-      reasons: [message],
-      recommendations: ["Select a registered calculation method before continuing."],
-    },
-    calculationNotes: [message],
-    validationSummary: message,
-    inputSnapshot: inputs,
-    status: "blocked",
-    calculationStatus: "blocked",
-    engineStatus: "blocked",
-    reasonCode: "UNKNOWN_METHOD",
-    calculationSteps: [],
-  } as unknown as MixDesignResult;
-}
-
-export class MixDesignEngine {
-  private static plugins: Record<string, MixDesignPlugin> = {};
-
-  static registerPlugin(plugin: MixDesignPlugin) {
-    this.plugins[plugin.id] = plugin;
-  }
-
-  static getPlugins() {
-    return Object.values(this.plugins);
-  }
-
-  static calculate(
-    methodId: string,
-    inputs: MixDesignInput,
-    core: ProjectSession
-  ): MixDesignResult {
-    const plugin = this.plugins[methodId];
-    if (plugin) {
-      return plugin.calculate(inputs, core);
-    }
-
-    return createUnknownMethodResult(methodId, inputs);
-  }
-}
-
-// Create a helper to return an empty MixDesignResult that satisfies TS interface constraints
-function createEmptyMixDesignResult(errorMsg: string): MixDesignResult {
-  return {
-    fcm28: 0,
-    stdDev: 0,
-    wcRatio: 0,
-    wcRatioAdjusted: 0,
-    dreuxAggregateFactor: 0,
-    compactorGamma: 0,
-    waterBeforeCorrection: 0,
-    waterAfterDmax: 0,
-    waterFromAdmixtures: 0,
-    totalAggregateVolume: 0,
-    cementWeight: 0,
-    waterContentNeeded: 0,
-    waterContentActual: 0,
-    sandPercent: 0,
-    gravelPercent: 0,
-    sandWeightDry: 0,
-    gravelWeightDry: 0,
-    admixtureWeights: [],
-    sandWeightWet: 0,
-    gravelWeightWet: 0,
-    waterWeightWet: 0,
-    totalFreshDensity: 0,
-    pivotPoint: { x: 0, y: 0 },
-    isValid: false,
-    valid: false,
-    errors: [errorMsg],
-    warnings: [errorMsg],
-    detailedSteps: [errorMsg],
-    gradingCurve: [],
-    strengthEvolution: [],
-    standardsCompliance: [],
-  };
-}
-
-// Register default Dreux-Gorisse plugin
-MixDesignEngine.registerPlugin({
-  id: "dreux-gorisse",
-  nameEn: "Dreux-Gorisse French Method",
-  nameAr: "طريقة دو-غوريس الفرنسية",
-  isReady: (core) => !!core?.materialsState?.isComplete,
-  calculate: (inputs, core) => {
-    // Read validated physical and engineering properties directly from materialsState
-    const props = core.materialsState.resolvedProperties;
-    const inputsWithResolvedProps: MixDesignInput = {
-      ...inputs,
-      cementClassStrength: props.cementClassStrength,
-      cementDensity: props.cementDensity,
-      sandRelativeDensity: props.sandRelativeDensity,
-      sandAbsorption: props.sandAbsorption,
-      moistureSand: props.moistureSand,
-      gravelRelativeDensity: props.gravelRelativeDensity,
-      gravelAbsorption: props.gravelAbsorption,
-      moistureGravel: props.moistureGravel,
-      dMax: props.dMax,
-      aggregateType: props.aggregateType as any,
-      aggregateQuality: props.aggregateQuality as any,
-    };
-    return calculateDreuxGorisse(inputsWithResolvedProps);
-  },
-});
-
-// Register future methods placeholders as loose adapters conforming to full MixDesignResult interface
-MixDesignEngine.registerPlugin({
-  id: "aci-211",
-  nameEn: "ACI 211.1 American Standard",
-  nameAr: "المواصفة الأمريكية ACI 211",
-  isReady: () => true,
-  calculate: (inputs, core) => {
-    return createEmptyMixDesignResult("ACI 211.1 Method is in preparation mode. Using Dreux-Gorisse as standard adapter.");
-  }
-});
-
-MixDesignEngine.registerPlugin({
-  id: "doe",
-  nameEn: "DOE British Standard",
-  nameAr: "الطريقة البريطانية DOE",
-  isReady: () => true,
-  calculate: (inputs, core) => {
-    return createEmptyMixDesignResult("DOE Method is in preparation mode. Using Dreux-Gorisse as standard adapter.");
-  }
-});
-
-MixDesignEngine.registerPlugin({
-  id: "en-206",
-  nameEn: "EN 206 European Standard",
-  nameAr: "المواصفة الأوروبية EN 206",
-  isReady: () => true,
-  calculate: (inputs, core) => {
-    return createEmptyMixDesignResult("EN 206 Formulation wrapper in preparation mode. Compliance checks are active in validation engine.");
-  }
-});
-
 // ============================================================================
 // 4️⃣ VALIDATION ENGINE
 // ============================================================================
@@ -831,10 +626,27 @@ export class EngineeringCore {
     // 1️⃣ Material Engine
     const materialsState = MaterialEngine.resolveProperties(inputs, materialsDatabase);
 
-    // Run the design calculations via the plugin system
-    const methodId = inputs.selectedMethod || "dreux-gorisse";
-    
-    // Create temporary session stub to feed to the Mix Design Engine
+    // The legacy orchestration layer now delegates calculation to the unified engine.
+    // Keep material resolution here, but never re-run a second method/plugin registry.
+    const resolvedInputs: MixDesignInput = {
+      ...inputs,
+      methodId: (inputs as any).methodId || (inputs as any).selectedMethod || "auto",
+      cementClassStrength: materialsState.resolvedProperties.cementClassStrength,
+      cementDensity: materialsState.resolvedProperties.cementDensity,
+      sandRelativeDensity: materialsState.resolvedProperties.sandRelativeDensity,
+      sandAbsorption: materialsState.resolvedProperties.sandAbsorption,
+      moistureSand: materialsState.resolvedProperties.moistureSand,
+      finenessModulus: materialsState.resolvedProperties.finenessModulus,
+      gravelRelativeDensity: materialsState.resolvedProperties.gravelRelativeDensity,
+      gravelAbsorption: materialsState.resolvedProperties.gravelAbsorption,
+      moistureGravel: materialsState.resolvedProperties.moistureGravel,
+      dMax: materialsState.resolvedProperties.dMax,
+      aggregateType: materialsState.resolvedProperties.aggregateType as any,
+      aggregateQuality: materialsState.resolvedProperties.aggregateQuality as any,
+    };
+    const methodId = String((resolvedInputs as any).methodId || "auto");
+
+    // Create temporary session stub for orchestration/reporting only.
     const tempSession: ProjectSession = {
       projectId: activeProject.id,
       name: activeProject.name,
@@ -857,11 +669,11 @@ export class EngineeringCore {
         methodId,
         inputs,
         results: initialResults,
-        availableMethods: MixDesignEngine.getPlugins().map((p) => ({
-          id: p.id,
-          nameEn: p.nameEn,
-          nameAr: p.nameAr,
-          isReady: p.isReady({ materialsState } as any), // loose check
+        availableMethods: unifiedMixDesignEngine.listActive().map((method) => ({
+          id: method.metadata.id,
+          nameEn: method.metadata.name,
+          nameAr: method.metadata.name,
+          isReady: true,
         })),
       },
       validationState: {
@@ -884,8 +696,8 @@ export class EngineeringCore {
       },
     };
 
-    // Calculate Mix Design using the method engine
-    const results = MixDesignEngine.calculate(methodId, inputs, tempSession);
+    // Single calculation entry point: calculateMixDesign().
+    const results = calculateMixDesign(resolvedInputs);
     tempSession.mixDesignState.results = results;
 
     // 2️⃣ Granular Engine
