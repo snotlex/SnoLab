@@ -25,7 +25,7 @@ class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorBoundary
     if (!this.state.error) return this.props.children;
 
     return (
-      <main dir="rtl" style={{ minHeight: "100vh", padding: "32px", background: "#071126", color: "#f8fafc", fontFamily: "system-ui, sans-serif" }}>
+      <main dir="auto" style={{ minHeight: "100vh", padding: "32px", background: "#071126", color: "#f8fafc", fontFamily: "system-ui, sans-serif" }}>
         <section style={{ maxWidth: "860px", margin: "0 auto", border: "1px solid #7f1d1d", borderRadius: "16px", padding: "24px", background: "#1e293b" }}>
           <h1 style={{ marginTop: 0, color: "#fca5a5" }}>تعذر تحميل واجهة SnoLab</h1>
           <p>حدث خطأ أثناء تشغيل الواجهة. أعد تحميل الصفحة، وإذا تكرر الخطأ أرسل نص التشخيص التالي:</p>

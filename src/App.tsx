@@ -4617,6 +4617,7 @@ export default function App() {
             {activeSidebarTab === "versions" && (activeProject || projects.find(project => project.id === activeProjectId)) && (
               <MixVersioningPanel
                 activeProject={(activeProject || projects.find(project => project.id === activeProjectId)) as ActiveProject}
+                language={language as "ar" | "fr" | "en"}
                 inputs={inputs}
                 results={results}
                 onSaveVersion={(name) => handleSaveVersion(name, false, "draft")}

@@ -18,7 +18,7 @@ export const SpecializedConcreteInputs: React.FC<{
   const specializedKeys = contract.requiredInputs.filter((key) => !coreKeys.has(String(key)));
   const requiredText = language === "ar" ? "مطلوب" : language === "fr" ? "Requis" : "Required";
 
-  return <div id="step1-specialized-inputs" className="mt-4 space-y-3 rounded-xl border border-blue-500/20 bg-blue-500/5 p-4 text-right">
+  return <div id="step1-specialized-inputs" className="mt-4 space-y-3 rounded-xl border border-blue-500/20 bg-blue-500/5 p-4 text-start" dir={language === "ar" ? "rtl" : "ltr"}>
     <div>
       <div className="text-[11px] font-black text-blue-600 dark:text-blue-300">{language === "ar" ? `المدخلات الخاصة بـ ${contract.methodId}` : `${contract.methodId} specialized inputs`}</div>
       <div className="mt-1 text-[9px] text-slate-500 dark:text-slate-400">{contract.engineeringFramework} — {language === "ar" ? "تظهر بجانب المدخلات العامة ولا تستخدم قيماً افتراضية." : language === "fr" ? "Affichées avec les entrées générales sans valeur par défaut implicite." : "Shown beside the general inputs with no silent defaults."}</div>
@@ -37,7 +37,7 @@ export const SpecializedConcreteInputs: React.FC<{
         const label = definition.label[language] || definition.label.en;
         const unit = definition.unit?.[language] || definition.unit?.en;
         return <div key={field} className="text-[9px] font-bold text-slate-600 dark:text-slate-300">
-          <label htmlFor={inputId} className="mb-1 block">{label}{unit ? <span className="mr-1 font-normal text-slate-400">({unit})</span> : null}</label>
+          <label htmlFor={inputId} className="mb-1 block">{label}{unit ? <span className="ms-1 font-normal text-slate-400">({unit})</span> : null}</label>
           <span id={hintId} className="sr-only">{isText ? requiredText : `${requiredText}${definition.min !== undefined ? `. ${language === "ar" ? `الحد الأدنى ${definition.min}` : language === "fr" ? `Minimum ${definition.min}` : `Minimum ${definition.min}`}` : ""}${definition.max !== undefined ? `. ${language === "ar" ? `الحد الأقصى ${definition.max}` : language === "fr" ? `Maximum ${definition.max}` : `Maximum ${definition.max}`}` : ""}`}</span>
           <input id={inputId} type={isText ? "text" : "number"} min={isText ? undefined : definition.min} max={isText ? undefined : definition.max} step={isText ? undefined : definition.step || "any"} value={value ?? ""} aria-invalid={Boolean(fieldError)} aria-describedby={describedBy} aria-required="true" onChange={(event) => {
             const raw = event.target.value;

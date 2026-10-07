@@ -15,6 +15,7 @@ import { RevisionDiffPanel } from "./RevisionDiffPanel";
 
 interface MixVersioningPanelProps {
   activeProject: ActiveProject;
+  language: "ar" | "fr" | "en";
   inputs: MixDesignInput;
   results: MixDesignResult;
   onSaveVersion: (name: string, isOptimized?: boolean) => void;
@@ -24,6 +25,7 @@ interface MixVersioningPanelProps {
 
 export const MixVersioningPanel: React.FC<MixVersioningPanelProps> = ({
   activeProject,
+  language,
   inputs,
   results,
   onSaveVersion,
@@ -59,7 +61,7 @@ export const MixVersioningPanel: React.FC<MixVersioningPanelProps> = ({
 
   return (
     <div className="space-y-6" id="mix-versioning-dashboard">
-      <div className="bg-white dark:bg-[#0F172A] border border-slate-205 dark:border-slate-800 rounded-3xl p-6 shadow-xl space-y-6 text-right" dir="rtl">
+      <div className="bg-white dark:bg-[#0F172A] border border-slate-205 dark:border-slate-800 rounded-3xl p-6 shadow-xl space-y-6 text-start" dir={language === "ar" ? "rtl" : "ltr"}>
         
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-slate-100 dark:border-slate-800 pb-4 gap-4">
@@ -82,7 +84,7 @@ export const MixVersioningPanel: React.FC<MixVersioningPanelProps> = ({
         {/* Action: Save current state as version */}
         <div className="bg-slate-50 dark:bg-slate-900/60 border border-slate-150 dark:border-slate-850 rounded-2xl p-4">
           <form onSubmit={handleSave} className="flex flex-col md:flex-row gap-3 items-end justify-between">
-            <div className="w-full md:w-3/4 space-y-1.5 text-right">
+            <div className="w-full md:w-3/4 space-y-1.5 text-start">
               <label className="text-xs font-black text-slate-700 dark:text-slate-300 block">
                 أدخل اسماً لحفظ النسخة الحالية من خلطة المشروع:
               </label>
@@ -93,9 +95,9 @@ export const MixVersioningPanel: React.FC<MixVersioningPanelProps> = ({
                   placeholder='مثال: "نسخة fck 30 - عيار 400" أو "الخلطة المحسنة اقتصادياً"'
                   value={versionName}
                   onChange={(e) => setVersionName(e.target.value)}
-                  className="w-full text-xs p-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-white font-semibold focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 text-right pr-9"
+                  className="w-full text-xs p-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-white font-semibold focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 text-start pe-9"
                 />
-                <Save className="absolute right-3 top-3 text-slate-400" size={16} />
+                <Save className="absolute end-3 top-3 text-slate-400" size={16} />
               </div>
             </div>
             <button
@@ -138,10 +140,10 @@ export const MixVersioningPanel: React.FC<MixVersioningPanelProps> = ({
                         : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/40"
                     }`}
                   >
-                    <div className="space-y-2 text-right">
+                    <div className="space-y-2 text-start">
                       {/* Name & Badge */}
-                      <div className="flex justify-between items-start gap-2 flex-row-reverse">
-                        <h5 className="font-extrabold text-xs text-slate-900 dark:text-white text-right leading-tight">
+                      <div className="flex justify-between items-start gap-2">
+                        <h5 className="font-extrabold text-xs text-slate-900 dark:text-white text-start leading-tight">
                           {ver.name}
                         </h5>
                         {ver.isOptimized && (
@@ -161,7 +163,7 @@ export const MixVersioningPanel: React.FC<MixVersioningPanelProps> = ({
                       {ver.immutableHash && <div className="truncate text-[9px] font-mono text-slate-400" title={ver.immutableHash}>HASH: {ver.immutableHash}</div>}
 
                       {/* Quick Tech Metrics */}
-                      <div className="border-t border-dashed border-slate-150 dark:border-slate-800 pt-2 grid grid-cols-2 gap-2 text-right font-sans">
+                      <div className="border-t border-dashed border-slate-150 dark:border-slate-800 pt-2 grid grid-cols-2 gap-2 text-start font-sans">
                         <div>
                           <span className="text-[9px] text-slate-450 block">المقاومة fck (28j):</span>
                           <span className="text-xs font-black text-slate-800 dark:text-slate-205 font-mono">
@@ -237,7 +239,7 @@ export const MixVersioningPanel: React.FC<MixVersioningPanelProps> = ({
 
       {/* Comparison Drawer / Side-by-Side Matrix */}
       {comparedItems.length > 0 && (
-        <div className="bg-white dark:bg-[#0F172A] border border-slate-210 dark:border-slate-800 rounded-3xl p-6 shadow-xl space-y-4 text-right" dir="rtl" id="comparison-analysis-panel">
+        <div className="bg-white dark:bg-[#0F172A] border border-slate-210 dark:border-slate-800 rounded-3xl p-6 shadow-xl space-y-4 text-start" dir={language === "ar" ? "rtl" : "ltr"} id="comparison-analysis-panel">
           <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
             <span className="bg-indigo-50 dark:bg-indigo-950 px-2 py-0.5 rounded text-[10px] font-mono text-indigo-600 uppercase font-black">
               COMPARISON DASHBOARD VIEW {comparedItems.length}
@@ -253,10 +255,10 @@ export const MixVersioningPanel: React.FC<MixVersioningPanelProps> = ({
           </p>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-xs text-right border-collapse font-sans">
+            <table className="w-full text-xs text-start border-collapse font-sans">
               <thead>
                 <tr className="bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-350 font-black border-y border-slate-200 dark:border-slate-800">
-                  <th className="p-3 text-right">أوجه المقارنة والمعاملات الهندسية</th>
+                  <th className="p-3 text-start">أوجه المقارنة والمعاملات الهندسية</th>
                   {comparedItems.map((v) => (
                     <th key={v.id} className="p-3 text-center border-r border-slate-200 dark:border-slate-800">
                       {v.name}
@@ -267,7 +269,7 @@ export const MixVersioningPanel: React.FC<MixVersioningPanelProps> = ({
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800 leading-relaxed">
                 {/* 1. Target Strength */}
                 <tr>
-                  <td className="p-3 font-bold text-slate-800 dark:text-slate-200 text-right">مقاومة الضغط fck (MPa)</td>
+                  <td className="p-3 font-bold text-slate-800 dark:text-slate-200 text-start">مقاومة الضغط fck (MPa)</td>
                   {comparedItems.map((v) => (
                     <td key={v.id} className="p-3 text-center font-mono font-bold text-slate-900 dark:text-white border-r border-slate-200 dark:border-slate-800">
                       {v.inputs.fck28} MPa
@@ -277,7 +279,7 @@ export const MixVersioningPanel: React.FC<MixVersioningPanelProps> = ({
 
                 {/* 2. Cohesion / Slump */}
                 <tr>
-                  <td className="p-3 font-bold text-slate-800 dark:text-slate-300 text-right font-sans">هبوط الخرسانة المستهدف (Slump)</td>
+                  <td className="p-3 font-bold text-slate-800 dark:text-slate-300 text-start font-sans">هبوط الخرسانة المستهدف (Slump)</td>
                   {comparedItems.map((v) => (
                     <td key={v.id} className="p-3 text-center font-mono border-r border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200">
                       {v.inputs.slump} سم
@@ -287,7 +289,7 @@ export const MixVersioningPanel: React.FC<MixVersioningPanelProps> = ({
 
                 {/* 3. Cement Amount */}
                 <tr>
-                  <td className="p-3 font-bold text-slate-800 dark:text-slate-300 text-right">مقدار الإسمنت للمتر المكعب (كغ)</td>
+                  <td className="p-3 font-bold text-slate-800 dark:text-slate-300 text-start">مقدار الإسمنت للمتر المكعب (كغ)</td>
                   {comparedItems.map((v) => {
                     const cWeight = v.results?.cementWeight;
                     return (
@@ -300,7 +302,7 @@ export const MixVersioningPanel: React.FC<MixVersioningPanelProps> = ({
 
                 {/* 4. Water / Cement ratio */}
                 <tr>
-                  <td className="p-3 font-bold text-slate-800 dark:text-slate-300 text-right">نسبة المياه لكيميائيات الإسمنت (W/C)</td>
+                  <td className="p-3 font-bold text-slate-800 dark:text-slate-300 text-start">نسبة المياه لكيميائيات الإسمنت (W/C)</td>
                   {comparedItems.map((v) => {
                     const wc = v.results?.wcRatioActual;
                     return (
@@ -313,7 +315,7 @@ export const MixVersioningPanel: React.FC<MixVersioningPanelProps> = ({
 
                 {/* 5. Sand component */}
                 <tr>
-                  <td className="p-3 font-bold text-slate-800 dark:text-slate-300 text-right font-sans">الرمل الناعم الفعلي (Sand)</td>
+                  <td className="p-3 font-bold text-slate-800 dark:text-slate-300 text-start font-sans">الرمل الناعم الفعلي (Sand)</td>
                   {comparedItems.map((v) => (
                     <td key={v.id} className="p-3 text-center font-mono text-slate-700 dark:text-slate-200 border-r border-slate-200 dark:border-slate-800">
                       {v.results ? Math.round(v.results.sandWeight) : "---"} كغ/م³
@@ -323,7 +325,7 @@ export const MixVersioningPanel: React.FC<MixVersioningPanelProps> = ({
 
                 {/* 6. Coarse Gravel */}
                 <tr>
-                  <td className="p-3 font-bold text-slate-800 dark:text-slate-300 text-right">الحصى والركام الخشن الإجمالي</td>
+                  <td className="p-3 font-bold text-slate-800 dark:text-slate-300 text-start">الحصى والركام الخشن الإجمالي</td>
                   {comparedItems.map((v) => (
                     <td key={v.id} className="p-3 text-center font-mono text-slate-700 dark:text-slate-200 border-r border-slate-200 dark:border-slate-800">
                       {v.results ? Math.round(v.results.gravelWeight || v.results.gravelWeightActual) : "---"} كغ/م³
@@ -333,7 +335,7 @@ export const MixVersioningPanel: React.FC<MixVersioningPanelProps> = ({
 
                 {/* 7. Total Cost */}
                 <tr className="bg-indigo-50/20 dark:bg-indigo-950/20 font-black">
-                  <td className="p-3 font-black text-slate-900 dark:text-white text-right">التكلفة التقديرية الكلية للصب (دج / م³)</td>
+                  <td className="p-3 font-black text-slate-900 dark:text-white text-start">التكلفة التقديرية الكلية للصب (دج / م³)</td>
                   {comparedItems.map((v) => (
                     <td key={v.id} className="p-3 text-center font-mono text-emerald-600 dark:text-emerald-400 font-black text-sm border-r border-slate-200 dark:border-slate-800">
                       {v.results?.mixCostTotal ? `${Math.round(v.results.mixCostTotal)} دج` : "---"}

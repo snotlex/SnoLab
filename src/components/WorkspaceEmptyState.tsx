@@ -23,7 +23,7 @@ export const WorkspaceEmptyState: React.FC<{
   const selectedPath = ONBOARDING_PATHS.find(path => path.role === selectedRole) || ONBOARDING_PATHS[0];
 
   return (
-    <section className="sno-card mx-auto my-8 max-w-5xl animate-fade-in rounded-3xl p-5 text-right md:p-8" dir={isRtl ? "rtl" : "ltr"} aria-labelledby="workspace-onboarding-title">
+    <section className="sno-card mx-auto my-8 max-w-5xl animate-fade-in rounded-3xl p-5 text-start md:p-8" dir={isRtl ? "rtl" : "ltr"} aria-labelledby="workspace-onboarding-title">
       <div className="mx-auto max-w-3xl text-center">
         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400"><FolderPlus size={28} /></div>
         <h2 id="workspace-onboarding-title" className="mt-4 text-xl font-black text-slate-800 dark:text-slate-100">
@@ -39,7 +39,7 @@ export const WorkspaceEmptyState: React.FC<{
           const active = path.role === selectedRole;
           const Icon = path.role === "design-engineer" ? ShieldCheck : Beaker;
           return (
-            <button key={path.role} type="button" role="radio" aria-checked={active} onClick={() => setSelectedRole(path.role)} className={`text-right rounded-2xl border p-5 transition focus:outline-none focus:ring-2 focus:ring-indigo-400 ${active ? "border-indigo-500 bg-indigo-50/70 shadow-md dark:border-indigo-400 dark:bg-indigo-950/30" : "border-slate-200 bg-white hover:border-indigo-300 dark:border-slate-800 dark:bg-slate-950/40"}`}>
+            <button key={path.role} type="button" role="radio" aria-checked={active} onClick={() => setSelectedRole(path.role)} className={`text-start rounded-2xl border p-5 transition focus:outline-none focus:ring-2 focus:ring-indigo-400 ${active ? "border-indigo-500 bg-indigo-50/70 shadow-md dark:border-indigo-400 dark:bg-indigo-950/30" : "border-slate-200 bg-white hover:border-indigo-300 dark:border-slate-800 dark:bg-slate-950/40"}`}>
               <div className="flex items-start gap-3">
                 <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${active ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-500 dark:bg-slate-800"}`}><Icon size={20} /></div>
                 <div className="min-w-0">
