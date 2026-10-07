@@ -33,6 +33,7 @@ describe("AI request and engineering write governance", () => {
   it("blocks AI draft values from engineering writes until evidence-backed verification", () => {
     const draft = createAIDraftMetadata({ modelId: "model", promptVersion: "v1" });
     expect(() => assertAIEngineeringWriteAllowed(draft)).toThrow("AI_ENGINEERING_WRITE_BLOCKED");
+    expect(() => verifyAIDraft({ draft, reviewer: "engineer", evidence: [{ type: "laboratory_report", reference: " " }] })).toThrow("traceable reference");
     const verified = verifyAIDraft({ draft, reviewer: "engineer", evidence: [{ type: "laboratory_report", reference: "LAB-1" }] });
     expect(() => assertAIEngineeringWriteAllowed(verified)).not.toThrow();
   });

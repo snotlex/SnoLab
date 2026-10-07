@@ -52,6 +52,7 @@ export class OCRVisionParser {
           message: "لم يتم العثور على جداول مواد قابلة للاستخراج في هذا المستند."
         };
       }
+      const governance = data.governance;
 
       const drafts: ParsedMaterialDraft[] = data.materials.map((item: any, idx: number) => {
         const rawName = String(item.name || item.nameAr || `مادة مستخرجة #${idx + 1}`).trim();
@@ -145,7 +146,8 @@ export class OCRVisionParser {
           extraProperties,
           validation,
           status,
-          selectedForImport: status !== "Invalid"
+          selectedForImport: status !== "Invalid",
+          aiGovernance: governance
         };
       });
 

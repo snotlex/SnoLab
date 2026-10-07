@@ -71,10 +71,12 @@ import { auditMaterial, auditAndFillSystemMaterials, runSystemMaterialsPreflight
 import { SystemMaterialsBulkAuditModal } from "./SystemMaterialsBulkAuditModal";
 import { MaterialImportWizardModal } from "./materials/MaterialImportWizardModal";
 import { MaterialBulkCompletionModal } from "./materials/MaterialBulkCompletionModal";
+import { AIEvidenceReviewPanel } from "./AIEvidenceReviewPanel";
 import { CompletenessChecker } from "../services/import/CompletenessChecker";
 import { ExportService } from "../services/ExportService";
 import { MaterialService } from "../services/MaterialService";
 import { createAIDraftMetadata } from "../services/aiGovernance";
+import type { AIGovernanceMetadata } from "../services/aiGovernance";
 import { createAIRequestEnvelope } from "../services/aiRequestGovernance";
 import { getActiveMaterialBatch, upsertMaterialBatch } from "../services/materialBatchService";
 import * as XLSX from "xlsx";
@@ -3130,7 +3132,7 @@ export function MaterialEngineeringDatabase({
           updatedDate: new Date().toISOString().split('T')[0],
           status: "قيد المراجعة",
           ApprovalStatus: "Pending Review",
-          aiGovernance: createAIDraftMetadata({ modelId: "gemini-material-advisor", promptVersion: "material-advisor-v1", confidence: "unknown" })
+          aiGovernance: resData.governance || createAIDraftMetadata({ modelId: "gemini-material-advisor", promptVersion: "material-advisor-v2-governed", confidence: "unknown" })
         }));
 
         setAIAssistSuccessMessage("تم اقتراح كافة الخصائص الهندسية والتحذيرات بدقة عالية واحترافية فائقة باستخدام مساعد SNO AI!");
@@ -3168,6 +3170,27 @@ export function MaterialEngineeringDatabase({
       setIsAILoading(false);
       setTimeout(() => setAIAssistSuccessMessage(""), 5000);
     }
+  };
+
+  const handleAIEvidenceVerified = (metadata: AIGovernanceMetadata) => {
+    setFormState(prev => ({
+      ...prev,
+      aiGovernance: metadata,
+      ApprovalStatus: "Pending Review",
+      status: "قيد المراجعة"
+    }));
+  };
+
+  const handleApplyVerifiedAISuggestions = () => {
+    const suggestions = formState.aiSuggestions || {};
+    const allowedEngineeringKeys = new Set(["density", "ssdDensity", "absorption", "moisture", "finenessModulus", "dMax", "specificGravity", "bulkDensity", "waterReduction", "recommendedDosage", "heatOfHydration", "strength2d", "strength28d", "clayContent", "losAngelesAbrasion", "solidContent", "chlorideContent", "pozzolanicIndex", "waterDemandFactor"]);
+    const verifiedPatch = Object.fromEntries(Object.entries(suggestions).filter(([key, value]) => allowedEngineeringKeys.has(key) && typeof value === "number" && Number.isFinite(value)));
+    setFormState(prev => ({
+      ...prev,
+      ...verifiedPatch,
+      ApprovalStatus: "Pending Review",
+      status: "قيد المراجعة"
+    }));
   };
 
   // Submit Save
@@ -7045,6 +7068,13 @@ export function MaterialEngineeringDatabase({
                     {aiAssistSuccessMessage}
                   </p>
                 )}
+                <AIEvidenceReviewPanel
+                  metadata={formState.aiGovernance}
+                  suggestions={formState.aiSuggestions}
+                  language={language === "en" ? "en" : "ar"}
+                  onVerified={handleAIEvidenceVerified}
+                  onApplyVerifiedSuggestions={handleApplyVerifiedAISuggestions}
+                />
               </div>
 
               <div>
