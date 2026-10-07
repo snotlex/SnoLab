@@ -4999,8 +4999,8 @@ export default function App() {
                                           : "Some selected materials have missing properties. You can complete all missing properties directly from here.")
                                       : activeMixMaterialsList.length > 0
                                       ? (language === "ar"
-                                          ? "جميع خصائص المواد المختارة محققة وجاهزة بنسبة 100% للحسابات والمعادلات الهندسية."
-                                          : "All material properties in current mix are verified and ready for calculation.")
+                                          ? "اكتملت الحقول المطلوبة للمواد المختارة. حالة الاعتماد: بانتظار المراجعة الفنية."
+                                          : "Required fields for the selected materials are complete. Approval status: pending technical review.")
                                       : (language === "ar"
                                           ? "اختر الإسمنت، الرمل، الحصى، ومياه الخلط لبدء تدقيق الخصائص الهندسية للخلطة."
                                           : "Select cement, sand, gravel, and water to begin material property audit.")}
@@ -5026,7 +5026,7 @@ export default function App() {
                           {/* Section A: Basic Constituents */}
                           <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
                             <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
-                            <span>{language === "ar" ? "المكونات الأساسية للخلطة الخرسانية (Base Constituents - معتمدة ومكتملة 100%)" : language === "fr" ? "Constituants de Base du Béton (100% Validés)" : "Basic Concrete Constituents (100% Validated & Approved)"}</span>
+                            <span>{language === "ar" ? "المكونات الأساسية للخلطة الخرسانية (الحقول المطلوبة مكتملة — الاعتماد قيد المراجعة)" : language === "fr" ? "Constituants de Base du Béton (Champs requis complets — validation en attente)" : "Basic Concrete Constituents (Required fields complete — approval pending)"}</span>
                           </div>
 
                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -5181,7 +5181,7 @@ export default function App() {
                             <>
                               <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider pt-2 border-t border-slate-100 dark:border-slate-800/60 flex items-center gap-1.5">
                                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                                <span>{language === "ar" ? "الإضافات المتخصصة والمحسنات والألياف (Advanced Materials - معتمدة ومكتملة 100%)" : language === "fr" ? "Adjuvants Spéciaux & Matériaux Avancés" : "Specialized Admixtures & Advanced Materials (100% Validated)"}</span>
+                                <span>{language === "ar" ? "الإضافات المتخصصة والمحسنات والألياف (الحقول المطلوبة مكتملة — الاعتماد قيد المراجعة)" : language === "fr" ? "Adjuvants Spéciaux & Matériaux Avancés (Champs requis complets — validation en attente)" : "Specialized Admixtures & Advanced Materials (Required fields complete — approval pending)"}</span>
                               </div>
 
                               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
