@@ -66,6 +66,7 @@ import { LocalProjectVault } from "./components/LocalProjectVault";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { SidebarShell } from "./components/SidebarShell";
 import { BatchPreparationCenter } from "./components/BatchPreparationCenter";
+import { AsyncBoundary, AsyncLoadingState } from "./components/AsyncBoundary";
 const QualityControlDashboard = React.lazy(() => import("./components/QualityControlDashboard").then(m => ({ default: m.QualityControlDashboard })));
 const ProductionBatchTicket = React.lazy(() => import("./components/ProductionBatchTicket").then(m => ({ default: m.ProductionBatchTicket })));
 const QualityAssetsDashboard = React.lazy(() => import("./components/QualityAssetsDashboard").then(m => ({ default: m.QualityAssetsDashboard })));
@@ -3687,13 +3688,8 @@ export default function App() {
       id="main-layout-root"
       dir={language === "ar" ? "rtl" : "ltr"}
     >
-      <Suspense fallback={
-        <div className="min-h-screen flex flex-col items-center justify-center bg-[#0B1120] text-slate-400 p-8 text-center font-sans space-y-4 animate-fade-in" dir={language === "ar" ? "rtl" : "ltr"}>
-          <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-500"></div>
-          <span className="font-bold text-slate-200">SNO Engineering - جاري تحميل الأدوات الهندسية...</span>
-          <span className="text-xs text-slate-500">يرجى الانتظار لتجهيز الواجهات والرسومات والتحاليل المعملية</span>
-        </div>
-      }>
+      <AsyncBoundary language={language}>
+      <Suspense fallback={<AsyncLoadingState language={language} />}>
 
       {/* SMART TRANSITION NOTIFICATION OVERLAY */}
       <AnimatePresence>
@@ -6859,6 +6855,7 @@ max="0.95"
         isValid={true}
       />
     </Suspense>
+    </AsyncBoundary>
   </div>
   );
 }

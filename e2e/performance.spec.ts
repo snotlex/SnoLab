@@ -34,4 +34,39 @@ test.describe("SnoLab performance safeguards", () => {
     expect(stage3ReadyMs).toBeLessThan(10_000);
     expect(navigationTiming?.domContentLoadedMs ?? 0).toBeLessThan(15_000);
   });
+
+  test("records advanced browser performance signals without blocking the workflow", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.getByRole("button", { name: /انطلاق مشروع جديد|Start New Project/ }).first()).toBeVisible();
+    await page.waitForTimeout(250);
+
+    const metrics = await page.evaluate(() => {
+      const navigation = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
+      const paints = performance.getEntriesByType("paint");
+      const resources = performance.getEntriesByType("resource") as PerformanceResourceTiming[];
+      const longTasks = performance.getEntriesByType("longtask") as PerformanceEntry[];
+      const layoutShifts = performance.getEntriesByType("layout-shift") as PerformanceEntry[];
+      const largestContentfulPaint = performance.getEntriesByType("largest-contentful-paint").at(-1);
+      const scripts = resources.filter(resource => resource.initiatorType === "script");
+
+      return {
+        fcpMs: paints.find(entry => entry.name === "first-contentful-paint")?.startTime ?? null,
+        lcpMs: largestContentfulPaint?.startTime ?? null,
+        domContentLoadedMs: navigation?.domContentLoadedEventEnd ?? null,
+        initialScriptTransferBytes: scripts.reduce((total, resource) => total + (resource.transferSize || 0), 0),
+        longTaskCount: longTasks.length,
+        longestTaskMs: longTasks.reduce((max, task) => Math.max(max, task.duration), 0),
+        cumulativeLayoutShift: layoutShifts.reduce((total, entry) => total + Number((entry as PerformanceEntry & { value?: number }).value || 0), 0),
+        heapUsedBytes: (performance as Performance & { memory?: { usedJSHeapSize: number } }).memory?.usedJSHeapSize ?? null,
+      };
+    });
+
+    console.info(JSON.stringify({ advancedPerformance: metrics }));
+    expect(metrics.domContentLoadedMs ?? 0).toBeLessThan(15_000);
+    expect(metrics.fcpMs ?? 0).toBeLessThan(10_000);
+    expect(metrics.lcpMs ?? metrics.fcpMs ?? 0).toBeLessThan(12_000);
+    expect(metrics.longestTaskMs).toBeLessThan(3_000);
+    expect(metrics.cumulativeLayoutShift).toBeLessThan(0.35);
+    if (metrics.heapUsedBytes !== null) expect(metrics.heapUsedBytes).toBeLessThan(256 * 1024 * 1024);
+  });
 });
