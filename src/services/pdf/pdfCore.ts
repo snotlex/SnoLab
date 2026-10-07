@@ -293,7 +293,8 @@ export function drawMetadataGrid(
 }
 
 /**
- * Draws official laboratory sign-off, quality seal, and technician approval block.
+ * Draws a technical review block. An official approval seal is rendered only
+ * when explicit governance evidence is supplied by the caller.
  */
 export function drawSignOffBlock(
   doc: jsPDF,
@@ -304,6 +305,11 @@ export function drawSignOffBlock(
     date?: string;
     reportRef?: string;
     labName?: string;
+    officialApproval?: {
+      reviewerName: string;
+      approvedAt: string;
+      decisionRef: string;
+    };
   } = {}
 ): number {
   const { left, contentWidth, pageHeight, bottom } = PDF_PAGE_MARGINS;
@@ -338,15 +344,24 @@ export function drawSignOffBlock(
   doc.setTextColor(...PDF_COLORS.textSecondary);
   doc.text(`Name: ${options.operatorName || "Senior Materials Engineer"}`, leftX + 3, yPos + 9);
   doc.text(`Date: ${dateStr}`, leftX + 3, yPos + 13);
-  doc.text(`Status: Prepared for technical review`, leftX + 3, yPos + 17);
+  doc.text(
+    `Status: ${options.officialApproval ? "Approved with governance evidence" : "Pending technical review"}`,
+    leftX + 3,
+    yPos + 17
+  );
 
   // Signature Stamp Area
   doc.setFont("courier", "bold");
   doc.setFontSize(6.5);
   doc.setTextColor(...PDF_COLORS.secondary);
-  doc.text("[ DIGITALLY VERIFIED ]", leftX + boxWidth - 3, yPos + 20, { align: "right" });
+  doc.text(
+    options.officialApproval ? "[ REVIEWED ]" : "[ NOT AN OFFICIAL CERTIFICATE ]",
+    leftX + boxWidth - 3,
+    yPos + 20,
+    { align: "right" }
+  );
 
-  // Right Signer: Laboratory Director / Quality Manager & Official Stamp
+  // Right Signer: reviewer status; the approval identity is explicit when present.
   const rightX = left + boxWidth + 6;
   doc.setFillColor(...PDF_COLORS.background);
   doc.setDrawColor(...PDF_COLORS.borderDark);
@@ -361,24 +376,36 @@ export function drawSignOffBlock(
   doc.setFont(PDF_FONT_FAMILY, "normal");
   doc.setFontSize(6.5);
   doc.setTextColor(...PDF_COLORS.textSecondary);
-  doc.text(`Authority: ${options.directorName || "Head of Concrete Quality Dept."}`, rightX + 3, yPos + 9);
-  doc.text(`Report control: Review + trial mix required`, rightX + 3, yPos + 13);
-  doc.text(`Cert Ref: ${refStr}`, rightX + 3, yPos + 17);
+  doc.text(
+    `Reviewer: ${options.officialApproval?.reviewerName || "Not assigned"}`,
+    rightX + 3,
+    yPos + 9
+  );
+  doc.text(
+    options.officialApproval ? "Decision: Official approval recorded" : "Decision: Review + trial mix required",
+    rightX + 3,
+    yPos + 13
+  );
+  doc.text(
+    options.officialApproval ? `Decision ref: ${options.officialApproval.decisionRef}` : `Report ref: ${refStr}`,
+    rightX + 3,
+    yPos + 17
+  );
 
-  // Official Stamp Box
+  // Neutral review box by default; an official approval label requires evidence.
   doc.setDrawColor(...PDF_COLORS.secondary);
   doc.setLineWidth(0.5);
   doc.roundedRect(rightX + boxWidth - 32, yPos + 3, 29, 18, 1, 1, "D");
   doc.setFont(PDF_FONT_FAMILY, "bold");
   doc.setFontSize(5.5);
   doc.setTextColor(...PDF_COLORS.secondary);
-  doc.text("SNOLAB TECHNICAL", rightX + boxWidth - 17.5, yPos + 7.5, { align: "center" });
+  doc.text(options.officialApproval ? "SNOLAB APPROVAL" : "SNOLAB REPORT", rightX + boxWidth - 17.5, yPos + 7.5, { align: "center" });
   doc.setFontSize(5);
   doc.setTextColor(...PDF_COLORS.textMuted);
-  doc.text("ENGINEERING REVIEW", rightX + boxWidth - 17.5, yPos + 11.5, { align: "center" });
+  doc.text(options.officialApproval ? "GOVERNED DECISION" : "TECHNICAL REVIEW", rightX + boxWidth - 17.5, yPos + 11.5, { align: "center" });
   doc.setFontSize(5);
   doc.setTextColor(...PDF_COLORS.primary);
-  doc.text("TECHNICAL REVIEW", rightX + boxWidth - 17.5, yPos + 16, { align: "center" });
+  doc.text(options.officialApproval ? options.officialApproval.approvedAt.slice(0, 10) : "PENDING", rightX + boxWidth - 17.5, yPos + 16, { align: "center" });
 
   return yPos + boxHeight + 4;
 }

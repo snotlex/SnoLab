@@ -3,6 +3,12 @@ import { MaterialTestRecord } from "../../types/laboratoryTypes";
 
 export type ReportLanguage = "fr" | "en" | "ar";
 
+export interface OfficialReportApproval {
+  reviewerName: string;
+  approvedAt: string;
+  decisionRef: string;
+}
+
 export interface LabProfile {
   name: string;
   nameAr?: string;
@@ -50,6 +56,11 @@ export interface LabTestPdfOptions {
   language?: ReportLanguage;
   labProfile?: Partial<LabProfile>;
   includeSignatures?: boolean;
+  /**
+   * Explicit governance evidence. Approval is never inferred from PASS,
+   * score, or export capability; absent evidence keeps the report pending review.
+   */
+  officialApproval?: OfficialReportApproval;
   chartImageBase64?: string;
   notes?: string;
 }
