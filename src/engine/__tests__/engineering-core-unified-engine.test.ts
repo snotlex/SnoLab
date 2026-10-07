@@ -31,7 +31,7 @@ const baseInput: MixDesignInput = {
   dosageFlyAsh: 0,
   dosageSlag: 0,
   concreteType: "NSC",
-  selectedMethod: "dreux-gorisse",
+  selectedMethod: "dreux",
   exposureClass: "XC1",
   durabilityLevel: "Standard",
   carbonationLevel: "Low",
@@ -71,9 +71,10 @@ describe("EngineeringCore unified calculation boundary", () => {
       []
     );
 
-    expect(session.mixDesignState.results?.methodId).toBe(direct.methodId);
-    expect(session.mixDesignState.results?.method?.version).toBe(direct.method?.version);
-    expect(session.mixDesignState.results?.calculationStatus).toBe(direct.calculationStatus);
+    const sessionResult = session.mixDesignState.results as any;
+    expect(sessionResult.methodId).toBe(direct.methodId);
+    expect(sessionResult.method?.version).toBe(direct.method?.version);
+    expect(sessionResult.calculationStatus).toBe(direct.calculationStatus);
   });
 
   it("does not advertise placeholder ACI/DOE/EN-206 engines from the legacy registry", () => {
