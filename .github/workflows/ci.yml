@@ -7,6 +7,8 @@ on:
       - "fix/**"
       - "feature/**"
       - "bugfix/**"
+      - "feat/**"
+      - "perf/**"
   pull_request:
     branches:
       - main
@@ -53,6 +55,9 @@ jobs:
 
       - name: Production build
         run: npm run build
+
+      - name: Bundle-size and preload budget
+        run: npm run test:bundle
 
       - name: Run browser E2E tests
         run: npm run test:e2e
