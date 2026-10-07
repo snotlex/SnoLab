@@ -100,11 +100,23 @@ export const GradingChart: React.FC<GradingChartProps> = ({
       </div>
 
       <div className="overflow-x-auto">
-        <svg 
+        <svg
+          role="img"
+          aria-labelledby="dreux-grading-svg-title dreux-grading-svg-desc"
           viewBox={`0 0 ${width} ${height}`} 
           className="w-full min-w-[500px] h-auto font-mono text-[10px] text-zinc-800 dark:text-zinc-100 fill-zinc-800 dark:fill-zinc-100 select-none"
           id="dreux-grading-svg"
         >
+          <title id="dreux-grading-svg-title">
+            {language === "ar" ? "منحنى التدرج الحبيبي المستهدف" : language === "fr" ? "Courbe granulométrique cible" : "Target sieve grading curve"}
+          </title>
+          <desc id="dreux-grading-svg-desc">
+            {language === "ar"
+              ? "منحنى لوغاريتمي للتدرج الحبيبي مع نقطة الكسر M وحجم الركام الأقصى."
+              : language === "fr"
+                ? "Courbe logarithmique de granulométrie avec point de cassure M et dimension maximale des granulats."
+                : "Logarithmic grading curve with the pivot point M and maximum aggregate size."}
+          </desc>
           {/* Background grid - horizontal lines */}
           {horizontalGridPercents.map((pct) => (
             <g key={`h-grid-${pct}`}>
