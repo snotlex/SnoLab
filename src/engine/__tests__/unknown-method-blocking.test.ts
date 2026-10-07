@@ -37,6 +37,7 @@ describe("unknown calculation method safety gate", () => {
     expect(result.reasonCode).toBe("UNKNOWN_METHOD");
     expect(result.calculationSteps).toEqual([]);
     expect(result.methodName).toBe("method-that-does-not-exist");
-    expect(result.cementKg).toBe(0);
+    expect(result.quantities.totalBinder).toBe(0);
+    expect(result.cementKg).toBeUndefined();
   });
 });
