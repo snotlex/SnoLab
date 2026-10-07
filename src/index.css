@@ -66,6 +66,22 @@ body {
   outline-offset: 3px;
 }
 
+/* Keyboard and motion accessibility: preserve visible focus and respect OS motion preferences. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto !important;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* Calibration Lime is the active-work accent; blue remains a subdued reference tone. */
 #main-layout-root button.bg-blue-600,
 #main-layout-root [role="button"].bg-blue-600,
