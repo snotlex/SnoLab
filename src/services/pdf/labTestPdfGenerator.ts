@@ -16,9 +16,9 @@ import {
 import { LabTestPdfOptions, DEFAULT_LAB_PROFILE } from "./types";
 
 /**
- * Generates an official, publication-quality, multi-page vector PDF for Laboratory Test & Material Reports.
- * Real selectable vector text, real pagination, zero screenshot imagery.
- * Fully compliant with ISO/IEC 17025 and European & ASTM standards.
+ * Generates a traceable, publication-quality, multi-page vector report for
+ * laboratory test and material records. Exporting a PDF does not make the
+ * record an official certificate; explicit governance evidence is required.
  */
 export async function generateLabTestPdf(
   testRecord: MaterialTestRecord,
@@ -36,7 +36,7 @@ export async function generateLabTestPdf(
   let currentY = PDF_PAGE_MARGINS.top + 2;
 
   // =========================================================================
-  // 0. ACADEMIC LABORATORY LETTERHEAD & CERTIFICATE HEADER (PAGE 1)
+  // 0. LABORATORY REPORT HEADER (PAGE 1)
   // =========================================================================
   const { left, contentWidth } = PDF_PAGE_MARGINS;
   const headerBoxHeight = 22;
@@ -47,10 +47,10 @@ export async function generateLabTestPdf(
   doc.setLineWidth(0.35);
   doc.roundedRect(left, currentY, contentWidth, headerBoxHeight, 2, 2, "FD");
 
-  // Draw official vector Laboratory Emblem Logo (size 15mm)
+  // Draw the SnoLab report emblem (size 15mm)
   drawLaboratoryEmblemLogo(doc, left + 4, currentY + 3.5, 15);
 
-  // Institution title and ISO accreditation
+  // Institution title and report scope
   doc.setFont("helvetica", "bold");
   doc.setFontSize(10.5);
   doc.setTextColor(...PDF_COLORS.primary);
@@ -69,12 +69,12 @@ export async function generateLabTestPdf(
   doc.setFontSize(6.2);
   doc.setTextColor(...PDF_COLORS.textMuted);
   doc.text(
-    `ACCRÉDITATION ISO/IEC 17025 • CONFORME EN 933 / EN 1097 / EN 196 / ASTM C136 • SNO-LAB QC`, 
+    `RAPPORT TECHNIQUE • RÉVISION ET MÉLANGE D'ESSAI REQUIS • SNO-LAB QC`,
     left + 22, 
     currentY + 16.5
   );
 
-  // Right side: Official Certificate Stamp badge
+  // Right side: neutral report status badge. It is never an official stamp by default.
   const sealW = 40;
   const sealX = left + contentWidth - sealW - 3;
   const sealY = currentY + 3;
@@ -86,7 +86,7 @@ export async function generateLabTestPdf(
   doc.setFont("helvetica", "bold");
   doc.setFontSize(6.5);
   doc.setTextColor(37, 99, 235);
-  doc.text("CERTIFICAT D'ESSAI OFFICIEL", sealX + sealW / 2, sealY + 4.5, { align: "center" });
+  doc.text(options.officialApproval ? "APPROVAL RECORDED" : "REPORT • REVIEW REQUIRED", sealX + sealW / 2, sealY + 4.5, { align: "center" });
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(6);
@@ -185,10 +185,10 @@ export async function generateLabTestPdf(
     {
       title: "OPÉRATEUR, VALIDATION & TRAÇABILITÉ",
       items: [
-        { label: "Technicien / Opérateur", value: testRecord.operator || "Technicien de Laboratoire Agréé" },
-        { label: "Ingénieur Responsable", value: "Ing. Matériaux & Génie Civil" },
-        { label: "N° Certificat Unique", value: testRecord.id },
-        { label: "Accréditation LIMS", value: "ISO/IEC 17025:2017" }
+        { label: "Technicien / Opérateur", value: testRecord.operator || "Non renseigné" },
+        { label: "Révision technique", value: options.officialApproval ? options.officialApproval.reviewerName : "En attente de revue" },
+        { label: "Référence du rapport", value: testRecord.id },
+        { label: "Statut du document", value: options.officialApproval ? "Approbation gouvernée" : "Brouillon / revue requise" }
       ]
     }
   ]);
@@ -366,7 +366,7 @@ export async function generateLabTestPdf(
   doc.setFontSize(8);
   doc.setTextColor(...(testRecord.status === "PASS" ? PDF_COLORS.success : testRecord.status === "WARNING" ? PDF_COLORS.warning : PDF_COLORS.danger));
   doc.text(
-    `DÉCISION: ${testRecord.status === "PASS" ? "MATÉRIAU VALIDÉ ET ACCEPTÉ POUR FORMULATION DU BÉTON" : testRecord.status === "WARNING" ? "MATÉRIAU ACCEPTÉ SOUS RÉSERVE D'AJUSTEMENT" : "MATÉRIAU REFUSÉ / NON CONFORME"}`,
+    `RÉSULTAT: ${testRecord.status === "PASS" ? "DANS LES LIMITES ENREGISTRÉES — REVUE REQUISE" : testRecord.status === "WARNING" ? "CONDITIONNEL — REVUE REQUISE" : "NON CONFORME AUX LIMITES ENREGISTRÉES"}`,
     PDF_PAGE_MARGINS.left + 4,
     currentY + 5
   );
@@ -375,7 +375,7 @@ export async function generateLabTestPdf(
   doc.setFontSize(6.5);
   doc.setTextColor(...PDF_COLORS.textPrimary);
   const interpretationText = testRecord.interpretation || 
-    "Les essais ont été conduits conformément aux protocoles normatifs en vigueur. Les résultats obtenus démontrent la conformité du matériau aux critères de formulation.";
+    "Les résultats enregistrés sont présentés pour revue technique. Ils ne constituent pas à eux seuls une certification, une approbation de matériau ou une autorisation de mise en œuvre.";
   
   const splitText = doc.splitTextToSize(interpretationText, PDF_PAGE_MARGINS.contentWidth - 8);
   doc.text(splitText, PDF_PAGE_MARGINS.left + 4, currentY + 10);
@@ -383,21 +383,22 @@ export async function generateLabTestPdf(
   currentY += conclusionHeight + 5;
 
   // =========================================================================
-  // 6. OFFICIAL LABORATORY SIGN-OFF & CERTIFICATION STAMP
+  // 6. TECHNICAL REVIEW BLOCK (OFFICIAL ONLY WITH EXPLICIT GOVERNANCE EVIDENCE)
   // =========================================================================
   drawSignOffBlock(doc, currentY, {
-    operatorName: testRecord.operator || "Ingénieur Matériaux & Essais",
-    directorName: "Chef de Département Contrôle Qualité",
+    operatorName: testRecord.operator || "Opérateur non renseigné",
+    directorName: "Réviseur non désigné",
     date: dateStr,
     reportRef: testRecord.id,
-    labName: testRecord.laboratoryName || lab.name
+    labName: testRecord.laboratoryName || lab.name,
+    officialApproval: options.officialApproval
   });
 
   // =========================================================================
   // 7. FINALIZE RUNNING HEADERS, FOOTERS & PAGE NUMBERS ACROSS ALL PAGES
   // =========================================================================
   finalizeReportPages(doc, {
-    reportTitle: "CERTIFICAT D'ESSAI LABORATOIRE",
+    reportTitle: options.officialApproval ? "RAPPORT DE TEST • APPROBATION ENREGISTRÉE" : "RAPPORT DE TEST • REVUE REQUISE",
     reportSubtitle: testRecord.testTitleFr || testRecord.testTitleEn || testRecord.standard,
     reportRef: testRecord.id,
     date: dateStr,
