@@ -10,7 +10,7 @@ import { useProjectStorage } from "../storage/ProjectContext";
 import type { ProjectMetadata, SnoLabProjectFile } from "../storage/types";
 import type { OnboardingRole } from "./onboarding";
 
-export type ProjectStageNumber = 1 | 2 | 3 | 4 | 5 | 6 | 7;
+export type ProjectStageNumber = 1 | 2 | 3 | 4 | 5;
 
 export interface ProjectStageDefinition {
   number: ProjectStageNumber;
@@ -21,15 +21,13 @@ export interface ProjectStageDefinition {
   submoduleTabs: string[];
 }
 
-/** Canonical product path: requirements → verification → design → trial → review → release. */
+/** Canonical product path: setup → materials → requirements and mix → cost → project reports. */
 export const WORKFLOW_STAGES: ProjectStageDefinition[] = [
   { number: 1, id: "project_setup", nameKey: "workflow.stage1.label", descKey: "workflow.stage1.desc", primaryTab: "saved_projects", submoduleTabs: ["saved_projects", "cloud_storage"] },
-  { number: 2, id: "requirements", nameKey: "workflow.stage2.label", descKey: "workflow.stage2.desc", primaryTab: "cloud_storage", submoduleTabs: ["cloud_storage", "project_properties"] },
-  { number: 3, id: "materials_verification", nameKey: "workflow.stage3.label", descKey: "workflow.stage3.desc", primaryTab: "calculator", submoduleTabs: ["calculator", "materials_library", "materials", "cement_database", "aggregates_database", "admixtures_database", "water_admixture_database"] },
-  { number: 4, id: "mix_calculation", nameKey: "workflow.stage4.label", descKey: "workflow.stage4.desc", primaryTab: "calculator", submoduleTabs: ["calculator", "granular_skeleton", "methodology"] },
-  { number: 5, id: "trial_mix", nameKey: "workflow.stage5.label", descKey: "workflow.stage5.desc", primaryTab: "batch_preparation", submoduleTabs: ["batch_preparation", "batch_ticket"] },
-  { number: 6, id: "lab_review", nameKey: "workflow.stage6.label", descKey: "workflow.stage6.desc", primaryTab: "quality_control", submoduleTabs: ["quality_control", "materials_lab", "academic_lab", "lab_validation", "quality_assets"] },
-  { number: 7, id: "release_report", nameKey: "workflow.stage7.label", descKey: "workflow.stage7.desc", primaryTab: "reports", submoduleTabs: ["reports", "compliance_reports", "journal", "cost", "forecasting", "performance_analysis"] }
+  { number: 2, id: "materials_import", nameKey: "workflow.stage2.label", descKey: "workflow.stage2.desc", primaryTab: "materials_library", submoduleTabs: ["materials_library", "materials", "cement_database", "aggregates_database", "admixtures_database", "water_admixture_database"] },
+  { number: 3, id: "requirements_mix", nameKey: "workflow.stage3.label", descKey: "workflow.stage3.desc", primaryTab: "calculator", submoduleTabs: ["project_properties", "calculator", "granular_skeleton", "methodology", "batch_preparation", "batch_ticket", "quality_control", "materials_lab", "academic_lab", "lab_validation", "quality_assets"] },
+  { number: 4, id: "cost_analysis", nameKey: "workflow.stage4.label", descKey: "workflow.stage4.desc", primaryTab: "cost", submoduleTabs: ["cost", "forecasting", "optimization", "simulation", "sieve"] },
+  { number: 5, id: "project_reports", nameKey: "workflow.stage5.label", descKey: "workflow.stage5.desc", primaryTab: "reports", submoduleTabs: ["reports", "compliance_reports", "journal", "performance_analysis"] }
 ];
 
 export const PROJECT_STAGES = WORKFLOW_STAGES;
@@ -68,25 +66,18 @@ export function evaluateStageGate(stage: ProjectStageNumber, project?: SnoLabPro
   // A stage is the workspace where its own inputs are completed. Its gate
   // protects entry into the next stage, not entry into the workspace itself.
   if (stage >= 3 && !hasProjectRequirements(project)) reasons.push("REQUIREMENTS_INCOMPLETE");
-  if (stage >= 4) {
+  if (stage >= 3) {
     const input = project.mixDesigns?.currentInputs;
     const materials = project.materials || [];
     const selectedIds = [input?.selectedCementId, input?.selectedSandId, input?.selectedGravelId];
     if (selectedIds.some(id => !id || !materials.some(material => material.id === id))) reasons.push("MATERIALS_NOT_VERIFIED");
   }
-  if (stage >= 5) {
+  if (stage >= 4) {
     const result = project.mixDesigns?.currentResults;
     if (!result || result.valid === false || result.isValid === false || result.calculationStatus === "blocked" || result.calculationStatus === "needs_data") reasons.push("CALCULATION_NOT_VALID");
   }
-  if (stage >= 6 && !(project.validationRecords || []).some(record => record.status === "PASSED")) reasons.push("TRIAL_MIX_REQUIRED");
-  if (stage >= 7) {
-    const approvedSession = (project.governance?.auditEvents || []).length >= 0 && (project as any).laboratorySessions?.some((session: any) => session.status === "APPROVED" && session.review?.decision === "APPROVED");
-    if (!approvedSession && !(project.validationRecords || []).some(record => record.status === "PASSED")) reasons.push("LAB_REVIEW_REQUIRED");
-  }
-  if (stage >= 7) {
-    const reports = project.reports || [];
-    if (!reports.length) reasons.push("REPORT_NOT_GENERATED");
-  }
+  // Trial Mix and laboratory review are submodules of stage 3. They remain
+  // mandatory for production release, but do not prevent opening the reports workspace.
 
   return { stage, ready: reasons.length === 0, reasonCode: reasons[0], reasons };
 }
@@ -126,7 +117,7 @@ export function getPrevStage(current: ProjectStageNumber): ProjectStageNumber | 
   return current > 1 ? (current - 1) as ProjectStageNumber : null;
 }
 export function getStageForTab(tab: string): ProjectStageNumber | null {
-  if (tab === "calculator") return 4;
+  if (tab === "calculator") return 3;
   for (const stage of WORKFLOW_STAGES) if (stage.submoduleTabs.includes(tab)) return stage.number;
   return null;
 }

@@ -105,6 +105,11 @@ describe("Material Property Schema & Completeness System", () => {
     expect(Array.isArray(report.results)).toBe(true);
   });
 
+  it("should expose unique material IDs so React lists and selectors remain stable", () => {
+    const ids = SEEDED_MATERIALS.map(material => material.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
   it("should ship every system material with a complete and valid schema profile", () => {
     const incompleteOrInvalid = SEEDED_MATERIALS.flatMap(material => {
       const audit = auditMaterial(material);

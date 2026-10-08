@@ -79,6 +79,7 @@ import { MaterialTestRecord, TestApprovalStatus } from "./types/laboratoryTypes"
 import { applyTestToMaterial } from "./services/materialLabSync";
 import { evaluateProductionRelease } from "./services/productionReleaseGate";
 import { can, resolveUserRole, separationOfDuties, UserRole } from "./services/permissions";
+import { installOperationalErrorMonitoring } from "./services/operationalTelemetry";
 import type { CalibrationRecord, SampleRecord, TestDeviceRecord } from "./types/qualityDomain";
 import type { LaboratorySession } from "./types/laboratorySessionTypes";
 import { LABORATORY_STANDARD_REGISTRY } from "./services/laboratoryStandardRegistry";
@@ -616,11 +617,12 @@ export default function App() {
     updateMixResults: updateProjectMixResults,
     saveNamedMix: saveNamedMixToProject,
     deleteNamedMix: deleteNamedMixFromProject,
+    updateValidationRecords,
     registerGeneratedReport,
     updateProjectMetadata
   } = useProjectStorage();
 
-  // Central seven-stage Project Workflow Controller; stage definitions live in ProjectWorkflowController.
+  // Central five-stage Project Workflow Controller; stage definitions live in ProjectWorkflowController.
   const workflow = useProjectWorkflow();
 
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
@@ -639,6 +641,8 @@ export default function App() {
     role: resolveUserRole(typeof window !== "undefined" ? window.localStorage.getItem("snolab_user_role") : undefined)
   });
   const currentUserRole = resolveUserRole(user.role);
+
+  useEffect(() => installOperationalErrorMonitoring(), []);
 
   const localizedLabel = (ar: string, fr: string, en: string) => {
     if (language === "ar") return ar;
@@ -1484,7 +1488,11 @@ export default function App() {
       client: meta.client || currentClient || base?.client || "",
       plant: meta.plant || currentPlant || base?.plant || "",
       createdDate: meta.createdDate || base?.createdDate || new Date().toISOString().split("T")[0],
-      notes: storageProject.notes?.map((n: any) => n.content) || (base as any)?.notes || []
+      notes: storageProject.notes?.map((n: any) => n.content) || (base as any)?.notes || [],
+      validationRecords: storageProject.validationRecords || base?.validationRecords || [],
+      ncrRecords: storageProject.ncrRecords || base?.ncrRecords || [],
+      mixLifecycleStatus: storageProject.mixLifecycleStatus || base?.mixLifecycleStatus || "draft",
+      reports: storageProject.reports || base?.reports || []
     };
   }, [workflow.projectIsOpen, projects, storageProject, currentProject, currentClient, currentPlant]);
 
@@ -1522,7 +1530,7 @@ export default function App() {
     }
   }, [workflow.projectIsOpen, storageProject?.metadata?.id]);
 
-  // Single Source of Truth for current project stage (1..7)
+  // Single Source of Truth for current project stage (1..5)
   const activeStep = workflow.currentStage;
 
   const handleStepClick = (stepNum: number) => {
@@ -1753,9 +1761,11 @@ export default function App() {
       engineeringComments: [trial.notes || "Trial mix record entered from batch preparation center."],
       engineerNotes: trial.notes,
       materialSnapshots: activeProject?.materialSnapshots,
+      createdBy: user.uid,
       createdAt: now
     } as any;
-    setProjects(prev => prev.map(project => project.id === activeProjectId ? {
+    const targetProjectId = activeProjectId || activeProject?.id;
+    setProjects(prev => prev.map(project => project.id === targetProjectId ? {
       ...project,
       validationRecords: [record, ...(project.validationRecords || [])],
       mixLifecycleStatus: trial.status === "PASSED" ? "performance-verified" : "trial-mix-required",
@@ -1767,7 +1777,39 @@ export default function App() {
         events: [...(project.auditTrail?.events || []), { id: `AUD-${Date.now()}`, type: "trial-mix-recorded", timestamp: now, actor: user.uid, entityId: record.id, message: `Trial mix recorded with status ${trial.status}.`, metadata: { strength28d: trial.strength28d } }]
       }
     } : project));
+    updateValidationRecords([record, ...((storageProject?.validationRecords || []) as any[]) ] as any);
     setSaveSuccess(localizedLabel("تم حفظ سجل الخلطة التجريبية. لا يزال الاعتماد يتطلب اجتياز جميع البوابات.", "La gâchée d'essai a été enregistrée; les autres portes restent obligatoires.", "Trial mix record saved; all other release gates remain mandatory."));
+  };
+
+  const handleReviewTrialMix = (recordId: string, decision: "APPROVED" | "REJECTED", reviewer: { id: string; name: string }, notes: string) => {
+    if (!can(currentUserRole, "approve-test")) {
+      setSaveError(localizedLabel("الدور الحالي لا يسمح باعتماد نتائج المختبر.", "Le rôle actuel ne permet pas d'approuver les résultats du laboratoire.", "The current role cannot approve laboratory results."));
+      return;
+    }
+    const sourceRecords = ((storageProject?.validationRecords || activeProject?.validationRecords || []) as any[]);
+    const target = sourceRecords.find(record => record.id === recordId);
+    if (!target) {
+      setSaveError(localizedLabel("سجل Trial Mix غير موجود في المشروع النشط.", "La fiche Trial Mix est introuvable dans le projet actif.", "The Trial Mix record was not found in the active project."));
+      return;
+    }
+    if (target.createdBy && target.createdBy === reviewer.id) {
+      setSaveError(localizedLabel("فشل فصل المهام: يجب أن يكون المراجع مختلفًا عن منشئ السجل.", "Séparation des tâches impossible: le réviseur doit être différent du créateur.", "Separation of duties failed: the reviewer must differ from the record creator."));
+      return;
+    }
+    const reviewedRecords = sourceRecords.map(record => record.id === recordId ? {
+      ...record,
+      review: { decision, reviewerId: reviewer.id, reviewerName: reviewer.name, reviewedAt: new Date().toISOString(), notes },
+      status: decision === "APPROVED" ? "PASSED" : "FAILED"
+    } : record);
+    updateValidationRecords(reviewedRecords as any);
+    const targetProjectId = activeProjectId || activeProject?.id;
+    setProjects(prev => prev.map(project => project.id === targetProjectId ? {
+      ...project,
+      validationRecords: reviewedRecords,
+      mixLifecycleStatus: decision === "APPROVED" ? "performance-verified" : "trial-mix-required"
+    } : project));
+    setSaveError("");
+    setSaveSuccess(localizedLabel(decision === "APPROVED" ? "تم اعتماد نتيجة Trial Mix وتسجيل هوية المراجع." : "تم رفض نتيجة Trial Mix وتسجيل قرار المراجع.", decision === "APPROVED" ? "Résultat Trial Mix approuvé avec identité du réviseur." : "Résultat Trial Mix rejeté avec décision du réviseur.", decision === "APPROVED" ? "Trial Mix approved with reviewer identity recorded." : "Trial Mix rejected with reviewer decision recorded."));
   };
 
   const handleApproveMix = () => {
@@ -2783,6 +2825,14 @@ export default function App() {
       materialsDatabase
     }, results, language);
   }, [inputs, results, language, currentProject, currentClient, currentPlant]);
+
+  // The calculator renders a live memoized result, while the five-stage
+  // controller reads currentResults from ProjectContext. Persist the same
+  // result snapshot so a valid UI calculation can unlock cost and reports.
+  useEffect(() => {
+    if (!activeProjectId || !results) return;
+    updateProjectMixResults(results as any);
+  }, [activeProjectId, results]);
 
   // Synchronize active project details with dynamic EMMS traceability and material snapshots
   useEffect(() => {
@@ -3849,12 +3899,10 @@ export default function App() {
                 const gate = workflow.getStageGate(stage.number);
                 const icons = {
                   project_setup: Folder,
-                  requirements: Briefcase,
-                  materials_verification: Database,
-                  mix_calculation: Calculator,
-                  trial_mix: FlaskConical,
-                  lab_review: ShieldCheck,
-                  release_report: FileText,
+                  materials_import: Database,
+                  requirements_mix: Calculator,
+                  cost_analysis: Coins,
+                  project_reports: FileText,
                 } as Record<string, typeof Folder>;
                 return {
                   num: stage.number,
@@ -4577,6 +4625,7 @@ export default function App() {
                 materials={materialsDatabase}
                 language={language as "ar" | "fr" | "en"}
                 onNavigateToDesign={() => setActiveSidebarTab("calculator")}
+                onNavigateToMaterials={() => setActiveSidebarTab("materials_library")}
                 onSaveTrialMix={handleSaveTrialMix}
               />
             )}
@@ -4588,7 +4637,9 @@ export default function App() {
                 input={inputs}
                 result={results}
                 onCreateNcr={(record) => { if (!can(currentUserRole, "open-ncr")) { setSaveError(localizedLabel("لا يملك المستخدم صلاحية فتح NCR.", "Le rôle actuel ne peut pas ouvrir une NCR.", "The current role cannot open an NCR.")); return; } setProjects(prev => prev.map(project => project.id === (activeProjectId || activeProject?.id) ? { ...project, ncrRecords: [record, ...(project.ncrRecords || [])], auditTrail: { ...project.auditTrail, lastModifiedAt: new Date().toISOString(), lastModifiedBy: user.uid, events: [...(project.auditTrail?.events || []), { id: `AUD-${Date.now()}`, type: "updated", timestamp: new Date().toISOString(), actor: user.uid, entityId: record.id, message: `NCR opened: ${record.title}.` }] } } : project)); }}
-                onUpdateNcr={(id, status) => { if (!can(currentUserRole, "open-ncr")) { setSaveError(localizedLabel("لا يملك المستخدم صلاحية تعديل NCR.", "Le rôle actuel ne peut pas modifier la NCR.", "The current role cannot update an NCR.")); return; } const now = new Date().toISOString(); setProjects(prev => prev.map(project => project.id === (activeProjectId || activeProject?.id) ? { ...project, ncrRecords: (project.ncrRecords || []).map(ncr => ncr.id === id ? { ...ncr, status, ...(status === "closed" ? { closedAt: now } : {}) } : ncr), auditTrail: { ...project.auditTrail, lastModifiedAt: now, lastModifiedBy: user.uid, events: [...(project.auditTrail?.events || []), { id: `AUD-${Date.now()}`, type: status === "closed" ? "updated" : "updated", timestamp: now, actor: user.uid, entityId: id, message: `NCR status changed to ${status}.` }] } } : project)); }}
+                onUpdateNcr={(id, status) => { if (!can(currentUserRole, "open-ncr")) { setSaveError(localizedLabel("لا يملك المستخدم صلاحية تعديل NCR.", "Le rôle actuel ne peut pas modifier la NCR.", "The current role cannot update an NCR.")); return; } const now = new Date().toISOString(); setProjects(prev => prev.map(project => project.id === (activeProjectId || activeProject?.id) ? { ...project, ncrRecords: (project.ncrRecords || []).map(ncr => ncr.id === id ? { ...ncr, status, ...(status === "closed" ? { closedAt: now } : {}) } : ncr), auditTrail: { ...project.auditTrail, lastModifiedAt: now, lastModifiedBy: user.uid, events: [...(project.auditTrail?.events || []), { id: `AUD-${Date.now()}`, type: status === "closed" ? "updated" : "updated", timestamp: new Date().toISOString(), actor: user.uid, entityId: id, message: `NCR status changed: ${status}.` }] } } : project)); }}
+                onReviewRecord={handleReviewTrialMix}
+                canReview={can(currentUserRole, "approve-test")}
                 onNavigateToTrial={() => setActiveSidebarTab("batch_preparation")}
               />
             )}

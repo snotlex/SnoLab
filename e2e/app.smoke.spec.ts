@@ -1,8 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
 async function openStage3(page: Page) {
-  await page.locator("#workflow-step-btn-2").click();
-  await expect(page.locator("#project-requirements-panel")).toBeVisible();
   await page.locator("#workflow-step-btn-3").click();
   await expect(page.locator("#stage3-sequential-page")).toBeVisible();
 }
@@ -21,7 +19,7 @@ test.describe("SnoLab application smoke flow", () => {
     await page.getByRole("button", { name: /Start New Project/ }).first().click();
     await expect(page.locator("#main-layout-root")).toBeVisible();
     await expect(page.locator("body")).toContainText("Project Setup");
-    await expect(page.locator("body")).toContainText("STAGE 1 / 7");
+    await expect(page.locator("body")).toContainText("STAGE 1 / 5");
   });
 
   test("keeps the landing page usable on a mobile viewport", async ({ page }) => {
@@ -54,16 +52,16 @@ test.describe("SnoLab application smoke flow", () => {
     await expect(openMobile).toBeFocused();
   });
 
-  test("simulates every concrete type and validates seven-stage navigation guards", async ({ page }) => {
+  test("simulates every concrete type and validates five-stage navigation guards", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /🇺🇸 EN/ }).click();
     await page.getByRole("button", { name: /Start New Project/ }).first().click();
 
-    const stageBadge = page.locator("span").filter({ hasText: /^STAGE [1-7] \/ 7/ }).first();
+    const stageBadge = page.locator("span").filter({ hasText: /^STAGE [1-5] \/ 5/ }).first();
     const nextStage = page.getByRole("button", { name: "Next Stage" });
     const previousStage = page.getByRole("button", { name: "Previous Stage" });
 
-    await expect(stageBadge).toContainText("STAGE 1 / 7");
+    await expect(stageBadge).toContainText("STAGE 1 / 5");
     await expect(previousStage).toBeDisabled();
 
     await openStage3(page);
@@ -88,18 +86,16 @@ test.describe("SnoLab application smoke flow", () => {
     await strengthInput.fill("25");
 
     await nextStage.click();
-    await expect(stageBadge).toContainText("STAGE 4 / 7");
+    await expect(stageBadge).toContainText("STAGE 3 / 5");
 
     await nextStage.click();
-    await expect(stageBadge).toContainText("STAGE 4 / 7");
+    await expect(stageBadge).toContainText("STAGE 3 / 5");
     await expect(concreteTypeSelect).toHaveValue("NSC");
 
     await previousStage.click();
-    await expect(stageBadge).toContainText("STAGE 3 / 7");
+    await expect(stageBadge).toContainText("STAGE 2 / 5");
     await previousStage.click();
-    await expect(stageBadge).toContainText("STAGE 2 / 7");
-    await previousStage.click();
-    await expect(stageBadge).toContainText("STAGE 1 / 7");
+    await expect(stageBadge).toContainText("STAGE 1 / 5");
     await expect(previousStage).toBeDisabled();
   });
 

@@ -1895,7 +1895,7 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
 
                 return (
                   <div className="grid grid-cols-2 gap-2 text-[9px] leading-tight">
-                    {materialsList.map((item, idx) => (
+                    {materialsList.filter((item) => item.material && typeof item.material.name === "string").map((item, idx) => (
                       <div key={idx} className="border border-slate-200 rounded-lg p-2.5 bg-slate-50/70 hover:bg-white transition-colors duration-150 flex flex-col justify-between space-y-1.5 shadow-sm">
                         
                         {/* Title block */}

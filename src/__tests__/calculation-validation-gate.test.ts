@@ -43,6 +43,45 @@ describe("Calculation Validation Gate Tests", () => {
     expect(report.criticalErrors.length).toBe(0);
   });
 
+  it("1.1 should validate against resolved repository material properties", () => {
+    const repositoryInputs = {
+      ...validInputs,
+      moistureSand: 0,
+      moistureGravel: 0,
+      sandAbsorption: 0,
+      gravelAbsorption: 0,
+      selectedCementId: "SYS-CEM-001",
+      selectedSandId: "SYS-SND-001",
+      selectedGravelId: "SYS-GRA-001",
+      selectedWaterId: "SYS-WAT-001",
+      materialsDatabase: [
+        { id: "SYS-CEM-001", type: "cement" },
+        { id: "SYS-SND-001", moisture: 0.5, absorption: 1.2 },
+        { id: "SYS-GRA-001", moisture: 0.8, absorption: 1.2 },
+        { id: "SYS-WAT-001", type: "water" }
+      ]
+    };
+    const repositoryResults = {
+      ...validResults,
+      sandWeightDry: 700,
+      sandWeightWet: 703.5,
+      gravelWeightDry: 1050,
+      gravelWeightWet: 1058.4,
+      sandTotalMoistureWater: 3.5,
+      gravelTotalMoistureWater: 8.4,
+      totalFreeSurfaceWater: 0,
+      totalAbsorptionDeficit: 9.1,
+      waterToAdd: 189.1,
+      totalBatchWeight: 2304.0,
+      effectiveWater: 180,
+      waterContentActual: 180,
+      waterCementRatio: 180 / 350
+    };
+    const report = validateCalculationLogic(repositoryInputs, repositoryResults);
+    expect(report.isValidForReport).toBe(true);
+    expect(report.criticalErrors).not.toContain("absorption_deficit_mismatch");
+  });
+
   it("2. should block report if waterToAdd is negative", () => {
     const badResults = {
       ...validResults,

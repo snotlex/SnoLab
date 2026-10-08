@@ -29,35 +29,35 @@ const baseProject = (overrides: any = {}): any => ({
     currentInputs: { fck28: 25, dMax: 20, slump: 8, cementClassStrength: 42.5, cementType: "CEM I", concreteType: "NSC", selectedMethod: "dreux", selectedCementId: "cement-1", selectedSandId: "sand-1", selectedGravelId: "gravel-1" },
     currentResults: { valid: true, isValid: true, calculationStatus: "valid" }
   },
-  validationRecords: [{ status: "PASSED" }],
+  validationRecords: [{ status: "PASSED", review: { decision: "APPROVED", reviewerId: "reviewer-1", reviewerName: "Reviewer", reviewedAt: "2026-10-02T01:00:00.000Z" } }],
   reports: [{ id: "R-1", name: "Report", type: "technical", generatedAt: "2026-10-02" }],
   notes: [],
   history: [],
   ...overrides
 });
 
-describe("Seven-stage project workflow architecture", () => {
-  it("defines exactly seven canonical stages in the requested order", () => {
-    expect(WORKFLOW_STAGES).toHaveLength(7);
+describe("Five-stage project workflow architecture", () => {
+  it("defines exactly five canonical stages in the requested order", () => {
+    expect(WORKFLOW_STAGES).toHaveLength(5);
     expect(WORKFLOW_STAGE_COUNT).toBe(WORKFLOW_STAGES.length);
-    expect(PROJECT_STAGES).toHaveLength(7);
+    expect(PROJECT_STAGES).toHaveLength(5);
     expect(WORKFLOW_STAGES.map(stage => stage.id)).toEqual([
-      "project_setup", "requirements", "materials_verification", "mix_calculation", "trial_mix", "lab_review", "release_report"
+      "project_setup", "materials_import", "requirements_mix", "cost_analysis", "project_reports"
     ]);
-    expect(WORKFLOW_STAGES.map(stage => stage.number)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+    expect(WORKFLOW_STAGES.map(stage => stage.number)).toEqual([1, 2, 3, 4, 5]);
   });
 
   it("allows valid navigation only when the active project and forward gate exist", () => {
     const project = baseProject();
-    for (let stage = 1; stage <= 7; stage++) {
+    for (let stage = 1; stage <= 5; stage++) {
       expect(validateStageNavigation(stage, true, stage as ProjectStageNumber, project).allowed).toBe(true);
     }
-    expect(validateStageNavigation(7, true, 1, project).allowed).toBe(true);
+    expect(validateStageNavigation(5, true, 1, project).allowed).toBe(true);
   });
 
   it("rejects invalid stage numbers and missing projects", () => {
     expect(validateStageNavigation(0, true).allowed).toBe(false);
-    expect(validateStageNavigation(8, true).allowed).toBe(false);
+    expect(validateStageNavigation(6, true).allowed).toBe(false);
     expect(validateStageNavigation(2.5, true).allowed).toBe(false);
     expect(validateStageNavigation(2, false).reason).toContain("No active project");
   });
@@ -77,29 +77,32 @@ describe("Seven-stage project workflow architecture", () => {
     expect(evaluateStageGate(3, project).ready).toBe(true);
     expect(evaluateStageGate(4, project).ready).toBe(true);
     expect(evaluateStageGate(5, project).ready).toBe(true);
-    expect(evaluateStageGate(6, project).ready).toBe(true);
-    expect(evaluateStageGate(7, project).ready).toBe(true);
-    expect(evaluateStageGate(7, baseProject({ reports: [] })).reasons).toContain("REPORT_NOT_GENERATED");
+    expect(evaluateStageGate(5, baseProject({ mixDesigns: { currentInputs: {}, currentResults: undefined } })).ready).toBe(false);
   });
 
-  it("supports sequential next/previous boundaries across seven stages", () => {
-    expect(getNextStage(6)).toBe(7);
-    expect(getNextStage(7)).toBeNull();
-    expect(getPrevStage(7)).toBe(6);
+  it("opens the project reports workspace while production approval remains separate", () => {
+    const unreviewed = baseProject({ validationRecords: [{ status: "PASSED" }] });
+    const gate = evaluateStageGate(5, unreviewed);
+    expect(gate.ready).toBe(true);
+  });
+
+  it("supports sequential next/previous boundaries across five stages", () => {
+    expect(getNextStage(4)).toBe(5);
+    expect(getNextStage(5)).toBeNull();
+    expect(getPrevStage(5)).toBe(4);
     expect(getPrevStage(1)).toBeNull();
   });
 
   it("maps primary and submodule tabs without losing the legacy calculator/library paths", () => {
     expect(getTabForStage(1)).toBe("saved_projects");
-    expect(getTabForStage(2)).toBe("cloud_storage");
     expect(getTabForStage(3)).toBe("calculator");
-    expect(getTabForStage(4)).toBe("calculator");
-    expect(getTabForStage(5)).toBe("batch_preparation");
-    expect(getTabForStage(6)).toBe("quality_control");
-    expect(getTabForStage(7)).toBe("reports");
-    expect(getStageForTab("calculator")).toBe(4);
-    expect(getStageForTab("materials_lab")).toBe(6);
-    expect(getStageForTab("compliance_reports")).toBe(7);
+    expect(getTabForStage(2)).toBe("materials_library");
+    expect(getTabForStage(3)).toBe("calculator");
+    expect(getTabForStage(4)).toBe("cost");
+    expect(getTabForStage(5)).toBe("reports");
+    expect(getStageForTab("calculator")).toBe(3);
+    expect(getStageForTab("materials_lab")).toBe(3);
+    expect(getStageForTab("compliance_reports")).toBe(5);
     expect(getStageForTab("non_existent_tab")).toBeNull();
   });
 

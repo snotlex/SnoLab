@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { evaluateProductionRelease } from "./productionReleaseGate";
 
-const project = (status?: "PASSED" | "FAILED", lifecycleStatus?: string) => ({
+const project = (status?: "PASSED" | "FAILED", lifecycleStatus?: string, reviewed = false) => ({
   id: "P-1", name: "Project", client: "Client", plant: "Plant", createdDate: "2026-01-01",
-  inputs: {}, validationRecords: status ? [{ status } as any] : [], mixLifecycleStatus: lifecycleStatus
+  inputs: {}, validationRecords: status ? [{ status, ...(reviewed ? { review: { decision: "APPROVED", reviewerId: "reviewer-1", reviewerName: "Reviewer", reviewedAt: "2026-01-01T01:00:00.000Z" } } : {}) } as any] : [], mixLifecycleStatus: lifecycleStatus
 } as any);
 
 const valid = { isValidForReport: true, criticalErrors: [], warnings: [] };
@@ -23,6 +23,12 @@ describe("production release gate", () => {
   });
 
   it("allows production release only after all gates and trial mix pass", () => {
-    expect(evaluateProductionRelease(project("PASSED", "performance-verified"), result, valid)).toEqual({ canRelease: true, reasons: [] });
+    expect(evaluateProductionRelease(project("PASSED", "performance-verified", true), result, valid)).toEqual({ canRelease: true, reasons: [] });
+  });
+
+  it("blocks a passed trial mix until a laboratory reviewer approves it", () => {
+    const decision = evaluateProductionRelease(project("PASSED", "performance-verified"), result, valid);
+    expect(decision.canRelease).toBe(false);
+    expect(decision.reasons).toContain("laboratory_review_missing");
   });
 });

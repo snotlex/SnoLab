@@ -968,6 +968,14 @@ export interface LabValidationRecord {
   engineerNotes?: string;
   materialSnapshots?: Record<string, EngineeringMaterial>;
   createdAt: string; // formatted date or iso string
+  createdBy?: string;
+  review?: {
+    decision: "APPROVED" | "REJECTED";
+    reviewerId: string;
+    reviewerName: string;
+    reviewedAt: string;
+    notes?: string;
+  };
 }
 
 export interface ActiveProject {

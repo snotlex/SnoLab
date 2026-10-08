@@ -204,6 +204,6 @@ The Dreux-Gorisse method is highly reliable for standard civil engineering concr
 
 ## ⚖️ 9. Professional Engineering Disclaimer
 
-> **IMPORTANT TECHNICAL NOTICE**: The calculations, grading curves, thermal graphs, and raw material mixtures produced by the SnoLab Concrete Mix Calculator are mathematical estimations based on classical empirical formulas (NF P 18-500). They do not replace local aggregate variations, real-world cement chemistry, or site-specific conditions. 
-> 
+> **IMPORTANT TECHNICAL NOTICE**: The calculations, grading curves, thermal graphs, and raw material mixtures produced by the SnoLab Concrete Mix Calculator are mathematical estimations based on classical empirical formulas (NF P 18-500). They do not replace local aggregate variations, real-world cement chemistry, or site-specific conditions.
+>
 > **All mix formulations MUST be verified and certified through physical trial batches in a certified, licensed concrete materials testing laboratory before batch-plant deployment or structural casting.** SnoLab and its developers assume no responsibility or structural liability for material failures, cracking, or strength deviations in real-world structures.

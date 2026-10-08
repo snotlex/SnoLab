@@ -17045,7 +17045,7 @@ export const SEEDED_MATERIALS: EngineeringMaterial[] = [
   },
   ...ADDITIONAL_APPROVED_MATERIALS,
   ...EXPANDED_REFERENCE_MATERIALS
-];
+].filter((material, index, materials) => materials.findIndex(candidate => candidate.id === material.id) === index) as EngineeringMaterial[];
 
 // Ensure all 53 SEEDED_MATERIALS are VALIDATED, COMPLETE, READY, and USABLE IN MIX DESIGN
 for (const mat of SEEDED_MATERIALS) {

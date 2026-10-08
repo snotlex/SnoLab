@@ -340,10 +340,27 @@ export function validateCalculationLogic(
   }
 
   // 9. Moisture and Absorption limits
-  const moistureSand = inputs.moistureSand ?? 0;
-  const moistureGravel = inputs.moistureGravel ?? 0;
-  const sandAbsorption = inputs.sandAbsorption ?? 0;
-  let gravelAbsorption = inputs.gravelAbsorption ?? 0;
+  // Keep the gate aligned with dreuxInputResolver: selected repository
+  // material properties take precedence over legacy/manual input fields.
+  // Otherwise the engine may calculate with (for example) 0.5% material
+  // moisture while the gate validates against the UI's 0% fallback.
+  const materialById = (id: string | undefined) =>
+    Array.isArray(inputs?.materialsDatabase)
+      ? inputs.materialsDatabase.find((material: any) => material?.id === id)
+      : undefined;
+  const readMaterialNumber = (material: any, keys: string[], fallback: number) => {
+    for (const key of keys) {
+      const value = material?.[key];
+      if (typeof value === "number" && Number.isFinite(value)) return value;
+    }
+    return fallback;
+  };
+  const sandMaterial = materialById(sandId);
+  const gravelMaterial = materialById(gravelId);
+  const moistureSand = readMaterialNumber(sandMaterial, ["moisture", "Moisture", "MoistureContent"], inputs.moistureSand ?? 0);
+  const moistureGravel = readMaterialNumber(gravelMaterial, ["moisture", "Moisture", "MoistureContent"], inputs.moistureGravel ?? 0);
+  const sandAbsorption = readMaterialNumber(sandMaterial, ["absorption", "Absorption"], inputs.sandAbsorption ?? 0);
+  let gravelAbsorption = readMaterialNumber(gravelMaterial, ["absorption", "Absorption"], inputs.gravelAbsorption ?? 0);
   if (inputs.selectedLightweightAggregateId && inputs.lightweightAggregateAbsorption !== undefined) {
     gravelAbsorption = inputs.lightweightAggregateAbsorption;
   } else if (inputs.selectedHeavyweightAggregateId && inputs.heavyweightAggregateAbsorption !== undefined) {

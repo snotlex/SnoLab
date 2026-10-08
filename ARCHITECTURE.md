@@ -14,7 +14,7 @@ graph TD
     classDef database fill:#eef2ff,stroke:#6366f1,stroke-width:2px;
     classDef engine fill:#faf5ff,stroke:#a855f7,stroke-width:2px;
     classDef ui fill:#f0fdf4,stroke:#22c55e,stroke-width:2px;
-    
+
     subgraph Data Layer [1. Material & Knowledge Bases]
         DB_KB[(Centralized Dreux Knowledge Base)]:::database
         DB_Repo[(Material Library / Repository)]:::database
@@ -39,13 +39,13 @@ graph TD
     %% Dependencies & Flows
     DB_Repo -->|Raw Material Properties| Gate_Suitability
     Gate_Suitability -->|Approved & Compatible Materials Only| Engine_Core
-    
+
     DB_KB -->|Engineering Constants, Equations & Curves| Engine_Core
     DB_KB -->|Packing Guidelines & Gamma Limits| Engine_Granular
-    
+
     Engine_Core -->|Volumetric & Proportioning Outputs| Engine_Granular
     Engine_Granular -->|Grading Curves & Sieve Adjustments| Engine_MixDesign
-    
+
     Engine_MixDesign -->|Traceable Calculation Logs & Costing| Engine_Report
     Engine_MixDesign -->|Real-time state| UI_Preview
     Engine_Report -->|PDF Download & Arabic/English Reports| UI_Preview
@@ -95,7 +95,7 @@ sequenceDiagram
 ## 3. Core Architectural Rules
 
 ### A. Material Library to Engineering Core
-*   **Strict Suitability Check:** The application imports aggregates and binders directly from the user's workspace repository. 
+*   **Strict Suitability Check:** The application imports aggregates and binders directly from the user's workspace repository.
 *   **Property Gatekeeper:** If a material does not have its specific gravity (density), water absorption, or moisture content specified, the calculation engine immediately blocks calculations with a friendly Arabic and English warning asking the user to edit and supply the missing values in the Material Library first.
 
 ### B. Granular Engine Dependency

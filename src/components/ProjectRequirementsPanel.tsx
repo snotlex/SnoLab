@@ -30,7 +30,7 @@ const copy = (language: Language) => ({
     method: "طريقة الحساب",
     complete: "المتطلبات مكتملة",
     incomplete: "أكمل الحقول المميزة قبل الانتقال",
-    toMaterials: "الانتقال إلى تحقق المواد",
+    toMaterials: "الانتقال إلى المتطلبات والحساب",
     saved: "تُحفظ التعديلات تلقائيًا ضمن المشروع الحالي"
   },
   fr: {
@@ -49,7 +49,7 @@ const copy = (language: Language) => ({
     method: "Méthode de calcul",
     complete: "Exigences complètes",
     incomplete: "Complétez les champs signalés avant de continuer",
-    toMaterials: "Passer à la vérification des matériaux",
+    toMaterials: "Passer aux exigences et au calcul",
     saved: "Les modifications sont enregistrées automatiquement dans le projet"
   },
   en: {
@@ -68,7 +68,7 @@ const copy = (language: Language) => ({
     method: "Calculation method",
     complete: "Requirements complete",
     incomplete: "Complete the highlighted fields before continuing",
-    toMaterials: "Continue to materials verification",
+    toMaterials: "Continue to requirements and mix calculation",
     saved: "Changes are saved automatically in the current project"
   }
 }[language]);
