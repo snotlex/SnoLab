@@ -171,6 +171,12 @@ describe("PDF Report Generator Service (Vector Native)", () => {
     const doc = await generateLabTestPdf(mockTestRecord, { language: "fr" });
     expect(doc).toBeDefined();
     expect(doc.getNumberOfPages()).toBeGreaterThanOrEqual(1);
+    const pdfText = ((doc as any).internal.pages as string[][]).flat().join("\n");
+    expect(pdfText).toContain("[ NOT AN OFFICIAL CERTIFICATE ]");
+    expect(pdfText).not.toContain("CERTIFICAT D'ESSAI OFFICIEL");
+    expect(pdfText).not.toContain("ISO/IEC 17025:2017");
+    expect(pdfText).not.toContain("VERIFIED & ACCREDITED ISO 17025");
+    expect(pdfText).not.toContain("ACCEPTÉ POUR FORMULATION DU BÉTON");
   });
 
   it("should generate a Project Audit PDF without errors", async () => {
