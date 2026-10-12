@@ -49,9 +49,36 @@ describe("RCC specialized mix design", () => {
     expect(result.fineAggregateKg).toBeCloseTo(1057.6125, 4);
     expect(result.coarseAggregateKg).toBeCloseTo(956.8875, 4);
     expect(result.waterKg).toBeCloseTo(110.25, 4);
-    expect(result.wcRatio).toBeCloseTo(110.25 / 325, 6);
+    // waterKg is batch water to add; W/C uses the effective design water that set the binder demand.
+    expect(result.wcRatio).toBeCloseTo(130 / 325, 6);
+    expect(result.ratios?.waterCementRatio).toBeCloseTo(130 / 325, 6);
     expect(result.absoluteVolumeCheck.deviationPercent).toBeLessThan(2);
     expect(result.materialSuitability?.status).toBe("approved");
+  });
+
+  it("blocks RCC when absolute-volume closure is outside tolerance", () => {
+    const input = rccInput();
+    // A relative aggregate density of 0.8 is not representative of these aggregates and
+    // produces an absolute-volume balance far outside the method's 2% release envelope.
+    input.sandRelativeDensity = 0.8;
+    input.gravelRelativeDensity = 0.8;
+
+    const result = calculateMixDesign(input);
+
+    expect(result.calculationStatus).toBe("blocked");
+    expect(result.isValid).toBe(false);
+    expect(result.errors.some((error) => error.includes("2%"))).toBe(true);
+  });
+
+  it("blocks RCC when missing aggregate densities make volume closure non-finite", () => {
+    const input = rccInput();
+    delete input.sandRelativeDensity;
+
+    const result = calculateMixDesign(input);
+
+    expect(result.calculationStatus).toBe("blocked");
+    expect(result.isValid).toBe(false);
+    expect(result.errors.some((error) => error.includes("كثافات المواد"))).toBe(true);
   });
 
   it("blocks RCC when the laboratory moisture-density inputs are missing", () => {
@@ -63,6 +90,20 @@ describe("RCC specialized mix design", () => {
     expect(result.calculationStatus).toBe("blocked");
     expect(result.isValid).toBe(false);
     expect(result.errors.some((e) => e.includes("الكثافة الجافة القصوى"))).toBe(true);
+  });
+
+  it("blocks RCC when the declared relative compaction target is missing or outside the allowed envelope", () => {
+    const missing = rccInput();
+    delete missing.rccCompactionTargetPercent;
+    const missingResult = calculateMixDesign(missing);
+    expect(missingResult.calculationStatus).toBe("blocked");
+    expect(missingResult.errors.some((e) => e.includes("هدف الرص النسبي"))).toBe(true);
+
+    const invalid = rccInput();
+    invalid.rccCompactionTargetPercent = 120;
+    const invalidResult = calculateMixDesign(invalid);
+    expect(invalidResult.calculationStatus).toBe("blocked");
+    expect(invalidResult.errors.some((e) => e.includes("90%"))).toBe(true);
   });
 
   it("does not silently fall back to Dreux for an explicit RCC route", () => {

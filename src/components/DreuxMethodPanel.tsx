@@ -75,7 +75,7 @@ export const DreuxMethodPanel: React.FC<DreuxMethodPanelProps> = ({
       color: "from-purple-500 to-indigo-600",
       descriptionAr: "المقاومة الاسمية لعلامة أو صنف الإسمنت المستعمل (مثل 32.5 أو 42.5 أو 52.5 ميجاباسكال). تؤثر مباشرة في حساب نسبة الماء/الإسمنت ومعدل صلابة الخرسانة المبكر.",
       descriptionFr: "La classe de résistance nominale du ciment utilisé (par ex. 32.5, 42.5, 52.5 MPa) influençant directement le rapport E/C.",
-      currentValue: `${inputs.cementClassStrength !== undefined ? `${inputs.cementClassStrength} MPa` : "—"} (${inputs.cementType || "CEM I / CEM II"})`
+      currentValue: `${inputs.cementClassStrength !== undefined ? `${inputs.cementClassStrength} MPa` : "—"} (${inputs.cementType || "—"})`
     },
     {
       id: 3,
@@ -133,14 +133,14 @@ export const DreuxMethodPanel: React.FC<DreuxMethodPanelProps> = ({
       id: 7,
       category: "materials",
       symbol: "ρ_s / ρ_g",
-      nameAr: "الكتلة الحجمية الحقيقية للمواد",
-      nameFr: "Masse volumique absolue des matériaux",
-      nameEn: "Absolute Relative Density",
+      nameAr: "الكثافة النسبية للركام",
+      nameFr: "Densité relative des granulats",
+      nameEn: "Aggregate Relative Density (dimensionless)",
       icon: Scale,
       color: "from-slate-500 to-blue-600",
-      descriptionAr: "الكثافة النوعية المطلقة لكل من الإسمنت والركام (الرمل والحصى). تستخدم لتحويل نسب التصميم الحجمية النظرية لخلطة الخرسانة إلى أوزان فعلية بالكيلوغرام.",
-      descriptionFr: "La masse volumique de chaque composant permettant la conversion exacte des volumes de la méthode en masses pesables de chantier.",
-      currentValue: `الرمل: ${inputs.sandRelativeDensity} kg/m³ | الحصى: ${inputs.gravelRelativeDensity} kg/m³`
+      descriptionAr: "الكثافة النسبية للرمل والحصى، وهي قيمة بلا وحدة. يحولها المحرك إلى كثافة بوحدة kg/m³ عند الحاجة باستخدام عامل التحويل الصحيح.",
+      descriptionFr: "La densité relative du sable et du gravier est sans unité. Le moteur la convertit en kg/m³ lorsque nécessaire.",
+      currentValue: `الرمل: ${typeof inputs.sandRelativeDensity === "number" && Number.isFinite(inputs.sandRelativeDensity) ? inputs.sandRelativeDensity.toFixed(3) : "—"} (بلا وحدة) | الحصى: ${typeof inputs.gravelRelativeDensity === "number" && Number.isFinite(inputs.gravelRelativeDensity) ? inputs.gravelRelativeDensity.toFixed(3) : "—"} (بلا وحدة)`
     },
     {
       id: 8,
@@ -166,7 +166,7 @@ export const DreuxMethodPanel: React.FC<DreuxMethodPanelProps> = ({
       color: "from-cyan-500 to-blue-600",
       descriptionAr: "قدرة حبيبات الرمل والحصى على امتصاص الماء داخل مساماتها الداخلية. الركام غير المشبع يمتص جزءاً من ماء الخلط، مما يقلل الماء الفعّال المتاح لإماهة الإسمنت.",
       descriptionFr: "La capacité d'absorption des pores internes des granulats, essentielle pour calculer l'eau efficace active dans le rapport eau/liant.",
-      currentValue: `الرمل: ${inputs.sandAbsorption !== undefined ? inputs.sandAbsorption : 1.5}% | الحصى: ${inputs.gravelAbsorption !== undefined ? inputs.gravelAbsorption : 0.8}%`
+      currentValue: `الرمل: ${inputs.sandAbsorption !== undefined ? inputs.sandAbsorption : "—"}% | الحصى: ${inputs.gravelAbsorption !== undefined ? inputs.gravelAbsorption : "—"}%`
     },
     {
       id: 10,
@@ -205,7 +205,7 @@ export const DreuxMethodPanel: React.FC<DreuxMethodPanelProps> = ({
       color: "from-blue-400 to-indigo-500",
       descriptionAr: "الحجم الأساسي للمياه اللازم لترطيب المواد وتحقيق قوام الهبوط المطلوب بناءً على قطر الركام الأقصى وجودة الركام وشكله قبل تطبيق تصحيحات الرطوبة والإضافات.",
       descriptionFr: "Le volume d'eau initial théorique déterminé graphiquement ou par calcul d'après le Dmax et l'affaissement visé.",
-      currentValue: `${Math.round(results.waterBeforeCorrection || 180)} L`
+      currentValue: `${typeof results.waterBeforeCorrection === "number" && Number.isFinite(results.waterBeforeCorrection) ? Math.round(results.waterBeforeCorrection) : "—"} L`
     },
     {
       id: 13,
@@ -218,7 +218,7 @@ export const DreuxMethodPanel: React.FC<DreuxMethodPanelProps> = ({
       color: "from-red-500 to-rose-600",
       descriptionAr: "أهم نسبة تصميمية في تكنولوجيا الخرسانة. تحسب مباشرة من قانون Bolomey المعدل بواسطة درو-غوريس لربط مقاومة الضغط بالمسامية ونفاذية الهيكل الخرساني.",
       descriptionFr: "Le rapport clé (E/C ou W/C) calculé via la formule de Bolomey pour réguler à la fois la résistance mécanique et la porosité du béton.",
-      currentValue: results.wcRatioAdjusted !== undefined ? results.wcRatioAdjusted.toFixed(2) : "0.50"
+      currentValue: typeof results.wcRatioAdjusted === "number" && Number.isFinite(results.wcRatioAdjusted) ? results.wcRatioAdjusted.toFixed(2) : "—"
     },
     {
       id: 14,
@@ -270,7 +270,7 @@ export const DreuxMethodPanel: React.FC<DreuxMethodPanelProps> = ({
       color: "from-emerald-600 to-indigo-600",
       descriptionAr: "المنحنى المثالي المستهدف لخلط الركام. يتميز بنقطة انعطاف (Pivot Point) إحداثياتها (X, Y) تحسب رياضياً بناءً على Dmax ونوع الركام ونوع الإسمنت لضمان هيكل ممتلئ كثيف.",
       descriptionFr: "La courbe cible brisée de Dreux définie par un point de transition (X, Y) calculé pour optimiser l'empilement des grains et éliminer les vides.",
-      currentValue: `X: ${results.pivotPoint?.x?.toFixed(1) || "5.0"} mm | Y: ${results.pivotPoint?.y?.toFixed(1) || "48"}%`
+      currentValue: `X: ${results.pivotPoint?.x !== undefined && Number.isFinite(results.pivotPoint.x) ? results.pivotPoint.x.toFixed(1) : "—"} mm | Y: ${results.pivotPoint?.y !== undefined && Number.isFinite(results.pivotPoint.y) ? results.pivotPoint.y.toFixed(1) : "—"}%`
     },
     {
       id: 18,
@@ -283,7 +283,7 @@ export const DreuxMethodPanel: React.FC<DreuxMethodPanelProps> = ({
       color: "from-violet-600 to-pink-600",
       descriptionAr: "معامل تجريبي مأخوذ من جداول Dreux الكلاسيكية لتعديل نقطة الانعطاف Y بناءً على محتوى الإسمنت، شكل الركام، وطريقة دكه، والنعومة الإجمالية لضمان مطابقة الكثافة العظمى.",
       descriptionFr: "Le coefficient correctif K qui ajuste la hauteur du point de brisure pour compenser le dosage en ciment et le serrage effectif.",
-      currentValue: results.compactorGamma !== undefined ? results.compactorGamma.toFixed(3) : "1.00"
+      currentValue: typeof results.compactorGamma === "number" && Number.isFinite(results.compactorGamma) ? results.compactorGamma.toFixed(3) : "—"
     },
     {
       id: 19,
@@ -309,7 +309,7 @@ export const DreuxMethodPanel: React.FC<DreuxMethodPanelProps> = ({
       color: "from-indigo-600 to-slate-900",
       descriptionAr: "الكتلة الحجمية الإجمالية المتوقعة للمتر المكعب الطازج بعد الصب والدمك. تعكس نجاح التراص الحبيبي وتتراوح عادة بين 2300 إلى 2500 كجم/م³ للخرسانة العادية.",
       descriptionFr: "La densité théorique calculée du mélange frais, indicatrice directe de la compacité de la formule finale élaborée.",
-      currentValue: `${Math.round(results.totalFreshDensity || 2400)} kg/m³`
+      currentValue: `${typeof results.totalFreshDensity === "number" && Number.isFinite(results.totalFreshDensity) && results.totalFreshDensity > 0 ? Math.round(results.totalFreshDensity) : "غير محسوب"} kg/m³`
     }
   ];
 

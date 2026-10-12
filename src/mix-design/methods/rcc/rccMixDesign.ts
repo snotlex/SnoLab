@@ -95,7 +95,8 @@ export function validateRccInputs(
     ["rccWaterBinderRatio", message(language, "نسبة الماء إلى المواد الرابطة", "Rapport eau/liant", "water-to-binder ratio")],
     ["rccOptimumMoisturePercent", message(language, "الرطوبة المثلى", "Humidité optimale", "optimum moisture")],
     ["rccMaxDryDensityKgM3", message(language, "الكثافة الجافة القصوى", "Masse volumique sèche maximale", "maximum dry density")],
-    ["rccFineAggregatePercent", message(language, "نسبة الرمل من الركام", "Teneur en sable", "fine aggregate percentage")]
+    ["rccFineAggregatePercent", message(language, "نسبة الرمل من الركام", "Teneur en sable", "fine aggregate percentage")],
+    ["rccCompactionTargetPercent", message(language, "هدف الرص النسبي", "Cible de compactage relative", "relative compaction target")]
   ];
 
   for (const [field, label] of required) {
@@ -112,6 +113,21 @@ export function validateRccInputs(
         )
       });
     }
+  }
+
+  if (positive(input.rccCompactionTargetPercent) &&
+      (input.rccCompactionTargetPercent! < 90 || input.rccCompactionTargetPercent! > 105)) {
+    errors.push({
+      code: "RCC_COMPACTION_TARGET_RANGE",
+      severity: "error",
+      field: "rccCompactionTargetPercent",
+      message: message(
+        language,
+        "هدف الرص النسبي يجب أن يكون بين 90% و105% ضمن حدود الإدخال الحالية.",
+        "La cible de compactage relative doit être comprise entre 90% et 105% dans les limites actuelles.",
+        "Relative compaction target must be between 90% and 105% within the current input envelope."
+      )
+    });
   }
 
   if (positive(input.rccWaterBinderRatio) && (input.rccWaterBinderRatio! < 0.20 || input.rccWaterBinderRatio! > 0.60)) {
@@ -250,6 +266,34 @@ export function calculateRccMix(
   const theoreticalVolume = binderVolume + aggregateVolume + waterVolume + airVolume;
   const closureError = Math.abs(theoreticalVolume - 1) * 100;
 
+  // A non-finite or out-of-tolerance volume balance must not return a valid mix.
+  // RCC output remains a preliminary trial-mix proposal even when this numerical gate passes.
+  if (!Number.isFinite(theoreticalVolume) || !Number.isFinite(closureError) || closureError > 2) {
+    const finiteClosure = Number.isFinite(theoreticalVolume) && Number.isFinite(closureError);
+    return blockedRccResult(input, {
+      isValid: false,
+      errors: [{
+        code: finiteClosure ? "RCC_VOLUME_CLOSURE_OUT_OF_TOLERANCE" : "RCC_VOLUME_CLOSURE_NON_FINITE",
+        severity: "error",
+        field: "absoluteVolume",
+        message: finiteClosure
+          ? message(
+              language,
+              "فشل إغلاق الحجم المطلق: انحراف الحجم النظري عن 1.000 م³ يتجاوز حد التحقق البالغ 2%. يجب تصحيح المدخلات قبل إصدار النسب.",
+              "La fermeture du volume absolu dépasse la tolérance de 2 % par rapport à 1,000 m³. Corrigez les données avant d'émettre des proportions.",
+              "Absolute-volume closure deviation exceeds the 2% tolerance from 1.000 m³. Correct the inputs before issuing proportions."
+            )
+          : message(
+              language,
+              "تعذر حساب إغلاق الحجم المطلق بقيم عددية صالحة. راجع كثافات المواد والمدخلات المطلوبة.",
+              "Impossible de calculer une fermeture volumique absolue finie. Vérifiez les densités et les données requises.",
+              "Absolute-volume closure could not be computed with finite values. Review material densities and required inputs."
+            )
+      }],
+      warnings: validation.warnings
+    }, language);
+  }
+
   const admixtureRows: MaterialQuantity[] = [];
   const superDosage = Math.max(0, input.dosageSuper || 0);
   if (superDosage > 0) {
@@ -278,6 +322,12 @@ export function calculateRccMix(
       requirement: `${input.rccMaxDryDensityKgM3!.toFixed(1)} kg/m³ laboratory reference`,
       actual: `${dryDensity.toFixed(1)} kg/m³`,
       status: "compliant"
+    },
+    {
+      parameter: "Relative compaction target",
+      requirement: `Target ${input.rccCompactionTargetPercent!.toFixed(1)}% of laboratory maximum dry density`,
+      actual: "Field/Proctor compaction result not supplied; must be verified experimentally",
+      status: "warning"
     },
     {
       parameter: "Water/binder",
@@ -339,6 +389,19 @@ export function calculateRccMix(
       }
     },
     {
+      stepId: "rcc-compaction-target",
+      label: "Relative compaction target (field verification required)",
+      formula: "rho_d,target = (target compaction / 100) × rho_d,max",
+      inputs: {
+        compactionTargetPercent: input.rccCompactionTargetPercent,
+        maxDryDensityKgM3: dryDensity
+      },
+      output: {
+        targetDryDensityKgM3: dryDensity * input.rccCompactionTargetPercent! / 100,
+        fieldAchievement: "not measured by the mix-design engine"
+      }
+    },
+    {
       stepId: "rcc-verification",
       label: "Moisture-density verification",
       formula: "w_actual = Wdesign / rho_d,max × 100",
@@ -367,7 +430,7 @@ export function calculateRccMix(
     coarseAggregateKg: moisture.wetGravelKg,
     admixtureKg,
     airContentPercent: airPercent,
-    wcRatio: cement > 0 ? addedWater / cement : 0,
+    wcRatio: cement > 0 ? water / cement : 0,
     freshDensityKgM3: freshDensity,
     absoluteVolumeCheck: {
       isValid: closureError <= 2,
@@ -465,7 +528,7 @@ export function calculateRccMix(
       admixtures: admixtureRows
     },
     ratios: {
-      waterCementRatio: cement > 0 ? addedWater / cement : undefined,
+      waterCementRatio: cement > 0 ? water / cement : undefined,
       waterBinderRatio: water / totalBinder,
       sandAggregateRatio: finePct
     },

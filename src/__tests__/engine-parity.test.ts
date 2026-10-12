@@ -143,7 +143,13 @@ describe("Dreux-Gorisse Engine Parity & Integration Tests", () => {
   });
 
   it("SCC uses the specialized route for automatic calculation", () => {
-    const input = getBaseInput({ concreteType: "SCC" });
+    const input = getBaseInput({
+      concreteType: "SCC",
+      sccTargetSlumpFlowMm: 650,
+      sccPowderKgM3: 500,
+      sccWaterPowderRatioByVolume: 0.90,
+      sccCoarseAggregateVolumeFraction: 0.32
+    });
     const directDreux = calculateDreuxGorisse(input);
     const automatic = calculateMixDesign(input as any);
     const explicitDreux = calculateByMethod("dreux-gorisse", input);

@@ -85,6 +85,29 @@ describe("phase-2 specialized concrete engines", () => { // regression suite
     expect(result.validation.isValid).toBe(true);
   });
 
+  it("calculates cementless GPC against a populated material repository", () => {
+    const gpcMaterials = materials.filter((material) => material.id !== "cement-1");
+    const result = calculateGpcMix(input({
+      concreteType: "GPC",
+      selectedCementId: undefined,
+      cementType: undefined,
+      cementClassStrength: undefined,
+      cementDensity: undefined,
+      materialsDatabase: gpcMaterials,
+      gpcPrecursorKgM3: 400,
+      gpcActivatorLiquidKgM3: 200,
+      gpcWaterKgM3: 160,
+      gpcWaterBinderRatio: 0.40,
+      gpcActivatorToPrecursorRatio: 0.50,
+      gpcCoarseAggregateVolumeFraction: 0.35
+    }));
+    expect(result.calculationStatus).toBe("needs_trial_mix");
+    expect(result.quantities?.cement).toBe(0);
+    expect(result.absoluteVolumeTotal).toBeCloseTo(1000, 1);
+    expect(result.validation.isValid).toBe(true);
+    expect(result.recommendations.join(" ")).not.toContain("Required material not found: cement");
+  });
+
   it("closes RAC volume and exposes moisture conditioning", () => {
     const result = calculateRacMix(input({
       concreteType: "RAC",

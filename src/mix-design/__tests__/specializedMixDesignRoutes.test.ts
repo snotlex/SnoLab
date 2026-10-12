@@ -12,7 +12,11 @@ describe("specialized concrete mix-design routes", () => {
       slump: 2,
       dMax: 16,
       selectedMethod: "dreux",
-      dosageSuper: 1.2
+      dosageSuper: 1.2,
+      sccTargetSlumpFlowMm: 650,
+      sccPowderKgM3: 500,
+      sccWaterPowderRatioByVolume: 0.90,
+      sccCoarseAggregateVolumeFraction: 0.32
     }));
 
     expect(result.methodId).toBe("scc-specialized");
