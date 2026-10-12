@@ -65,6 +65,20 @@ describe("RCC specialized mix design", () => {
     expect(result.errors.some((e) => e.includes("الكثافة الجافة القصوى"))).toBe(true);
   });
 
+  it("blocks RCC when the declared relative compaction target is missing or outside the allowed envelope", () => {
+    const missing = rccInput();
+    delete missing.rccCompactionTargetPercent;
+    const missingResult = calculateMixDesign(missing);
+    expect(missingResult.calculationStatus).toBe("blocked");
+    expect(missingResult.errors.some((e) => e.includes("relative compaction target"))).toBe(true);
+
+    const invalid = rccInput();
+    invalid.rccCompactionTargetPercent = 120;
+    const invalidResult = calculateMixDesign(invalid);
+    expect(invalidResult.calculationStatus).toBe("blocked");
+    expect(invalidResult.errors.some((e) => e.includes("Relative compaction target must be between"))).toBe(true);
+  });
+
   it("does not silently fall back to Dreux for an explicit RCC route", () => {
     const input = rccInput();
     input.methodId = "rcc-specialized";
