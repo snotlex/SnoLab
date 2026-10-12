@@ -15,6 +15,21 @@ import {
 
 const VERSION = "1.0.0";
 
+function resolveSccPowderVolumeL(
+  input: MixDesignInput,
+  powderKg: number,
+  cementDensityKgM3: number,
+  scmDensityKgM3: number,
+  scmPercent: number
+): number {
+  const specifiedVolumeL = Number((input as any).sccPowderVolumeL ?? NaN);
+  if (Number.isFinite(specifiedVolumeL) && specifiedVolumeL > 0) return specifiedVolumeL;
+
+  const scmKg = powderKg * scmPercent / 100;
+  const cementKg = powderKg - scmKg;
+  return cementKg / cementDensityKgM3 * 1000 + scmKg / scmDensityKgM3 * 1000;
+}
+
 export function checkSccApplicability(input: MixDesignInput): ApplicabilityResult {
   const reasons: string[] = [];
   const recommendations: string[] = [];
@@ -61,13 +76,27 @@ export function validateSccInputs(
   const powder = Number((input as any).sccPowderKgM3 ?? 500);
   const wpv = Number((input as any).sccWaterPowderRatioByVolume ?? 0.90);
   const waterExplicit = Number((input as any).sccWaterKgM3 ?? NaN);
+  const scmPercent = Math.max(0, Math.min(60,
+    Number((input as any).sccScmReplacementPercent ??
+      input.selectedScmReplacementPercent ??
+      Number(input.dosageFlyAsh || 0) + Number(input.dosageSlag || 0) + Number(input.dosageSilicaFume || 0))
+  ));
+  const powderDensityFallback = Number(input.cementDensity || 3150);
+  const cementDensity = materialDensityKgM3(resolved.materials.cement, powderDensityFallback);
+  const scmDensity = materialDensityKgM3(resolved.materials.scm, Number(input.selectedScmDensity || 2200));
+  const powderVolumeL = resolveSccPowderVolumeL(input, powder, cementDensity, scmDensity, scmPercent);
 
   if (!Number.isFinite(fck) || fck <= 0) errors.push({ code: "fck", severity: "error", field: "fck28", message: "SCC target strength must be > 0 MPa." });
   if (!Number.isFinite(dMax) || dMax <= 0 || dMax > 20) errors.push({ code: "dmax", severity: "error", field: "dMax", message: "SCC Dmax must be in the specialized calculation envelope (<= 20 mm)." });
   if (!Number.isFinite(flow) || flow < 500 || flow > 850) errors.push({ code: "slump_flow", severity: "error", field: "sccTargetSlumpFlowMm", message: "Target slump flow must be within the supported SCC input envelope (500-850 mm)." });
   if (!Number.isFinite(powder) || powder < 380 || powder > 600) errors.push({ code: "powder", severity: "error", field: "sccPowderKgM3", message: "SCC total powder must be between 380 and 600 kg/m3 for the initial EFNARC-oriented composition." });
   if (!Number.isFinite(wpv) || wpv < 0.80 || wpv > 1.10) errors.push({ code: "water_powder_volume", severity: "error", field: "sccWaterPowderRatioByVolume", message: "SCC water/powder ratio by volume must be between 0.80 and 1.10 for the initial composition." });
-  if (Number.isFinite(waterExplicit) && Number.isFinite(wpv) && Number.isFinite(powder) && Math.abs(waterExplicit / powder - wpv) > 0.02) errors.push({ code: "water_powder_conflict", severity: "error", field: "sccWaterKgM3", message: "Explicit SCC water conflicts with the declared water/powder ratio by more than ±0.02." });
+  // Water kg/m³ is numerically equivalent to L/m³ under the 1000 kg/m³ water-density assumption;
+  // compare water volume with powder volume, not water/powder mass (kg/kg).
+  if (Number.isFinite(waterExplicit) && Number.isFinite(wpv) && Number.isFinite(powderVolumeL) && powderVolumeL > 0 &&
+      Math.abs(waterExplicit / powderVolumeL - wpv) > 0.02) {
+    errors.push({ code: "water_powder_conflict", severity: "error", field: "sccWaterKgM3", message: "Explicit SCC water volume conflicts with the declared water/powder volume ratio by more than ±0.02." });
+  }
 
   const slump = Number(input.slump || 0);
   if (slump > 0 && slump > 30) {
@@ -111,7 +140,7 @@ export function calculateSccMix(
   const powderVolumeTargetL = Number((input as any).sccPowderVolumeL ?? NaN);
   const powderDensityFallback = Number(input.cementDensity || 3150);
   const cementDensity = materialDensityKgM3(cementMaterial, powderDensityFallback);
-  const scmDensity = Number(input.selectedScmDensity || 2200);
+  const scmDensity = materialDensityKgM3(resolved.materials.scm, Number(input.selectedScmDensity || 2200));
   const sandDensity = materialDensityKgM3(sandMaterial, Number(input.sandRelativeDensity || 2.65) * 1000);
   const gravelDensity = materialDensityKgM3(gravelMaterial, Number(input.gravelRelativeDensity || 2.65) * 1000);
   const admixtureDensity = materialDensityKgM3(admixtureMaterial, Number(input.selectedAdmixtureDensity || 1100));
@@ -143,9 +172,7 @@ export function calculateSccMix(
     });
   }
   const cementKg = powderKg - scmKg;
-  const powderVolumeL = Number.isFinite(powderVolumeTargetL) && powderVolumeTargetL > 0
-    ? powderVolumeTargetL
-    : cementKg / cementDensity * 1000 + scmKg / scmDensity * 1000;
+  const powderVolumeL = resolveSccPowderVolumeL(input, powderKg, cementDensity, scmDensity, scmPct);
 
   const requestedWpv = Number((input as any).sccWaterPowderRatioByVolume ?? NaN);
   const wpv = Number.isFinite(requestedWpv) ? requestedWpv : 0.90;
