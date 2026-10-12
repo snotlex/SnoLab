@@ -33,7 +33,7 @@ function resolveSccPowderVolumeL(
 export function checkSccApplicability(input: MixDesignInput): ApplicabilityResult {
   const reasons: string[] = [];
   const recommendations: string[] = [];
-  const type = String(input.concreteType || "SCC").toUpperCase();
+  const type = String(input.concreteType || "").trim().toUpperCase();
 
   if (type !== "SCC") {
     return {
@@ -72,10 +72,11 @@ export function validateSccInputs(
 
   const fck = Number(input.fck28);
   const dMax = Number(input.dMax);
-  const flow = Number((input as any).sccTargetSlumpFlowMm ?? (input as any).slumpFlowMm ?? 650);
-  const powder = Number((input as any).sccPowderKgM3 ?? 500);
-  const wpv = Number((input as any).sccWaterPowderRatioByVolume ?? 0.90);
+  const flow = Number((input as any).sccTargetSlumpFlowMm ?? (input as any).slumpFlowMm ?? NaN);
+  const powder = Number((input as any).sccPowderKgM3 ?? NaN);
+  const wpv = Number((input as any).sccWaterPowderRatioByVolume ?? NaN);
   const waterExplicit = Number((input as any).sccWaterKgM3 ?? NaN);
+  const coarseFraction = Number((input as any).sccCoarseAggregateVolumeFraction ?? NaN);
   const scmPercent = Math.max(0, Math.min(60,
     Number((input as any).sccScmReplacementPercent ??
       input.selectedScmReplacementPercent ??
@@ -91,6 +92,7 @@ export function validateSccInputs(
   if (!Number.isFinite(flow) || flow < 500 || flow > 850) errors.push({ code: "slump_flow", severity: "error", field: "sccTargetSlumpFlowMm", message: "Target slump flow must be within the supported SCC input envelope (500-850 mm)." });
   if (!Number.isFinite(powder) || powder < 380 || powder > 600) errors.push({ code: "powder", severity: "error", field: "sccPowderKgM3", message: "SCC total powder must be between 380 and 600 kg/m3 for the initial EFNARC-oriented composition." });
   if (!Number.isFinite(wpv) || wpv < 0.80 || wpv > 1.10) errors.push({ code: "water_powder_volume", severity: "error", field: "sccWaterPowderRatioByVolume", message: "SCC water/powder ratio by volume must be between 0.80 and 1.10 for the initial composition." });
+  if (!Number.isFinite(coarseFraction) || coarseFraction < 0.28 || coarseFraction > 0.35) errors.push({ code: "coarse_aggregate_fraction", severity: "error", field: "sccCoarseAggregateVolumeFraction", message: "SCC coarse aggregate volume fraction must be between 0.28 and 0.35 for the current initial design envelope." });
   // Water kg/m³ is numerically equivalent to L/m³ under the 1000 kg/m³ water-density assumption;
   // compare water volume with powder volume, not water/powder mass (kg/kg).
   if (Number.isFinite(waterExplicit) && Number.isFinite(wpv) && Number.isFinite(powderVolumeL) && powderVolumeL > 0 &&
@@ -137,7 +139,6 @@ export function calculateSccMix(
   // not define a unique SCC mix-design equation; the initial composition is
   // refined by laboratory trials for filling, passing and segregation.
   const powderKg = Number((input as any).sccPowderKgM3 ?? 500);
-  const powderVolumeTargetL = Number((input as any).sccPowderVolumeL ?? NaN);
   const powderDensityFallback = Number(input.cementDensity || 3150);
   const cementDensity = materialDensityKgM3(cementMaterial, powderDensityFallback);
   const scmDensity = materialDensityKgM3(resolved.materials.scm, Number(input.selectedScmDensity || 2200));
