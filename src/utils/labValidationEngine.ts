@@ -14,6 +14,10 @@ export interface ComparisonMetric {
   complianceAr: string;
 }
 
+export type LabDataCompleteness = "WAITING_FOR_DATA" | "PARTIAL" | "COMPLETE";
+export type LabVerificationStatus = "NOT_EVALUATED" | "WITHIN_CONFIGURED_LIMITS" | "OUTSIDE_CONFIGURED_LIMITS";
+export type LabApprovalStatus = "PENDING_TECHNICAL_REVIEW" | "OFFICIALLY_APPROVED";
+
 export interface ValidationReport {
   score: number | null; // null represents N/A when waiting for data
   ratingAr: string;
@@ -23,9 +27,13 @@ export interface ValidationReport {
   statusAr: string;
   metrics: ComparisonMetric[];
   engineeringComments: string[];
-  completenessStatus: "Waiting For Laboratory Data" | "Partial Validation" | "Fully Validated";
+  /** Legacy display field retained for compatibility; it never means approval. */
+  completenessStatus: "Waiting For Laboratory Data" | "Partial Validation" | "Complete Data — Review Pending";
   completenessStatusAr: string;
   numTestsFilled: number;
+  dataCompleteness: LabDataCompleteness;
+  verificationStatus: LabVerificationStatus;
+  approvalStatus: LabApprovalStatus;
 }
 
 /**
@@ -302,6 +310,9 @@ export function validateLabResults(
       completenessStatus: "Waiting For Laboratory Data",
       completenessStatusAr: language === "fr" ? "En attente d'enregistrement des données de laboratoire" : language === "en" ? "Waiting for laboratory data registration" : "بانتظار تسجيل البيانات المخبرية في الورشة",
       numTestsFilled: 0,
+      dataCompleteness: "WAITING_FOR_DATA",
+      verificationStatus: "NOT_EVALUATED",
+      approvalStatus: "PENDING_TECHNICAL_REVIEW",
       engineeringComments: language === "fr" ? [
         "ℹ️ Aucun résultat d'essai en laboratoire n'est enregistré pour cette formulation.",
         "Veuillez commencer à remplir les données d'affaissement ou de résistance à la compression à 7 et 28 jours pour activer le rapport de conformité interactif."
@@ -322,11 +333,12 @@ export function validateLabResults(
   const hasStrength28d = s28 > 0;
   const hasDurability = (labInputs.waterAbsorption && labInputs.waterAbsorption > 0) || (labInputs.rcptCoulombs && labInputs.rcptCoulombs > 0);
   
-  const isFullyValidated = hasSlump && hasDensity && hasStrength28d && hasDurability;
-  const completenessStatus = isFullyValidated ? "Fully Validated" : "Partial Validation";
-  const completenessStatusAr = isFullyValidated 
-    ? (language === "fr" ? "Validation complète de conformité (Fully Validated)" : language === "en" ? "Full Standard Validation (Fully Validated)" : "مكتملة المطابقة والتحقق بالكامل (Fully Validated)") 
-    : (language === "fr" ? "Validation partielle - Non-conformité aux normes (Partial Validation)" : language === "en" ? "Partial standard validation (Partial Validation)" : "مطابقة مخبرية جزئية - تفتقر لبعض متطلبات الكود (Partial Validation)");
+  const hasCompleteRequiredData = hasSlump && hasDensity && hasStrength28d && hasDurability;
+  const dataCompleteness: LabDataCompleteness = hasCompleteRequiredData ? "COMPLETE" : "PARTIAL";
+  const completenessStatus = hasCompleteRequiredData ? "Complete Data — Review Pending" : "Partial Validation";
+  const completenessStatusAr = hasCompleteRequiredData
+    ? (language === "fr" ? "Données requises complètes — revue technique en attente" : language === "en" ? "Required data complete — technical review pending" : "اكتملت البيانات المطلوبة — بانتظار المراجعة الفنية")
+    : (language === "fr" ? "Données partielles — revue requise" : language === "en" ? "Partial data — review required" : "بيانات جزئية — المراجعة مطلوبة");
 
   // Evaluate fields and gather into metrics
   // FRESH STATE
@@ -435,7 +447,7 @@ export function validateLabResults(
   let ratingAr = "مقبول";
   let ratingEn = "Acceptable";
   let status: "PASSED" | "WARNING" | "FAILED" = "PASSED";
-  let statusAr = "مطابقة ومعتمدة وصالحة للاستخدام (PASSED)";
+  let statusAr = "ضمن الحدود المهيأة — بانتظار المراجعة الفنية (PASSED)";
 
   if (finalScore >= 95) {
     rating = "Excellent";
@@ -443,13 +455,13 @@ export function validateLabResults(
     status = "PASSED";
     if (language === "fr") {
       ratingAr = "Excellent (Excellent)";
-      statusAr = "Validation Excellente Confirmée (PASSED)";
+      statusAr = "Résultats dans les limites configurées — revue requise (PASSED)";
     } else if (language === "en") {
       ratingAr = "Excellent (Excellent)";
-      statusAr = "Excellent Standard Compliance (PASSED)";
+      statusAr = "Within configured limits — technical review required (PASSED)";
     } else {
       ratingAr = "ممتاز ومطابق للمواصفات بحرفية عالية (Excellent)";
-      statusAr = "مطابقة ممتازة وفائقة الجودة (PASSED)";
+      statusAr = "نتائج ضمن الحدود المهيأة — المراجعة الفنية مطلوبة (PASSED)";
     }
   } else if (finalScore >= 85) {
     rating = "Very Good";
@@ -457,13 +469,13 @@ export function validateLabResults(
     status = "PASSED";
     if (language === "fr") {
       ratingAr = "Très Bon (Very Good)";
-      statusAr = "Conforme aux Normes Techniques (PASSED)";
+      statusAr = "Résultats dans les limites configurées — revue requise (PASSED)";
     } else if (language === "en") {
       ratingAr = "Very Good (Very Good)";
-      statusAr = "Highly Code Compliant (PASSED)";
+      statusAr = "Within configured limits — technical review required (PASSED)";
     } else {
       ratingAr = "جيد جداً ومطابق للمواصفات الفنية (Very Good)";
-      statusAr = "مطابقة تامة وموثقة معملياً (PASSED)";
+      statusAr = "النتائج ضمن الحدود المهيأة — المراجعة الفنية مطلوبة (PASSED)";
     }
   } else if (finalScore >= 70) {
     rating = "Acceptable";
@@ -471,13 +483,13 @@ export function validateLabResults(
     status = "WARNING";
     if (language === "fr") {
       ratingAr = "Acceptable (Acceptable)";
-      statusAr = "Approbation conditionnelle avec suivi (WARNING)";
+      statusAr = "Résultats conditionnels — revue technique requise (WARNING)";
     } else if (language === "en") {
       ratingAr = "Acceptable (Acceptable)";
-      statusAr = "Conditional approval with observation (WARNING)";
+      statusAr = "Conditional results — technical review required (WARNING)";
     } else {
       ratingAr = "مقبول وضمن الحدود الهندسية للكود العربي والمحلي (Acceptable)";
-      statusAr = "موافقة مشروطة مع الملاحظة والمتابعة (WARNING)";
+      statusAr = "نتائج مشروطة — المراجعة الفنية والمتابعة مطلوبة (WARNING)";
     }
   } else if (finalScore >= 45) {
     rating = "Needs Investigation";
@@ -499,13 +511,13 @@ export function validateLabResults(
     status = "FAILED";
     if (language === "fr") {
       ratingAr = "Rejeté - Non conforme (Failed)";
-      statusAr = "Échec mécanique, formule rejetée (FAILED)";
+      statusAr = "Échec mécanique — revue et décision requises (FAILED)";
     } else if (language === "en") {
       ratingAr = "Failed - Non compliant (Failed)";
-      statusAr = "Mechanical failure, mix rejected (FAILED)";
+      statusAr = "Mechanical failure — review and decision required (FAILED)";
     } else {
       ratingAr = "مرفوضة وغير مطابقة لشروط الأمان الميكانيكي (Failed)";
-      statusAr = "فشلت الخلطة هندسياً ومرفوض صبها كلياً (FAILED)";
+      statusAr = "فشل الاختبار — المراجعة وقرار المهندس مطلوبان (FAILED)";
     }
   }
 
@@ -542,23 +554,23 @@ export function validateLabResults(
   }
 
   // 2. EN 206 General Compliance Rule
-  if (isFullyValidated) {
+  if (hasCompleteRequiredData) {
     const allPass = metrics.every(m => m.compliance !== "FAIL");
     if (allPass) {
       if (language === "fr") {
-        comments.push("✔ La formule est entièrement conforme aux exigences de la norme européenne EN 206.");
+        comments.push("✔ Les résultats enregistrés sont dans les limites configurées pour la revue EN 206; aucune approbation officielle n'est déduite.");
       } else if (language === "en") {
-        comments.push("✔ The mix complies with all requirements of the European standard EN 206.");
+        comments.push("✔ Recorded results are within configured EN 206 review limits; official approval is not inferred.");
       } else {
-        comments.push("✔ الخلطة مطابقة لجميع متطلبات الكود الأوروبي والمحلي EN 206 والمقاييس العربية المعتمدة للسلامة الدورية.");
+        comments.push("✔ النتائج المسجلة ضمن حدود المراجعة المهيأة لـ EN 206؛ لا يُستنتج منها اعتماد رسمي.");
       }
     } else {
       if (language === "fr") {
-        comments.push("⚠️ La formule présente des écarts ou non-conformités empêchant une validation complète selon la norme EN 206.");
+        comments.push("⚠️ Les résultats présentent des écarts ou échecs par rapport aux limites de revue EN 206; une revue technique est requise.");
       } else if (language === "en") {
-        comments.push("⚠️ The mix fails full EN 206 compliance due to significant deviations or failures in certain technical quality tests.");
+        comments.push("⚠️ Recorded results include deviations or failures against configured EN 206 review limits; technical review is required.");
       } else {
-        comments.push("⚠️ الخلطة تفتقر لمطابقة تامة لبنود EN 206 نتيجة لوجود فشل أو انحرافات حادة في بعض فحوصات الجودة الفنية.");
+        comments.push("⚠️ تتضمن النتائج انحرافات أو حالات فشل مقابل حدود مراجعة EN 206 المهيأة؛ المراجعة الفنية مطلوبة.");
       }
     }
   }
@@ -734,13 +746,19 @@ export function validateLabResults(
 
   if (comments.length === 0) {
     if (language === "fr") {
-      comments.push("✔ La formule est excellente, conforme et s'inscrit pleinement dans les tolérances.");
+      comments.push("✔ Les résultats enregistrés sont présentés dans les limites configurées; une revue technique reste requise.");
     } else if (language === "en") {
-      comments.push("✔ The concrete mix is excellent, compliant, and within safe statistical tolerances.");
+      comments.push("✔ Recorded results are within configured statistical limits; technical review remains required.");
     } else {
-      comments.push("✔ الخلطة ممتازة ومطابقة وضمن الحدود الإحصائية الآمنة.");
+      comments.push("✔ النتائج المسجلة ضمن الحدود الإحصائية المهيأة؛ تبقى المراجعة الفنية مطلوبة.");
     }
   }
+
+  const verificationStatus: LabVerificationStatus = metrics.length === 0
+    ? "NOT_EVALUATED"
+    : metrics.some(metric => metric.compliance === "FAIL")
+      ? "OUTSIDE_CONFIGURED_LIMITS"
+      : "WITHIN_CONFIGURED_LIMITS";
 
   return {
     score: finalScore,
@@ -753,6 +771,10 @@ export function validateLabResults(
     engineeringComments: comments,
     completenessStatus,
     completenessStatusAr,
-    numTestsFilled
+    numTestsFilled,
+    dataCompleteness,
+    verificationStatus,
+    // This pure validation function has no reviewer identity or decision record.
+    approvalStatus: "PENDING_TECHNICAL_REVIEW"
   };
 }
