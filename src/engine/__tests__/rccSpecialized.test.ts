@@ -56,7 +56,7 @@ describe("RCC specialized mix design", () => {
     expect(result.materialSuitability?.status).toBe("approved");
   });
 
-  it("blocks RCC when absolute-volume closure is outside tolerance or non-finite", () => {
+  it("blocks RCC when absolute-volume closure is outside tolerance", () => {
     const input = rccInput();
     // A relative aggregate density of 0.8 is not representative of these aggregates and
     // produces an absolute-volume balance far outside the method's 2% release envelope.
@@ -68,6 +68,17 @@ describe("RCC specialized mix design", () => {
     expect(result.calculationStatus).toBe("blocked");
     expect(result.isValid).toBe(false);
     expect(result.errors.some((error) => error.includes("2%"))).toBe(true);
+  });
+
+  it("blocks RCC when missing aggregate densities make volume closure non-finite", () => {
+    const input = rccInput();
+    delete input.sandRelativeDensity;
+
+    const result = calculateMixDesign(input);
+
+    expect(result.calculationStatus).toBe("blocked");
+    expect(result.isValid).toBe(false);
+    expect(result.errors.some((error) => error.includes("كثافات المواد"))).toBe(true);
   });
 
   it("blocks RCC when the laboratory moisture-density inputs are missing", () => {
