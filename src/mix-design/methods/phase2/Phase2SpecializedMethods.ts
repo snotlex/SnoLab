@@ -33,8 +33,14 @@ function languageMessage(language: "ar" | "fr" | "en", ar: string, fr: string, e
   return language === "fr" ? fr : language === "en" ? en : ar;
 }
 
-function commonMaterials(input: MixDesignInput, language: "ar" | "fr" | "en", requireAdmixture = false, requireScm = false) {
-  return resolveSpecializedMaterials(input, language, requireAdmixture, requireScm, true);
+function commonMaterials(
+  input: MixDesignInput,
+  language: "ar" | "fr" | "en",
+  requireAdmixture = false,
+  requireScm = false,
+  requireCement = true
+) {
+  return resolveSpecializedMaterials(input, language, requireAdmixture, requireScm, true, requireCement);
 }
 
 function materialValidation(
@@ -135,7 +141,7 @@ export function checkGpcApplicability(input: MixDesignInput): ApplicabilityResul
 
 export function validateGpcInputs(input: MixDesignInput, language: "ar" | "fr" | "en" = "ar"): ValidationResult {
   const errors: ValidationError[] = [];
-  const resolved = commonMaterials(input, language, true, true);
+  const resolved = commonMaterials(input, language, true, true, false);
   errors.push(...materialValidation(resolved).errors);
   required(num(input, "gpcPrecursorKgM3"), "gpcPrecursorKgM3", languageMessage(language, "كتلة المادة الأولية", "masse de précurseur", "precursor mass"), errors);
   required(num(input, "gpcActivatorLiquidKgM3"), "gpcActivatorLiquidKgM3", languageMessage(language, "كتلة المنشط السائل", "masse d'activateur liquide", "liquid activator mass"), errors);
@@ -162,7 +168,7 @@ export function validateGpcInputs(input: MixDesignInput, language: "ar" | "fr" |
 
 export function calculateGpcMix(input: MixDesignInput, language: "ar" | "fr" | "en" = "ar"): MixDesignResult {
   const validation = validateGpcInputs(input, language);
-  const resolved = commonMaterials(input, language, true, true);
+  const resolved = commonMaterials(input, language, true, true, false);
   if (!validation.isValid || resolved.errors.length) {
     return blocked(input, "geopolymer-specialized", "Geopolymer Concrete", ["Complete validated precursor, activator, aggregate and water inputs."], [...validation.errors.map(e => e.message), ...resolved.errors]);
   }
