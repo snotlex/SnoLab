@@ -805,9 +805,9 @@ export const TECHNICAL_DICTIONARY: TranslationDict = {
     en: "Density"
   },
   "technical_passport": {
-    ar: "البطاقة الفنية وجواز المعايرة والاعتماد (Technical Passport)",
-    fr: "Passeport technique et homologation",
-    en: "Technical Passport & Compliance"
+    ar: "البطاقة الفنية وسجل الأدلة والمراجعة (Technical Passport)",
+    fr: "Passeport technique et dossier de preuves",
+    en: "Technical Passport & Evidence Review"
   },
   "unique_material_id": {
     ar: "المعرف الفريد للمادة:",
@@ -820,9 +820,9 @@ export const TECHNICAL_DICTIONARY: TranslationDict = {
     en: "Current Material Version:"
   },
   "certified_supplier": {
-    ar: "الجهة الموردة المعتمدة:",
-    fr: "Fournisseur agréé :",
-    en: "Certified Approved Supplier:"
+    ar: "بيانات المورد ووثائق المصدر:",
+    fr: "Fournisseur et documentation de provenance :",
+    en: "Supplier and Source Documentation:"
   },
   "original_geological_quarry": {
     ar: "المقلع الجيولوجي الأصلي:",
@@ -835,9 +835,9 @@ export const TECHNICAL_DICTIONARY: TranslationDict = {
     en: "Geographical Region:"
   },
   "certified_laboratory": {
-    ar: "المخبر الجيولوجي المصدق:",
-    fr: "Laboratoire de certification :",
-    en: "Certified Laboratory:"
+    ar: "المخبر أو مصدر الاختبار:",
+    fr: "Laboratoire ou source de l'essai :",
+    en: "Testing Laboratory or Source:"
   },
   "reference_standard": {
     ar: "المواصفة المعيارية المرجعية:",
@@ -845,14 +845,14 @@ export const TECHNICAL_DICTIONARY: TranslationDict = {
     en: "Reference Standard:"
   },
   "certification_number": {
-    ar: "رقم شهادة الفحص المعتمد:",
-    fr: "N° de certification :",
-    en: "Certification/QA Certificate Number:"
+    ar: "رقم التقرير أو مرجع الدليل:",
+    fr: "N° du rapport ou référence de preuve :",
+    en: "Report or Evidence Reference Number:"
   },
   "technical_approval_date": {
-    ar: "تاريخ الاعتماد والموافقة الفنية:",
-    fr: "Date d'homologation technique :",
-    en: "Technical Approval Date:"
+    ar: "تاريخ المراجعة الفنية:",
+    fr: "Date de revue technique :",
+    en: "Technical Review Date:"
   },
   "approval_workflow_status": {
     ar: "جودة واعتماد مسار العمل (Approval Workflow):",
@@ -860,14 +860,14 @@ export const TECHNICAL_DICTIONARY: TranslationDict = {
     en: "Approval Workflow Status:"
   },
   "status_approved": {
-    ar: "معتمد للصب الهندسي (Approved)",
-    fr: "Agréé pour coulage (Approved)",
-    en: "Certified for Engineering (Approved)"
+    ar: "مؤهل للاستخدام في الحسابات بعد المراجعة (Review Required)",
+    fr: "Éligible pour le calcul après revue (Revue requise)",
+    en: "Eligible for calculation after review (Review Required)"
   },
   "status_validated": {
-    ar: "🟢 معتمدة (Validated)",
-    fr: "🟢 Validée",
-    en: "🟢 Validated"
+    ar: "🟢 اكتملت الحقول — المراجعة مطلوبة (Fields Complete)",
+    fr: "🟢 Champs complets — revue requise",
+    en: "🟢 Fields Complete — Review Required"
   },
   "status_incomplete": {
     ar: "🟡 غير مكتملة (Incomplete)",
@@ -915,9 +915,9 @@ export const TECHNICAL_DICTIONARY: TranslationDict = {
     en: "Generate Texture with AI"
   },
   "approved_active_in_mix": {
-    ar: "معتمد نشط بالخلطة",
-    fr: "Validé comme constituant actif",
-    en: "Approved & Active in Mix"
+    ar: "محدد بالخلطة — الاعتماد قيد المراجعة",
+    fr: "Sélectionné dans le mélange — revue en attente",
+    en: "Selected in Mix — Approval Pending"
   },
   "apply_as_standard_sand": {
     ar: "اعتماد كرمل عياري",
@@ -1020,9 +1020,9 @@ export const TECHNICAL_DICTIONARY: TranslationDict = {
     en: "Dynamic Advisor"
   },
   "no_diagnostic_warnings": {
-    ar: "✅ نتائج الفحص المخبري للمادة سليمة تماماً ومطابقة ضمن حدود المواصفات الفنية المعتمدة للجمهورية الجزائرية.",
-    fr: "✅ Résultats d'analyses de laboratoire entièrement conformes aux spécifications techniques algériennes.",
-    en: "✅ Lab diagnostic results are fully compliant with approved Algerian technical standards."
+    ar: "✅ لا توجد ملاحظات تشخيصية ضمن الفحوص المهيأة؛ تبقى المراجعة الفنية والاعتماد الرسمي منفصلين.",
+    fr: "✅ Aucun avertissement dans les contrôles configurés ; la revue technique et l'approbation officielle restent distinctes.",
+    en: "✅ No warnings in the configured checks; technical review and official approval remain separate."
   },
   "compatibility_matrix_title": {
     ar: "مصفوفة التوافق التبادلي للمواد",
@@ -1308,4 +1308,3 @@ export function getLocalizedValue(obj: any, language: Language): string {
   if (obj[language]) return obj[language];
   return obj["en"] || obj["ar"] || obj["fr"] || "";
 }
-
