@@ -133,14 +133,14 @@ export const DreuxMethodPanel: React.FC<DreuxMethodPanelProps> = ({
       id: 7,
       category: "materials",
       symbol: "ρ_s / ρ_g",
-      nameAr: "الكتلة الحجمية الحقيقية للمواد",
-      nameFr: "Masse volumique absolue des matériaux",
-      nameEn: "Absolute Relative Density",
+      nameAr: "الكثافة النسبية للركام",
+      nameFr: "Densité relative des granulats",
+      nameEn: "Aggregate Relative Density (dimensionless)",
       icon: Scale,
       color: "from-slate-500 to-blue-600",
-      descriptionAr: "الكثافة النوعية المطلقة لكل من الإسمنت والركام (الرمل والحصى). تستخدم لتحويل نسب التصميم الحجمية النظرية لخلطة الخرسانة إلى أوزان فعلية بالكيلوغرام.",
-      descriptionFr: "La masse volumique de chaque composant permettant la conversion exacte des volumes de la méthode en masses pesables de chantier.",
-      currentValue: `الرمل: ${inputs.sandRelativeDensity} kg/m³ | الحصى: ${inputs.gravelRelativeDensity} kg/m³`
+      descriptionAr: "الكثافة النسبية للرمل والحصى، وهي قيمة بلا وحدة. يحولها المحرك إلى كثافة بوحدة kg/m³ عند الحاجة باستخدام عامل التحويل الصحيح.",
+      descriptionFr: "La densité relative du sable et du gravier est sans unité. Le moteur la convertit en kg/m³ lorsque nécessaire.",
+      currentValue: `الرمل: ${typeof inputs.sandRelativeDensity === "number" && Number.isFinite(inputs.sandRelativeDensity) ? inputs.sandRelativeDensity.toFixed(3) : "—"} (بلا وحدة) | الحصى: ${typeof inputs.gravelRelativeDensity === "number" && Number.isFinite(inputs.gravelRelativeDensity) ? inputs.gravelRelativeDensity.toFixed(3) : "—"} (بلا وحدة)`
     },
     {
       id: 8,
