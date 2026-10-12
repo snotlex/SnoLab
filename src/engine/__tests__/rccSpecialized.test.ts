@@ -70,7 +70,7 @@ describe("RCC specialized mix design", () => {
     delete missing.rccCompactionTargetPercent;
     const missingResult = calculateMixDesign(missing);
     expect(missingResult.calculationStatus).toBe("blocked");
-    expect(missingResult.errors.some((e) => e.includes("relative compaction target"))).toBe(true);
+    expect(missingResult.errors.some((e) => e.includes("هدف الرص النسبي"))).toBe(true);
 
     const invalid = rccInput();
     invalid.rccCompactionTargetPercent = 120;
