@@ -32,7 +32,23 @@ describe("SCC water-to-powder volume ratio units", () => {
   it("labels coarse aggregate volume as a fraction rather than a percent", () => {
     const definition = getSpecializedInputDefinition("sccCoarseAggregateVolumeFraction");
     expect(definition.unit?.en).toBe("volume fraction (0–1)");
-    expect(definition.min).toBe(0.2);
-    expect(definition.max).toBe(0.5);
+    expect(definition.min).toBe(0.28);
+    expect(definition.max).toBe(0.35);
+  });
+
+  it("blocks missing required SCC fields instead of silently filling defaults", () => {
+    const result = validateSccInputs({ concreteType: "SCC", materialsDatabase: [] } as any);
+    const codes = result.errors.map((error) => error.code);
+    expect(codes).toContain("fck");
+    expect(codes).toContain("dmax");
+    expect(codes).toContain("slump_flow");
+    expect(codes).toContain("powder");
+    expect(codes).toContain("water_powder_volume");
+    expect(codes).toContain("coarse_aggregate_fraction");
+  });
+
+  it("enforces the same coarse aggregate fraction envelope in validation and the input definition", () => {
+    const result = validateSccInputs(sccInput({ sccCoarseAggregateVolumeFraction: 0.40 }));
+    expect(result.errors.map((error) => error.code)).toContain("coarse_aggregate_fraction");
   });
 });
