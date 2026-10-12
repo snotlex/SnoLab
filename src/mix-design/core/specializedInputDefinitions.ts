@@ -29,7 +29,7 @@ export const SPECIALIZED_INPUT_DEFINITIONS: Record<string, SpecializedInputDefin
   sccTargetSlumpFlowMm: d("انتشار الهطول المستهدف SCC", "Étalement cible SCC", "SCC target slump flow", { unit: mm, min: 500, max: 850, step: 10 }),
   sccPowderKgM3: d("إجمالي المسحوق SCC", "Poudre totale SCC", "SCC total powder", { unit: kg, min: 380, max: 600, step: 1 }),
   sccWaterPowderRatioByVolume: d("نسبة الماء إلى المسحوق بالحجم SCC", "Rapport eau/poudre volumique SCC", "SCC water/powder ratio by volume", { unit: ratio, min: 0.8, max: 1.1, step: 0.01 }),
-  sccCoarseAggregateVolumeFraction: d("الكسر الحجمي للركام الخشن SCC (0–1)", "Fraction volumique des gros granulats SCC (0–1)", "SCC coarse aggregate volume fraction (0–1)", { unit: volumeFraction, min: 0.2, max: 0.5, step: 0.01 }),
+  sccCoarseAggregateVolumeFraction: d("الكسر الحجمي للركام الخشن SCC (0–1)", "Fraction volumique des gros granulats SCC (0–1)", "SCC coarse aggregate volume fraction (0–1)", { unit: volumeFraction, min: 0.28, max: 0.35, step: 0.01 }),
   frcWaterBinderRatio: d("نسبة الماء إلى المواد الرابطة FRC", "Rapport eau/liant FRC", "FRC water-to-binder ratio", { unit: ratio, min: 0.25, max: 0.7, step: 0.01 }),
   frcFiberVolumePercent: d("الحجم النسبي للألياف FRC", "Volume de fibres FRC", "FRC fiber volume", { unit: percent, min: 0.1, max: 6, step: 0.1 }),
   fiberType: d("نوع الألياف", "Type de fibres", "Fiber type"),
