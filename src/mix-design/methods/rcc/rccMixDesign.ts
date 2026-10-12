@@ -95,7 +95,8 @@ export function validateRccInputs(
     ["rccWaterBinderRatio", message(language, "نسبة الماء إلى المواد الرابطة", "Rapport eau/liant", "water-to-binder ratio")],
     ["rccOptimumMoisturePercent", message(language, "الرطوبة المثلى", "Humidité optimale", "optimum moisture")],
     ["rccMaxDryDensityKgM3", message(language, "الكثافة الجافة القصوى", "Masse volumique sèche maximale", "maximum dry density")],
-    ["rccFineAggregatePercent", message(language, "نسبة الرمل من الركام", "Teneur en sable", "fine aggregate percentage")]
+    ["rccFineAggregatePercent", message(language, "نسبة الرمل من الركام", "Teneur en sable", "fine aggregate percentage")],
+    ["rccCompactionTargetPercent", message(language, "هدف الرص النسبي", "Cible de compactage relative", "relative compaction target")]
   ];
 
   for (const [field, label] of required) {
@@ -112,6 +113,21 @@ export function validateRccInputs(
         )
       });
     }
+  }
+
+  if (positive(input.rccCompactionTargetPercent) &&
+      (input.rccCompactionTargetPercent! < 90 || input.rccCompactionTargetPercent! > 105)) {
+    errors.push({
+      code: "RCC_COMPACTION_TARGET_RANGE",
+      severity: "error",
+      field: "rccCompactionTargetPercent",
+      message: message(
+        language,
+        "هدف الرص النسبي يجب أن يكون بين 90% و105% ضمن حدود الإدخال الحالية.",
+        "La cible de compactage relative doit être comprise entre 90% et 105% dans les limites actuelles.",
+        "Relative compaction target must be between 90% and 105% within the current input envelope."
+      )
+    });
   }
 
   if (positive(input.rccWaterBinderRatio) && (input.rccWaterBinderRatio! < 0.20 || input.rccWaterBinderRatio! > 0.60)) {
@@ -280,6 +296,12 @@ export function calculateRccMix(
       status: "compliant"
     },
     {
+      parameter: "Relative compaction target",
+      requirement: `Target ${input.rccCompactionTargetPercent!.toFixed(1)}% of laboratory maximum dry density`,
+      actual: "Field/Proctor compaction result not supplied; must be verified experimentally",
+      status: "warning"
+    },
+    {
       parameter: "Water/binder",
       requirement: `Input target = ${wb.toFixed(3)}`,
       actual: `${(water / totalBinder).toFixed(3)}`,
@@ -336,6 +358,19 @@ export function calculateRccMix(
         addedWaterKgM3: addedWater,
         wetSandKgM3: moisture.wetSandKg,
         wetGravelKgM3: moisture.wetGravelKg
+      }
+    },
+    {
+      stepId: "rcc-compaction-target",
+      label: "Relative compaction target (field verification required)",
+      formula: "rho_d,target = (target compaction / 100) × rho_d,max",
+      inputs: {
+        compactionTargetPercent: input.rccCompactionTargetPercent,
+        maxDryDensityKgM3: dryDensity
+      },
+      output: {
+        targetDryDensityKgM3: dryDensity * input.rccCompactionTargetPercent! / 100,
+        fieldAchievement: "not measured by the mix-design engine"
       }
     },
     {
