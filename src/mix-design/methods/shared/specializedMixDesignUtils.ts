@@ -54,7 +54,8 @@ export function resolveSpecializedMaterials(
   language: "ar" | "fr" | "en" = "ar",
   requireAdmixture = false,
   requireScm = false,
-  requireCoarseAggregate = true
+  requireCoarseAggregate = true,
+  requireCement = true
 ): SpecializedMaterialResolution {
   const database = Array.isArray(input.materialsDatabase) ? input.materialsDatabase as MaterialRecord[] : [];
   const hasRepository = database.length > 0;
@@ -119,7 +120,7 @@ export function resolveSpecializedMaterials(
       if (candidates.length === 1) materials.gravel = candidates[0];
     }
 
-    if (!materials.cement) errors.push(roleMessage("cement / إسمنت", language));
+    if (requireCement && !materials.cement) errors.push(roleMessage("cement / إسمنت", language));
     if (!materials.sand) errors.push(roleMessage("fine aggregate / رمال", language));
     if (requireCoarseAggregate && !materials.gravel) {
       errors.push(roleMessage("coarse aggregate / حصى", language));
@@ -137,7 +138,7 @@ export function resolveSpecializedMaterials(
     return density ?? fallback;
   };
 
-  checkDensity(materials.cement, "cement", input.cementDensity);
+  if (requireCement || materials.cement) checkDensity(materials.cement, "cement", input.cementDensity);
   checkDensity(materials.sand, "sand", Number(input.sandRelativeDensity) * 1000);
   checkDensity(materials.gravel, "gravel", Number(input.gravelRelativeDensity) * 1000);
   checkDensity(materials.water, "water", 1000);
