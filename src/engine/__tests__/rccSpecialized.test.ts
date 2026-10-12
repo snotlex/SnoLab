@@ -76,7 +76,7 @@ describe("RCC specialized mix design", () => {
     invalid.rccCompactionTargetPercent = 120;
     const invalidResult = calculateMixDesign(invalid);
     expect(invalidResult.calculationStatus).toBe("blocked");
-    expect(invalidResult.errors.some((e) => e.includes("Relative compaction target must be between"))).toBe(true);
+    expect(invalidResult.errors.some((e) => e.includes("90%"))).toBe(true);
   });
 
   it("does not silently fall back to Dreux for an explicit RCC route", () => {
