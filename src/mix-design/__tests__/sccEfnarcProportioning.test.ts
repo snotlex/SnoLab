@@ -31,14 +31,18 @@ describe("SCC EFNARC-oriented proportioning", () => {
       fck28: 25,
       dMax: 16,
       sccPowderKgM3: 500,
-      sccWaterPowderRatioByVolume: 0.90
+      sccWaterPowderRatioByVolume: 0.90,
+      sccCoarseAggregateVolumeFraction: 0.32,
+      sccTargetSlumpFlowMm: 650
     }));
     const b: any = calculateMixDesign(createTestInput({
       concreteType: "SCC",
       fck28: 60,
       dMax: 16,
       sccPowderKgM3: 500,
-      sccWaterPowderRatioByVolume: 0.90
+      sccWaterPowderRatioByVolume: 0.90,
+      sccCoarseAggregateVolumeFraction: 0.32,
+      sccTargetSlumpFlowMm: 650
     }));
 
     expect(a.waterKg).toBeCloseTo(b.waterKg, 6);
@@ -61,7 +65,10 @@ describe("SCC EFNARC-oriented proportioning", () => {
       selectedGravelId: "g1",
       selectedWaterId: "w1",
       selectedAdmixtureId: "a1",
+      sccTargetSlumpFlowMm: 650,
       sccPowderKgM3: 500,
+      sccWaterPowderRatioByVolume: 0.90,
+      sccCoarseAggregateVolumeFraction: 0.32,
       sccScmReplacementPercent: 20
     }));
 
@@ -74,7 +81,9 @@ describe("SCC EFNARC-oriented proportioning", () => {
       concreteType: "SCC",
       dMax: 16,
       sccPowderKgM3: 650,
-      sccWaterPowderRatioByVolume: 0.90
+      sccWaterPowderRatioByVolume: 0.90,
+      sccCoarseAggregateVolumeFraction: 0.32,
+      sccTargetSlumpFlowMm: 650
     }));
 
     expect(result.calculationStatus).toBe("blocked");
