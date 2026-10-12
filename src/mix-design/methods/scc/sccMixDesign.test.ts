@@ -10,6 +10,7 @@ function sccInput(extra: Record<string, unknown> = {}) {
     sccTargetSlumpFlowMm: 650,
     sccPowderKgM3: 500,
     sccWaterPowderRatioByVolume: 0.90,
+    sccCoarseAggregateVolumeFraction: 0.32,
     sccWaterKgM3: (500 / 3150 * 1000) * 0.90,
     cementDensity: 3150,
     airContent: 1,
