@@ -266,6 +266,34 @@ export function calculateRccMix(
   const theoreticalVolume = binderVolume + aggregateVolume + waterVolume + airVolume;
   const closureError = Math.abs(theoreticalVolume - 1) * 100;
 
+  // A non-finite or out-of-tolerance volume balance must not return a valid mix.
+  // RCC output remains a preliminary trial-mix proposal even when this numerical gate passes.
+  if (!Number.isFinite(theoreticalVolume) || !Number.isFinite(closureError) || closureError > 2) {
+    const finiteClosure = Number.isFinite(theoreticalVolume) && Number.isFinite(closureError);
+    return blockedRccResult(input, {
+      isValid: false,
+      errors: [{
+        code: finiteClosure ? "RCC_VOLUME_CLOSURE_OUT_OF_TOLERANCE" : "RCC_VOLUME_CLOSURE_NON_FINITE",
+        severity: "error",
+        field: "absoluteVolume",
+        message: finiteClosure
+          ? message(
+              language,
+              "فشل إغلاق الحجم المطلق: انحراف الحجم النظري عن 1.000 م³ يتجاوز حد التحقق البالغ 2%. يجب تصحيح المدخلات قبل إصدار النسب.",
+              "La fermeture du volume absolu dépasse la tolérance de 2 % par rapport à 1,000 m³. Corrigez les données avant d'émettre des proportions.",
+              "Absolute-volume closure deviation exceeds the 2% tolerance from 1.000 m³. Correct the inputs before issuing proportions."
+            )
+          : message(
+              language,
+              "تعذر حساب إغلاق الحجم المطلق بقيم عددية صالحة. راجع كثافات المواد والمدخلات المطلوبة.",
+              "Impossible de calculer une fermeture volumique absolue finie. Vérifiez les densités et les données requises.",
+              "Absolute-volume closure could not be computed with finite values. Review material densities and required inputs."
+            )
+      }],
+      warnings: validation.warnings
+    }, language);
+  }
+
   const admixtureRows: MaterialQuantity[] = [];
   const superDosage = Math.max(0, input.dosageSuper || 0);
   if (superDosage > 0) {
@@ -402,7 +430,7 @@ export function calculateRccMix(
     coarseAggregateKg: moisture.wetGravelKg,
     admixtureKg,
     airContentPercent: airPercent,
-    wcRatio: cement > 0 ? addedWater / cement : 0,
+    wcRatio: cement > 0 ? water / cement : 0,
     freshDensityKgM3: freshDensity,
     absoluteVolumeCheck: {
       isValid: closureError <= 2,
@@ -500,7 +528,7 @@ export function calculateRccMix(
       admixtures: admixtureRows
     },
     ratios: {
-      waterCementRatio: cement > 0 ? addedWater / cement : undefined,
+      waterCementRatio: cement > 0 ? water / cement : undefined,
       waterBinderRatio: water / totalBinder,
       sandAggregateRatio: finePct
     },
