@@ -367,8 +367,10 @@ export const BatchMaterialPropertiesModal: React.FC<BatchMaterialPropertiesModal
       if (remainingDeficiencies <= 0) {
         setSaveSuccessNotification(
           language === "ar"
-            ? "✓ اكتملت جميع خصائص المواد بنجاح! تم اعتماد المواد بحالة (مكتملة ✓) وأصبحت مؤهلة بالكامل لحسابات الخلطة."
-            : "✓ All material properties completed successfully! Materials are now (Complete ✓) and ready for calculations."
+            ? "✓ اكتملت الحقول المطلوبة لخصائص المواد. لم يُمنح اعتماد رسمي؛ تبقى المواد بحاجة إلى مراجعة المهندس قبل استخدامها في الحسابات التنفيذية."
+            : language === "fr"
+            ? "✓ Les champs requis des propriétés des matériaux sont complets. Aucun agrément officiel n'est accordé ; une revue de l'ingénieur est requise avant toute utilisation en production."
+            : "✓ Required material-property fields are complete. No official approval was granted; engineer review is required before production use."
         );
         setTimeout(() => {
           onClose();
