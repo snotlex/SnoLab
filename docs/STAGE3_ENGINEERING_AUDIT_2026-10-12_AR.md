@@ -45,6 +45,41 @@
 
 هذا الجدول يثبت جرد العقود ومسارات التوجيه، وليس اعتمادًا هندسيًا لـ21 خلطة. لا توجد في الأدلة التي جرى فحصها حتى الآن مجموعة كاملة من 21 حالة مرجعية مستقلة ومصدر موثق وهامش خطأ مبرر لكل نوع.
 
+
+### 2.1 مصفوفة المدخلات المطلوبة والمحركات الفعلية
+
+يستخدم العقد مشتركًا عامًا لمعظم الأنواع:
+
+- **الحقول المشتركة للخرسانة التقليدية والمتخصصة:** `fck28`, `dMax`, `cementType`, `cementClassStrength`, `cementDensity`, `moistureSand`, `moistureGravel`, `airContent`.
+- **استثناء GPC:** يستخدم `fck28`, `dMax`, `moistureSand`, `moistureGravel`, `airContent`، ولا يطلب حقول الإسمنت البورتلاندي.
+- يظل مطلوبًا إجراء تدقيق منفصل لوحدات كل حقل ولمصدر الخاصية داخل المكتبة؛ أسماء الحقول ليست وحدها معيارًا كافيًا لإثبات الوحدة.
+
+| الرمز | ملف/دالة الحساب الفعلية الأساسية | المدخلات الخاصة الإضافية على الحقول المشتركة | المواد أو الخصائص التي يتوقعها المسار | دليل التحقق الحالي |
+|---|---|---|---|---|
+| NSC | `src/mix-design/methods/dreux-gorisse/dreuxGorisseCalculation.ts` ← محرك Dreux الأساسي | `slump`, `aggregateType`, `sandRelativeDensity`, `gravelRelativeDensity` | إسمنت، رمل، حصى، ماء، تدرج ورطوبة/امتصاص الركام | اختبارات تكامل عامة؛ لا توجد حالة مرجعية مستقلة موثقة في هذا التدقيق |
+| RC | مسار Dreux + عقد توجيه النوع | `slump`, `aggregateType` | المواد التقليدية، مع تحقق إنشائي إضافي | NOT VERIFIED هندسيًا |
+| PUMPED | مسار Dreux + فحوص قابلية الضخ | `slump`, `aggregateType` | المواد التقليدية وخواص التشغيل والتدرج | NOT VERIFIED هندسيًا |
+| MASS | مسار Dreux + تحقق حراري منفصل | `slump`, `aggregateType` | المواد التقليدية؛ يلزم أيضًا تقييم الحرارة/الكتلة | NOT VERIFIED هندسيًا |
+| MARINE | مسار Dreux + تحقق المتانة | `slump`, `aggregateType` | المواد التقليدية وصنف التعرض/المتانة | NOT VERIFIED هندسيًا |
+| PRECAST | مسار Dreux + تحقق المسبق الصب | `slump`, `aggregateType` | المواد التقليدية ومقاومة/معالجة مبكرة حسب المشروع | NOT VERIFIED هندسيًا |
+| PRESTRESSED | مسار Dreux + تحقق الخرسانة سابقة الإجهاد | `slump`, `aggregateType` | المواد التقليدية ومتطلبات نقل الإجهاد والمقاومة المبكرة | NOT VERIFIED هندسيًا |
+| HSC | `src/mix-design/methods/hsc-hpc/`، سجل `hsc-hpc-specialized` | `dosageSuper`, `dosageSilicaFume`, `hscWaterKgM3`, `hscWaterBinderRatio` | رابط، سيليكا فيوم، ملدن فائق، ركام، ماء؛ يلزم تحقق الأداء | اختبار متخصص موجود؛ لا توجد حالة مرجعية مستقلة موثقة |
+| HPC | `src/mix-design/methods/hsc-hpc/`، سجل `hsc-hpc-specialized` | `dosageSuper`, `hpcWaterKgM3`, `hpcWaterBinderRatio` | رابط وSCM وملدن فائق وركام وماء | اختبار متخصص موجود؛ لا توجد حالة مرجعية مستقلة موثقة |
+| SCC | `src/mix-design/methods/scc/sccMixDesign.ts` | `sccTargetSlumpFlowMm`, `sccPowderKgM3`, `sccWaterPowderRatioByVolume`, `sccCoarseAggregateVolumeFraction` | إسمنت/مساحيق وSCM ورمل وحصى وماء وملدن فائق؛ يجب اختبار الملء والمرور ومقاومة الانفصال | أضيفت اختبارات وحدات ومدخلات؛ اختبارات تجريبية معيارية لازمة |
+| FRC | `src/mix-design/methods/frc/frcMixDesign.ts` | `frcWaterBinderRatio`, `frcFiberVolumePercent`, `fiberType`, `fiberDensity` | الخليط الأساسي مع نوع الألياف وكثافتها وحجمها | اختبار متخصص موجود؛ لا توجد حالة مرجعية مستقلة موثقة |
+| LWC | `src/mix-design/methods/lwc/lwcMixDesign.ts` | `lwcTargetDensityKgM3`, `lwcWaterKgM3`, `lwcWaterBinderRatio`, `lightweightAggregateDensity`, `lightweightAggregateAbsorption` | ركام خفيف وكثافة/امتصاص وحالة SSD أو التشبيع المسبق | اختبار متخصص موجود؛ لا توجد حالة مرجعية مستقلة موثقة |
+| HWC | `src/mix-design/methods/hwc/hwcMixDesign.ts` | `hwcTargetDensityKgM3`, `hwcWaterKgM3`, `hwcWaterBinderRatio`, `heavyweightAggregateDensity` | ركام ثقيل وكثافة مستهدفة وماء ورابط | اختبار متخصص موجود؛ لا توجد حالة مرجعية مستقلة موثقة |
+| RCC | `src/mix-design/methods/rcc/rccMixDesign.ts` | `rccWaterKgM3`, `rccWaterBinderRatio`, `rccOptimumMoisturePercent`, `rccMaxDryDensityKgM3`, `rccCompactionTargetPercent` | تدرج الركام، منحنى الرطوبة–الكثافة، الكثافة الجافة القصوى، هدف الدمك | أضيف اختبار لشرط هدف الرص؛ يلزم التحقق بمنهج اختبار معتمد وتجارب |
+| SHOTCRETE | `src/mix-design/methods/phase2/Phase2SpecializedMethods.ts` | `shotcreteWaterKgM3`, `shotcreteWaterBinderRatio`, `shotcreteAcceleratorPercent` | ماء ورابط ومسرّع، مع نمط الرش والارتداد والتصلب المبكر | اختبار عام/متخصص جزئي؛ لا توجد حالة مرجعية مستقلة موثقة |
+| GPC | `src/mix-design/methods/phase2/Phase2SpecializedMethods.ts` | `gpcPrecursorKgM3`, `gpcActivatorLiquidKgM3`, `gpcWaterKgM3`, `gpcWaterBinderRatio`, `gpcActivatorToPrecursorRatio`, `gpcCoarseAggregateVolumeFraction` | مادة أولية وقلوي منشط وماء وركام؛ لا يتطلب إسمنتًا بورتلانديًا | أضيف اختبار مكتبة مواد دون إسمنت؛ لا توجد حالة مرجعية مستقلة موثقة |
+| SHC | `src/mix-design/methods/phase2/Phase2SpecializedMethods.ts` | `shcCementKgM3`, `shcWaterKgM3`, `shcWaterBinderRatio`, `shcHealingAgentDosageKgM3`, `shcHealingAgentDensityKgM3`, `shcHealingAgentType` | الخليط الأساسي وعامل الالتئام/المعالجة وتوافقه وكثافته | لا توجد حالة مرجعية مستقلة موثقة؛ يلزم اختبار الأداء طويل الأجل |
+| RAC | `src/mix-design/methods/phase2/Phase2SpecializedMethods.ts` | `racCementKgM3`, `racWaterKgM3`, `racWaterBinderRatio`, `racCoarseAggregateKgM3`, `racReplacementPercent`, `racRecycledAggregateDensityKgM3`, `racRecycledAbsorptionPercent`, `racPreSaturationPercent` | ركام معاد تدويره وكثافة وامتصاص وتشبيع مسبق | لا توجد حالة مرجعية مستقلة موثقة؛ يلزم تحقق SSD/تصحيح ماء |
+| PERVIOUS | `src/mix-design/methods/pervious/perviousMixDesign.ts` | `perviousTargetVoidContentPercent`, `perviousTargetPermeabilityMmPerS`, `perviousPasteVolumePercent`, `perviousWaterBinderRatio` | ركام/معجون/فراغات مترابطة ونفاذية مستهدفة | اختبار متخصص موجود؛ لا توجد حالة مرجعية مستقلة موثقة |
+| UHPC | `src/mix-design/methods/uhpc/uhpcBfupMixDesign.ts` | `uhpcWaterBinderRatio`, `uhpcFiberVolumePercent`, `uhpcQuartzPowderKgM3`, `dosageSuper` | مساحيق دقيقة ورابط وملدن فائق وألياف | اختبار متخصص موجود؛ لا توجد حالة مرجعية مستقلة موثقة |
+| BFUP | `src/mix-design/methods/uhpc/uhpcBfupMixDesign.ts` | `bfupWaterBinderRatio`, `bfupFiberVolumePercent`, `bfupQuartzPowderKgM3`, `dosageSuper`, `fiberType`, `fiberDensity` | مساحيق UHPC مع نوع الألياف وكثافتها وحجمها | اختبار متخصص موجود؛ لا توجد حالة مرجعية مستقلة موثقة |
+
+**حدود هذه المصفوفة:** جرى اشتقاق متطلبات المدخلات ومسارات المحركات من عقود الكود وسجل المحركات وملفات الاختبار الحالية. عبارة «اختبار متخصص موجود» تعني وجود اختبارات برمجية للمسار، وليس أن الاختبارات تحتوي بالضرورة على مراجع عددية مستقلة أو أن المنهج معتمد هندسيًا. مصفوفة الأداء الحالية تنفذ مدخلات مولّدة آليًا لكل الأنواع الـ21 وتتحقق من عدم الانهيار والقيم غير المنتهية؛ لكنها لا تُعد اختبارًا مستقلًا لصحة جميع المعادلات.
+
 ## 3. سجل العيوب المؤكدة والإصلاحات
 
 ### AUD-001 — عقد إدخال GPC كان يطلب بيانات إسمنت بورتلاندي (P1)
