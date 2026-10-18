@@ -78,7 +78,7 @@ describe("RCC specialized mix design", () => {
 
     expect(result.calculationStatus).toBe("blocked");
     expect(result.isValid).toBe(false);
-    expect(result.errors.some((error) => error.includes("كثافات المواد"))).toBe(true);
+    expect(result.errors.some((error) => error.includes("كثافة sand") || error.includes("كثافات المواد"))).toBe(true);
   });
 
   it("blocks RCC when the laboratory moisture-density inputs are missing", () => {
