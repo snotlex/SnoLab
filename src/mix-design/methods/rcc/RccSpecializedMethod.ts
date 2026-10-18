@@ -22,9 +22,10 @@ export class RccSpecializedMethod implements MixDesignMethod {
     description:
       "RCC starting proportioning based on optimum moisture, maximum dry density, cementitious content, aggregate blend and moisture correction; laboratory compaction and strength verification remain mandatory.",
     references: [
-      "FHWA-HIF-16-003 Roller-Compacted Concrete Pavement",
-      "ASTM C1170/C1170M",
-      "ASTM C1435/C1435M"
+      "FHWA-HIF-16-003, Roller-Compacted Concrete Pavement",
+      "ACI 327R-14, Guide to Roller-Compacted Concrete Pavements (guidance; formula-level comparison pending)",
+      "ASTM C1170/C1170M-20, consistency and density test method (test standard, not a mix-design equation)",
+      "ASTM C1435/C1435M-20, fabrication of RCC test specimens (test practice, not a mix-design equation)"
     ],
     supportedLanguages: ["ar", "fr", "en"],
     status: "active"
