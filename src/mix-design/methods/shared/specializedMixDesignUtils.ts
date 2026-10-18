@@ -132,10 +132,18 @@ export function resolveSpecializedMaterials(
 
   const checkDensity = (material: MaterialRecord | undefined, role: string, fallback?: number) => {
     const density = normalizeDensity(material?.density ?? material?.ssdDensity ?? material?.specificGravity);
-    if (density === undefined && fallback === undefined && hasRepository) {
+    // Do not treat NaN/Infinity/zero/negative fallback values as available
+    // material properties. Number(undefined) * 1000 produces NaN, which used
+    // to bypass the missing-density error and flow into a specialized engine.
+    const validFallback =
+      typeof fallback === "number" && Number.isFinite(fallback) && fallback > 0
+        ? fallback
+        : undefined;
+
+    if (density === undefined && validFallback === undefined && hasRepository) {
       errors.push(roleMessage(`${role} density / كثافة ${role}`, language));
     }
-    return density ?? fallback;
+    return density ?? validFallback;
   };
 
   if (requireCement || materials.cement) checkDensity(materials.cement, "cement", input.cementDensity);
