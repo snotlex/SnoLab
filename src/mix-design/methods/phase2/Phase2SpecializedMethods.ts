@@ -520,7 +520,11 @@ abstract class Phase2MethodBase implements MixDesignMethod {
 export class GpcSpecializedMethod extends Phase2MethodBase {
   public readonly metadata: MixDesignMethodMetadata = {
     id: "geopolymer-specialized", name: "Geopolymer Concrete", shortName: "GPC", version: VERSION,
-    description: "Activator/precursor and absolute-volume starting proportioning for geopolymer concrete.", references: ["ASTM C618 for qualifying pozzolanic precursor materials where applicable", "Project-specific geopolymer mix-design and curing specification"], supportedLanguages: ["ar", "fr", "en"], status: "active"
+    description: "Activator/precursor and absolute-volume starting proportioning for geopolymer concrete.", references: [
+      "ACI PRC-242-22, Alkali-Activated Cements—Report, Chapter 4: Mixture Proportioning (technical report; not a universal recipe)",
+      "ASTM C618-26, qualification of coal ash and raw or calcined natural pozzolan where applicable (precursor specification only, not a geopolymer mix-design equation)",
+      "Project-specific geopolymer mix-design, activator chemistry, and curing specification (required)"
+    ], supportedLanguages: ["ar", "fr", "en"], status: "active"
   };
   isApplicable(i: MixDesignInput): ApplicabilityResult { return checkGpcApplicability(i); }
   validateInputs(i: MixDesignInput): ValidationResult { return validateGpcInputs(i); }
