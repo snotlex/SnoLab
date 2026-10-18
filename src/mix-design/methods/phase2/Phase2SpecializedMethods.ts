@@ -533,7 +533,7 @@ export class GpcSpecializedMethod extends Phase2MethodBase {
 export class RacSpecializedMethod extends Phase2MethodBase {
   public readonly metadata: MixDesignMethodMetadata = {
     id: "recycled-aggregate-specialized", name: "Recycled Aggregate Concrete", shortName: "RAC", version: VERSION,
-    description: "Recycled coarse aggregate replacement with source-specific absorption and pre-saturation correction.", references: ["EN 206", "EN 12620"], supportedLanguages: ["ar", "fr", "en"], status: "active"
+    description: "Recycled coarse aggregate replacement with source-specific absorption and pre-saturation correction.", references: ["EN 206:2013+A2:2021 (edition encoded in legacy compliance limits; Algerian adoption/version and national annex pending)", "EN 12620 (aggregate specification; edition/applicability pending; not a mix-design equation)"], supportedLanguages: ["ar", "fr", "en"], status: "active"
   };
   isApplicable(i: MixDesignInput): ApplicabilityResult { return checkRacApplicability(i); }
   validateInputs(i: MixDesignInput): ValidationResult { return validateRacInputs(i); }
@@ -542,7 +542,7 @@ export class RacSpecializedMethod extends Phase2MethodBase {
 export class ShcSpecializedMethod extends Phase2MethodBase {
   public readonly metadata: MixDesignMethodMetadata = {
     id: "self-healing-specialized", name: "Self-Healing Concrete", shortName: "SHC", version: VERSION,
-    description: "Healing-agent explicit proportioning with volume closure and mandatory healing/mechanical verification.", references: ["RILEM TC 221-SHC", "EN 206"], supportedLanguages: ["ar", "fr", "en"], status: "active"
+    description: "Healing-agent explicit proportioning with volume closure and mandatory healing/mechanical verification.", references: ["RILEM TC 221-SHC, self-healing concrete state-of-the-art/research work (specific report edition and page traceability pending; not a universal mix-design standard)", "EN 206:2013+A2:2021 (legacy indicative compliance limits only; Algerian adoption/version pending)"], supportedLanguages: ["ar", "fr", "en"], status: "active"
   };
   isApplicable(i: MixDesignInput): ApplicabilityResult { return checkShcApplicability(i); }
   validateInputs(i: MixDesignInput): ValidationResult { return validateShcInputs(i); }
@@ -551,7 +551,7 @@ export class ShcSpecializedMethod extends Phase2MethodBase {
 export class ShotcreteSpecializedMethod extends Phase2MethodBase {
   public readonly metadata: MixDesignMethodMetadata = {
     id: "shotcrete-specialized", name: "Shotcrete", shortName: "Shotcrete", version: VERSION,
-    description: "Process-aware starting proportioning for wet/dry shotcrete with accelerator and spray verification.", references: ["EN 14487", "ACI 506R"], supportedLanguages: ["ar", "fr", "en"], status: "active"
+    description: "Process-aware starting proportioning for wet/dry shotcrete with accelerator and spray verification.", references: ["EN 14487 (edition and Algerian/national adoption pending)", "ACI 506R-16, Guide to Shotcrete (published 2016; guidance reference, formula-level comparison pending)"], supportedLanguages: ["ar", "fr", "en"], status: "active"
   };
   isApplicable(i: MixDesignInput): ApplicabilityResult { return checkShotcreteApplicability(i); }
   validateInputs(i: MixDesignInput): ValidationResult { return validateShotcreteInputs(i); }
