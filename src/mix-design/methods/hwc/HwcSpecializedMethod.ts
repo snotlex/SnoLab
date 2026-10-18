@@ -22,7 +22,7 @@ export class HwcSpecializedMethod implements MixDesignMethod {
     description: "Heavyweight concrete proportioning using target density, heavyweight aggregate density, volume split, and moisture correction.",
     references: [
       "ACI PRC-304.3-20 Heavyweight Concrete: Measuring, Mixing, Transporting and Placing",
-      "ACI PRC-211.1 Guide for Selecting Proportions for Normal-Density and High-Density Concrete"
+      "ACI PRC-211.1-22, Selecting Proportions for Normal-Density and High-Density Concrete (guide; formula-level comparison pending)"
     ],
     supportedLanguages: ["ar", "fr", "en"],
     status: "active"
