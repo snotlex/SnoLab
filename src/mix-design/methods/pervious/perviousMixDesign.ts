@@ -224,11 +224,10 @@ export function calculatePerviousMix(
     Number(input.moistureGravel || 0),
     Number(input.gravelAbsorption || materialProperty(gravelMaterial, ["absorption", "Absorption"], 0) || 0)
   );
-  const waterToAdd = Math.max(
-    0,
+  const rawWaterToAdd =
     waterKg - sandCorrection.freeSurfaceWater - gravelCorrection.freeSurfaceWater +
-    sandCorrection.absorptionDeficit + gravelCorrection.absorptionDeficit
-  );
+    sandCorrection.absorptionDeficit + gravelCorrection.absorptionDeficit;
+  const waterToAdd = Math.max(0, rawWaterToAdd);
 
   const estimatedFreshDensity =
     cementKg + scmKg + sandCorrection.wetKg + gravelCorrection.wetKg + waterToAdd + admixtureKg;
@@ -254,6 +253,7 @@ export function calculatePerviousMix(
   ];
 
   const complianceChecks: any[] = [
+    { parameter: "batch_water", requirement: "Finite, non-negative water to add after aggregate moisture correction", actual: `${String(rawWaterToAdd)} kg/m3 before non-negative display guard`, status: Number.isFinite(rawWaterToAdd) && rawWaterToAdd >= -1e-8 ? "compliant" : "non_compliant" },
     { parameter: "void_content", requirement: "15-30% target envelope", actual: `${targetVoid.toFixed(1)}%`, status: targetVoid >= 15 && targetVoid <= 30 ? "compliant" : "non_compliant" },
     { parameter: "water_binder", requirement: "0.30-0.35 calculation envelope", actual: (waterKg / binderKg).toFixed(3), status: waterKg / binderKg >= 0.30 && waterKg / binderKg <= 0.35 ? "compliant" : "non_compliant" },
     { parameter: "slump", requirement: "0-3 cm", actual: `${Number(input.slump || 0).toFixed(1)} cm`, status: Number(input.slump || 0) <= 3 ? "compliant" : "non_compliant" },
@@ -277,6 +277,9 @@ export function calculatePerviousMix(
     targetVoidContentPercent: targetVoid,
     estimatedVoidContentPercent: estimatedVoid,
     referenceFilledVolumeL: 1000 - targetVoid * 10,
+    batchWaterKg: waterToAdd,
+    wetFineAggregateKg: sandCorrection.wetKg,
+    wetCoarseAggregateKg: gravelCorrection.wetKg,
     warnings,
     assumptions,
     recommendations,
@@ -289,7 +292,7 @@ export function calculatePerviousMix(
       { stepId: "pervious-6", label: "Correct batching water for aggregate moisture.", formula: "Wadd = W - Wfree + Wdeficit", inputs: { freeSurfaceWater: sandCorrection.freeSurfaceWater + gravelCorrection.freeSurfaceWater, absorptionDeficit: sandCorrection.absorptionDeficit + gravelCorrection.absorptionDeficit }, output: waterToAdd, unit: "kg/m3" }
     ],
     complianceChecks,
-    lifecycle: "needs_trial_mix"
+    lifecycle: Number.isFinite(rawWaterToAdd) && rawWaterToAdd >= -1e-8 ? "needs_trial_mix" : "blocked"
   });
 
   result.batchWaterToAdd = waterToAdd;
