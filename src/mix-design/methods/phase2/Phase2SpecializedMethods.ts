@@ -248,7 +248,7 @@ export function validateRacInputs(input: MixDesignInput, language: "ar" | "fr" |
   const replacement = num(input, "racReplacementPercent");
   const absorption = num(input, "racRecycledAbsorptionPercent");
   const preSat = num(input, "racPreSaturationPercent");
-  if (replacement < 0 || replacement > 100) errors.push({ code: "RAC_REPLACEMENT", severity: "error", field: "racReplacementPercent", message: "RAC recycled coarse aggregate replacement must be between 0 and 100%." });
+  if (replacement <= 0 || replacement > 100) errors.push({ code: "RAC_REPLACEMENT", severity: "error", field: "racReplacementPercent", message: "RAC requires a recycled coarse-aggregate replacement greater than 0% and no more than 100%; use conventional concrete for 0% replacement." });
   if (absorption < 0 || absorption > 20) errors.push({ code: "RAC_ABSORPTION", severity: "error", field: "racRecycledAbsorptionPercent", message: "Recycled aggregate absorption must be between 0 and 20%." });
   if (preSat < 0 || preSat > 100) errors.push({ code: "RAC_PRESAT", severity: "error", field: "racPreSaturationPercent", message: "Pre-saturation degree must be between 0 and 100%." });
   const wb = num(input, "racWaterBinderRatio");
@@ -329,7 +329,7 @@ export function calculateRacMix(input: MixDesignInput, language: "ar" | "fr" | "
     ],
     batchWaterKg: waterToAdd,
     complianceChecks: [
-      { parameter: "replacement", requirement: ">0 and <=100%", actual: `${(replacement * 100).toFixed(1)}%`, status: "compliant" },
+      { parameter: "replacement", requirement: ">0 and <=100%", actual: `${(replacement * 100).toFixed(1)}%`, status: replacement > 0 && replacement <= 1 ? "compliant" : "non_compliant" },
       { parameter: "water_binder", requirement: ">0 and <=0.65", actual: wb.toFixed(3), status: wb > 0 && wb <= 0.65 ? "compliant" : "non_compliant" },
       { parameter: "absolute_volume", requirement: "1000 L/m3 ±2 L", actual: `${finalVolume.toFixed(2)} L/m3`, status: Math.abs(finalVolume - 1000) <= 2 ? "compliant" : "non_compliant" },
       { parameter: "trial_mix", requirement: "Laboratory verification", actual: "Required", status: "warning" }
@@ -502,7 +502,7 @@ export function calculateShotcreteMix(input: MixDesignInput, language: "ar" | "f
     ],
     complianceChecks: [
       { parameter: "water_binder", requirement: ">0 and <=0.55", actual: wb.toFixed(3), status: wb > 0 && wb <= 0.55 ? "compliant" : "non_compliant" },
-      { parameter: "accelerator", requirement: "0-15% binder", actual: `${num(input, "shotcreteAcceleratorPercent").toFixed(2)}%`, status: "compliant" },
+      { parameter: "accelerator", requirement: "0-12% binder (current engine input envelope)", actual: `${num(input, "shotcreteAcceleratorPercent").toFixed(2)}%`, status: num(input, "shotcreteAcceleratorPercent") >= 0 && num(input, "shotcreteAcceleratorPercent") <= 12 ? "compliant" : "non_compliant" },
       { parameter: "absolute_volume", requirement: "1000 L/m3 ±2 L", actual: `${volume.toFixed(2)} L/m3`, status: Math.abs(volume - 1000) <= 2 ? "compliant" : "non_compliant" },
       { parameter: "sprayed_trial", requirement: "Spray/pump/rebound/setting verification", actual: "Required", status: "warning" }
     ],
