@@ -266,7 +266,25 @@ export function calculateRccMix(
 
   const moisture = getAggregateMoistureCorrection(fineAggregate, coarseAggregate, input);
   const freeSurfaceWater = moisture.freeSurfaceWaterKg;
-  const addedWater = Math.max(0, water - freeSurfaceWater);
+  const rawAddedWater = water - freeSurfaceWater;
+  if (!Number.isFinite(rawAddedWater) || rawAddedWater < -1e-8) {
+    return blockedRccResult(input, {
+      isValid: false,
+      errors: [{
+        code: "RCC_NEGATIVE_BATCH_WATER",
+        severity: "error",
+        field: "rccWaterKgM3",
+        message: message(
+          language,
+          "الماء الحر القادم من رطوبة الركام يتجاوز ماء التصميم؛ لا يجوز تثبيت ماء الإضافة عند الصفر وإصدار خلطة قابلة للاستخدام.",
+          "L'eau libre des granulats dépasse l'eau de conception; il est interdit de ramener silencieusement l'eau à ajouter à zéro.",
+          "Aggregate free water exceeds design water; the engine must not silently clamp batch water to zero and release a mix."
+        )
+      }],
+      warnings: validation.warnings
+    }, language);
+  }
+  const addedWater = rawAddedWater;
 
   const cementDensity = positive(input.cementDensity) ? input.cementDensity : 3100;
   const scmDensity = positive(input.selectedScmDensity) ? input.selectedScmDensity : cementDensity;
