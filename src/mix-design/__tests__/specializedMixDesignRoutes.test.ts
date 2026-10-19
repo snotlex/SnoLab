@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { calculateMixDesign } from "../../engine/calculateMixDesign";
 import { createTestInput } from "../../__tests__/testHelper";
 import { mixDesignEngine } from "../core/MixDesignEngine";
+import { MixDesignMethodRegistry } from "../core/MixDesignMethodRegistry";
 import { getConcreteTypeRouteTable, selectConcreteMixDesignRoute } from "../core/concreteMixDesignSelector";
 
 describe("specialized concrete mix-design routes", () => {
@@ -69,6 +70,44 @@ describe("specialized concrete mix-design routes", () => {
     ] as const) {
       expect(byType.get(type)?.support).toBe("active");
       expect(byType.get(type)?.methodId).toBe(methodId);
+    }
+  });
+
+
+  it("maps all 21 concrete types to a registered calculation strategy", () => {
+    const expected = new Map<string, string>([
+      ["NSC", "dreux-gorisse"],
+      ["RC", "dreux-gorisse"],
+      ["PUMPED", "dreux-gorisse"],
+      ["MASS", "dreux-gorisse"],
+      ["MARINE", "dreux-gorisse"],
+      ["PRECAST", "dreux-gorisse"],
+      ["PRESTRESSED", "dreux-gorisse"],
+      ["HSC", "hsc-hpc-specialized"],
+      ["HPC", "hsc-hpc-specialized"],
+      ["SCC", "scc-specialized"],
+      ["FRC", "fiber-reinforced-specialized"],
+      ["LWC", "lightweight-specialized"],
+      ["HWC", "heavyweight-specialized"],
+      ["RCC", "rcc-specialized"],
+      ["SHOTCRETE", "shotcrete-specialized"],
+      ["GPC", "geopolymer-specialized"],
+      ["SHC", "self-healing-specialized"],
+      ["RAC", "recycled-aggregate-specialized"],
+      ["PERVIOUS", "pervious-specialized"],
+      ["UHPC", "uhpc-specialized"],
+      ["BFUP", "uhpc-specialized"]
+    ]);
+    const routes = getConcreteTypeRouteTable();
+    const registry = MixDesignMethodRegistry.getInstance();
+    const byType = new Map(routes.map((route) => [route.concreteType, route]));
+
+    expect(routes).toHaveLength(21);
+    expect(byType.size).toBe(21);
+    for (const [type, methodId] of expected) {
+      expect(byType.get(type)?.support, `${type} route support`).toBe("active");
+      expect(byType.get(type)?.methodId, `${type} method route`).toBe(methodId);
+      expect(registry.has(methodId), `${type} method registration`).toBe(true);
     }
   });
 
