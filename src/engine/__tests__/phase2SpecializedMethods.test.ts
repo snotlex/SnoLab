@@ -126,6 +126,26 @@ describe("phase-2 specialized concrete engines", () => { // regression suite
     expect(result.validation.isValid).toBe(true);
   });
 
+
+  it("blocks RAC when recycled aggregate replacement is zero", () => {
+    const result = calculateRacMix(input({
+      concreteType: "RAC",
+      racCementKgM3: 360,
+      racWaterKgM3: 165,
+      racWaterBinderRatio: 0.458,
+      racCoarseAggregateKgM3: 1050,
+      racReplacementPercent: 0,
+      racRecycledAggregateDensityKgM3: 2350,
+      racRecycledAbsorptionPercent: 6,
+      racPreSaturationPercent: 70,
+      racSuperplasticizerDosage: 0
+    }));
+
+    expect(result.calculationStatus).toBe("blocked");
+    expect(result.validation.isValid).toBe(false);
+    expect(result.errors.join(" ")).toContain("replacement");
+  });
+
   it("includes healing-agent volume in SHC closure", () => {
     const result = calculateShcMix(input({
       concreteType: "SHC",
@@ -157,5 +177,8 @@ describe("phase-2 specialized concrete engines", () => { // regression suite
     expect(result.calculationStatus).toBe("needs_trial_mix");
     expect(result.absoluteVolumeTotal).toBeCloseTo(1000, 1);
     expect(result.validation.isValid).toBe(true);
+    const acceleratorCheck = (result as any).compliance?.checks?.find((check: any) => check.parameter === "accelerator");
+    expect(acceleratorCheck?.requirement).toContain("0-12%");
+    expect(acceleratorCheck?.status).toBe("compliant");
   });
 });
