@@ -211,11 +211,10 @@ export function calculateSccMix(
     Number(input.gravelAbsorption || materialProperty(gravelMaterial, ["absorption", "Absorption"], 0) || 0)
   );
 
-  const waterToAdd = Math.max(
-    0,
+  const rawWaterToAdd =
     water - sandCorrection.freeSurfaceWater - gravelCorrection.freeSurfaceWater +
-    sandCorrection.absorptionDeficit + gravelCorrection.absorptionDeficit
-  );
+    sandCorrection.absorptionDeficit + gravelCorrection.absorptionDeficit;
+  const waterToAdd = Math.max(0, rawWaterToAdd);
 
   const totalVolumeL =
     powderVolumeL + waterVolumeL + fineVolumeL + coarseVolumeL + admixtureVolumeL + airVolumeL;
@@ -225,6 +224,9 @@ export function calculateSccMix(
   const pasteVolumeL = powderVolumeL + waterVolumeL + admixtureVolumeL + airVolumeL;
   const errors: string[] = [];
 
+  if (!Number.isFinite(rawWaterToAdd) || rawWaterToAdd < -1e-8) {
+    errors.push("Batch-water requirement is negative or non-finite; aggregate free water exceeds the required design-water correction basis.");
+  }
   if (!Number.isFinite(powderKg) || powderKg < 380 || powderKg > 600) {
     errors.push("Total SCC powder must be within the 380-600 kg/m3 initial design envelope.");
   }
@@ -243,6 +245,7 @@ export function calculateSccMix(
   }
 
   const complianceChecks: any[] = [
+    { parameter: "batch_water", requirement: "Finite, non-negative water to add after aggregate moisture correction", actual: String(rawWaterToAdd) + " kg/m3 before non-negative display guard", status: Number.isFinite(rawWaterToAdd) && rawWaterToAdd >= -1e-8 ? "compliant" : "non_compliant" },
     { parameter: "powder", requirement: "380-600 kg/m3 initial SCC envelope", actual: powderKg.toFixed(1) + " kg/m3", status: powderKg >= 380 && powderKg <= 600 ? "compliant" : "non_compliant" },
     { parameter: "water_powder_volume", requirement: "0.80-1.10 by volume", actual: actualWpv.toFixed(3), status: actualWpv >= 0.80 && actualWpv <= 1.10 ? "compliant" : "non_compliant" },
     { parameter: "coarse_aggregate_volume", requirement: "28-35% of concrete volume", actual: (coarseVolumeFraction * 100).toFixed(1) + "%", status: coarseVolumeFraction >= 0.28 && coarseVolumeFraction <= 0.35 ? "compliant" : "non_compliant" },
@@ -286,6 +289,9 @@ export function calculateSccMix(
     waterBinderRatio,
     freshDensityKgM3: cementKg + scmKg + sandCorrection.wetKg + gravelCorrection.wetKg + waterToAdd + admixtureKg,
     absoluteVolumeL: totalVolumeL,
+    batchWaterKg: waterToAdd,
+    wetFineAggregateKg: sandCorrection.wetKg,
+    wetCoarseAggregateKg: gravelCorrection.wetKg,
     warnings,
     assumptions,
     recommendations,
