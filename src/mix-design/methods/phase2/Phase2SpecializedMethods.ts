@@ -290,13 +290,17 @@ export function calculateRacMix(input: MixDesignInput, language: "ar" | "fr" | "
   const sandKg = solveSand(fixedVolume, 0, sandDensity);
   const finalVolume = baseVolume(cement, cementDensity, 0, 2200, water, admixtureKg, admixtureDensity, sandKg, sandDensity, virginKg, virginDensity, air) + recycledKg / recycledDensity * 1000;
   const absorptionCapacity = recycledKg * absorption / 100;
-  const prewetWater = absorptionCapacity * preSat;
   const moisture = num(input, "moistureGravel");
+  // Prewet water is the gap between target pre-saturation and the measured
+  // current moisture, not the full target amount added on top of water already
+  // present in the recycled aggregate.
+  const prewetWater = recycledKg * Math.max(0, absorption * preSat - moisture) / 100;
   const freeSurfaceRecycled = recycledKg * Math.max(0, moisture - absorption) / 100;
   const freeSurfaceVirgin = virginKg * Math.max(0, moisture - num(input, "gravelAbsorption")) / 100;
   const freeSurfaceSand = sandKg * Math.max(0, num(input, "moistureSand") - num(input, "sandAbsorption")) / 100;
   const freeSurface = freeSurfaceRecycled + freeSurfaceVirgin + freeSurfaceSand;
-  const waterToAdd = Math.max(0, water + prewetWater - freeSurface);
+  const rawWaterToAdd = water + prewetWater - freeSurface;
+  const waterToAdd = Math.max(0, rawWaterToAdd);
   const density = cement + water + sandKg + virginKg + recycledKg + admixtureKg;
 
   return makeSpecializedResult(input, {
@@ -323,7 +327,7 @@ export function calculateRacMix(input: MixDesignInput, language: "ar" | "fr" | "
     trace: [
       { stepId: "rac-1", label: "Split total coarse aggregate into recycled and virgin fractions.", formula: "MRA = Mca·R; MVA = Mca-MRA", inputs: { totalCoarse, replacement }, output: { recycledKg, virginKg }, unit: "kg/m3" },
       { stepId: "rac-2", label: "Calculate recycled aggregate absorption capacity.", formula: "Wabs = MRA·Abs/100", inputs: { recycledKg, absorption }, output: absorptionCapacity, unit: "kg/m3" },
-      { stepId: "rac-3", label: "Calculate pre-saturation water.", formula: "Wpre = Wabs·S", inputs: { absorptionCapacity, preSat }, output: prewetWater, unit: "kg/m3" },
+      { stepId: "rac-3", label: "Calculate additional pre-saturation water after accounting for current stockpile moisture.", formula: "Wpre = MRA·max(Abs·S - Mcurrent, 0)/100", inputs: { recycledKg, absorptionPercent: absorption, preSat, currentMoisturePercent: moisture }, output: prewetWater, unit: "kg/m3" },
       { stepId: "rac-4", label: "Close absolute volume with fine aggregate.", formula: "Vfa = 1000 - Vcement - Vwater - Vair - Vad - Vvirgin - Vrecycled", inputs: { finalVolume }, output: sandKg, unit: "kg/m3" },
       { stepId: "rac-5", label: "Correct batch water for surface moisture and pre-saturation.", formula: "Wadd = W + Wpre - Wfree", inputs: { prewetWater, freeSurface }, output: waterToAdd, unit: "kg/m3" }
     ],
@@ -331,10 +335,11 @@ export function calculateRacMix(input: MixDesignInput, language: "ar" | "fr" | "
     complianceChecks: [
       { parameter: "replacement", requirement: ">0 and <=100%", actual: `${(replacement * 100).toFixed(1)}%`, status: replacement > 0 && replacement <= 1 ? "compliant" : "non_compliant" },
       { parameter: "water_binder", requirement: ">0 and <=0.65", actual: wb.toFixed(3), status: wb > 0 && wb <= 0.65 ? "compliant" : "non_compliant" },
+      { parameter: "batch_water", requirement: "Finite, non-negative water to add after moisture and pre-saturation correction", actual: String(rawWaterToAdd) + " kg/m3 before non-negative display guard", status: Number.isFinite(rawWaterToAdd) && rawWaterToAdd >= -1e-8 ? "compliant" : "non_compliant" },
       { parameter: "absolute_volume", requirement: "1000 L/m3 ±2 L", actual: `${finalVolume.toFixed(2)} L/m3`, status: Math.abs(finalVolume - 1000) <= 2 ? "compliant" : "non_compliant" },
       { parameter: "trial_mix", requirement: "Laboratory verification", actual: "Required", status: "warning" }
     ],
-    lifecycle: Math.abs(finalVolume - 1000) <= 2 ? "needs_trial_mix" : "blocked"
+    lifecycle: Number.isFinite(rawWaterToAdd) && rawWaterToAdd >= -1e-8 && Math.abs(finalVolume - 1000) <= 2 ? "needs_trial_mix" : "blocked"
   });
 }
 
