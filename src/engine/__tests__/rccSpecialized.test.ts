@@ -56,6 +56,21 @@ describe("RCC specialized mix design", () => {
     expect(result.materialSuitability?.status).toBe("approved");
   });
 
+
+  it("blocks RCC when aggregate free water exceeds the design-water input", () => {
+    const input = rccInput();
+    input.moistureSand = 10;
+    input.moistureGravel = 10;
+    input.sandAbsorption = 1;
+    input.gravelAbsorption = 1;
+
+    const result = calculateMixDesign(input);
+
+    expect(result.calculationStatus).toBe("blocked");
+    expect(result.isValid).toBe(false);
+    expect(result.errors.some((error) => error.includes("يتجاوز ماء التصميم") || error.includes("exceeds design water"))).toBe(true);
+  });
+
   it("blocks RCC when absolute-volume closure is outside tolerance", () => {
     const input = rccInput();
     // A relative aggregate density of 0.8 is not representative of these aggregates and
