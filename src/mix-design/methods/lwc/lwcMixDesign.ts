@@ -419,12 +419,20 @@ export function calculateLwcMix(
     binderOutOfRange ||
     fineAggregateKg <= 0 ||
     lightweightDryKg <= 0 ||
+    !Number.isFinite(effectiveWaterToBatch) ||
+    effectiveWaterToBatch < -1e-8 ||
     Math.abs(densityError) > 75 ||
     Math.abs(totalFilledVolumeL - 1000) > 2
       ? "blocked" as const
       : "needs_trial_mix" as const;
 
   const complianceChecks: any[] = [
+    {
+      parameter: "batch_water",
+      requirement: "Finite, non-negative water to add after moisture and prewet correction",
+      actual: `${String(effectiveWaterToBatch)} kg/m3 before non-negative display guard`,
+      status: Number.isFinite(effectiveWaterToBatch) && effectiveWaterToBatch >= -1e-8 ? "compliant" : "non_compliant"
+    },
     {
       parameter: "target_density",
       requirement: "1400-2000 kg/m3",
