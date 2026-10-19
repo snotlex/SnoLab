@@ -412,8 +412,7 @@ export function calculateLwcMix(
     sandCorrection.wetKg +
     lightweightCorrection.wetKg +
     waterToAdd +
-    admixtureKg +
-    prewetWaterToAdd;
+    admixtureKg;
 
   const densityError = designFreshDensity - targetDensity;
   const lifecycle =
@@ -516,6 +515,13 @@ export function calculateLwcMix(
     waterBinderRatio: wb,
     freshDensityKgM3: designFreshDensity,
     absoluteVolumeL: totalFilledVolumeL,
+    // The waterToAdd term already includes the extra water required to reach
+    // the target lightweight-aggregate prewet condition. Pass this resolved
+    // batching basis through the shared result adapter; do not add prewet water
+    // a second time when computing batch mass.
+    batchWaterKg: waterToAdd,
+    wetFineAggregateKg: sandCorrection.wetKg,
+    wetCoarseAggregateKg: lightweightCorrection.wetKg,
     warnings,
     assumptions,
     recommendations,
@@ -593,7 +599,7 @@ export function calculateLwcMix(
 
   result.waterToAdd = waterToAdd;
   result.batchWaterToAdd = waterToAdd;
-  result.waterWeightWet = waterToAdd + prewetWaterToAdd;
+  result.waterWeightWet = waterToAdd;
   result.lightweightAggregateKg = lightweightDryKg;
   result.lightweightAggregateDensity = lightweightDensity;
   result.lightweightAggregateAbsorption = lwcAbsorption;
