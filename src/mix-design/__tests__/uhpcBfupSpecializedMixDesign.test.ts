@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { calculateMixDesign } from "../../engine/calculateMixDesign";
 import { createTestInput } from "../../__tests__/testHelper";
+import { validateUhpcBfupInputs } from "../methods/uhpc/uhpcBfupMixDesign";
 
 const uhpcMaterials: any[] = [
   { id:"cem-uhpc",name:"CEM I 52.5 R",englishName:"CEM I 52.5 R",category:"إسمنت",type:"cementitious",density:3150,strengthClass:52.5,status:"نشط",approvalStatus:"Approved" },
@@ -45,6 +46,36 @@ describe("UHPC/BFUP specialized mix-design engine",()=>{
     expect(r.calculationStatus).toBe("needs_trial_mix");
     expect(r.steelFiberVolumePercent).toBeCloseTo(2.1,6);
     expect(r.engineeringAudit?.specializedMethod).toBe("BFUP");
+  });
+
+
+  it("validates BFUP-specific W/B rather than a conflicting UHPC field", () => {
+    const validation = validateUhpcBfupInputs(input({
+      concreteType: "BFUP",
+      fck28: 140,
+      dMax: 2,
+      bfupWaterBinderRatio: 0.15,
+      uhpcWaterBinderRatio: 0.22,
+      bfupFiberVolumePercent: 2.0,
+      uhpcFiberVolumePercent: 1.5
+    }));
+
+    expect(validation.isValid).toBe(false);
+    expect(validation.errors.some((error) => error.code === "water_binder")).toBe(true);
+  });
+
+  it("rejects explicit quartz-powder values that calculation would otherwise clamp", () => {
+    const validation = validateUhpcBfupInputs(input({
+      concreteType: "UHPC",
+      fck28: 120,
+      dMax: 2,
+      uhpcWaterBinderRatio: 0.22,
+      uhpcFiberVolumePercent: 1.8,
+      uhpcQuartzPowderKgM3: 280
+    }));
+
+    expect(validation.isValid).toBe(false);
+    expect(validation.errors.some((error) => error.code === "quartz_powder")).toBe(true);
   });
 
   it("blocks UHPC when the selected material library contains no quartz powder",()=>{
