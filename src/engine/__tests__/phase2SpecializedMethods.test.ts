@@ -127,6 +127,26 @@ describe("phase-2 specialized concrete engines", () => { // regression suite
   });
 
 
+
+  it("subtracts current recycled-aggregate moisture before computing extra prewet water", () => {
+    const result: any = calculateRacMix(input({
+      concreteType: "RAC",
+      moistureGravel: 4,
+      racCementKgM3: 360,
+      racWaterKgM3: 165,
+      racWaterBinderRatio: 0.458,
+      racCoarseAggregateKgM3: 1050,
+      racReplacementPercent: 50,
+      racRecycledAggregateDensityKgM3: 2350,
+      racRecycledAbsorptionPercent: 6,
+      racPreSaturationPercent: 70,
+      racSuperplasticizerDosage: 0
+    }));
+
+    const prewetStep = result.trace.find((step: any) => step.stepId === "rac-3");
+    expect(prewetStep.output).toBeCloseTo(1.05, 6);
+  });
+
   it("blocks RAC when recycled aggregate replacement is zero", () => {
     const result = calculateRacMix(input({
       concreteType: "RAC",
