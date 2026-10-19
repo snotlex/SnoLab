@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { calculateMixDesign } from "../../engine/calculateMixDesign";
 import { createTestInput } from "../../__tests__/testHelper";
+import { validateHscHpcInputs } from "../methods/hsc-hpc/hscHpcMixDesign";
 
 describe("HSC/HPC specialized mix-design engine", () => {
   it("routes HSC automatically to the high-strength engine", () => {
@@ -62,6 +63,26 @@ describe("HSC/HPC specialized mix-design engine", () => {
     expect(result.isValid).toBe(false);
     expect(result.status).toBe("not-supported");
     expect(result.calculationStatus).toBe("blocked");
+  });
+
+
+  it("validates HPC selected SCM replacement using the same value as the calculation", () => {
+    const validation = validateHscHpcInputs(createTestInput({
+      concreteType: "HPC",
+      fck28: 55,
+      dMax: 16,
+      hpcWaterKgM3: 160,
+      hpcWaterBinderRatio: 0.30,
+      dosageSuper: 1.2,
+      dosageSilicaFume: 5,
+      dosageFlyAsh: 5,
+      dosageSlag: 0,
+      selectedScmReplacementPercent: 45,
+      airContent: 1
+    }));
+
+    expect(validation.isValid).toBe(false);
+    expect(validation.errors.some((error) => error.code === "scm_total")).toBe(true);
   });
 
   it("does not route UHPC into the HSC/HPC engine", () => {
