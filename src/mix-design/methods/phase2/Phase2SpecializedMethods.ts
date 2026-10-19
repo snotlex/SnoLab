@@ -316,6 +316,9 @@ export function calculateRacMix(input: MixDesignInput, language: "ar" | "fr" | "
     waterBinderRatio: wb,
     freshDensityKgM3: density,
     absoluteVolumeL: finalVolume,
+    batchWaterKg: waterToAdd,
+    wetFineAggregateKg: sandKg * (1 + num(input, "moistureSand") / 100),
+    wetCoarseAggregateKg: totalCoarse * (1 + moisture / 100),
     warnings: ["RAC requires source-specific recycled aggregate quality and moisture conditioning.", "The calculated mix is a starting proportion and requires trial batching."],
     assumptions: [
       `Recycled coarse aggregate replacement = ${(replacement * 100).toFixed(1)}%.`,
