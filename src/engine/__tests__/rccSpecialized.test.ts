@@ -92,6 +92,18 @@ describe("RCC specialized mix design", () => {
     expect(result.errors.some((e) => e.includes("الكثافة الجافة القصوى"))).toBe(true);
   });
 
+
+  it("blocks RCC when the fine-aggregate percentage exceeds the physical 100% limit", () => {
+    const input = rccInput();
+    input.rccFineAggregatePercent = 120;
+
+    const result = calculateMixDesign(input);
+
+    expect(result.calculationStatus).toBe("blocked");
+    expect(result.isValid).toBe(false);
+    expect(result.errors.some((error) => error.includes("100%") || error.includes("100 %"))).toBe(true);
+  });
+
   it("blocks RCC when the declared relative compaction target is missing or outside the allowed envelope", () => {
     const missing = rccInput();
     delete missing.rccCompactionTargetPercent;
