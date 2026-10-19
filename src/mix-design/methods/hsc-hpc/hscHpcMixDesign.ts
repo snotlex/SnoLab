@@ -117,10 +117,20 @@ export function validateHscHpcInputs(
   const water = Number((input as any)[type === "HSC" ? "hscWaterKgM3" : "hpcWaterKgM3"] ?? NaN);
   const superDosage = Number(input.dosageSuper || 0);
   const silicaDosage = Number(input.dosageSilicaFume || 0);
-  const scmTotal =
+  const legacyScmTotal =
     silicaDosage +
     Number(input.dosageFlyAsh || 0) +
     Number(input.dosageSlag || 0);
+  // Keep validation aligned with the calculation priority: HPC uses the
+  // explicit total replacement field when supplied, while HSC uses silica
+  // fume dosage and rejects fly ash/slag in this engine.
+  const selectedScmReplacement = (input as any).selectedScmReplacementPercent;
+  const scmTotal = type === "HPC" &&
+    selectedScmReplacement !== undefined &&
+    selectedScmReplacement !== null &&
+    selectedScmReplacement !== ""
+      ? Number(selectedScmReplacement)
+      : legacyScmTotal;
   const wbField = type === "HSC" ? "hscWaterBinderRatio" : "hpcWaterBinderRatio";
   const waterField = type === "HSC" ? "hscWaterKgM3" : "hpcWaterKgM3";
 
@@ -181,7 +191,7 @@ export function validateHscHpcInputs(
       });
     }
   } else {
-    if (scmTotal < 5 || scmTotal > 30) {
+    if (!Number.isFinite(scmTotal) || scmTotal < 5 || scmTotal > 30) {
       errors.push({
         code: "scm_total",
         severity: "error",
@@ -446,9 +456,13 @@ export function calculateHscHpcMix(
     },
     {
       parameter: "scm",
-      requirement: type === "HSC" ? "Silica fume 5-25% of binder" : "Total SCM 5-30% of binder",
+      requirement: type === "HSC" ? "Silica fume 5-15% of binder" : "Total SCM 5-30% of binder",
       actual: `${scmPercent.toFixed(1)}%`,
-      status: "compliant"
+      status: Number.isFinite(scmPercent) &&
+        scmPercent >= 5 &&
+        scmPercent <= (type === "HSC" ? 15 : 30)
+          ? "compliant"
+          : "non_compliant"
     },
     {
       parameter: "superplasticizer",
