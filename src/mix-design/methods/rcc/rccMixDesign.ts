@@ -172,6 +172,20 @@ export function validateRccInputs(
     });
   }
 
+  if (positive(input.rccFineAggregatePercent) && input.rccFineAggregatePercent! > 100) {
+    errors.push({
+      code: "RCC_FINE_AGGREGATE_IMPOSSIBLE",
+      severity: "error",
+      field: "rccFineAggregatePercent",
+      message: message(
+        language,
+        "نسبة الركام الناعم لا يمكن أن تتجاوز 100% من إجمالي الركام.",
+        "Le pourcentage de granulats fins ne peut pas dépasser 100 % du total des granulats.",
+        "Fine aggregate percentage cannot exceed 100% of total aggregate."
+      )
+    });
+  }
+
   if (positive(input.rccFineAggregatePercent) && (input.rccFineAggregatePercent! < 40 || input.rccFineAggregatePercent! > 60)) {
     warnings.push({
       code: "RCC_FINE_AGGREGATE_OUTSIDE_TYPICAL",
