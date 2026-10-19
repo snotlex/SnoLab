@@ -418,11 +418,10 @@ export function calculateHscHpcMix(
     Number(input.gravelAbsorption ?? materialProperty(materials.materials.gravel, ["absorption", "Absorption"], 0) ?? 0)
   );
 
-  const waterToAdd = Math.max(
-    0,
+  const rawWaterToAdd =
     water - sandCorrection.freeSurfaceWater - gravelCorrection.freeSurfaceWater +
-    sandCorrection.absorptionDeficit + gravelCorrection.absorptionDeficit
-  );
+    sandCorrection.absorptionDeficit + gravelCorrection.absorptionDeficit;
+  const waterToAdd = Math.max(0, rawWaterToAdd);
 
   const filledVolumeL =
     cementVolumeL +
@@ -490,6 +489,15 @@ export function calculateHscHpcMix(
     }
   ];
 
+  if (!Number.isFinite(rawWaterToAdd) || rawWaterToAdd < -1e-8) {
+    complianceChecks.push({
+      parameter: "batch_water",
+      requirement: "Finite, non-negative water to add after aggregate moisture correction",
+      actual: `${String(rawWaterToAdd)} kg/m3`,
+      status: "non_compliant"
+    });
+  }
+
   if (fineVolumeL <= 0) {
     complianceChecks.push({
       parameter: "fine_aggregate_volume",
@@ -499,7 +507,8 @@ export function calculateHscHpcMix(
     });
   }
 
-  const lifecycle = binderOutOfRange || fineVolumeL <= 0
+  const lifecycle = binderOutOfRange || fineVolumeL <= 0 ||
+    !Number.isFinite(rawWaterToAdd) || rawWaterToAdd < -1e-8
     ? "blocked" as const
     : "needs_trial_mix" as const;
 
