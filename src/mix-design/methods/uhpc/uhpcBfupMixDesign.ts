@@ -36,15 +36,19 @@ export function validateUhpcBfupInputs(input: MixDesignInput, _language:"ar"|"fr
   const errors:any[]=[]; const warnings:any[]=[]; const t=code(input);
   if(!t){errors.push({code:"concrete_type",severity:"error",field:"concreteType",message:"UHPC/BFUP engine requires UHPC or BFUP."});return {isValid:false,errors,warnings};}
   const fck=Number(input.fck28); const dMax=Number(input.dMax);
-  const wb=Number((input as any).uhpcWaterBinderRatio ?? (input as any).bfupWaterBinderRatio ?? NaN);
+  // Validation must resolve the same concrete-family fields as calculation.
+  const wb=Number(t==="BFUP" ? ((input as any).bfupWaterBinderRatio ?? (input as any).uhpcWaterBinderRatio ?? NaN) : ((input as any).uhpcWaterBinderRatio ?? (input as any).bfupWaterBinderRatio ?? NaN));
   const sf=Number(input.dosageSilicaFume||0); const sp=Number(input.dosageSuper||0);
-  const vf=Number((input as any).uhpcFiberVolumePercent ?? (input as any).bfupFiberVolumePercent ?? 2);
+  const vf=Number(t==="BFUP" ? ((input as any).bfupFiberVolumePercent ?? (input as any).uhpcFiberVolumePercent ?? 2) : ((input as any).uhpcFiberVolumePercent ?? (input as any).bfupFiberVolumePercent ?? 2));
+  const quartzRaw=t==="BFUP" ? ((input as any).bfupQuartzPowderKgM3 ?? (input as any).uhpcQuartzPowderKgM3) : ((input as any).uhpcQuartzPowderKgM3 ?? (input as any).bfupQuartzPowderKgM3);
+  const quartz=quartzRaw===undefined || quartzRaw===null || quartzRaw==="" ? undefined : Number(quartzRaw);
   if(!Number.isFinite(fck)||fck<100||fck>180) errors.push({code:"strength_envelope",severity:"error",field:"fck28",message:"UHPC/BFUP target strength must be 100-180 MPa in the current engine."});
   if(!Number.isFinite(dMax)||dMax<=0||dMax>5) errors.push({code:"dmax",severity:"error",field:"dMax",message:"UHPC/BFUP Dmax must be <=5 mm."});
-  if(Number.isFinite(wb)&&(wb<0.18||wb>0.28)) errors.push({code:"water_binder",severity:"error",field:"uhpcWaterBinderRatio",message:"UHPC/BFUP W/B must be 0.18-0.28."});
+  if(Number.isFinite(wb)&&(wb<0.18||wb>0.28)) errors.push({code:"water_binder",severity:"error",field:t==="BFUP"?"bfupWaterBinderRatio":"uhpcWaterBinderRatio",message:"UHPC/BFUP W/B must be 0.18-0.28."});
   if(sf<15||sf>25) errors.push({code:"silica_fume",severity:"error",field:"dosageSilicaFume",message:"Silica-fume replacement must be 15-25% of binder."});
   if(sp<1.5||sp>4) errors.push({code:"superplasticizer",severity:"error",field:"dosageSuper",message:"Superplasticizer dosage must be 1.5-4.0% of binder."});
-  if(vf<1||vf>3) errors.push({code:"fiber_volume",severity:"error",field:"uhpcFiberVolumePercent",message:"Steel-fiber volume must be 1-3%."});
+  if(!Number.isFinite(vf)||vf<1||vf>3) errors.push({code:"fiber_volume",severity:"error",field:t==="BFUP"?"bfupFiberVolumePercent":"uhpcFiberVolumePercent",message:"Steel-fiber volume must be 1-3%."});
+  if(quartz!==undefined&&(!Number.isFinite(quartz)||quartz<100||quartz>260)) errors.push({code:"quartz_powder",severity:"error",field:t==="BFUP"?"bfupQuartzPowderKgM3":"uhpcQuartzPowderKgM3",message:"Quartz powder dosage must be between 100 and 260 kg/m3 in the current starting envelope; out-of-range values must not be silently clamped."});
   warnings.push({code:"trial_mix",severity:"warning",field:"trial_mix",message:"Laboratory optimization is mandatory for UHPC/BFUP."});
   return {isValid:errors.length===0,errors,warnings};
 }
