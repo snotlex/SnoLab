@@ -68,8 +68,12 @@ export function calculateDreuxGorisse(
     coarseAggregateKg: Math.round(coreResult.gravelWeightDry * 10) / 10,
     admixtureKg: Math.round(totalAdmix * 10) / 10,
     airContentPercent: coercedInput.airContent || 0.0,
-    wcRatio: parseFloat(coreResult.wcRatioAdjusted?.toFixed(3) || (coreResult.waterContentActual / (coreResult.cementWeight || 1)).toFixed(3)),
-    freshDensityKgM3: Math.round((coreResult.totalFreshDensity || 2400) * 10) / 10,
+    wcRatio: Number.isFinite(coreResult.wcRatioAdjusted)
+      ? Number(coreResult.wcRatioAdjusted.toFixed(3))
+      : coreResult.cementWeight > 0
+        ? Number((coreResult.waterContentActual / coreResult.cementWeight).toFixed(3))
+        : 0,
+    freshDensityKgM3: Math.round((coreResult.totalFreshDensity ?? 0) * 10) / 10,
 
     // Metadata & status compatible with old /src/mix-design-methods tests
     status: statusStr,
@@ -89,9 +93,9 @@ export function calculateDreuxGorisse(
     quantities: {
       cement: coreResult.cementWeight,
       supplementaryCementitiousMaterials: scmTotal,
-      totalBinder: coreResult.totalBinder || coreResult.cementWeight,
-      effectiveWater: coreResult.effectiveWater || coreResult.waterContentActual,
-      addedWater: coreResult.batchWaterToAdd || coreResult.waterContentActual,
+      totalBinder: coreResult.totalBinder ?? coreResult.cementWeight,
+      effectiveWater: coreResult.effectiveWater ?? coreResult.waterContentActual ?? 0,
+      addedWater: coreResult.batchWaterToAdd ?? 0,
       fineAggregates: coreResult.sandWeightDry,
       coarseAggregates: coreResult.gravelWeightDry,
       admixtures,
@@ -113,15 +117,15 @@ export function calculateDreuxGorisse(
     },
 
     ratios: {
-      waterCementRatio: coreResult.waterCementRatio || coreResult.wcRatio,
-      waterBinderRatio: coreResult.waterBinderRatio || coreResult.wcRatio,
+      waterCementRatio: coreResult.waterCementRatio ?? coreResult.wcRatio,
+      waterBinderRatio: coreResult.waterBinderRatio ?? coreResult.wcRatio,
       sandAggregateRatio: coreResult.sandPercent !== undefined ? parseFloat((coreResult.sandPercent / 100).toFixed(3)) : undefined
     },
 
     physicalProperties: {
-      theoreticalFreshDensity: coreResult.totalFreshDensity || 2400,
-      absoluteVolume: coreResult.absoluteVolumeTotal || 1000,
-      volumeClosureError: coreResult.volumeClosureError || 0
+      theoreticalFreshDensity: coreResult.totalFreshDensity ?? 0,
+      absoluteVolume: coreResult.absoluteVolumeTotal ?? 0,
+      volumeClosureError: coreResult.volumeClosureError ?? Math.abs(1000 - (coreResult.absoluteVolumeTotal ?? 0))
     },
 
     validation: validationRes,

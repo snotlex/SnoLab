@@ -412,20 +412,27 @@ export function calculateLwcMix(
     sandCorrection.wetKg +
     lightweightCorrection.wetKg +
     waterToAdd +
-    admixtureKg +
-    prewetWaterToAdd;
+    admixtureKg;
 
   const densityError = designFreshDensity - targetDensity;
   const lifecycle =
     binderOutOfRange ||
     fineAggregateKg <= 0 ||
     lightweightDryKg <= 0 ||
+    !Number.isFinite(effectiveWaterToBatch) ||
+    effectiveWaterToBatch < -1e-8 ||
     Math.abs(densityError) > 75 ||
     Math.abs(totalFilledVolumeL - 1000) > 2
       ? "blocked" as const
       : "needs_trial_mix" as const;
 
   const complianceChecks: any[] = [
+    {
+      parameter: "batch_water",
+      requirement: "Finite, non-negative water to add after moisture and prewet correction",
+      actual: `${String(effectiveWaterToBatch)} kg/m3 before non-negative display guard`,
+      status: Number.isFinite(effectiveWaterToBatch) && effectiveWaterToBatch >= -1e-8 ? "compliant" : "non_compliant"
+    },
     {
       parameter: "target_density",
       requirement: "1400-2000 kg/m3",
@@ -516,6 +523,13 @@ export function calculateLwcMix(
     waterBinderRatio: wb,
     freshDensityKgM3: designFreshDensity,
     absoluteVolumeL: totalFilledVolumeL,
+    // The waterToAdd term already includes the extra water required to reach
+    // the target lightweight-aggregate prewet condition. Pass this resolved
+    // batching basis through the shared result adapter; do not add prewet water
+    // a second time when computing batch mass.
+    batchWaterKg: waterToAdd,
+    wetFineAggregateKg: sandCorrection.wetKg,
+    wetCoarseAggregateKg: lightweightCorrection.wetKg,
     warnings,
     assumptions,
     recommendations,
@@ -593,7 +607,7 @@ export function calculateLwcMix(
 
   result.waterToAdd = waterToAdd;
   result.batchWaterToAdd = waterToAdd;
-  result.waterWeightWet = waterToAdd + prewetWaterToAdd;
+  result.waterWeightWet = waterToAdd;
   result.lightweightAggregateKg = lightweightDryKg;
   result.lightweightAggregateDensity = lightweightDensity;
   result.lightweightAggregateAbsorption = lwcAbsorption;

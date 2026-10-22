@@ -117,10 +117,20 @@ export function validateHscHpcInputs(
   const water = Number((input as any)[type === "HSC" ? "hscWaterKgM3" : "hpcWaterKgM3"] ?? NaN);
   const superDosage = Number(input.dosageSuper || 0);
   const silicaDosage = Number(input.dosageSilicaFume || 0);
-  const scmTotal =
+  const legacyScmTotal =
     silicaDosage +
     Number(input.dosageFlyAsh || 0) +
     Number(input.dosageSlag || 0);
+  // Keep validation aligned with the calculation priority: HPC uses the
+  // explicit total replacement field when supplied, while HSC uses silica
+  // fume dosage and rejects fly ash/slag in this engine.
+  const selectedScmReplacement = (input as any).selectedScmReplacementPercent;
+  const scmTotal = type === "HPC" &&
+    selectedScmReplacement !== undefined &&
+    selectedScmReplacement !== null &&
+    selectedScmReplacement !== ""
+      ? Number(selectedScmReplacement)
+      : legacyScmTotal;
   const wbField = type === "HSC" ? "hscWaterBinderRatio" : "hpcWaterBinderRatio";
   const waterField = type === "HSC" ? "hscWaterKgM3" : "hpcWaterKgM3";
 
@@ -181,7 +191,7 @@ export function validateHscHpcInputs(
       });
     }
   } else {
-    if (scmTotal < 5 || scmTotal > 30) {
+    if (!Number.isFinite(scmTotal) || scmTotal < 5 || scmTotal > 30) {
       errors.push({
         code: "scm_total",
         severity: "error",
@@ -408,11 +418,10 @@ export function calculateHscHpcMix(
     Number(input.gravelAbsorption ?? materialProperty(materials.materials.gravel, ["absorption", "Absorption"], 0) ?? 0)
   );
 
-  const waterToAdd = Math.max(
-    0,
+  const rawWaterToAdd =
     water - sandCorrection.freeSurfaceWater - gravelCorrection.freeSurfaceWater +
-    sandCorrection.absorptionDeficit + gravelCorrection.absorptionDeficit
-  );
+    sandCorrection.absorptionDeficit + gravelCorrection.absorptionDeficit;
+  const waterToAdd = Math.max(0, rawWaterToAdd);
 
   const filledVolumeL =
     cementVolumeL +
@@ -423,12 +432,14 @@ export function calculateHscHpcMix(
     coarseVolumeL +
     fineVolumeL;
 
+  // Theoretical design density uses the same effective-water basis as the absolute-volume calculation.
+  // Wet aggregate masses and corrected batch water are reported separately by makeSpecializedResult.
   const estimatedFreshDensity =
     cementKg +
     scmKg +
-    sandCorrection.wetKg +
-    gravelCorrection.wetKg +
-    waterToAdd +
+    fineKg +
+    coarseKg +
+    water +
     admixtureKg;
 
   const complianceChecks: any[] = [
@@ -446,9 +457,13 @@ export function calculateHscHpcMix(
     },
     {
       parameter: "scm",
-      requirement: type === "HSC" ? "Silica fume 5-25% of binder" : "Total SCM 5-30% of binder",
+      requirement: type === "HSC" ? "Silica fume 5-15% of binder" : "Total SCM 5-30% of binder",
       actual: `${scmPercent.toFixed(1)}%`,
-      status: "compliant"
+      status: Number.isFinite(scmPercent) &&
+        scmPercent >= 5 &&
+        scmPercent <= (type === "HSC" ? 15 : 30)
+          ? "compliant"
+          : "non_compliant"
     },
     {
       parameter: "superplasticizer",
@@ -476,6 +491,15 @@ export function calculateHscHpcMix(
     }
   ];
 
+  if (!Number.isFinite(rawWaterToAdd) || rawWaterToAdd < -1e-8) {
+    complianceChecks.push({
+      parameter: "batch_water",
+      requirement: "Finite, non-negative water to add after aggregate moisture correction",
+      actual: `${String(rawWaterToAdd)} kg/m3`,
+      status: "non_compliant"
+    });
+  }
+
   if (fineVolumeL <= 0) {
     complianceChecks.push({
       parameter: "fine_aggregate_volume",
@@ -485,7 +509,8 @@ export function calculateHscHpcMix(
     });
   }
 
-  const lifecycle = binderOutOfRange || fineVolumeL <= 0
+  const lifecycle = binderOutOfRange || fineVolumeL <= 0 ||
+    !Number.isFinite(rawWaterToAdd) || rawWaterToAdd < -1e-8
     ? "blocked" as const
     : "needs_trial_mix" as const;
 

@@ -20,5 +20,8 @@ describe("stage 3 concrete type form configuration", () => {
     expect(config.sections).toContain("requirements");
     expect(config.requiredFields).toContain("gpcActivatorLiquidKgM3");
     expect(config.specialMaterialRoles).toContain("special binder and activator");
+    expect(config.requiredFields).not.toContain("cementType");
+    expect(config.requiredFields).not.toContain("cementClassStrength");
+    expect(config.requiredFields).not.toContain("cementDensity");
   });
 });

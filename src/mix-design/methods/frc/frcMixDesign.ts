@@ -126,12 +126,14 @@ export function calculateFrcMix(input: MixDesignInput, language: "ar" | "fr" | "
 
   const sandCorrection = computeMoistureBatch(fineKg, Number(input.moistureSand ?? 0), Number(input.sandAbsorption ?? materialProperty(sand, ["absorption", "Absorption"], 0) ?? 0));
   const gravelCorrection = computeMoistureBatch(coarseKg, Number(input.moistureGravel ?? 0), Number(input.gravelAbsorption ?? materialProperty(gravel, ["absorption", "Absorption"], 0) ?? 0));
-  const waterToAdd = Math.max(0, water - sandCorrection.freeSurfaceWater - gravelCorrection.freeSurfaceWater + sandCorrection.absorptionDeficit + gravelCorrection.absorptionDeficit);
+  const rawWaterToAdd = water - sandCorrection.freeSurfaceWater - gravelCorrection.freeSurfaceWater + sandCorrection.absorptionDeficit + gravelCorrection.absorptionDeficit;
+  const waterToAdd = Math.max(0, rawWaterToAdd);
   const totalVolumeL = binderVolumeL + waterVolumeL + fineKg / sandDensity * 1000 + coarseVolumeL + fiberVolumeL + admixtureVolumeL + airVolumeL;
 
   const checks: any[] = [
     { parameter: "water_binder", requirement: "0 < W/B <= 0.70", actual: wb.toFixed(3), status: wb > 0 && wb <= 0.70 ? "compliant" : "non_compliant" },
     { parameter: "fiber_volume", requirement: "0-5% initial fiber volume", actual: fiberVolPercent.toFixed(3) + "%", status: fiberVolPercent >= 0 && fiberVolPercent <= 5 ? "compliant" : "non_compliant" },
+    { parameter: "batch_water", requirement: "Finite, non-negative water to add after aggregate moisture correction", actual: String(rawWaterToAdd) + " kg/m3", status: Number.isFinite(rawWaterToAdd) && rawWaterToAdd >= -1e-8 ? "compliant" : "non_compliant" },
     { parameter: "absolute_volume", requirement: "1000 L/m3", actual: totalVolumeL.toFixed(2) + " L/m3", status: Math.abs(totalVolumeL - 1000) <= 2 ? "compliant" : "non_compliant" },
     { parameter: "fiber_verification", requirement: "Residual/flexural performance verified in laboratory", actual: "Trial testing required", status: "warning" }
   ];
@@ -143,7 +145,7 @@ export function calculateFrcMix(input: MixDesignInput, language: "ar" | "fr" | "
     cementKg, waterKg: water, fineAggregateKg: fineKg, coarseAggregateKg: coarseKg, admixtureKg, fiberKg,
     admixtureName: String(admixture?.name || input.selectedAdmixtureName || "Superplasticizer"),
     waterBinderRatio: wb,
-    freshDensityKgM3: cementKg + fineKg + coarseKg + waterToAdd + admixtureKg + fiberKg,
+    freshDensityKgM3: cementKg + fineKg + coarseKg + water + admixtureKg + fiberKg,
     absoluteVolumeL: totalVolumeL,
     batchWaterKg: waterToAdd,
     wetFineAggregateKg: sandCorrection.wetKg,

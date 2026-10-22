@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { calculateMixDesign } from "../../engine/calculateMixDesign";
 import { createTestInput } from "../../__tests__/testHelper";
+import { validateUhpcBfupInputs } from "../methods/uhpc/uhpcBfupMixDesign";
 
 const uhpcMaterials: any[] = [
   { id:"cem-uhpc",name:"CEM I 52.5 R",englishName:"CEM I 52.5 R",category:"إسمنت",type:"cementitious",density:3150,strengthClass:52.5,status:"نشط",approvalStatus:"Approved" },
@@ -45,6 +46,64 @@ describe("UHPC/BFUP specialized mix-design engine",()=>{
     expect(r.calculationStatus).toBe("needs_trial_mix");
     expect(r.steelFiberVolumePercent).toBeCloseTo(2.1,6);
     expect(r.engineeringAudit?.specializedMethod).toBe("BFUP");
+  });
+
+
+  it("reports theoretical density using effective design water, not moisture-corrected batch water", () => {
+    const r: any = calculateMixDesign(input({
+      moistureSand: 5,
+      sandAbsorption: 1
+    }));
+    const designedMass =
+      r.cementKg + (r.scmKg || 0) + (r.quartzPowderKg || 0) +
+      r.fineAggregateKg + r.waterKg + r.admixtureKg + (r.fiberKg || 0);
+    expect(r.freshDensityKgM3).toBeCloseTo(designedMass, 6);
+    expect(r.waterToAdd).not.toBeCloseTo(r.waterKg, 3);
+  });
+
+  it("validates BFUP-specific W/B rather than a conflicting UHPC field", () => {
+    const validation = validateUhpcBfupInputs(input({
+      concreteType: "BFUP",
+      fck28: 140,
+      dMax: 2,
+      bfupWaterBinderRatio: 0.15,
+      uhpcWaterBinderRatio: 0.22,
+      bfupFiberVolumePercent: 2.0,
+      uhpcFiberVolumePercent: 1.5
+    }));
+
+    expect(validation.isValid).toBe(false);
+    expect(validation.errors.some((error) => error.code === "water_binder")).toBe(true);
+  });
+
+  it("rejects explicit quartz-powder values that calculation would otherwise clamp", () => {
+    const validation = validateUhpcBfupInputs(input({
+      concreteType: "UHPC",
+      fck28: 120,
+      dMax: 2,
+      uhpcWaterBinderRatio: 0.22,
+      uhpcFiberVolumePercent: 1.8,
+      uhpcQuartzPowderKgM3: 280
+    }));
+
+    expect(validation.isValid).toBe(false);
+    expect(validation.errors.some((error) => error.code === "quartz_powder")).toBe(true);
+  });
+
+  it("uses the documented UHPC/BFUP defaults only when dosage fields are omitted", () => {
+    const validation = validateUhpcBfupInputs(input({
+      dosageSilicaFume: undefined,
+      dosageSuper: undefined
+    }));
+    expect(validation.isValid).toBe(true);
+
+    const explicitZero = validateUhpcBfupInputs(input({
+      dosageSilicaFume: 0,
+      dosageSuper: 0
+    }));
+    expect(explicitZero.isValid).toBe(false);
+    expect(explicitZero.errors.some((error) => error.code === "silica_fume")).toBe(true);
+    expect(explicitZero.errors.some((error) => error.code === "superplasticizer")).toBe(true);
   });
 
   it("blocks UHPC when the selected material library contains no quartz powder",()=>{

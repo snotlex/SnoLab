@@ -24,6 +24,7 @@ import {
   Sparkles
 } from "lucide-react";
 import { resolveMaterials, ResolvedMaterials } from "../utils/resolveMaterials";
+import { classifyReportDensity } from "../services/reportDensityCheck";
 import { A4Page, A4PageProps } from "./report/A4Page";
 import { ReportCharts } from "./ReportCharts";
 import { ReportCompliance } from "./ReportCompliance";
@@ -811,22 +812,33 @@ export const RecipeReport: React.FC<RecipeReportProps> = ({
     }
 
     // 5. Total Mass Balance and density (Air content & compacting index check)
-    const totalDensity = result.totalFreshDensity || 2400;
-    if (totalDensity < 2100 && concreteType !== "LWC") {
+    const densityStatus = classifyReportDensity(result.totalFreshDensity, concreteType);
+    const totalDensity = typeof result.totalFreshDensity === "number" && Number.isFinite(result.totalFreshDensity)
+      ? result.totalFreshDensity
+      : undefined;
+    if (densityStatus === "unavailable") {
+      checks.push({
+        name: "تعذر التحقق من كثافة الخرسانة الطازجة",
+        nameEn: "Fresh Concrete Density Unavailable",
+        status: "FAIL",
+        messageAr: "فشل التحقق: لم ينتج الحساب كثافة طازجة فعلية صالحة. لا يجوز استبدالها بكثافة افتراضية أو اعتبار موازنة الكتلة ناجحة.",
+        messageEn: "Failed: No valid calculated fresh density is available. A default density must not be used to pass mass-balance verification."
+      });
+    } else if (densityStatus === "below-minimum") {
       checks.push({
         name: "كثافة الخرسانة الموقعية",
         nameEn: "Density Compaction Verification",
         status: "FAIL",
-        messageAr: "خطأ هندسي: الكثافة الجافة المحسوبة تقل عن 2100 kg/m³ لخرسانة عادية. يرجى مراجعة إدخال الكثافة الحجمية للرمل والحصى وتفادي الفراغات المفتوحة مالم يكن النوع خورسنة خفيفة.",
-        messageEn: "Failed: Computed bulk density is dangerously low for non-lightweight structural configurations."
+        messageAr: "خطأ هندسي: الكثافة المحسوبة تقل عن 2100 kg/m³ لخرسانة غير خفيفة. راجع خصائص المواد وإغلاق الحجم قبل متابعة المراجعة.",
+        messageEn: "Failed: Computed fresh density is below 2100 kg/m³ for a non-lightweight concrete. Review material properties and volume closure."
       });
     } else {
       checks.push({
         name: "توازن الكتل الإجمالية وكثافة الخلط الفنية",
         nameEn: "Total Fresh Mix Mass balance",
         status: "PASS",
-        messageAr: `تم التحقق: الكثافة التقريبية للخلطة الرطبة (${Math.round(totalDensity)} kg/m³) ممتازة للمحافظة على الرص والاندماج الكثيف للخرسانة المسلحة.`,
-        messageEn: `Verified: Total balance density validated smoothly.`
+        messageAr: `تم التحقق حسابيًا من وجود كثافة طازجة ${Math.round(totalDensity as number)} kg/m³؛ ولا يُعد ذلك وحده اعتمادًا هندسيًا للخلطة.`,
+        messageEn: `A calculated fresh density of ${Math.round(totalDensity as number)} kg/m³ is available; this check alone does not constitute engineering approval.`
       });
     }
 

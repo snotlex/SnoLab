@@ -85,6 +85,29 @@ describe("phase-2 specialized concrete engines", () => { // regression suite
     expect(result.validation.isValid).toBe(true);
   });
 
+  it("calculates cementless GPC against a populated material repository", () => {
+    const gpcMaterials = materials.filter((material) => material.id !== "cement-1");
+    const result = calculateGpcMix(input({
+      concreteType: "GPC",
+      selectedCementId: undefined,
+      cementType: undefined,
+      cementClassStrength: undefined,
+      cementDensity: undefined,
+      materialsDatabase: gpcMaterials,
+      gpcPrecursorKgM3: 400,
+      gpcActivatorLiquidKgM3: 200,
+      gpcWaterKgM3: 160,
+      gpcWaterBinderRatio: 0.40,
+      gpcActivatorToPrecursorRatio: 0.50,
+      gpcCoarseAggregateVolumeFraction: 0.35
+    }));
+    expect(result.calculationStatus).toBe("needs_trial_mix");
+    expect(result.quantities?.cement).toBe(0);
+    expect(result.absoluteVolumeTotal).toBeCloseTo(1000, 1);
+    expect(result.validation.isValid).toBe(true);
+    expect(result.recommendations.join(" ")).not.toContain("Required material not found: cement");
+  });
+
   it("closes RAC volume and exposes moisture conditioning", () => {
     const result = calculateRacMix(input({
       concreteType: "RAC",
@@ -101,6 +124,46 @@ describe("phase-2 specialized concrete engines", () => { // regression suite
     expect(result.calculationStatus).toBe("needs_trial_mix");
     expect(result.absoluteVolumeTotal).toBeCloseTo(1000, 1);
     expect(result.validation.isValid).toBe(true);
+  });
+
+
+
+  it("subtracts current recycled-aggregate moisture before computing extra prewet water", () => {
+    const result: any = calculateRacMix(input({
+      concreteType: "RAC",
+      moistureGravel: 4,
+      racCementKgM3: 360,
+      racWaterKgM3: 165,
+      racWaterBinderRatio: 0.458,
+      racCoarseAggregateKgM3: 1050,
+      racReplacementPercent: 50,
+      racRecycledAggregateDensityKgM3: 2350,
+      racRecycledAbsorptionPercent: 6,
+      racPreSaturationPercent: 70,
+      racSuperplasticizerDosage: 0
+    }));
+
+    const prewetStep = result.trace.find((step: any) => step.stepId === "rac-3");
+    expect(prewetStep.output).toBeCloseTo(1.05, 6);
+  });
+
+  it("blocks RAC when recycled aggregate replacement is zero", () => {
+    const result = calculateRacMix(input({
+      concreteType: "RAC",
+      racCementKgM3: 360,
+      racWaterKgM3: 165,
+      racWaterBinderRatio: 0.458,
+      racCoarseAggregateKgM3: 1050,
+      racReplacementPercent: 0,
+      racRecycledAggregateDensityKgM3: 2350,
+      racRecycledAbsorptionPercent: 6,
+      racPreSaturationPercent: 70,
+      racSuperplasticizerDosage: 0
+    }));
+
+    expect(result.calculationStatus).toBe("blocked");
+    expect(result.validation.isValid).toBe(false);
+    expect(result.errors.join(" ")).toContain("replacement");
   });
 
   it("includes healing-agent volume in SHC closure", () => {
@@ -134,5 +197,8 @@ describe("phase-2 specialized concrete engines", () => { // regression suite
     expect(result.calculationStatus).toBe("needs_trial_mix");
     expect(result.absoluteVolumeTotal).toBeCloseTo(1000, 1);
     expect(result.validation.isValid).toBe(true);
+    const acceleratorCheck = (result as any).compliance?.checks?.find((check: any) => check.parameter === "accelerator");
+    expect(acceleratorCheck?.requirement).toContain("0-12%");
+    expect(acceleratorCheck?.status).toBe("compliant");
   });
 });

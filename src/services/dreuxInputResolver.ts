@@ -307,8 +307,9 @@ export function deriveFinenessModulusFromGradation(gradation: DreuxGranulometryP
     }
   }
 
-  // If at least 4 of 6 standard sieves are matched
-  if (matchesCount >= 4) {
+  // Never derive a partial fineness modulus by silently treating missing sieves as 0% retained.
+  // Require every reference sieve (or return null so the caller can request complete grading data).
+  if (matchesCount === targetSieves.length) {
     const fm = Math.round((sumRetained / 100) * 100) / 100;
     if (fm >= 1.2 && fm <= 4.0) {
       return {

@@ -33,8 +33,14 @@ function languageMessage(language: "ar" | "fr" | "en", ar: string, fr: string, e
   return language === "fr" ? fr : language === "en" ? en : ar;
 }
 
-function commonMaterials(input: MixDesignInput, language: "ar" | "fr" | "en", requireAdmixture = false, requireScm = false) {
-  return resolveSpecializedMaterials(input, language, requireAdmixture, requireScm, true);
+function commonMaterials(
+  input: MixDesignInput,
+  language: "ar" | "fr" | "en",
+  requireAdmixture = false,
+  requireScm = false,
+  requireCement = true
+) {
+  return resolveSpecializedMaterials(input, language, requireAdmixture, requireScm, true, requireCement);
 }
 
 function materialValidation(
@@ -135,7 +141,7 @@ export function checkGpcApplicability(input: MixDesignInput): ApplicabilityResul
 
 export function validateGpcInputs(input: MixDesignInput, language: "ar" | "fr" | "en" = "ar"): ValidationResult {
   const errors: ValidationError[] = [];
-  const resolved = commonMaterials(input, language, true, true);
+  const resolved = commonMaterials(input, language, true, true, false);
   errors.push(...materialValidation(resolved).errors);
   required(num(input, "gpcPrecursorKgM3"), "gpcPrecursorKgM3", languageMessage(language, "كتلة المادة الأولية", "masse de précurseur", "precursor mass"), errors);
   required(num(input, "gpcActivatorLiquidKgM3"), "gpcActivatorLiquidKgM3", languageMessage(language, "كتلة المنشط السائل", "masse d'activateur liquide", "liquid activator mass"), errors);
@@ -162,7 +168,7 @@ export function validateGpcInputs(input: MixDesignInput, language: "ar" | "fr" |
 
 export function calculateGpcMix(input: MixDesignInput, language: "ar" | "fr" | "en" = "ar"): MixDesignResult {
   const validation = validateGpcInputs(input, language);
-  const resolved = commonMaterials(input, language, true, true);
+  const resolved = commonMaterials(input, language, true, true, false);
   if (!validation.isValid || resolved.errors.length) {
     return blocked(input, "geopolymer-specialized", "Geopolymer Concrete", ["Complete validated precursor, activator, aggregate and water inputs."], [...validation.errors.map(e => e.message), ...resolved.errors]);
   }
@@ -242,7 +248,7 @@ export function validateRacInputs(input: MixDesignInput, language: "ar" | "fr" |
   const replacement = num(input, "racReplacementPercent");
   const absorption = num(input, "racRecycledAbsorptionPercent");
   const preSat = num(input, "racPreSaturationPercent");
-  if (replacement < 0 || replacement > 100) errors.push({ code: "RAC_REPLACEMENT", severity: "error", field: "racReplacementPercent", message: "RAC recycled coarse aggregate replacement must be between 0 and 100%." });
+  if (replacement <= 0 || replacement > 100) errors.push({ code: "RAC_REPLACEMENT", severity: "error", field: "racReplacementPercent", message: "RAC requires a recycled coarse-aggregate replacement greater than 0% and no more than 100%; use conventional concrete for 0% replacement." });
   if (absorption < 0 || absorption > 20) errors.push({ code: "RAC_ABSORPTION", severity: "error", field: "racRecycledAbsorptionPercent", message: "Recycled aggregate absorption must be between 0 and 20%." });
   if (preSat < 0 || preSat > 100) errors.push({ code: "RAC_PRESAT", severity: "error", field: "racPreSaturationPercent", message: "Pre-saturation degree must be between 0 and 100%." });
   const wb = num(input, "racWaterBinderRatio");
@@ -284,13 +290,17 @@ export function calculateRacMix(input: MixDesignInput, language: "ar" | "fr" | "
   const sandKg = solveSand(fixedVolume, 0, sandDensity);
   const finalVolume = baseVolume(cement, cementDensity, 0, 2200, water, admixtureKg, admixtureDensity, sandKg, sandDensity, virginKg, virginDensity, air) + recycledKg / recycledDensity * 1000;
   const absorptionCapacity = recycledKg * absorption / 100;
-  const prewetWater = absorptionCapacity * preSat;
   const moisture = num(input, "moistureGravel");
+  // Prewet water is the gap between target pre-saturation and the measured
+  // current moisture, not the full target amount added on top of water already
+  // present in the recycled aggregate.
+  const prewetWater = recycledKg * Math.max(0, absorption * preSat - moisture) / 100;
   const freeSurfaceRecycled = recycledKg * Math.max(0, moisture - absorption) / 100;
   const freeSurfaceVirgin = virginKg * Math.max(0, moisture - num(input, "gravelAbsorption")) / 100;
   const freeSurfaceSand = sandKg * Math.max(0, num(input, "moistureSand") - num(input, "sandAbsorption")) / 100;
   const freeSurface = freeSurfaceRecycled + freeSurfaceVirgin + freeSurfaceSand;
-  const waterToAdd = Math.max(0, water + prewetWater - freeSurface);
+  const rawWaterToAdd = water + prewetWater - freeSurface;
+  const waterToAdd = Math.max(0, rawWaterToAdd);
   const density = cement + water + sandKg + virginKg + recycledKg + admixtureKg;
 
   return makeSpecializedResult(input, {
@@ -306,6 +316,9 @@ export function calculateRacMix(input: MixDesignInput, language: "ar" | "fr" | "
     waterBinderRatio: wb,
     freshDensityKgM3: density,
     absoluteVolumeL: finalVolume,
+    batchWaterKg: waterToAdd,
+    wetFineAggregateKg: sandKg * (1 + num(input, "moistureSand") / 100),
+    wetCoarseAggregateKg: totalCoarse * (1 + moisture / 100),
     warnings: ["RAC requires source-specific recycled aggregate quality and moisture conditioning.", "The calculated mix is a starting proportion and requires trial batching."],
     assumptions: [
       `Recycled coarse aggregate replacement = ${(replacement * 100).toFixed(1)}%.`,
@@ -317,18 +330,19 @@ export function calculateRacMix(input: MixDesignInput, language: "ar" | "fr" | "
     trace: [
       { stepId: "rac-1", label: "Split total coarse aggregate into recycled and virgin fractions.", formula: "MRA = Mca·R; MVA = Mca-MRA", inputs: { totalCoarse, replacement }, output: { recycledKg, virginKg }, unit: "kg/m3" },
       { stepId: "rac-2", label: "Calculate recycled aggregate absorption capacity.", formula: "Wabs = MRA·Abs/100", inputs: { recycledKg, absorption }, output: absorptionCapacity, unit: "kg/m3" },
-      { stepId: "rac-3", label: "Calculate pre-saturation water.", formula: "Wpre = Wabs·S", inputs: { absorptionCapacity, preSat }, output: prewetWater, unit: "kg/m3" },
+      { stepId: "rac-3", label: "Calculate additional pre-saturation water after accounting for current stockpile moisture.", formula: "Wpre = MRA·max(Abs·S - Mcurrent, 0)/100", inputs: { recycledKg, absorptionPercent: absorption, preSat, currentMoisturePercent: moisture }, output: prewetWater, unit: "kg/m3" },
       { stepId: "rac-4", label: "Close absolute volume with fine aggregate.", formula: "Vfa = 1000 - Vcement - Vwater - Vair - Vad - Vvirgin - Vrecycled", inputs: { finalVolume }, output: sandKg, unit: "kg/m3" },
       { stepId: "rac-5", label: "Correct batch water for surface moisture and pre-saturation.", formula: "Wadd = W + Wpre - Wfree", inputs: { prewetWater, freeSurface }, output: waterToAdd, unit: "kg/m3" }
     ],
-    batchWaterKg: waterToAdd,
+
     complianceChecks: [
-      { parameter: "replacement", requirement: ">0 and <=100%", actual: `${(replacement * 100).toFixed(1)}%`, status: "compliant" },
+      { parameter: "replacement", requirement: ">0 and <=100%", actual: `${(replacement * 100).toFixed(1)}%`, status: replacement > 0 && replacement <= 1 ? "compliant" : "non_compliant" },
       { parameter: "water_binder", requirement: ">0 and <=0.65", actual: wb.toFixed(3), status: wb > 0 && wb <= 0.65 ? "compliant" : "non_compliant" },
+      { parameter: "batch_water", requirement: "Finite, non-negative water to add after moisture and pre-saturation correction", actual: String(rawWaterToAdd) + " kg/m3 before non-negative display guard", status: Number.isFinite(rawWaterToAdd) && rawWaterToAdd >= -1e-8 ? "compliant" : "non_compliant" },
       { parameter: "absolute_volume", requirement: "1000 L/m3 ±2 L", actual: `${finalVolume.toFixed(2)} L/m3`, status: Math.abs(finalVolume - 1000) <= 2 ? "compliant" : "non_compliant" },
       { parameter: "trial_mix", requirement: "Laboratory verification", actual: "Required", status: "warning" }
     ],
-    lifecycle: Math.abs(finalVolume - 1000) <= 2 ? "needs_trial_mix" : "blocked"
+    lifecycle: Number.isFinite(rawWaterToAdd) && rawWaterToAdd >= -1e-8 && Math.abs(finalVolume - 1000) <= 2 ? "needs_trial_mix" : "blocked"
   });
 }
 
@@ -496,7 +510,7 @@ export function calculateShotcreteMix(input: MixDesignInput, language: "ar" | "f
     ],
     complianceChecks: [
       { parameter: "water_binder", requirement: ">0 and <=0.55", actual: wb.toFixed(3), status: wb > 0 && wb <= 0.55 ? "compliant" : "non_compliant" },
-      { parameter: "accelerator", requirement: "0-15% binder", actual: `${num(input, "shotcreteAcceleratorPercent").toFixed(2)}%`, status: "compliant" },
+      { parameter: "accelerator", requirement: "0-12% binder (current engine input envelope)", actual: `${num(input, "shotcreteAcceleratorPercent").toFixed(2)}%`, status: num(input, "shotcreteAcceleratorPercent") >= 0 && num(input, "shotcreteAcceleratorPercent") <= 12 ? "compliant" : "non_compliant" },
       { parameter: "absolute_volume", requirement: "1000 L/m3 ±2 L", actual: `${volume.toFixed(2)} L/m3`, status: Math.abs(volume - 1000) <= 2 ? "compliant" : "non_compliant" },
       { parameter: "sprayed_trial", requirement: "Spray/pump/rebound/setting verification", actual: "Required", status: "warning" }
     ],
@@ -514,7 +528,11 @@ abstract class Phase2MethodBase implements MixDesignMethod {
 export class GpcSpecializedMethod extends Phase2MethodBase {
   public readonly metadata: MixDesignMethodMetadata = {
     id: "geopolymer-specialized", name: "Geopolymer Concrete", shortName: "GPC", version: VERSION,
-    description: "Activator/precursor and absolute-volume starting proportioning for geopolymer concrete.", references: ["ASTM C618 for qualifying pozzolanic precursor materials where applicable", "Project-specific geopolymer mix-design and curing specification"], supportedLanguages: ["ar", "fr", "en"], status: "active"
+    description: "Activator/precursor and absolute-volume starting proportioning for geopolymer concrete.", references: [
+      "ACI PRC-242-22, Alkali-Activated Cements—Report, Chapter 4: Mixture Proportioning (technical report; not a universal recipe)",
+      "ASTM C618-26, qualification of coal ash and raw or calcined natural pozzolan where applicable (precursor specification only, not a geopolymer mix-design equation)",
+      "Project-specific geopolymer mix-design, activator chemistry, and curing specification (required)"
+    ], supportedLanguages: ["ar", "fr", "en"], status: "active"
   };
   isApplicable(i: MixDesignInput): ApplicabilityResult { return checkGpcApplicability(i); }
   validateInputs(i: MixDesignInput): ValidationResult { return validateGpcInputs(i); }
@@ -523,7 +541,7 @@ export class GpcSpecializedMethod extends Phase2MethodBase {
 export class RacSpecializedMethod extends Phase2MethodBase {
   public readonly metadata: MixDesignMethodMetadata = {
     id: "recycled-aggregate-specialized", name: "Recycled Aggregate Concrete", shortName: "RAC", version: VERSION,
-    description: "Recycled coarse aggregate replacement with source-specific absorption and pre-saturation correction.", references: ["EN 206", "EN 12620"], supportedLanguages: ["ar", "fr", "en"], status: "active"
+    description: "Recycled coarse aggregate replacement with source-specific absorption and pre-saturation correction.", references: ["EN 206:2013+A2:2021 (edition encoded in legacy compliance limits; Algerian adoption/version and national annex pending)", "EN 12620 (aggregate specification; edition/applicability pending; not a mix-design equation)"], supportedLanguages: ["ar", "fr", "en"], status: "active"
   };
   isApplicable(i: MixDesignInput): ApplicabilityResult { return checkRacApplicability(i); }
   validateInputs(i: MixDesignInput): ValidationResult { return validateRacInputs(i); }
@@ -532,7 +550,7 @@ export class RacSpecializedMethod extends Phase2MethodBase {
 export class ShcSpecializedMethod extends Phase2MethodBase {
   public readonly metadata: MixDesignMethodMetadata = {
     id: "self-healing-specialized", name: "Self-Healing Concrete", shortName: "SHC", version: VERSION,
-    description: "Healing-agent explicit proportioning with volume closure and mandatory healing/mechanical verification.", references: ["RILEM TC 221-SHC", "EN 206"], supportedLanguages: ["ar", "fr", "en"], status: "active"
+    description: "Healing-agent explicit proportioning with volume closure and mandatory healing/mechanical verification.", references: ["RILEM TC 221-SHC, self-healing concrete state-of-the-art/research work (specific report edition and page traceability pending; not a universal mix-design standard)", "EN 206:2013+A2:2021 (legacy indicative compliance limits only; Algerian adoption/version pending)"], supportedLanguages: ["ar", "fr", "en"], status: "active"
   };
   isApplicable(i: MixDesignInput): ApplicabilityResult { return checkShcApplicability(i); }
   validateInputs(i: MixDesignInput): ValidationResult { return validateShcInputs(i); }
@@ -541,7 +559,7 @@ export class ShcSpecializedMethod extends Phase2MethodBase {
 export class ShotcreteSpecializedMethod extends Phase2MethodBase {
   public readonly metadata: MixDesignMethodMetadata = {
     id: "shotcrete-specialized", name: "Shotcrete", shortName: "Shotcrete", version: VERSION,
-    description: "Process-aware starting proportioning for wet/dry shotcrete with accelerator and spray verification.", references: ["EN 14487", "ACI 506R"], supportedLanguages: ["ar", "fr", "en"], status: "active"
+    description: "Process-aware starting proportioning for wet/dry shotcrete with accelerator and spray verification.", references: ["EN 14487 (edition and Algerian/national adoption pending)", "ACI 506R-16, Guide to Shotcrete (published 2016; guidance reference, formula-level comparison pending)"], supportedLanguages: ["ar", "fr", "en"], status: "active"
   };
   isApplicable(i: MixDesignInput): ApplicabilityResult { return checkShotcreteApplicability(i); }
   validateInputs(i: MixDesignInput): ValidationResult { return validateShotcreteInputs(i); }

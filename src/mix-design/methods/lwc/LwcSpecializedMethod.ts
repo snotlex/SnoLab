@@ -21,7 +21,7 @@ export class LwcSpecializedMethod implements MixDesignMethod {
     version: "1.0.0",
     description: "ACI-211.2-oriented lightweight concrete proportioning with target density, lightweight-aggregate absorption and controlled prewetting.",
     references: [
-      "ACI 211.2 Standard Practice for Selecting Proportions for Structural Lightweight Concrete"
+      "ACI PRC-213-14(23), Guide for Structural Lightweight-Aggregate Concrete (reapproved 2023; scope reference, formula-level comparison pending)"
     ],
     supportedLanguages: ["ar", "fr", "en"],
     status: "active"

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { calculateMixDesign } from "../../engine/calculateMixDesign";
 import { createTestInput } from "../../__tests__/testHelper";
+import { validateHscHpcInputs } from "../methods/hsc-hpc/hscHpcMixDesign";
 
 describe("HSC/HPC specialized mix-design engine", () => {
   it("routes HSC automatically to the high-strength engine", () => {
@@ -49,6 +50,26 @@ describe("HSC/HPC specialized mix-design engine", () => {
     expect(result.engineeringAudit?.specializedMethod).toBe("HPC");
   });
 
+  it("reports theoretical density on the design-water basis when aggregate moisture is corrected", () => {
+    const result: any = calculateMixDesign(createTestInput({
+      concreteType: "HSC",
+      fck28: 55,
+      slump: 8,
+      dMax: 20,
+      dosageSuper: 1.2,
+      dosageSilicaFume: 7.5,
+      moistureSand: 5,
+      sandAbsorption: 1,
+      moistureGravel: 4,
+      gravelAbsorption: 1
+    }));
+    const designedMass =
+      result.cementKg + (result.scmKg || 0) + result.fineAggregateKg +
+      result.coarseAggregateKg + result.waterKg + result.admixtureKg;
+    expect(result.freshDensityKgM3).toBeCloseTo(designedMass, 6);
+    expect(result.waterToAdd).not.toBeCloseTo(result.waterKg, 3);
+  });
+
   it("blocks HSC when required silica-fume and superplasticizer inputs are missing", () => {
     const result: any = calculateMixDesign(createTestInput({
       concreteType: "HSC",
@@ -62,6 +83,26 @@ describe("HSC/HPC specialized mix-design engine", () => {
     expect(result.isValid).toBe(false);
     expect(result.status).toBe("not-supported");
     expect(result.calculationStatus).toBe("blocked");
+  });
+
+
+  it("validates HPC selected SCM replacement using the same value as the calculation", () => {
+    const validation = validateHscHpcInputs(createTestInput({
+      concreteType: "HPC",
+      fck28: 55,
+      dMax: 16,
+      hpcWaterKgM3: 160,
+      hpcWaterBinderRatio: 0.30,
+      dosageSuper: 1.2,
+      dosageSilicaFume: 5,
+      dosageFlyAsh: 5,
+      dosageSlag: 0,
+      selectedScmReplacementPercent: 45,
+      airContent: 1
+    }));
+
+    expect(validation.isValid).toBe(false);
+    expect(validation.errors.some((error) => error.code === "scm_total")).toBe(true);
   });
 
   it("does not route UHPC into the HSC/HPC engine", () => {

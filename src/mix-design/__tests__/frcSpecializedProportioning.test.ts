@@ -21,6 +21,30 @@ describe("FRC specialized proportioning", () => {
     expect(result.quantities.totalBinder).toBeCloseTo(400, 6);
   });
 
+  it("keeps theoretical design density on the effective-water basis under aggregate moisture correction", () => {
+    const result: any = calculateMixDesign(createTestInput({
+      concreteType: "FRC",
+      dMax: 16,
+      frcWaterKgM3: 160,
+      frcWaterBinderRatio: 0.40,
+      frcFiberVolumePercent: 1.0,
+      fiberType: "steel",
+      fiberDensity: 7850,
+      selectedFiberName: "Steel Fiber",
+      moistureSand: 5,
+      sandAbsorption: 1,
+      moistureGravel: 4,
+      gravelAbsorption: 1
+    }));
+
+    const designedMass =
+      result.cementKg + (result.scmKg || 0) + result.fineAggregateKg +
+      result.coarseAggregateKg + result.waterKg + result.admixtureKg +
+      (result.fiberKg || 0) + (result.quartzPowderKg || 0);
+    expect(result.freshDensityKgM3).toBeCloseTo(designedMass, 6);
+    expect(result.waterToAdd).not.toBeCloseTo(result.waterKg, 3);
+  });
+
   it("blocks an out-of-envelope fiber volume instead of inventing a result", () => {
     const result: any = calculateMixDesign(createTestInput({
       concreteType: "FRC",

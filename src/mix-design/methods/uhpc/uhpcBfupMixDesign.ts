@@ -36,15 +36,24 @@ export function validateUhpcBfupInputs(input: MixDesignInput, _language:"ar"|"fr
   const errors:any[]=[]; const warnings:any[]=[]; const t=code(input);
   if(!t){errors.push({code:"concrete_type",severity:"error",field:"concreteType",message:"UHPC/BFUP engine requires UHPC or BFUP."});return {isValid:false,errors,warnings};}
   const fck=Number(input.fck28); const dMax=Number(input.dMax);
-  const wb=Number((input as any).uhpcWaterBinderRatio ?? (input as any).bfupWaterBinderRatio ?? NaN);
-  const sf=Number(input.dosageSilicaFume||0); const sp=Number(input.dosageSuper||0);
-  const vf=Number((input as any).uhpcFiberVolumePercent ?? (input as any).bfupFiberVolumePercent ?? 2);
+  // Validation must resolve the same concrete-family fields as calculation.
+  const wb=Number(t==="BFUP" ? ((input as any).bfupWaterBinderRatio ?? (input as any).uhpcWaterBinderRatio ?? NaN) : ((input as any).uhpcWaterBinderRatio ?? (input as any).bfupWaterBinderRatio ?? NaN));
+  const sfRaw=(input as any).dosageSilicaFume;
+  const spRaw=(input as any).dosageSuper;
+  // Keep validation aligned with the calculation defaults, but preserve an explicit 0
+  // so it is rejected by the UHPC/BFUP minimum-dosage envelope rather than defaulted.
+  const sf=Number(sfRaw===undefined || sfRaw===null || sfRaw==="" ? (t==="BFUP"?20:18) : sfRaw);
+  const sp=Number(spRaw===undefined || spRaw===null || spRaw==="" ? 2.2 : spRaw);
+  const vf=Number(t==="BFUP" ? ((input as any).bfupFiberVolumePercent ?? (input as any).uhpcFiberVolumePercent ?? 2) : ((input as any).uhpcFiberVolumePercent ?? (input as any).bfupFiberVolumePercent ?? 2));
+  const quartzRaw=t==="BFUP" ? ((input as any).bfupQuartzPowderKgM3 ?? (input as any).uhpcQuartzPowderKgM3) : ((input as any).uhpcQuartzPowderKgM3 ?? (input as any).bfupQuartzPowderKgM3);
+  const quartz=quartzRaw===undefined || quartzRaw===null || quartzRaw==="" ? undefined : Number(quartzRaw);
   if(!Number.isFinite(fck)||fck<100||fck>180) errors.push({code:"strength_envelope",severity:"error",field:"fck28",message:"UHPC/BFUP target strength must be 100-180 MPa in the current engine."});
   if(!Number.isFinite(dMax)||dMax<=0||dMax>5) errors.push({code:"dmax",severity:"error",field:"dMax",message:"UHPC/BFUP Dmax must be <=5 mm."});
-  if(Number.isFinite(wb)&&(wb<0.18||wb>0.28)) errors.push({code:"water_binder",severity:"error",field:"uhpcWaterBinderRatio",message:"UHPC/BFUP W/B must be 0.18-0.28."});
+  if(Number.isFinite(wb)&&(wb<0.18||wb>0.28)) errors.push({code:"water_binder",severity:"error",field:t==="BFUP"?"bfupWaterBinderRatio":"uhpcWaterBinderRatio",message:"UHPC/BFUP W/B must be 0.18-0.28."});
   if(sf<15||sf>25) errors.push({code:"silica_fume",severity:"error",field:"dosageSilicaFume",message:"Silica-fume replacement must be 15-25% of binder."});
   if(sp<1.5||sp>4) errors.push({code:"superplasticizer",severity:"error",field:"dosageSuper",message:"Superplasticizer dosage must be 1.5-4.0% of binder."});
-  if(vf<1||vf>3) errors.push({code:"fiber_volume",severity:"error",field:"uhpcFiberVolumePercent",message:"Steel-fiber volume must be 1-3%."});
+  if(!Number.isFinite(vf)||vf<1||vf>3) errors.push({code:"fiber_volume",severity:"error",field:t==="BFUP"?"bfupFiberVolumePercent":"uhpcFiberVolumePercent",message:"Steel-fiber volume must be 1-3%."});
+  if(quartz!==undefined&&(!Number.isFinite(quartz)||quartz<100||quartz>260)) errors.push({code:"quartz_powder",severity:"error",field:t==="BFUP"?"bfupQuartzPowderKgM3":"uhpcQuartzPowderKgM3",message:"Quartz powder dosage must be between 100 and 260 kg/m3 in the current starting envelope; out-of-range values must not be silently clamped."});
   warnings.push({code:"trial_mix",severity:"warning",field:"trial_mix",message:"Laboratory optimization is mandatory for UHPC/BFUP."});
   return {isValid:errors.length===0,errors,warnings};
 }
@@ -89,12 +98,14 @@ export function calculateUhpcBfupMix(input: MixDesignInput, language:"ar"|"fr"|"
   const vC=cementKg/cementDensity*1000; const vSF=sfKg/silicaDensity*1000; const vQ=quartzKg/quartzDensity*1000; const vW=water; const vSP=spKg/admixtureDensity*1000; const vF=fiberKg/fiberDensity*1000; const vAir=airPct*10;
   const vSand=1000-vC-vSF-vQ-vW-vSP-vF-vAir; const sandKg=vSand/1000*sandDensity;
   const correction=computeMoistureBatch(sandKg,Number(input.moistureSand||0),Number(input.sandAbsorption||materialProperty(mats.materials.sand,["absorption","Absorption"],0)||0));
-  const waterToAdd=Math.max(0,water-correction.freeSurfaceWater+correction.absorptionDeficit);
+  const rawWaterToAdd=water-correction.freeSurfaceWater+correction.absorptionDeficit;
+  const waterToAdd=Math.max(0,rawWaterToAdd);
   const filled=vC+vSF+vQ+vW+vSP+vF+vAir+vSand;
-  const density=cementKg+sfKg+quartzKg+sandKg+fiberKg+waterToAdd+spKg;
+  const density=cementKg+sfKg+quartzKg+sandKg+fiberKg+water+spKg;
   const checks:any[]=[
     {parameter:"strength",requirement:"100-180 MPa",actual:String(fck),status:fck>=100&&fck<=180?"compliant":"non_compliant"},
     {parameter:"water_binder",requirement:"0.18-0.28",actual:wb.toFixed(3),status:wb>=0.18&&wb<=0.28?"compliant":"non_compliant"},
+    {parameter:"batch_water",requirement:"Finite, non-negative water to add after aggregate moisture correction",actual:String(rawWaterToAdd)+" kg/m3 before non-negative display guard",status:Number.isFinite(rawWaterToAdd)&&rawWaterToAdd>=-1e-8?"compliant":"non_compliant"},
     {parameter:"silica_fume",requirement:"15-25%",actual:sfPct.toFixed(1)+"%",status:"compliant"},
     {parameter:"superplasticizer",requirement:"1.5-4.0%",actual:spPct.toFixed(2)+"%",status:"compliant"},
     {parameter:"fiber_volume",requirement:"1-3 vol%",actual:vf.toFixed(2)+"%",status:"compliant"},
@@ -104,9 +115,9 @@ export function calculateUhpcBfupMix(input: MixDesignInput, language:"ar"|"fr"|"
   ];
   if(vSand<=0) checks.push({parameter:"fine_aggregate_volume",requirement:">0 L/m3",actual:vSand.toFixed(2)+" L/m3",status:"non_compliant"});
   if(fiberKg<70||fiberKg>240) checks.push({parameter:"fiber_mass",requirement:"70-240 kg/m3 starting envelope",actual:fiberKg.toFixed(1)+" kg/m3",status:"non_compliant"});
-  const blockedLifecycle=!isFinite(vSand)||vSand<=0||Math.abs(filled-1000)>2||fiberKg<70||fiberKg>240;
+  const blockedLifecycle=!isFinite(vSand)||vSand<=0||Math.abs(filled-1000)>2||fiberKg<70||fiberKg>240||!Number.isFinite(rawWaterToAdd)||rawWaterToAdd< -1e-8;
   const result:any=makeSpecializedResult(input,{
-    methodId:"uhpc-specialized",methodName:name,version:VERSION,cementKg,waterKg:water,fineAggregateKg:sandKg,coarseAggregateKg:0,admixtureKg:spKg,admixtureName:String(mats.materials.admixture?.name||input.selectedAdmixtureName||"Superplasticizer"),scmKg:sfKg,fiberKg,waterBinderRatio:wb,freshDensityKgM3:density,absoluteVolumeL:filled,
+    methodId:"uhpc-specialized",methodName:name,version:VERSION,cementKg,waterKg:water,fineAggregateKg:sandKg,coarseAggregateKg:0,admixtureKg:spKg,admixtureName:String(mats.materials.admixture?.name||input.selectedAdmixtureName||"Superplasticizer"),scmKg:sfKg,fiberKg,waterBinderRatio:wb,freshDensityKgM3:density,absoluteVolumeL:filled,batchWaterKg:waterToAdd,wetFineAggregateKg:correction.wetKg,wetCoarseAggregateKg:0,
     warnings:["UHPC/BFUP is a starting proportioning design, not a production certification.","Laboratory optimization of mixing energy, rheology, fiber dispersion and curing is mandatory."],
     assumptions:["Total binder="+binder.toFixed(1)+" kg/m3; cement="+cementKg.toFixed(1)+" kg/m3; silica fume="+sfKg.toFixed(1)+" kg/m3.","Quartz powder="+quartzKg.toFixed(1)+" kg/m3.","Steel fiber="+fiberKg.toFixed(1)+" kg/m3 ("+vf.toFixed(2)+" vol%).","No coarse aggregate is used in this starting UHPC/BFUP formulation."],
     recommendations:["Use the approved material-library records for silica fume, quartz/siliceous sand, superplasticizer and steel fiber.","Verify fresh rheology and fiber dispersion by laboratory trial batches.","Verify compressive and flexural/residual performance at the project curing regime.","For BFUP, include post-cracking fiber performance verification."],

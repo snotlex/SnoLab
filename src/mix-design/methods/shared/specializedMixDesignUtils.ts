@@ -54,7 +54,8 @@ export function resolveSpecializedMaterials(
   language: "ar" | "fr" | "en" = "ar",
   requireAdmixture = false,
   requireScm = false,
-  requireCoarseAggregate = true
+  requireCoarseAggregate = true,
+  requireCement = true
 ): SpecializedMaterialResolution {
   const database = Array.isArray(input.materialsDatabase) ? input.materialsDatabase as MaterialRecord[] : [];
   const hasRepository = database.length > 0;
@@ -119,7 +120,7 @@ export function resolveSpecializedMaterials(
       if (candidates.length === 1) materials.gravel = candidates[0];
     }
 
-    if (!materials.cement) errors.push(roleMessage("cement / إسمنت", language));
+    if (requireCement && !materials.cement) errors.push(roleMessage("cement / إسمنت", language));
     if (!materials.sand) errors.push(roleMessage("fine aggregate / رمال", language));
     if (requireCoarseAggregate && !materials.gravel) {
       errors.push(roleMessage("coarse aggregate / حصى", language));
@@ -131,13 +132,21 @@ export function resolveSpecializedMaterials(
 
   const checkDensity = (material: MaterialRecord | undefined, role: string, fallback?: number) => {
     const density = normalizeDensity(material?.density ?? material?.ssdDensity ?? material?.specificGravity);
-    if (density === undefined && fallback === undefined && hasRepository) {
+    // Do not treat NaN/Infinity/zero/negative fallback values as available
+    // material properties. Number(undefined) * 1000 produces NaN, which used
+    // to bypass the missing-density error and flow into a specialized engine.
+    const validFallback =
+      typeof fallback === "number" && Number.isFinite(fallback) && fallback > 0
+        ? fallback
+        : undefined;
+
+    if (density === undefined && validFallback === undefined && hasRepository) {
       errors.push(roleMessage(`${role} density / كثافة ${role}`, language));
     }
-    return density ?? fallback;
+    return density ?? validFallback;
   };
 
-  checkDensity(materials.cement, "cement", input.cementDensity);
+  if (requireCement || materials.cement) checkDensity(materials.cement, "cement", input.cementDensity);
   checkDensity(materials.sand, "sand", Number(input.sandRelativeDensity) * 1000);
   checkDensity(materials.gravel, "gravel", Number(input.gravelRelativeDensity) * 1000);
   checkDensity(materials.water, "water", 1000);
@@ -210,7 +219,6 @@ export function makeSpecializedResult(
 ): MixDesignResult {
   const referenceFilledVolumeL = data.referenceFilledVolumeL ?? 1000;
   const absoluteVolumeError = Math.abs(data.absoluteVolumeL - referenceFilledVolumeL);
-  const status = data.lifecycle === "blocked" ? "not-supported" : "success";
   const fiberWeight = data.fiberKg || 0;
   const totalBinder = data.cementKg + (data.scmKg || 0);
   const fineMoisture = computeMoistureBatch(data.fineAggregateKg, Number(input.moistureSand ?? 0), Number(input.sandAbsorption ?? 0));
@@ -220,6 +228,48 @@ export function makeSpecializedResult(
   const wetCoarse = data.wetCoarseAggregateKg ?? coarseMoisture.wetKg;
   const quartzWeight = data.quartzKg || 0;
   const totalFresh = data.cementKg + (data.scmKg || 0) + wetFine + wetCoarse + data.admixtureKg + fiberWeight + batchWater + quartzWeight;
+
+  // Shared release gate: a specialized result cannot be marked successful
+  // when its filled-volume balance misses the method's reference volume or
+  // its required batch water is negative/non-finite. Pervious concrete uses
+  // its explicit filled-volume target (1000 L minus designed voids).
+  const invalidBatchWater = !Number.isFinite(batchWater) || batchWater < -1e-8;
+  const invalidVolumeClosure =
+    !Number.isFinite(data.absoluteVolumeL) ||
+    !Number.isFinite(absoluteVolumeError) ||
+    absoluteVolumeError > 2;
+  const effectiveLifecycle =
+    data.lifecycle === "blocked" || invalidBatchWater || invalidVolumeClosure
+      ? "blocked"
+      : data.lifecycle ?? "needs_trial_mix";
+  const status = effectiveLifecycle === "blocked" ? "not-supported" : "success";
+  const effectiveChecks = [...data.complianceChecks];
+
+  const setGuardCheck = (
+    parameter: string,
+    requirement: string,
+    actual: string
+  ) => {
+    const index = effectiveChecks.findIndex((check) => check.parameter === parameter);
+    const check = { parameter, requirement, actual, status: "non_compliant" as const };
+    if (index >= 0) effectiveChecks[index] = check;
+    else effectiveChecks.push(check);
+  };
+
+  if (invalidBatchWater) {
+    setGuardCheck(
+      "batch_water",
+      "Finite, non-negative batch water requirement",
+      String(batchWater)
+    );
+  }
+  if (invalidVolumeClosure) {
+    setGuardCheck(
+      "absolute_volume",
+      `Absolute volume must match ${referenceFilledVolumeL} L within ±2 L`,
+      `${String(data.absoluteVolumeL)} L/m³; error=${String(absoluteVolumeError)} L`
+    );
+  }
 
   const result: any = {
     methodId: data.methodId,
@@ -302,18 +352,18 @@ export function makeSpecializedResult(
     },
     compliance: {
       standardName: "Specialized concrete engineering framework",
-      isCompliant: data.complianceChecks.every((c) => c.status !== "non_compliant"),
-      checks: data.complianceChecks
+      isCompliant: effectiveChecks.every((c) => c.status !== "non_compliant"),
+      checks: effectiveChecks
     },
     validation: {
-      isValid: data.lifecycle !== "blocked" && absoluteVolumeError <= 2 && data.complianceChecks.every((c) => c.status !== "non_compliant"),
-      errors: data.complianceChecks.filter((c) => c.status === "non_compliant").map((c) => ({
+      isValid: effectiveLifecycle !== "blocked" && !invalidVolumeClosure && !invalidBatchWater && effectiveChecks.every((c) => c.status !== "non_compliant"),
+      errors: effectiveChecks.filter((c) => c.status === "non_compliant").map((c) => ({
         code: c.parameter,
         severity: "error",
         field: c.parameter,
         message: c.actual
       })),
-      warnings: data.complianceChecks.filter((c) => c.status === "warning").map((c) => ({
+      warnings: effectiveChecks.filter((c) => c.status === "warning").map((c) => ({
         code: c.parameter,
         severity: "warning",
         field: c.parameter,
@@ -321,15 +371,15 @@ export function makeSpecializedResult(
       }))
     },
     warnings: data.warnings,
-    errors: data.complianceChecks.filter((c) => c.status === "non_compliant").map((c) => c.actual),
+    errors: effectiveChecks.filter((c) => c.status === "non_compliant").map((c) => c.actual),
     assumptions: data.assumptions,
     recommendations: data.recommendations,
     calculationNotes: data.assumptions,
     calculationSteps: data.trace.map((s) => s.label),
     trace: data.trace,
     calculatedAt: new Date().toISOString(),
-    calculationStatus: data.lifecycle || "needs_trial_mix",
-    engineStatus: data.lifecycle || "needs_trial_mix",
+    calculationStatus: effectiveLifecycle,
+    engineStatus: effectiveLifecycle,
     confidenceLevel: "medium",
     methodApplicability: {
       applicable: data.lifecycle !== "blocked",
@@ -337,12 +387,14 @@ export function makeSpecializedResult(
       reasons: [],
       recommendations: data.recommendations
     },
-    valid: data.lifecycle !== "blocked" && absoluteVolumeError <= 2,
-    isValid: data.lifecycle !== "blocked" && absoluteVolumeError <= 2
+    valid: effectiveLifecycle !== "blocked" && !invalidVolumeClosure && !invalidBatchWater && effectiveChecks.every((c) => c.status !== "non_compliant"),
+    isValid: effectiveLifecycle !== "blocked" && !invalidVolumeClosure && !invalidBatchWater && effectiveChecks.every((c) => c.status !== "non_compliant")
   };
 
   result.warnings = [
     ...data.warnings,
+    ...(invalidBatchWater ? ["Batch water requirement is negative or non-finite; the mix is blocked because aggregate moisture exceeds the required correction basis."] : []),
+    ...(invalidVolumeClosure ? ["Absolute-volume closure does not meet the method's reference filled-volume tolerance; the mix is blocked."] : []),
     "Preliminary specialized proportioning: laboratory trial-mix verification is required before production use."
   ];
 

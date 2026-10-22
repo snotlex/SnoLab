@@ -105,6 +105,19 @@ describe("LWC specialized mix-design engine", () => {
     expect(result.targetFreshDensityKgM3).toBeCloseTo(1750, 0);
     expect(result.achievedFreshDensityKgM3).toBeCloseTo(1750, 0);
     expect(result.batchFreshDensityKgM3).toBeGreaterThan(result.achievedFreshDensityKgM3);
+    // The corrected waterToAdd already includes the prewet-water requirement;
+    // output fields and shared result totals must not add that amount a second time.
+    expect(result.waterWeightWet).toBeCloseTo(result.batchWaterToAdd, 6);
+    expect(result.totalFreshDensity).toBeCloseTo(result.batchFreshDensityKgM3, 6);
+    expect(result.batchFreshDensityKgM3).toBeCloseTo(
+      Number(result.cementKg || 0) +
+      Number(result.scmKg || 0) +
+      Number(result.sandWeightWet || 0) +
+      Number(result.gravelWeightWet || 0) +
+      Number(result.batchWaterToAdd || 0) +
+      Number(result.admixtureKg || 0),
+      6
+    );
 
     expect(result.lightweightAggregateAbsorption).toBeCloseTo(15, 6);
     expect(result.lightweightPrewetDegreePercent).toBeCloseTo(75, 6);

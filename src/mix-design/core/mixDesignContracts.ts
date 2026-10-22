@@ -20,6 +20,11 @@ const COMMON: RequiredInputKey[] = [
   "moistureSand", "moistureGravel", "airContent"
 ];
 
+// Geopolymer concrete uses precursor/activator chemistry rather than Portland cement.
+const COMMON_WITHOUT_PORTLAND_CEMENT: RequiredInputKey[] = COMMON.filter(
+  (key) => key !== "cementType" && key !== "cementClassStrength" && key !== "cementDensity"
+);
+
 export const MIX_DESIGN_CONTRACTS: Record<ConcreteTypeCode, MixDesignInputContract> = {
   NSC: { concreteType: "NSC", methodId: "dreux-gorisse", requiredInputs: [...COMMON, "slump", "aggregateType", "sandRelativeDensity", "gravelRelativeDensity"], engineeringFramework: "Dreux-Gorisse + EN 206", trialMixRequired: true },
   RC: { concreteType: "RC", methodId: "dreux-gorisse", requiredInputs: [...COMMON, "slump", "aggregateType"], engineeringFramework: "Dreux-Gorisse + structural verification", trialMixRequired: true },
@@ -36,7 +41,7 @@ export const MIX_DESIGN_CONTRACTS: Record<ConcreteTypeCode, MixDesignInputContra
   HWC: { concreteType: "HWC", methodId: "heavyweight-specialized", requiredInputs: [...COMMON, "hwcTargetDensityKgM3", "hwcWaterKgM3", "hwcWaterBinderRatio", "heavyweightAggregateDensity"], engineeringFramework: "Heavyweight aggregate volumetric/density design", trialMixRequired: true },
   RCC: { concreteType: "RCC", methodId: "rcc-specialized", requiredInputs: [...COMMON, "rccWaterKgM3", "rccWaterBinderRatio", "rccOptimumMoisturePercent", "rccMaxDryDensityKgM3", "rccCompactionTargetPercent"], engineeringFramework: "RCC moisture-density/compaction design", trialMixRequired: true },
   SHOTCRETE: { concreteType: "SHOTCRETE", methodId: "shotcrete-specialized", requiredInputs: [...COMMON, "shotcreteWaterKgM3", "shotcreteWaterBinderRatio", "shotcreteAcceleratorPercent"], engineeringFramework: "Wet/dry shotcrete rebound and accelerator design", trialMixRequired: true },
-  GPC: { concreteType: "GPC", methodId: "geopolymer-specialized", requiredInputs: [...COMMON, "gpcPrecursorKgM3", "gpcActivatorLiquidKgM3", "gpcWaterKgM3", "gpcWaterBinderRatio", "gpcActivatorToPrecursorRatio", "gpcCoarseAggregateVolumeFraction"], engineeringFramework: "Alkali-activated geopolymer design", trialMixRequired: true },
+  GPC: { concreteType: "GPC", methodId: "geopolymer-specialized", requiredInputs: [...COMMON_WITHOUT_PORTLAND_CEMENT, "gpcPrecursorKgM3", "gpcActivatorLiquidKgM3", "gpcWaterKgM3", "gpcWaterBinderRatio", "gpcActivatorToPrecursorRatio", "gpcCoarseAggregateVolumeFraction"], engineeringFramework: "Alkali-activated geopolymer design", trialMixRequired: true },
   SHC: { concreteType: "SHC", methodId: "self-healing-specialized", requiredInputs: [...COMMON, "shcCementKgM3", "shcWaterKgM3", "shcWaterBinderRatio", "shcHealingAgentDosageKgM3", "shcHealingAgentDensityKgM3", "shcHealingAgentType"], engineeringFramework: "Base mix + self-healing agent volume/compatibility design", trialMixRequired: true },
   RAC: { concreteType: "RAC", methodId: "recycled-aggregate-specialized", requiredInputs: [...COMMON, "racCementKgM3", "racWaterKgM3", "racWaterBinderRatio", "racCoarseAggregateKgM3", "racReplacementPercent", "racRecycledAggregateDensityKgM3", "racRecycledAbsorptionPercent", "racPreSaturationPercent"], engineeringFramework: "Recycled aggregate absorption/SSD correction design", trialMixRequired: true },
   PERVIOUS: { concreteType: "PERVIOUS", methodId: "pervious-specialized", requiredInputs: [...COMMON, "perviousTargetVoidContentPercent", "perviousTargetPermeabilityMmPerS", "perviousPasteVolumePercent", "perviousWaterBinderRatio"], engineeringFramework: "Pervious void/permeability design", trialMixRequired: true },

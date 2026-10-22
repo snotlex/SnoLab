@@ -153,14 +153,19 @@ export function calculatePerviousMix(
   }
 
   const aggregateBulk = aggregateBulkDensity > 0 ? aggregateBulkDensity : 1450;
-  const aggregateVoidFraction = Math.max(0.10, Math.min(0.60, 1 - aggregateBulk / gravelDensity));
-  const targetPasteVolumeFraction = Math.min(
-    0.35,
-    Math.max(0.12, aggregateVoidFraction - targetVoid / 100)
-  );
   const fineFraction = Math.min(
     0.15,
     Math.max(0, Number((input as any).perviousFineAggregateFraction ?? 0.05))
+  );
+  // Use the solid volume of the actual coarse/fine aggregate blend. Applying
+  // coarse-particle density to all aggregate mass biases the void fraction
+  // whenever the selected fine aggregate has a different particle density.
+  const aggregateSolidVolumeFraction =
+    aggregateBulk * ((1 - fineFraction) / gravelDensity + fineFraction / sandDensity);
+  const aggregateVoidFraction = Math.max(0.10, Math.min(0.60, 1 - aggregateSolidVolumeFraction));
+  const targetPasteVolumeFraction = Math.min(
+    0.35,
+    Math.max(0.12, aggregateVoidFraction - targetVoid / 100)
   );
 
   const fck = Number(input.fck28 || 12);
@@ -179,40 +184,42 @@ export function calculatePerviousMix(
     )
   );
 
-  const binderDensity = cementDensity;
   const pasteVolumeL = targetPasteVolumeFraction * 1000;
-  const binderKg = pasteVolumeL / (1000 / binderDensity + wb);
+  const scmDensity = materialDensityKgM3(resolved.materials.scm, Number(input.selectedScmDensity || 2200));
+  const admixtureDensity = materialDensityKgM3(resolved.materials.admixture, Number(input.selectedAdmixtureDensity || 1100));
+  const admixtureDosage = Math.min(
+    2.0,
+    Math.max(0, Number((input as any).perviousAdmixtureDosage ?? 0))
+  );
+  const scmFraction = scmPct / 100;
+  const admixtureFraction = admixtureDosage / 100;
+  // Solve binder mass using the actual cement/SCM split and the volumes of
+  // water and liquid admixture, so the paste volume equals the target.
+  const pasteLitersPerBinderKg =
+    (1 - scmFraction) * 1000 / cementDensity +
+    scmFraction * 1000 / scmDensity +
+    wb +
+    admixtureFraction * 1000 / admixtureDensity;
+  const binderKg = pasteVolumeL / pasteLitersPerBinderKg;
   const waterKg = binderKg * wb;
   const scmKg = binderKg * scmPct / 100;
   const cementKg = binderKg - scmKg;
 
   const coarseKg = aggregateBulk * (1 - fineFraction);
   const fineKg = aggregateBulk * fineFraction;
-
-  const admixtureDosage = Math.min(
-    2.0,
-    Math.max(0, Number((input as any).perviousAdmixtureDosage ?? 0))
-  );
   const admixtureKg = binderKg * admixtureDosage / 100;
 
   const airPercent = 0;
   const pasteComponentVolumeL =
     cementKg / cementDensity * 1000 +
-    scmKg / Number(input.selectedScmDensity || 2200) * 1000 +
+    scmKg / scmDensity * 1000 +
     waterKg +
-    (admixtureKg / 1100 * 1000);
+    admixtureKg / admixtureDensity * 1000;
 
   const coarseSolidVolumeL = coarseKg / gravelDensity * 1000;
   const fineSolidVolumeL = fineKg / sandDensity * 1000;
   const totalVolumeL = pasteComponentVolumeL + coarseSolidVolumeL + fineSolidVolumeL;
-  const estimatedVoid = 100 * (1 - (
-    coarseSolidVolumeL +
-    fineSolidVolumeL +
-    cementKg / cementDensity * 1000 +
-    scmKg / Number(input.selectedScmDensity || 2200) * 1000 +
-    waterKg +
-    admixtureKg / 1100 * 1000
-  ) / 1000);
+  const estimatedVoid = 100 * (1 - totalVolumeL / 1000);
 
   const sandCorrection = computeMoistureBatch(
     fineKg,
@@ -224,14 +231,15 @@ export function calculatePerviousMix(
     Number(input.moistureGravel || 0),
     Number(input.gravelAbsorption || materialProperty(gravelMaterial, ["absorption", "Absorption"], 0) || 0)
   );
-  const waterToAdd = Math.max(
-    0,
+  const rawWaterToAdd =
     waterKg - sandCorrection.freeSurfaceWater - gravelCorrection.freeSurfaceWater +
-    sandCorrection.absorptionDeficit + gravelCorrection.absorptionDeficit
-  );
+    sandCorrection.absorptionDeficit + gravelCorrection.absorptionDeficit;
+  const waterToAdd = Math.max(0, rawWaterToAdd);
 
+  // Theoretical design density uses effective design water and dry aggregate masses.
+  // Moisture-adjusted wet aggregate masses and batch water remain separate result fields.
   const estimatedFreshDensity =
-    cementKg + scmKg + sandCorrection.wetKg + gravelCorrection.wetKg + waterToAdd + admixtureKg;
+    cementKg + scmKg + fineKg + coarseKg + waterKg + admixtureKg;
 
   const warnings = [
     "Pervious concrete is controlled by connected void structure and permeability, not slump-based conventional concrete criteria.",
@@ -254,7 +262,8 @@ export function calculatePerviousMix(
   ];
 
   const complianceChecks: any[] = [
-    { parameter: "void_content", requirement: "15-30% target envelope", actual: `${targetVoid.toFixed(1)}%`, status: targetVoid >= 15 && targetVoid <= 30 ? "compliant" : "non_compliant" },
+    { parameter: "batch_water", requirement: "Finite, non-negative water to add after aggregate moisture correction", actual: `${String(rawWaterToAdd)} kg/m3 before non-negative display guard`, status: Number.isFinite(rawWaterToAdd) && rawWaterToAdd >= -1e-8 ? "compliant" : "non_compliant" },
+    { parameter: "void_content", requirement: "Target void content must match the constituent filled-volume balance", actual: `target ${targetVoid.toFixed(1)}%; estimated ${estimatedVoid.toFixed(1)}%; filled ${totalVolumeL.toFixed(1)} L/m3`, status: targetVoid >= 15 && targetVoid <= 30 && Math.abs(totalVolumeL - (1000 - targetVoid * 10)) <= 2 ? "compliant" : "non_compliant" },
     { parameter: "water_binder", requirement: "0.30-0.35 calculation envelope", actual: (waterKg / binderKg).toFixed(3), status: waterKg / binderKg >= 0.30 && waterKg / binderKg <= 0.35 ? "compliant" : "non_compliant" },
     { parameter: "slump", requirement: "0-3 cm", actual: `${Number(input.slump || 0).toFixed(1)} cm`, status: Number(input.slump || 0) <= 3 ? "compliant" : "non_compliant" },
     { parameter: "paste_volume", requirement: "positive and derived from aggregate voids", actual: `${pasteVolumeL.toFixed(1)} L/m3`, status: pasteVolumeL > 0 ? "compliant" : "non_compliant" },
@@ -277,19 +286,22 @@ export function calculatePerviousMix(
     targetVoidContentPercent: targetVoid,
     estimatedVoidContentPercent: estimatedVoid,
     referenceFilledVolumeL: 1000 - targetVoid * 10,
+    batchWaterKg: waterToAdd,
+    wetFineAggregateKg: sandCorrection.wetKg,
+    wetCoarseAggregateKg: gravelCorrection.wetKg,
     warnings,
     assumptions,
     recommendations,
     trace: [
       { stepId: "pervious-1", label: "Determine aggregate void structure from dry bulk density.", formula: "Vvoid,agg = 1 - rho_bulk/rho_particle", inputs: { aggregateBulk, gravelDensity }, output: aggregateVoidFraction, unit: "fraction" },
       { stepId: "pervious-2", label: "Determine paste volume required to leave target connected voids.", formula: "Vp = Vvoid,agg - Vvoid,target", inputs: { aggregateVoidFraction, targetVoid }, output: targetPasteVolumeFraction, unit: "fraction" },
-      { stepId: "pervious-3", label: "Solve binder mass from paste volume and W/B.", formula: "B = Vp / (1/rho_b + W/B/1000)", inputs: { pasteVolumeL, wb }, output: binderKg, unit: "kg/m3" },
+      { stepId: "pervious-3", label: "Solve binder mass so the cement/SCM, water and admixture volumes equal target paste volume.", formula: "B = Vp / [1000(1-r)/rho_c + 1000r/rho_scm + W/B + p_sp·1000/rho_sp]", inputs: { pasteVolumeL, wb, scmPct, cementDensity, scmDensity, admixtureDosage, admixtureDensity }, output: binderKg, unit: "kg/m3" },
       { stepId: "pervious-4", label: "Split binder into cement and SCM.", formula: "SCM = B·replacement%", inputs: { scmPct }, output: scmKg, unit: "kg/m3" },
       { stepId: "pervious-5", label: "Split aggregate mass into coarse and limited fine aggregate.", formula: "Msand = Mtotal·fines", inputs: { aggregateBulk, fineFraction }, output: { fineKg, coarseKg }, unit: "kg/m3" },
       { stepId: "pervious-6", label: "Correct batching water for aggregate moisture.", formula: "Wadd = W - Wfree + Wdeficit", inputs: { freeSurfaceWater: sandCorrection.freeSurfaceWater + gravelCorrection.freeSurfaceWater, absorptionDeficit: sandCorrection.absorptionDeficit + gravelCorrection.absorptionDeficit }, output: waterToAdd, unit: "kg/m3" }
     ],
     complianceChecks,
-    lifecycle: "needs_trial_mix"
+    lifecycle: Number.isFinite(rawWaterToAdd) && rawWaterToAdd >= -1e-8 ? "needs_trial_mix" : "blocked"
   });
 
   result.batchWaterToAdd = waterToAdd;

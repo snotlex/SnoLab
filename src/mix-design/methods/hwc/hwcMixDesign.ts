@@ -379,14 +379,13 @@ export function calculateHwcMix(
     heavyAbsorption
   );
 
-  const waterToAdd = Math.max(
-    0,
+  const rawWaterToAdd =
     water -
-      sandCorrection.freeSurfaceWater -
-      heavyCorrection.freeSurfaceWater +
-      sandCorrection.absorptionDeficit +
-      heavyCorrection.absorptionDeficit
-  );
+    sandCorrection.freeSurfaceWater -
+    heavyCorrection.freeSurfaceWater +
+    sandCorrection.absorptionDeficit +
+    heavyCorrection.absorptionDeficit;
+  const waterToAdd = Math.max(0, rawWaterToAdd);
 
   const filledVolumeL =
     fixedVolumeM3 * 1000 +
@@ -417,11 +416,19 @@ export function calculateHwcMix(
     binderOutOfRange ||
     fineAggregateKg <= 0 ||
     heavyweightDryKg <= 0 ||
+    !Number.isFinite(rawWaterToAdd) ||
+    rawWaterToAdd < -1e-8 ||
     Math.abs(filledVolumeL - 1000) > 2
       ? "blocked" as const
       : "needs_trial_mix" as const;
 
   const complianceChecks: any[] = [
+    {
+      parameter: "batch_water",
+      requirement: "Finite, non-negative water to add after aggregate moisture correction",
+      actual: String(rawWaterToAdd) + " kg/m3 before non-negative display guard",
+      status: Number.isFinite(rawWaterToAdd) && rawWaterToAdd >= -1e-8 ? "compliant" : "non_compliant"
+    },
     {
       parameter: "target_density",
       requirement: "2600-5000 kg/m3",
@@ -517,6 +524,9 @@ export function calculateHwcMix(
     waterBinderRatio: wb,
     freshDensityKgM3: designFreshDensity,
     absoluteVolumeL: filledVolumeL,
+    batchWaterKg: waterToAdd,
+    wetFineAggregateKg: sandCorrection.wetKg,
+    wetCoarseAggregateKg: heavyCorrection.wetKg,
     warnings,
     assumptions,
     recommendations,
