@@ -287,7 +287,7 @@ export function calculateSccMix(
     admixtureName: String(admixtureMaterial?.name || input.selectedAdmixtureName || "Superplasticizer"),
     scmKg,
     waterBinderRatio,
-    freshDensityKgM3: cementKg + scmKg + sandCorrection.wetKg + gravelCorrection.wetKg + waterToAdd + admixtureKg,
+    freshDensityKgM3: cementKg + scmKg + fineKg + coarseKg + water + admixtureKg,
     absoluteVolumeL: totalVolumeL,
     batchWaterKg: waterToAdd,
     wetFineAggregateKg: sandCorrection.wetKg,
