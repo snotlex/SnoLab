@@ -200,6 +200,21 @@ export function validateRccInputs(
     });
   }
 
+  const rccSuperplasticizerPercent = Number(input.dosageSuper ?? 0);
+  if (Number.isFinite(rccSuperplasticizerPercent) && rccSuperplasticizerPercent > 0) {
+    errors.push({
+      code: "RCC_ADMIXTURE_BASIS_UNVERIFIED",
+      severity: "error",
+      field: "dosageSuper",
+      message: message(
+        language,
+        "جرعة الملدّن معرّفة كنسبة مئوية، لكن مسار RCC لا يوازن كتلتها وحجمها على أساس MDD/OMC المعتمد. لا تُصدر خلطة بهذه الجرعة قبل تحديد أساس الاختبار والتحقق المستقل.",
+        "Le dosage du superplastifiant est en pourcentage, mais le parcours RCC ne ferme pas encore sa masse et son volume sur la base MDD/OMC approuvée. Ne pas émettre de formulation avec ce dosage avant clarification de la méthode et vérification indépendante.",
+        "Superplasticizer dosage is expressed as a percentage, but the RCC route does not yet balance its mass and volume against the governed MDD/OMC basis. Do not issue a mix with this dosage until the test basis is resolved and independently verified."
+      )
+    });
+  }
+
   if (input.dMax > 50) {
     errors.push({
       code: "RCC_DMAX_LIMIT",
