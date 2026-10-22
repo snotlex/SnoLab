@@ -50,6 +50,26 @@ describe("HSC/HPC specialized mix-design engine", () => {
     expect(result.engineeringAudit?.specializedMethod).toBe("HPC");
   });
 
+  it("reports theoretical density on the design-water basis when aggregate moisture is corrected", () => {
+    const result: any = calculateMixDesign(createTestInput({
+      concreteType: "HSC",
+      fck28: 55,
+      slump: 8,
+      dMax: 20,
+      dosageSuper: 1.2,
+      dosageSilicaFume: 7.5,
+      moistureSand: 5,
+      sandAbsorption: 1,
+      moistureGravel: 4,
+      gravelAbsorption: 1
+    }));
+    const designedMass =
+      result.cementKg + (result.scmKg || 0) + result.fineAggregateKg +
+      result.coarseAggregateKg + result.waterKg + result.admixtureKg;
+    expect(result.freshDensityKgM3).toBeCloseTo(designedMass, 6);
+    expect(result.waterToAdd).not.toBeCloseTo(result.waterKg, 3);
+  });
+
   it("blocks HSC when required silica-fume and superplasticizer inputs are missing", () => {
     const result: any = calculateMixDesign(createTestInput({
       concreteType: "HSC",
