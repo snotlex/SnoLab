@@ -49,6 +49,18 @@ describe("UHPC/BFUP specialized mix-design engine",()=>{
   });
 
 
+  it("reports theoretical density using effective design water, not moisture-corrected batch water", () => {
+    const r: any = calculateMixDesign(input({
+      moistureSand: 5,
+      sandAbsorption: 1
+    }));
+    const designedMass =
+      r.cementKg + (r.scmKg || 0) + (r.quartzPowderKg || 0) +
+      r.fineAggregateKg + r.waterKg + r.admixtureKg + (r.fiberKg || 0);
+    expect(r.freshDensityKgM3).toBeCloseTo(designedMass, 6);
+    expect(r.waterToAdd).not.toBeCloseTo(r.waterKg, 3);
+  });
+
   it("validates BFUP-specific W/B rather than a conflicting UHPC field", () => {
     const validation = validateUhpcBfupInputs(input({
       concreteType: "BFUP",
