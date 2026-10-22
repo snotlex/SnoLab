@@ -101,7 +101,7 @@ export function calculateUhpcBfupMix(input: MixDesignInput, language:"ar"|"fr"|"
   const rawWaterToAdd=water-correction.freeSurfaceWater+correction.absorptionDeficit;
   const waterToAdd=Math.max(0,rawWaterToAdd);
   const filled=vC+vSF+vQ+vW+vSP+vF+vAir+vSand;
-  const density=cementKg+sfKg+quartzKg+sandKg+fiberKg+waterToAdd+spKg;
+  const density=cementKg+sfKg+quartzKg+sandKg+fiberKg+water+spKg;
   const checks:any[]=[
     {parameter:"strength",requirement:"100-180 MPa",actual:String(fck),status:fck>=100&&fck<=180?"compliant":"non_compliant"},
     {parameter:"water_binder",requirement:"0.18-0.28",actual:wb.toFixed(3),status:wb>=0.18&&wb<=0.28?"compliant":"non_compliant"},
