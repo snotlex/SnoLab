@@ -334,7 +334,7 @@ export function calculateRacMix(input: MixDesignInput, language: "ar" | "fr" | "
       { stepId: "rac-4", label: "Close absolute volume with fine aggregate.", formula: "Vfa = 1000 - Vcement - Vwater - Vair - Vad - Vvirgin - Vrecycled", inputs: { finalVolume }, output: sandKg, unit: "kg/m3" },
       { stepId: "rac-5", label: "Correct batch water for surface moisture and pre-saturation.", formula: "Wadd = W + Wpre - Wfree", inputs: { prewetWater, freeSurface }, output: waterToAdd, unit: "kg/m3" }
     ],
-    batchWaterKg: waterToAdd,
+
     complianceChecks: [
       { parameter: "replacement", requirement: ">0 and <=100%", actual: `${(replacement * 100).toFixed(1)}%`, status: replacement > 0 && replacement <= 1 ? "compliant" : "non_compliant" },
       { parameter: "water_binder", requirement: ">0 and <=0.65", actual: wb.toFixed(3), status: wb > 0 && wb <= 0.65 ? "compliant" : "non_compliant" },
