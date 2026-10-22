@@ -38,7 +38,12 @@ export function validateUhpcBfupInputs(input: MixDesignInput, _language:"ar"|"fr
   const fck=Number(input.fck28); const dMax=Number(input.dMax);
   // Validation must resolve the same concrete-family fields as calculation.
   const wb=Number(t==="BFUP" ? ((input as any).bfupWaterBinderRatio ?? (input as any).uhpcWaterBinderRatio ?? NaN) : ((input as any).uhpcWaterBinderRatio ?? (input as any).bfupWaterBinderRatio ?? NaN));
-  const sf=Number(input.dosageSilicaFume||0); const sp=Number(input.dosageSuper||0);
+  const sfRaw=(input as any).dosageSilicaFume;
+  const spRaw=(input as any).dosageSuper;
+  // Keep validation aligned with the calculation defaults, but preserve an explicit 0
+  // so it is rejected by the UHPC/BFUP minimum-dosage envelope rather than defaulted.
+  const sf=Number(sfRaw===undefined || sfRaw===null || sfRaw==="" ? (t==="BFUP"?20:18) : sfRaw);
+  const sp=Number(spRaw===undefined || spRaw===null || spRaw==="" ? 2.2 : spRaw);
   const vf=Number(t==="BFUP" ? ((input as any).bfupFiberVolumePercent ?? (input as any).uhpcFiberVolumePercent ?? 2) : ((input as any).uhpcFiberVolumePercent ?? (input as any).bfupFiberVolumePercent ?? 2));
   const quartzRaw=t==="BFUP" ? ((input as any).bfupQuartzPowderKgM3 ?? (input as any).uhpcQuartzPowderKgM3) : ((input as any).uhpcQuartzPowderKgM3 ?? (input as any).bfupQuartzPowderKgM3);
   const quartz=quartzRaw===undefined || quartzRaw===null || quartzRaw==="" ? undefined : Number(quartzRaw);
