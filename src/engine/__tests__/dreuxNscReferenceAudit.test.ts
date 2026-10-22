@@ -38,7 +38,7 @@ describe("Dreux-Gorisse NSC — source reference audit characterization", () => 
       moistureGravel: 0
     });
 
-    const result = calculateDreuxGorisse(input, "en");
+    const result = calculateDreuxGorisse(input);
 
     // Implementation arithmetic: water=200 L/m3, W/C=1/1.9 => cement=380 kg/m3.
     expect(result.cementWeight).toBeCloseTo(380, 5);
