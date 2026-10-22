@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { validateSccInputs } from "./sccMixDesign";
+import { calculateSccMix, validateSccInputs } from "./sccMixDesign";
 import { getSpecializedInputDefinition } from "../../core/specializedInputDefinitions";
 
 function sccInput(extra: Record<string, unknown> = {}) {
@@ -35,6 +35,21 @@ describe("SCC water-to-powder volume ratio units", () => {
     expect(definition.unit?.en).toBe("volume fraction (0–1)");
     expect(definition.min).toBe(0.28);
     expect(definition.max).toBe(0.35);
+  });
+
+  it("reports SCC theoretical density using design water rather than batch-corrected water", () => {
+    const result: any = calculateSccMix(sccInput({
+      moistureSand: 5,
+      sandAbsorption: 1,
+      moistureGravel: 4,
+      gravelAbsorption: 1
+    }));
+    const designedMass =
+      result.cementKg + (result.scmKg || 0) + result.fineAggregateKg +
+      result.coarseAggregateKg + result.waterKg + result.admixtureKg +
+      (result.fiberKg || 0) + (result.quartzPowderKg || 0);
+    expect(result.freshDensityKgM3).toBeCloseTo(designedMass, 6);
+    expect(result.waterToAdd).not.toBeCloseTo(result.waterKg, 3);
   });
 
   it("blocks missing required SCC fields instead of silently filling defaults", () => {
