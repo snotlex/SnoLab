@@ -432,12 +432,14 @@ export function calculateHscHpcMix(
     coarseVolumeL +
     fineVolumeL;
 
+  // Theoretical design density uses the same effective-water basis as the absolute-volume calculation.
+  // Wet aggregate masses and corrected batch water are reported separately by makeSpecializedResult.
   const estimatedFreshDensity =
     cementKg +
     scmKg +
-    sandCorrection.wetKg +
-    gravelCorrection.wetKg +
-    waterToAdd +
+    fineKg +
+    coarseKg +
+    water +
     admixtureKg;
 
   const complianceChecks: any[] = [
