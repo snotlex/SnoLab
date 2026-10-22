@@ -78,6 +78,22 @@ describe("UHPC/BFUP specialized mix-design engine",()=>{
     expect(validation.errors.some((error) => error.code === "quartz_powder")).toBe(true);
   });
 
+  it("uses the documented UHPC/BFUP defaults only when dosage fields are omitted", () => {
+    const validation = validateUhpcBfupInputs(input({
+      dosageSilicaFume: undefined,
+      dosageSuper: undefined
+    }));
+    expect(validation.isValid).toBe(true);
+
+    const explicitZero = validateUhpcBfupInputs(input({
+      dosageSilicaFume: 0,
+      dosageSuper: 0
+    }));
+    expect(explicitZero.isValid).toBe(false);
+    expect(explicitZero.errors.some((error) => error.code === "silica_fume")).toBe(true);
+    expect(explicitZero.errors.some((error) => error.code === "superplasticizer")).toBe(true);
+  });
+
   it("blocks UHPC when the selected material library contains no quartz powder",()=>{
     const db=uhpcMaterials.filter((m)=>m.id!=="qp-uhpc");
     const r:any=calculateMixDesign(input({materialsDatabase:db,selectedQuartzPowderId:undefined,selectedQuartzPowderName:undefined}));
