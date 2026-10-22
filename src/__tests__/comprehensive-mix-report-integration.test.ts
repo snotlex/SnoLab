@@ -41,7 +41,7 @@ function inputFor(type: string) {
     FRC: { dMax: 16, frcWaterKgM3: 160, frcWaterBinderRatio: 0.40, frcFiberVolumePercent: 1.0, fiberType: "steel", fiberDensity: 7850, selectedFiberId: "fiber-1", selectedFiberName: "Steel Fiber" },
     LWC: { dMax: 16, selectedLightweightAggregateId: "lwa-1", selectedLightweightAggregateName: "Expanded Clay", lwcTargetDensityKgM3: 1750, lwcWaterKgM3: 155, lwcWaterBinderRatio: 0.44, lwcPrewetDegreePercent: 75 },
     HWC: { dMax: 25, selectedHeavyweightAggregateId: "hwa-1", selectedHeavyweightAggregateName: "Barite Aggregate", hwcTargetDensityKgM3: 3200, hwcWaterKgM3: 150, hwcWaterBinderRatio: 0.42 },
-    RCC: { dMax: 20, rccWaterKgM3: 145, rccWaterBinderRatio: 0.40, rccOptimumMoisturePercent: 5, rccMaxDryDensityKgM3: 2350, rccCompactionTargetPercent: 98, rccFineAggregatePercent: 52.5 },
+    RCC: { dMax: 20, dosageSuper: 0, rccWaterKgM3: 145, rccWaterBinderRatio: 0.40, rccOptimumMoisturePercent: 5, rccMaxDryDensityKgM3: 2350, rccCompactionTargetPercent: 98, rccFineAggregatePercent: 52.5 },
     SHOTCRETE: { dMax: 16, shotcreteWaterKgM3: 175, shotcreteWaterBinderRatio: 0.42, shotcreteAcceleratorPercent: 4, shotcreteCementFraction: 0.85, shotcreteCoarseAggregateVolumeFraction: 0.28, shotcreteSuperplasticizerPercent: 0 },
     GPC: { dMax: 16, gpcPrecursorKgM3: 420, gpcActivatorLiquidKgM3: 168, gpcWaterKgM3: 84, gpcWaterBinderRatio: 0.20, gpcActivatorToPrecursorRatio: 0.40, gpcCoarseAggregateVolumeFraction: 0.32 },
     SHC: { dMax: 16, shcCementKgM3: 400, shcWaterKgM3: 180, shcWaterBinderRatio: 0.45, shcHealingAgentDosageKgM3: 12, shcHealingAgentDensityKgM3: 1200, shcHealingAgentType: "microcapsules", shcCoarseAggregateVolumeFraction: 0.32, selectedHealingAgentId: "healing-1" },
