@@ -145,7 +145,7 @@ export function calculateFrcMix(input: MixDesignInput, language: "ar" | "fr" | "
     cementKg, waterKg: water, fineAggregateKg: fineKg, coarseAggregateKg: coarseKg, admixtureKg, fiberKg,
     admixtureName: String(admixture?.name || input.selectedAdmixtureName || "Superplasticizer"),
     waterBinderRatio: wb,
-    freshDensityKgM3: cementKg + fineKg + coarseKg + waterToAdd + admixtureKg + fiberKg,
+    freshDensityKgM3: cementKg + fineKg + coarseKg + water + admixtureKg + fiberKg,
     absoluteVolumeL: totalVolumeL,
     batchWaterKg: waterToAdd,
     wetFineAggregateKg: sandCorrection.wetKg,
