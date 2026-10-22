@@ -56,6 +56,27 @@ describe("specialized concrete mix-design routes", () => {
   });
 
 
+  it("reports pervious theoretical density on the design-water basis when aggregate moisture is corrected", () => {
+    const result: any = calculateMixDesign(createTestInput({
+      concreteType: "PERVIOUS",
+      fck28: 12,
+      slump: 1,
+      dMax: 12,
+      selectedMethod: "dreux",
+      approvedBulkDensity: 1450,
+      approvedVoidRatio: 20,
+      moistureSand: 5,
+      sandAbsorption: 1,
+      moistureGravel: 4,
+      gravelAbsorption: 1
+    }));
+    const designedMass =
+      result.cementKg + (result.scmKg || 0) + result.fineAggregateKg +
+      result.coarseAggregateKg + result.waterKg + result.admixtureKg;
+    expect(result.freshDensityKgM3).toBeCloseTo(designedMass, 6);
+    expect(result.waterToAdd).not.toBeCloseTo(result.waterKg, 3);
+  });
+
   it("activates the specialized engines that are already registered in SnoLab", () => {
     const routes = getConcreteTypeRouteTable();
     const byType = new Map(routes.map((route) => [route.concreteType, route]));
