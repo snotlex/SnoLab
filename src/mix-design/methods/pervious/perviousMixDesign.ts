@@ -236,8 +236,10 @@ export function calculatePerviousMix(
     sandCorrection.absorptionDeficit + gravelCorrection.absorptionDeficit;
   const waterToAdd = Math.max(0, rawWaterToAdd);
 
+  // Theoretical design density uses effective design water and dry aggregate masses.
+  // Moisture-adjusted wet aggregate masses and batch water remain separate result fields.
   const estimatedFreshDensity =
-    cementKg + scmKg + sandCorrection.wetKg + gravelCorrection.wetKg + waterToAdd + admixtureKg;
+    cementKg + scmKg + fineKg + coarseKg + waterKg + admixtureKg;
 
   const warnings = [
     "Pervious concrete is controlled by connected void structure and permeability, not slump-based conventional concrete criteria.",
