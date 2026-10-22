@@ -57,6 +57,17 @@ describe("RCC specialized mix design", () => {
   });
 
 
+  it("blocks a nonzero superplasticizer percentage until RCC mass/volume basis is governed", () => {
+    const input = rccInput();
+    input.dosageSuper = 1.2;
+
+    const result = calculateMixDesign(input);
+
+    expect(result.calculationStatus).toBe("blocked");
+    expect(result.isValid).toBe(false);
+    expect(result.errors.some((error) => error.includes("MDD/OMC") || error.includes("MDD/OMC"))).toBe(true);
+  });
+
   it("blocks RCC when aggregate free water exceeds the design-water input", () => {
     const input = rccInput();
     input.moistureSand = 10;
