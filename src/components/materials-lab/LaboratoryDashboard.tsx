@@ -47,7 +47,7 @@ import type { RegisteredEquipment, RegisteredStandard } from "../../services/lab
 import { generateLabTestPdf } from "../../services/pdf/labTestPdfGenerator";
 import { LaboratoryDomainPortal } from "./LaboratoryDomainPortal";
 import { GeotechnicalTestWorkspace } from "./GeotechnicalTestWorkspace";
-import { catalogDefinitionDomain, inferLaboratoryDomain, inferLaboratorySessionDomain } from "../../services/laboratoryDomains";
+import { catalogDefinitionDomain, filterLaboratoryRecordsByDomain, inferLaboratoryDomain, inferLaboratorySessionDomain } from "../../services/laboratoryDomains";
 import type { LaboratoryDomainId } from "../../types/laboratoryDomain";
 import type { AcceptanceProfile } from "../../services/laboratoryAcceptanceEngine";
 
@@ -144,7 +144,7 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
   const [materialCategoryFilter, setMaterialCategoryFilter] = useState<string>("all");
 
   const scopedLaboratoryTests = useMemo(
-    () => laboratoryTests.filter(test => inferLaboratoryDomain(test) === activeLaboratoryDomain),
+    () => filterLaboratoryRecordsByDomain(laboratoryTests, activeLaboratoryDomain),
     [laboratoryTests, activeLaboratoryDomain]
   );
 
@@ -381,8 +381,10 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
             { label: labText(language, "فاشلة", "Échecs", "Failed"), value: stats.failed, detail: labText(language, "لا تزامن خصائصها", "Aucune synchronisation", "Never sync properties"), tone: "text-rose-300" },
             { label: labText(language, "محظورة", "Bloqués", "Blocked"), value: stats.blocked, detail: labText(language, "مادة غير متوافقة", "Matériau incompatible", "Incompatible material"), tone: "text-orange-300" },
             { label: labText(language, "عينات نشطة · 90 يومًا", "Échantillons actifs · 90 j", "Active samples · 90 days"), value: stats.activeSamples, detail: labText(language, "أرقام عينات مميزة", "Identifiants distincts", "Unique sample IDs"), tone: "text-blue-200" },
-            { label: labText(language, "مواد غير معتمدة", "Matériaux non approuvés", "Unapproved materials"), value: stats.unapprovedMaterials, detail: labText(language, "تحتاج مراجعة", "À vérifier", "Require review"), tone: "text-orange-200" },
-            { label: labText(language, "تغطية برنامج الفحص", "Couverture du programme", "Program coverage"), value: `${stats.materialsCoveragePct}%`, detail: `${stats.testedMaterialsCount}/${stats.totalMaterials} ${labText(language, "مواد مفحوصة", "matériaux testés", "materials tested")}`, tone: "text-emerald-300" },
+            ...(activeLaboratoryDomain === "civil_materials" ? [
+              { label: labText(language, "مواد غير معتمدة", "Matériaux non approuvés", "Unapproved materials"), value: stats.unapprovedMaterials, detail: labText(language, "تحتاج مراجعة", "À vérifier", "Require review"), tone: "text-orange-200" },
+              { label: labText(language, "تغطية برنامج الفحص", "Couverture du programme", "Program coverage"), value: `${stats.materialsCoveragePct}%`, detail: `${stats.testedMaterialsCount}/${stats.totalMaterials} ${labText(language, "مواد مفحوصة", "matériaux testés", "materials tested")}`, tone: "text-emerald-300" }
+            ] : []),
             { label: labText(language, "معدل المطابقة", "Taux de conformité", "Pass rate"), value: `${stats.passRate}%`, detail: `${stats.passed} ${labText(language, "مطابق", "conformes", "passed")}`, tone: "text-emerald-300" }
           ].map(metric => <div key={metric.label} className="min-w-0 rounded-2xl border border-white/10 bg-white/5 p-3 backdrop-blur-sm"><span className="block truncate text-[10px] font-black text-blue-200">{metric.label}</span><span className={`text-2xl font-black font-mono ${metric.tone}`}>{metric.value}</span><span className="mt-0.5 block truncate text-[10px] text-blue-200">{metric.detail}</span></div>)}
         </div>
@@ -418,13 +420,13 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
           >
             <span className="text-xl">🌐</span>
             <span className="text-xs font-bold">جميع الفئات</span>
-            <span className="text-[10px] opacity-75 font-mono">{MASTER_TEST_CATALOG.length}</span>
+            <span className="text-[10px] opacity-75 font-mono">{displayedCatalog.length}</span>
           </button>
 
-          {(Object.keys(LAB_CATEGORIES_INFO) as LabCategory[]).map(catKey => {
+          {[...new Set(MASTER_TEST_CATALOG.filter(test => catalogDefinitionDomain(test) === activeLaboratoryDomain).map(test => test.category))].map(catKey => {
             const info = LAB_CATEGORIES_INFO[catKey];
             const isSelected = activeCategory === catKey;
-            const countInCat = MASTER_TEST_CATALOG.filter(t => t.category === catKey).length;
+            const countInCat = MASTER_TEST_CATALOG.filter(test => catalogDefinitionDomain(test) === activeLaboratoryDomain && test.category === catKey).length;
             return (
               <button
                 key={catKey}
@@ -446,7 +448,7 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
       </div>
 
       {/* 3. Materials Lab Verification & Readiness Matrix */}
-      <div className="space-y-4 bg-slate-50 dark:bg-slate-900/50 p-6 rounded-3xl border border-slate-200 dark:border-slate-800">
+      {activeLaboratoryDomain === "civil_materials" && <div className="space-y-4 bg-slate-50 dark:bg-slate-900/50 p-6 rounded-3xl border border-slate-200 dark:border-slate-800">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
           <div>
             <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
@@ -503,7 +505,7 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pt-2">
           {filteredMatrixMaterials.map(mat => {
-            const matTests = laboratoryTests.filter(t => t.materialId === mat.id);
+            const matTests = scopedLaboratoryTests.filter(t => t.materialId === mat.id);
             const isVerified = mat.approvalStatus === "Approved" || mat.approvalStatus === "Validated";
             const lastTest = [...matTests].sort((a, b) => (Date.parse(b.date) || 0) - (Date.parse(a.date) || 0))[0];
 
@@ -577,7 +579,7 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
             );
           })}
         </div>
-      </div>
+      </div>}
 
       {/* 4. Standard Laboratory Tests Catalog */}
       <div className="space-y-4">
@@ -594,8 +596,8 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
 
           <div className="grid w-full grid-cols-1 gap-2 sm:w-auto sm:grid-cols-3">
             <div className="relative sm:w-60"><Search className="w-4 h-4 absolute right-3 top-2.5 text-slate-400" /><input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder={labText(language, "بحث بالاختبار أو المواصفة...", "Rechercher essai ou norme…", "Search test or standard…")} className="w-full pl-3 pr-9 py-2 text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none" /></div>
-            <select value={catalogMaterialFilter} onChange={e => setCatalogMaterialFilter(e.target.value)} aria-label={labText(language, "تصفية حسب المادة", "Filtrer par matériau", "Filter by material")} className="rounded-xl border border-slate-200 bg-white px-2 py-2 text-xs dark:border-slate-700 dark:bg-slate-900"><option value="all">{labText(language, "كل المواد", "Tous les matériaux", "All materials")}</option>{[["رمال", "رمل", "Sable", "Sand"], ["حصى", "حصى", "Gravier", "Gravel"], ["إسمنت", "إسمنت", "Ciment", "Cement"], ["ماء", "ماء", "Eau", "Water"], ["ملدنات", "إضافات كيميائية", "Adjuvants", "Admixtures"], ["إضافات معدنية", "إضافات معدنية", "Additions minérales", "Mineral additions"], ["ألياف", "ألياف", "Fibres", "Fibers"]].map(([value, ar, fr, en]) => <option key={value} value={value}>{labText(language, ar, fr, en)}</option>)}</select>
-            <select value={standardFilter} onChange={e => setStandardFilter(e.target.value)} aria-label={labText(language, "تصفية حسب المواصفة", "Filtrer par norme", "Filter by standard")} className="rounded-xl border border-slate-200 bg-white px-2 py-2 text-xs dark:border-slate-700 dark:bg-slate-900"><option value="all">{labText(language, "كل المواصفات", "Toutes les normes", "All standards")}</option>{Array.from(new Set(MASTER_TEST_CATALOG.map(test => test.standard))).sort().map(standard => <option key={standard} value={standard}>{standard}</option>)}</select>
+            {activeLaboratoryDomain === "civil_materials" && <select value={catalogMaterialFilter} onChange={e => setCatalogMaterialFilter(e.target.value)} aria-label={labText(language, "تصفية حسب المادة", "Filtrer par matériau", "Filter by material")} className="rounded-xl border border-slate-200 bg-white px-2 py-2 text-xs dark:border-slate-700 dark:bg-slate-900"><option value="all">{labText(language, "كل المواد", "Tous les matériaux", "All materials")}</option>{[["رمال", "رمل", "Sable", "Sand"], ["حصى", "حصى", "Gravier", "Gravel"], ["إسمنت", "إسمنت", "Ciment", "Cement"], ["ماء", "ماء", "Eau", "Water"], ["ملدنات", "إضافات كيميائية", "Adjuvants", "Admixtures"], ["إضافات معدنية", "إضافات معدنية", "Additions minérales", "Mineral additions"], ["ألياف", "ألياف", "Fibres", "Fibers"]].map(([value, ar, fr, en]) => <option key={value} value={value}>{labText(language, ar, fr, en)}</option>)}</select>}
+            <select value={standardFilter} onChange={e => setStandardFilter(e.target.value)} aria-label={labText(language, "تصفية حسب المواصفة", "Filtrer par norme", "Filter by standard")} className="rounded-xl border border-slate-200 bg-white px-2 py-2 text-xs dark:border-slate-700 dark:bg-slate-900"><option value="all">{labText(language, "كل المواصفات", "Toutes les normes", "All standards")}</option>{Array.from(new Set(MASTER_TEST_CATALOG.filter(test => catalogDefinitionDomain(test) === activeLaboratoryDomain).map(test => test.standard))).sort().map(standard => <option key={standard} value={standard}>{standard}</option>)}</select>
           </div>
         </div>
 
@@ -677,7 +679,7 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
                 statusFilter === "ALL" ? "bg-white dark:bg-slate-900 text-blue-600 shadow-sm font-black" : "text-slate-500"
               }`}
             >
-              الكل ({laboratoryTests.length})
+              الكل ({scopedLaboratoryTests.length})
             </button>
             <button
               type="button"
@@ -705,7 +707,7 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2" aria-label={labText(language, "فلاتر سجل الاختبارات", "Filtres de l'historique", "Test history filters")}>
-          <select value={recordMaterialFilter} onChange={e => setRecordMaterialFilter(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-950"><option value="all">{labText(language, "كل المواد", "Tous les matériaux", "All materials")}</option>{Array.from(new Map(laboratoryTests.map(record => [record.materialId, record.materialName])).entries()).map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select>
+          <select value={recordMaterialFilter} onChange={e => setRecordMaterialFilter(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-950"><option value="all">{labText(language, "كل المواد", "Tous les matériaux", "All materials")}</option>{Array.from(new Map(scopedLaboratoryTests.map(record => [record.materialId, record.materialName])).entries()).map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select>
           <select value={dateFilter} onChange={e => setDateFilter(e.target.value as "all" | "30d" | "90d")} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-950"><option value="all">{labText(language, "كل التواريخ", "Toutes les dates", "All dates")}</option><option value="30d">{labText(language, "آخر 30 يومًا", "30 derniers jours", "Last 30 days")}</option><option value="90d">{labText(language, "آخر 90 يومًا", "90 derniers jours", "Last 90 days")}</option></select>
           <input value={sampleIdFilter} onChange={e => setSampleIdFilter(e.target.value)} placeholder={labText(language, "بحث برقم العينة", "Rechercher par échantillon", "Filter by sample ID")} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-950" />
         </div>
@@ -910,7 +912,8 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
         isOpen={isDossierSelectorOpen}
         onClose={() => setIsDossierSelectorOpen(false)}
         materials={materials}
-        tests={laboratoryTests}
+        tests={scopedLaboratoryTests}
+        domainId={activeLaboratoryDomain}
         onSelectMaterial={(mat) => {
           setSelectedDossierMaterial(mat);
         }}
@@ -929,7 +932,8 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
         isOpen={!!selectedDossierMaterial}
         onClose={() => setSelectedDossierMaterial(null)}
         material={selectedDossierMaterial}
-        tests={laboratoryTests}
+        tests={scopedLaboratoryTests}
+        domainId={activeLaboratoryDomain}
         onRunTestForMaterial={(mat, testId) => {
           setSelectedDossierMaterial(null);
           handleLaunchTest(testId || "AGG_SIEVE", "aggregates", mat.id);

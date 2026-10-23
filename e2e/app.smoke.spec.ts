@@ -251,6 +251,7 @@ test.describe("SnoLab application smoke flow", () => {
     await page.getByRole("button", { name: /Start New Project/ }).first().click();
     await page.getByRole("button", { name: "Laboratory validation" }).click();
     const portal = page.locator('[aria-label="Three laboratory workspaces"]');
+    await expect(portal.locator("button[aria-pressed]")).toHaveCount(3);
 
     await expect(portal.getByRole("button", { name: "Show definition and purpose" }).first()).toBeVisible();
     await portal.getByRole("button", { name: "Show definition and purpose" }).first().click();
@@ -258,17 +259,25 @@ test.describe("SnoLab application smoke flow", () => {
     await expect(portal).toContainText("Purpose");
 
     await portal.getByRole("button", { name: /Geotechnical Laboratory/ }).click();
+    await expect(portal.locator("article").filter({ hasText: "GT_SIEVE_SOIL" })).toBeVisible();
+    await expect(portal.locator("article").filter({ hasText: "FC_SLUMP" })).toHaveCount(0);
+    await expect(portal.locator("article").filter({ hasText: "HC_COMPRESSIVE_STRENGTH" })).toHaveCount(0);
     await portal.getByRole("button", { name: "Show definition and purpose" }).first().click();
     await expect(portal).toContainText("Geotechnical");
     await expect(portal).toContainText("Purpose");
 
     await portal.getByRole("button", { name: /Fresh and Hardened Concrete Laboratory/ }).click();
     await portal.getByRole("tab", { name: "Fresh Concrete Laboratory" }).click();
+    await expect(portal.getByText("FC_SLUMP · Abrams slump test", { exact: true })).toBeVisible();
+    await expect(portal.locator("article").filter({ hasText: "GT_SIEVE_SOIL" })).toHaveCount(0);
+    await expect(portal.locator("article").filter({ hasText: "HC_COMPRESSIVE_STRENGTH" })).toHaveCount(0);
     await portal.getByRole("button", { name: "Show definition and purpose" }).first().click();
     await expect(portal).toContainText("Fresh concrete");
     await expect(portal).toContainText("Purpose");
 
     await portal.getByRole("tab", { name: "Hardened Concrete Laboratory" }).click();
+    await expect(portal.locator("article").filter({ hasText: "HC_COMPRESSIVE_STRENGTH" })).toBeVisible();
+    await expect(portal.getByText("FC_SLUMP · Abrams slump test", { exact: true })).toHaveCount(0);
     await portal.getByRole("button", { name: "Show definition and purpose" }).first().click();
     await expect(portal).toContainText("Hardened concrete");
     await expect(portal).toContainText("Purpose");

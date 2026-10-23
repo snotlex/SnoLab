@@ -78,6 +78,7 @@ import { INITIAL_MATERIAL_TESTS } from "./data/seedMaterialTests";
 import { MaterialTestRecord, TestApprovalStatus } from "./types/laboratoryTypes";
 import type { AcceptanceProfile } from "./services/laboratoryAcceptanceEngine";
 import { reviewAcceptanceProfile } from "./services/laboratoryAcceptanceProfiles";
+import { inferLaboratoryDomain, normalizeLaboratoryRecordDomains } from "./services/laboratoryDomains";
 import { applyTestToMaterial } from "./services/materialLabSync";
 import { evaluateProductionRelease } from "./services/productionReleaseGate";
 import { can, resolveUserRole, separationOfDuties, UserRole } from "./services/permissions";
@@ -768,12 +769,12 @@ export default function App() {
       const saved = localStorage.getItem("snolab_material_tests_v1");
       if (saved) {
         const parsed = JSON.parse(saved);
-        return Array.isArray(parsed) ? parsed.map(record => ({ ...record, domainId: record.domainId || "civil_materials" })) : INITIAL_MATERIAL_TESTS;
+        return Array.isArray(parsed) ? normalizeLaboratoryRecordDomains(parsed) : normalizeLaboratoryRecordDomains(INITIAL_MATERIAL_TESTS);
       }
     } catch (e) {
       console.error("Failed to load material tests:", e);
     }
-    return INITIAL_MATERIAL_TESTS.map(record => ({ ...record, domainId: record.domainId || "civil_materials" }));
+    return normalizeLaboratoryRecordDomains(INITIAL_MATERIAL_TESTS);
   });
 
   useEffect(() => {
@@ -859,9 +860,7 @@ export default function App() {
   }, []);
 
   const handleSaveTestRecord = (testRecord: MaterialTestRecord, _syncedProps?: Record<string, any>) => {
-    const legacyFreshConcreteId = testRecord.testType === "FC_SLUMP" || testRecord.testType === "FC_TEMPERATURE";
-    const legacyHardenedConcreteId = testRecord.testType === "HC_COMPRESSIVE_STRENGTH" || testRecord.testType === "HC_SPLIT_TENSILE";
-    const resolvedDomain = testRecord.domainId || (legacyFreshConcreteId ? "fresh_concrete" : legacyHardenedConcreteId ? "hardened_concrete" : "civil_materials");
+    const resolvedDomain = inferLaboratoryDomain(testRecord);
     const isFreshConcreteExecution = resolvedDomain === "fresh_concrete";
     const isHardenedConcreteExecution = resolvedDomain === "hardened_concrete";
     const concreteDomain = isHardenedConcreteExecution ? "hardened_concrete" : "fresh_concrete";
@@ -981,7 +980,7 @@ export default function App() {
           setMaterialsDatabase(json.materials);
         }
         if (json.tests && Array.isArray(json.tests)) {
-          setMaterialTestRecords(json.tests);
+          setMaterialTestRecords(normalizeLaboratoryRecordDomains(json.tests));
         }
         if (json.inputs) {
           setInputs(json.inputs);
@@ -1578,7 +1577,7 @@ export default function App() {
         setMaterialsDatabase(storageProject.materials);
       }
       if (storageProject.laboratoryTests && storageProject.laboratoryTests.length > 0) {
-        setMaterialTestRecords(storageProject.laboratoryTests);
+        setMaterialTestRecords(normalizeLaboratoryRecordDomains(storageProject.laboratoryTests));
       }
       if (storageProject.mixDesigns?.currentInputs) {
         setInputs(prev => ({

@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 import { EngineeringMaterial } from "../../types";
 import { MaterialTestRecord } from "../../types/laboratoryTypes";
+import type { LaboratoryDomainId } from "../../types/laboratoryDomain";
+import { filterLaboratoryRecordsByDomain } from "../../services/laboratoryDomains";
 import { downloadMaterialDossierPdf } from "../../services/pdf";
 
 interface MaterialDossierSelectorModalProps {
@@ -26,6 +28,7 @@ interface MaterialDossierSelectorModalProps {
   onSelectMaterial: (material: EngineeringMaterial) => void;
   onRunTestForMaterial: (material: EngineeringMaterial) => void;
   language?: "ar" | "fr" | "en";
+  domainId: LaboratoryDomainId;
 }
 
 export const MaterialDossierSelectorModal: React.FC<MaterialDossierSelectorModalProps> = ({
@@ -35,11 +38,13 @@ export const MaterialDossierSelectorModal: React.FC<MaterialDossierSelectorModal
   tests = [],
   onSelectMaterial,
   onRunTestForMaterial,
-  language = "ar"
+  language = "ar",
+  domainId
 }) => {
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const scopedTests = useMemo(() => filterLaboratoryRecordsByDomain(tests, domainId), [tests, domainId]);
 
   const categories = useMemo(() => {
     const cats = new Set(materials.map(m => m.category || "عام"));
@@ -66,7 +71,7 @@ export const MaterialDossierSelectorModal: React.FC<MaterialDossierSelectorModal
     e.stopPropagation();
     try {
       setDownloadingId(mat.id);
-      const matTests = tests.filter(
+      const matTests = scopedTests.filter(
         t => t.materialId === mat.id || 
              (t.materialName && mat.name && t.materialName.toLowerCase().includes(mat.name.toLowerCase()))
       );
@@ -153,7 +158,7 @@ export const MaterialDossierSelectorModal: React.FC<MaterialDossierSelectorModal
             </div>
           ) : (
             filteredMaterials.map(mat => {
-              const matTests = tests.filter(
+              const matTests = scopedTests.filter(
                 t => t.materialId === mat.id || 
                      (t.materialName && mat.name && t.materialName.toLowerCase().includes(mat.name.toLowerCase()))
               );

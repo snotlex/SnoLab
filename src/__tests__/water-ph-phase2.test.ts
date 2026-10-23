@@ -8,11 +8,12 @@ import type { EngineeringMaterial } from "../types";
 const validInput = { measuredPh: 7.4, waterTemperatureC: 21 };
 
 describe("Phase 2 water pH", () => {
-  it("records a valid pH and classifies normal mixing water", () => {
+  it("records a valid pH diagnostically without unconfigured acceptance criteria", () => {
     const result = calculateWaterPh(validInput);
     expect(result?.validation.valid).toBe(true);
     expect(result?.waterPh).toBe(7.4);
-    expect(result?.classification).toBe("Pass");
+    expect(result?.classification).toBe("Warning");
+    expect(result?.validation.issues.map(issue => issue.code)).toContain("ACCEPTANCE_CRITERIA_NOT_CONFIGURED");
     expect(result?.trace).toHaveLength(1);
   });
 
@@ -22,9 +23,9 @@ describe("Phase 2 water pH", () => {
     expect(calculateWaterPh({ ...validInput, waterTemperatureC: 70 })).toBeUndefined();
   });
 
-  it("classifies acidic or strongly alkaline water as fail", () => {
-    expect(calculateWaterPh({ ...validInput, measuredPh: 4 })).toMatchObject({ classification: "Fail" });
-    expect(calculateWaterPh({ ...validInput, measuredPh: 10 })).toMatchObject({ classification: "Fail" });
+  it("keeps valid acidic or alkaline readings diagnostic until project criteria are configured", () => {
+    expect(calculateWaterPh({ ...validInput, measuredPh: 4 })).toMatchObject({ classification: "Warning" });
+    expect(calculateWaterPh({ ...validInput, measuredPh: 10 })).toMatchObject({ classification: "Warning" });
   });
 
   it("runs through the shared engine and creates a pending water-pH proposal", () => {
@@ -37,7 +38,7 @@ describe("Phase 2 water pH", () => {
       standard: { organization: "EN", code: "EN 1008", version: "2026", status: "Active" },
       now: "2026-09-19T00:00:00.000Z"
     });
-    expect(run.status).toBe("Calculated");
+    expect(run.status).toBe("Warning");
     expect(run.result?.value).toBe(7.4);
     const result = calculateWaterPh(validInput);
     if (!result) throw new Error("Expected valid result");

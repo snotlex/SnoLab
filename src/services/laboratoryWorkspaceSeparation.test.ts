@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MASTER_TEST_CATALOG } from "./materialsLabEngine";
-import { LABORATORY_DOMAINS, LABORATORY_WORKSPACES, getLaboratoryWorkspaceId, inferLaboratoryDomain, inferLaboratorySessionDomain } from "./laboratoryDomains";
+import { filterLaboratoryRecordsByDomain, LABORATORY_DOMAINS, LABORATORY_WORKSPACES, getLaboratoryWorkspaceId, inferLaboratoryDomain, inferLaboratorySessionDomain, normalizeLaboratoryRecordDomains } from "./laboratoryDomains";
 
 describe("laboratory workspace separation", () => {
   it("exposes exactly three user-facing laboratories and preserves all four internal domains", () => {
@@ -27,7 +27,49 @@ describe("laboratory workspace separation", () => {
   it("infers old concrete records from legacy IDs/categories when domainId is absent", () => {
     expect(inferLaboratoryDomain({ testType: "FC_SLUMP", category: "workability", laboratoryArea: "concrete" })).toBe("fresh_concrete");
     expect(inferLaboratoryDomain({ testType: "HC_COMPRESSIVE_STRENGTH", category: "hardened_mechanical", laboratoryArea: "concrete" })).toBe("hardened_concrete");
+    expect(inferLaboratoryDomain({ testType: "GT_PROCTOR", category: "compaction" })).toBe("geotechnical");
+    expect(inferLaboratoryDomain({ testType: "GT_ATTERBERG", category: "identification" })).toBe("geotechnical");
+    expect(inferLaboratoryDomain({ testType: "GT_PROCTOR", domainId: "civil_materials" })).toBe("geotechnical");
+    expect(inferLaboratoryDomain({ testType: "FC_SLUMP", domainId: "civil_materials" })).toBe("fresh_concrete");
+    expect(inferLaboratoryDomain({ testType: "HC_COMPRESSIVE_STRENGTH", domainId: "civil_materials" })).toBe("hardened_concrete");
     expect(inferLaboratoryDomain({ testType: "AGG_SIEVE", category: "aggregates", laboratoryArea: "materials" })).toBe("civil_materials");
+  });
+
+  it("filters records by their resolved domain before reports and archive views", () => {
+    const records = [
+      { id: "old-aggregate", testType: "AGG_SIEVE", category: "aggregates" },
+      { id: "old-soil", testType: "GT_PROCTOR", category: "compaction", domainId: "civil_materials" as const },
+      { id: "fresh", testType: "FC_SLUMP", category: "workability", domainId: "civil_materials" as const },
+      { id: "hardened", testType: "HC_COMPRESSIVE_STRENGTH", category: "hardened_mechanical", domainId: "civil_materials" as const },
+      { id: "explicit-soil", testType: "GT_CBR", domainId: "geotechnical" as const }
+    ];
+
+    expect(filterLaboratoryRecordsByDomain(records, "civil_materials").map(record => record.id)).toEqual(["old-aggregate"]);
+    expect(filterLaboratoryRecordsByDomain(records, "geotechnical").map(record => record.id)).toEqual(["old-soil", "explicit-soil"]);
+    expect(filterLaboratoryRecordsByDomain(records, "fresh_concrete").map(record => record.id)).toEqual(["fresh"]);
+    expect(filterLaboratoryRecordsByDomain(records, "hardened_concrete").map(record => record.id)).toEqual(["hardened"]);
+  });
+
+  it("repairs legacy default-domain tags from distinctive IDs and preserves valid non-legacy domain tags", () => {
+    const records = normalizeLaboratoryRecordDomains([
+      { id: "soil", testType: "GT_CBR", category: "strength" },
+      { id: "fresh", testType: "FC_SLUMP", category: "workability" },
+      { id: "aggregate", testType: "AGG_SIEVE", category: "aggregates" },
+      { id: "explicit", testType: "CUSTOM_ANALYSIS", domainId: "geotechnical" as const },
+      { id: "previous-default-soil", testType: "GT_PROCTOR", domainId: "civil_materials" as const },
+      { id: "previous-default-fresh", testType: "FC_SLUMP", domainId: "civil_materials" as const },
+      { id: "previous-default-hardened", testType: "HC_COMPRESSIVE_STRENGTH", domainId: "civil_materials" as const }
+    ]);
+
+    expect(records.map(record => record.domainId)).toEqual([
+      "geotechnical",
+      "fresh_concrete",
+      "civil_materials",
+      "geotechnical",
+      "geotechnical",
+      "fresh_concrete",
+      "hardened_concrete"
+    ]);
   });
 
   it("scopes legacy sessions from their test IDs and refuses to misclassify mixed-domain sessions", () => {

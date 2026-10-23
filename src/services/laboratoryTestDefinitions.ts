@@ -436,11 +436,11 @@ export const CEMENT_SPECIFIC_GRAVITY_DEFINITION: LaboratoryTestDefinition<Cement
   applicableMaterialTypes: ["cement", "binder", "supplementary_cementitious_material"],
   description: "Determines cement density from mass and Le Chatelier flask displacement.",
   standard: {
-    organization: "EN",
-    code: "EN 196-6",
+    organization: "ASTM",
+    code: "C188",
     version: "configured by laboratory",
     status: "Draft",
-    source: "Laboratory configuration required before acceptance classification"
+    source: "ASTM C188 is a candidate cement-density method; confirm the adopted edition, complete procedure, apparatus, and liquid before official use."
   },
   inputs: [
     { key: "cementMassG", label: "Cement mass", unit: "g", required: true, numeric: true, min: 0.000001, dimension: "mass" },
@@ -670,8 +670,8 @@ export const AGGREGATE_CRUSHING_VALUE_DEFINITION: LaboratoryTestDefinition<Aggre
   names: { ar: "قيمة سحق الركام", fr: "Coefficient Los Angeles de concassage", en: "Aggregate Crushing Value" },
   category: "aggregates",
   applicableMaterialTypes: ["sand", "gravel", "aggregate", "recycled_aggregate", "lightweight_aggregate", "heavyweight_aggregate"],
-  description: "Determines the percentage of aggregate passing the specified sieve after the standardized crushing test.",
-  standard: { organization: "EN", code: "EN 1097-2", version: "configured by laboratory", status: "Draft", source: "Laboratory configuration required before acceptance classification" },
+  description: "Calculates the percentage of recorded aggregate mass passing a sieve; the ACV procedure must be configured and verified before official use.",
+  standard: { organization: "Other", code: "ACV_METHOD_SELECTION_REQUIRED", version: "configured by laboratory", status: "Draft", source: "EN 1097-2 addresses resistance to fragmentation, not a confirmed aggregate-crushing-value procedure for this implementation. Select and validate an adopted ACV method before official use; public candidate references include BS 812-110." },
   inputs: [
     { key: "initialMassG", label: "Initial aggregate mass", unit: "g", required: true, numeric: true, min: 0.000001, dimension: "mass" },
     { key: "crushedPassingMassG", label: "Crushed mass passing test sieve", unit: "g", required: true, numeric: true, min: 0, dimension: "mass" }
@@ -729,7 +729,7 @@ export const WATER_PH_DEFINITION: LaboratoryTestDefinition<WaterPhInput> = {
   },
   category: "water",
   applicableMaterialTypes: ["mixing_water", "water"],
-  description: "Records calibrated water pH and screens it against the EN 1008 working range.",
+  description: "Records a water pH measurement for diagnostic review; acceptance requires a configured standard edition and project criteria.",
   standard: {
     organization: "EN",
     code: "EN 1008 / ISO 10523",
@@ -761,7 +761,7 @@ export function runWaterPhPhase2(input: WaterPhInput) {
 export const AGGREGATE_IMPACT_VALUE_DEFINITION: LaboratoryTestDefinition<AggregateImpactValueInput> = {
   id: "AGG_IMPACT_VALUE_PHASE2", names: { ar: "قيمة صدم الركام", fr: "Valeur au choc des granulats", en: "Aggregate Impact Value" }, category: "aggregates",
   applicableMaterialTypes: ["sand", "gravel", "aggregate", "recycled_aggregate", "lightweight_aggregate", "heavyweight_aggregate"], description: "Determines aggregate resistance to impact fragmentation.",
-  standard: { organization: "EN", code: "EN 1097-2", version: "configured by laboratory", status: "Draft", source: "Laboratory configuration required before acceptance classification" },
+  standard: { organization: "Other", code: "AIV_METHOD_SELECTION_REQUIRED", version: "configured by laboratory", status: "Draft", source: "EN 1097-2 addresses resistance to fragmentation, not a confirmed aggregate-impact-value procedure for this implementation. Select and validate an adopted AIV method before official use; public references include BS 812-112 and IS 2386 Part IV." },
   inputs: [
     { key: "initialMassG", label: "Initial aggregate mass", unit: "g", required: true, numeric: true, min: 0.000001, dimension: "mass" },
     { key: "passingMassG", label: "Mass passing after impact", unit: "g", required: true, numeric: true, min: 0, dimension: "mass" }
@@ -783,14 +783,14 @@ export const CEMENT_HYDRATION_HEAT_DEFINITION: LaboratoryTestDefinition<CementHy
 export const AGGREGATE_ELONGATION_INDEX_DEFINITION: LaboratoryTestDefinition<AggregateElongationIndexInput> = {
   id: "AGG_ELONGATION_INDEX_PHASE2", names: { ar: "مؤشر استطالة حبيبات الركام", fr: "Indice d'allongement des granulats", en: "Aggregate Elongation Index" }, category: "aggregates",
   applicableMaterialTypes: ["sand", "gravel", "aggregate", "recycled_aggregate", "lightweight_aggregate", "heavyweight_aggregate"], description: "Determines the mass percentage of elongated aggregate particles.",
-  standard: { organization: "EN", code: "EN 933-3", version: "configured by laboratory", status: "Draft", source: "Laboratory configuration required before acceptance classification" },
+  standard: { organization: "Other", code: "ELONGATION_METHOD_SELECTION_REQUIRED", version: "configured by laboratory", status: "Draft", source: "EN 933-3 is the flakiness-index method, not a confirmed elongation-index procedure. Select one adopted elongation/particle-shape method and verify its measurement definition before official use; public candidates include IS 2386 Part I and ASTM D4791." },
   inputs: [{ key: "totalMassG", label: "Total sample mass", unit: "g", required: true, numeric: true, min: 0.000001, dimension: "mass" }, { key: "elongatedMassG", label: "Elongated particle mass", unit: "g", required: true, numeric: true, min: 0, dimension: "mass" }], resultUnit: "%", revision: 1, active: true, validateEngineering: data => validateAggregateElongationIndex(data).issues,
   calculate: data => { const result = calculateAggregateElongationIndex(data); if (!result) throw new Error("Elongation inputs are physically invalid."); return { result: result.elongationIndexPercent, unit: "%", trace: result.trace }; }
 };
 export const CEMENT_FALSE_SET_DEFINITION: LaboratoryTestDefinition<CementFalseSetInput> = {
   id: "CEM_FALSE_SET_PHASE2", names: { ar: "التصلب الكاذب للإسمنت", fr: "Fausse prise du ciment", en: "Cement False Set" }, category: "cement",
-  applicableMaterialTypes: ["cement", "binder"], description: "Screens loss of plasticity and recovery after standardized remixing.",
-  standard: { organization: "EN", code: "EN 196-3", version: "configured by laboratory", status: "Draft", source: "Laboratory configuration required before acceptance classification" },
+  applicableMaterialTypes: ["cement", "binder"], description: "Records penetration inputs for a diagnostic false-set screen; the adopted procedure and calculation require review.",
+  standard: { organization: "Other", code: "FALSE_SET_METHOD_REVIEW_REQUIRED", version: "configured by laboratory", status: "Draft", source: "The current recovery-percentage calculation has not been verified against a complete false-set procedure. ASTM C451 is a candidate reference, but select the adopted method and reconcile the formula before official use; EN 196-3 is not a confirmed false-set reference here." },
   inputs: [{ key: "initialPenetrationMm", label: "Initial Vicat penetration", unit: "mm", required: true, numeric: true, min: 0.000001, dimension: "length" }, { key: "remixedPenetrationMm", label: "Penetration after remixing", unit: "mm", required: true, numeric: true, min: 0, dimension: "length" }], resultUnit: "% recovery", revision: 1, active: true, validateEngineering: data => validateCementFalseSet(data).issues,
   calculate: data => { const result = calculateCementFalseSet(data); if (!result) throw new Error("False-set inputs are physically invalid."); return { result: result.recoveryPercent, unit: "%", trace: result.trace }; }
 };
@@ -798,7 +798,7 @@ export const CEMENT_FALSE_SET_DEFINITION: LaboratoryTestDefinition<CementFalseSe
 export const AGGREGATE_CLAY_LUMPS_DEFINITION: LaboratoryTestDefinition<AggregateClayLumpsInput> = {
   id: "AGG_CLAY_LUMPS_PHASE2", names: { ar: "كتل الطين والجزيئات الهشة في الركام", fr: "Mottes d'argile et particules friables", en: "Aggregate Clay Lumps" }, category: "aggregates",
   applicableMaterialTypes: ["sand", "gravel", "aggregate", "recycled_aggregate", "lightweight_aggregate", "heavyweight_aggregate"], description: "Determines clay lumps and friable particles as a percentage of dry aggregate mass.",
-  standard: { organization: "EN", code: "EN 933-9", version: "configured by laboratory", status: "Draft", source: "Laboratory configuration required before acceptance classification" },
+  standard: { organization: "ASTM", code: "C142/C142M", version: "configured by laboratory", status: "Draft", source: "ASTM C142/C142M is a candidate method for clay lumps and friable particles. Confirm the adopted edition and complete sample-preparation/procedure requirements before official use." },
   inputs: [{ key: "drySampleMassG", label: "Dry sample mass", unit: "g", required: true, numeric: true, min: 0.000001, dimension: "mass" }, { key: "clayLumpsMassG", label: "Clay lumps mass", unit: "g", required: true, numeric: true, min: 0, dimension: "mass" }], resultUnit: "%", revision: 1, active: true, validateEngineering: data => validateAggregateClayLumps(data).issues,
   calculate: data => { const result = calculateAggregateClayLumps(data); if (!result) throw new Error("Clay-lumps inputs are physically invalid."); return { result: result.clayLumpsPercent, unit: "%", trace: result.trace }; }
 };

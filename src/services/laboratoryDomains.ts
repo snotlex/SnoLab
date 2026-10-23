@@ -121,11 +121,37 @@ export function getLaboratoryDomain(domainId: LaboratoryDomainId): LaboratoryDom
   return LABORATORY_DOMAINS.find(domain => domain.id === domainId) || LABORATORY_DOMAINS[0];
 }
 
-export function inferLaboratoryDomain(value: { domainId?: LaboratoryDomainId; laboratoryArea?: "materials" | "concrete"; category?: string; testType?: string }): LaboratoryDomainId {
-  if (value.domainId) return value.domainId;
-  if (value.testType?.startsWith("FC_") || value.category === "workability" || value.category === "fresh_properties") return "fresh_concrete";
-  if (value.testType?.startsWith("HC_") || value.category === "hardened_mechanical") return "hardened_concrete";
+export interface LaboratoryRecordDomainInput {
+  domainId?: LaboratoryDomainId;
+  laboratoryArea?: "materials" | "concrete";
+  category?: string;
+  testType?: string;
+}
+
+export function isLaboratoryDomainId(value: unknown): value is LaboratoryDomainId {
+  return LABORATORY_DOMAINS.some(domain => domain.id === value);
+}
+
+export function inferLaboratoryDomain(value: LaboratoryRecordDomainInput): LaboratoryDomainId {
+  if (value.testType?.startsWith("GT_")) return "geotechnical";
+  if (value.testType?.startsWith("FC_")) return "fresh_concrete";
+  if (value.testType?.startsWith("HC_")) return "hardened_concrete";
+  if (isLaboratoryDomainId(value.domainId)) return value.domainId;
+  if (value.category === "workability" || value.category === "fresh_properties") return "fresh_concrete";
+  if (value.category === "hardened_mechanical") return "hardened_concrete";
   return "civil_materials";
+}
+
+export function normalizeLaboratoryRecordDomain<T extends LaboratoryRecordDomainInput>(record: T): T & { domainId: LaboratoryDomainId } {
+  return { ...record, domainId: inferLaboratoryDomain(record) };
+}
+
+export function normalizeLaboratoryRecordDomains<T extends LaboratoryRecordDomainInput>(records: readonly T[]): Array<T & { domainId: LaboratoryDomainId }> {
+  return records.map(normalizeLaboratoryRecordDomain);
+}
+
+export function filterLaboratoryRecordsByDomain<T extends LaboratoryRecordDomainInput>(records: readonly T[], domainId: LaboratoryDomainId): T[] {
+  return records.filter(record => inferLaboratoryDomain(record) === domainId);
 }
 
 export function inferLaboratorySessionDomain(session: Pick<LaboratorySession, "domainId" | "tests">): LaboratoryDomainId | undefined {

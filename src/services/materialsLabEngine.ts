@@ -353,10 +353,10 @@ export const MASTER_TEST_CATALOG: LabTestDefinition[] = [
     category: "cement",
     titleAr: "الكثافة الحقيقية للإسمنت (Le Chatelier)",
     titleFr: "Masse Volumique Absolue du Ciment",
-    titleEn: "Specific Gravity of Cement (Pycnometer)",
+    titleEn: "Density of Cement (Le Chatelier)",
     shortDescAr: "تحديد الوزن النوعي المطلق للإسمنت بواسطة قارورة لوشاتولييه وسائل الكيروسين.",
     shortDescEn: "Measurement of cement absolute density using Le Chatelier flask.",
-    standard: "NF EN 196-6 / ASTM C188",
+    standard: "ASTM C188 (candidate density method; adopted edition and procedure require laboratory configuration)",
     applicableMaterials: ["إسمنت", "Cement", "Binder"],
     icon: "🏺",
     unit: "g/cm³",
@@ -2013,7 +2013,7 @@ export function executeLaboratoryTest(
             {
               parameter: "درجة حموضة ماء الخلط (pH)",
               measured: "غير متوفر / مفقود",
-              limit: "≥ 5.0 (NF EN 1008 / ISO 10523)",
+              limit: "غير محدد — يلزم ضبط إصدار المعيار ومعيار قبول المشروع",
               status: "FAIL",
               note: "المدخلات المعملية مفقودة أو غير صالحة."
             }
@@ -2022,27 +2022,26 @@ export function executeLaboratoryTest(
         };
       }
 
-      const isPhGood = ph >= 5.0 && ph <= 8.5;
-      const status: TestStatus = isPhGood ? "PASS" : (ph >= 4.5 && ph <= 9.5) ? "WARNING" : "FAIL";
+      const status: TestStatus = "WARNING";
 
       const compliance: ComplianceDetail[] = [
         {
           parameter: "درجة حموضة ماء الخلط (pH)",
           measured: `pH = ${ph}`,
-          limit: "≥ 5.0 (NF EN 1008 / ISO 10523)",
+          limit: "غير محدد — يلزم ضبط إصدار المعيار ومعيار قبول المشروع",
           status,
-          note: isPhGood ? "ماء قلوي معتدل مثالي لسلامة الإسمنت وحديد التسليح" : "حموضة غير آمنة قد تسبب تآكل الكلس وتسريع الصدأ"
+          note: "قراءة pH محفوظة تشخيصيًا؛ لا يُستنتج القبول أو الرفض من دون طريقة وإصدار وحد قبول معتمدة."
         }
       ];
 
       return {
         results: {
           measuredPh: ph,
-          acidityLevel: ph < 6.5 ? "حامضي خفيف" : ph > 8.0 ? "قلوي معتدل" : "متعادل مثالي"
+          acidityLevel: ph < 6.5 ? "حامضي" : ph > 8.0 ? "قلوي" : "قريب من التعادل"
         },
         status,
-        score: status === "PASS" ? 98 : status === "WARNING" ? 75 : 20,
-        interpretation: `درجة الحموضة pH = ${ph} تقع ضمن المجال المعياري المطابق للمواصفة الأوروبية NF EN 1008، ما يضمن إماهة سليمة وحماية كهروميكانيكية لحديد التسليح.`,
+        score: 75,
+        interpretation: `قراءة pH = ${ph} محفوظة للتقييم التشخيصي فقط؛ يجب تحديد إصدار المعيار وحد القبول المعتمدين قبل إصدار حكم مطابقة.`,
         complianceDetails: compliance,
         syncedProperties: {
           waterPh: ph
@@ -2052,8 +2051,7 @@ export function executeLaboratoryTest(
 
     case "WATER_CHLORIDES": {
       const cl = inputs.chloridesMgPerL;
-      const app = inputs.concreteApplication || "reinforced";
-      const limit = app === "prestressed" ? 500 : app === "reinforced" ? 1000 : 4500;
+      const app = inputs.concreteApplication as string | undefined;
 
       if (cl === undefined || isNaN(cl) || cl < 0) {
         return {
@@ -2065,7 +2063,7 @@ export function executeLaboratoryTest(
             {
               parameter: "تركيز أيونات الكلوريد (Cl- Concentration)",
               measured: "غير متوفر / مفقود",
-              limit: `≤ ${limit} mg/L`,
+              limit: "غير محدد — يلزم ضبط طريقة القياس ومعيار القبول وفئة الاستخدام",
               status: "FAIL",
               note: "المدخلات المعملية مفقودة أو غير صالحة."
             }
@@ -2074,27 +2072,26 @@ export function executeLaboratoryTest(
         };
       }
 
-      const isClGood = cl <= limit;
-      const status: TestStatus = isClGood ? "PASS" : "FAIL";
+      const status: TestStatus = "WARNING";
 
       const compliance: ComplianceDetail[] = [
         {
           parameter: `تركيز أيونات الكلوريد (Cl- Concentration)`,
           measured: `${cl} mg/L`,
-          limit: `≤ ${limit} mg/L (تطبيق: ${app === 'reinforced' ? 'خرسانة مسلحة' : app === 'prestressed' ? 'سابقة الإجهاد' : 'خرسانة كتلية'})`,
+          limit: "غير محدد — يلزم ضبط طريقة القياس ومعيار القبول وفئة الاستخدام",
           status,
-          note: isClGood ? "تركيز آمن جداً ولا يشكل أي خطر لصدأ التسليح" : "تركيز كلوريدات مرتفع يمنع استخدامه في المنشآت الإنشائية"
+          note: "التركيز محفوظ تشخيصيًا؛ تختلف الحدود حسب إصدار المعيار وفئة الخرسانة ومصدر الكلوريد."
         }
       ];
 
       return {
         results: {
           chloridesMgL: cl,
-          complianceLimit: limit
+          concreteApplication: app || "غير محدد"
         },
         status,
-        score: isClGood ? 98 : 30,
-        interpretation: `محتوى الكلوريدات ${cl} mg/L مطابق تماماً للحد الأقصى المسموح (${limit} mg/L) وفقاً لـ NF EN 1008.`,
+        score: 75,
+        interpretation: `تركيز الكلوريدات ${cl} mg/L محفوظ للتقييم التشخيصي فقط؛ لم يُطبّق حد قبول تلقائي.`,
         complianceDetails: compliance,
         syncedProperties: {
           chloridesMgL: cl
@@ -2104,7 +2101,6 @@ export function executeLaboratoryTest(
 
     case "WATER_SULFATES": {
       const so4 = inputs.sulfatesMgPerL;
-      const limit = 2000.0;
 
       if (so4 === undefined || isNaN(so4) || so4 < 0) {
         return {
@@ -2116,7 +2112,7 @@ export function executeLaboratoryTest(
             {
               parameter: "تركيز أيونات الكبريتات (SO4 2-)",
               measured: "غير متوفر / مفقود",
-              limit: "≤ 2000 mg/L (NF EN 1008)",
+              limit: "غير محدد — يلزم ضبط إصدار المعيار وطريقة القياس وحد المشروع",
               status: "FAIL",
               note: "المدخلات المعملية مفقودة أو غير صالحة."
             }
@@ -2125,16 +2121,15 @@ export function executeLaboratoryTest(
         };
       }
 
-      const isSo4Good = so4 <= limit;
-      const status: TestStatus = isSo4Good ? "PASS" : "FAIL";
+      const status: TestStatus = "WARNING";
 
       const compliance: ComplianceDetail[] = [
         {
           parameter: "تركيز أيونات الكبريتات (SO4 2-)",
           measured: `${so4} mg/L`,
-          limit: "≤ 2000 mg/L (NF EN 1008)",
+          limit: "غير محدد — يلزم ضبط إصدار المعيار وطريقة القياس وحد المشروع",
           status,
-          note: isSo4Good ? "تركيز كبريتات آمن يمنع التفاعلات الكبريتية الضارة" : "يتجاوز الحد المسموح"
+          note: "التركيز محفوظ تشخيصيًا؛ يلزم التحقق من الإصدار وطريقة القياس وحد المشروع قبل إصدار حكم قبول."
         }
       ];
 
@@ -2143,8 +2138,8 @@ export function executeLaboratoryTest(
           sulfatesMgL: so4
         },
         status,
-        score: isSo4Good ? 98 : 30,
-        interpretation: `محتوى الكبريتات ${so4} mg/L مطابق للمواصفة القياسية NF EN 1008.`,
+        score: 75,
+        interpretation: `تركيز الكبريتات ${so4} mg/L محفوظ للتقييم التشخيصي فقط؛ لم يُطبّق حد قبول تلقائي.`,
         complianceDetails: compliance,
         syncedProperties: {
           sulfatesMgL: so4
@@ -2166,7 +2161,7 @@ export function executeLaboratoryTest(
             {
               parameter: "المواد الصلبة المنحلة الكلية (TDS)",
               measured: "غير متوفر / مفقود",
-              limit: "≤ 2000 mg/L (NF EN 1008)",
+              limit: "غير محدد — لا يُسند حد TDS عام إلى EN 1008 في المراجع المتاحة",
               status: "FAIL",
               note: "المدخلات المعملية مفقودة أو غير صالحة."
             }
@@ -2175,24 +2170,22 @@ export function executeLaboratoryTest(
         };
       }
 
-      const isTdsGood = tds <= 2000.0;
-      const isTssGood = tss <= 2000.0;
-      const status: TestStatus = (isTdsGood && isTssGood) ? "PASS" : "WARNING";
+      const status: TestStatus = "WARNING";
 
       const compliance: ComplianceDetail[] = [
         {
           parameter: "المواد الصلبة المنحلة الكلية (TDS)",
           measured: `${tds} mg/L`,
-          limit: "≤ 2000 mg/L (NF EN 1008)",
-          status: isTdsGood ? "PASS" : "FAIL",
-          note: "أملاح معدنية متوازنة"
+          limit: "غير محدد — لا يُسند حد TDS عام إلى EN 1008 في المراجع المتاحة",
+          status,
+          note: "تُحفظ قراءة TDS للتقييم التشخيصي؛ لا يصدر قبول أو رفض تلقائي."
         },
         {
           parameter: "المواد الصلبة العالقة (TSS)",
           measured: `${tss} mg/L`,
-          limit: "≤ 2000 mg/L",
-          status: isTssGood ? "PASS" : "WARNING",
-          note: "ماء صافٍ وخالٍ من الطمي والشوائب العضوية"
+          limit: "غير محدد — يلزم تحديد طريقة قياس العوالق وحد المشروع ووحدته",
+          status,
+          note: "تُحفظ قراءة TSS للتقييم التشخيصي؛ لا يصدر قبول أو رفض تلقائي."
         }
       ];
 
@@ -2202,8 +2195,8 @@ export function executeLaboratoryTest(
           tssMgL: tss
         },
         status,
-        score: 96,
-        interpretation: `ماء الخلط نقي ومطابق لشروط المواصفة NF EN 1008.`,
+        score: 75,
+        interpretation: "قِيَم TDS وTSS محفوظة للتقييم التشخيصي فقط؛ لا يُطبّق حد 2000 mg/L غير الموثق على أي منهما.",
         complianceDetails: compliance,
         syncedProperties: {
           tdsMgL: tds

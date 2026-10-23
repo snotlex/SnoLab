@@ -26,6 +26,8 @@ import {
 } from "lucide-react";
 import { EngineeringMaterial } from "../../types";
 import { MaterialTestRecord } from "../../types/laboratoryTypes";
+import type { LaboratoryDomainId } from "../../types/laboratoryDomain";
+import { filterLaboratoryRecordsByDomain } from "../../services/laboratoryDomains";
 import { downloadMaterialDossierPdf } from "../../services/pdf";
 
 interface MaterialComprehensiveReportModalProps {
@@ -35,6 +37,7 @@ interface MaterialComprehensiveReportModalProps {
   tests: MaterialTestRecord[];
   onRunTestForMaterial?: (material: EngineeringMaterial, testId?: string) => void;
   language?: "ar" | "fr" | "en";
+  domainId: LaboratoryDomainId;
 }
 
 export const MaterialComprehensiveReportModal: React.FC<MaterialComprehensiveReportModalProps> = ({
@@ -43,7 +46,8 @@ export const MaterialComprehensiveReportModal: React.FC<MaterialComprehensiveRep
   material,
   tests = [],
   onRunTestForMaterial,
-  language = "ar"
+  language = "ar",
+  domainId
 }) => {
   const [isExportingPdf, setIsExportingPdf] = useState<boolean>(false);
   const [expandedTestId, setExpandedTestId] = useState<string | null>(null);
@@ -52,7 +56,7 @@ export const MaterialComprehensiveReportModal: React.FC<MaterialComprehensiveRep
   if (!isOpen || !material) return null;
 
   // Filter all tests conducted on this material
-  const materialTests = tests.filter(
+  const materialTests = filterLaboratoryRecordsByDomain(tests, domainId).filter(
     t => t.materialId === material.id || 
          (t.materialName && material.name && t.materialName.toLowerCase().includes(material.name.toLowerCase()))
   );

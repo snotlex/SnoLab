@@ -25,7 +25,8 @@ export function calculateWaterPh(input: WaterPhInput): WaterPhOutput | undefined
   if (input.waterTemperatureC !== undefined && (!Number.isFinite(input.waterTemperatureC) || input.waterTemperatureC < 0 || input.waterTemperatureC > 60)) issues.push(error("INVALID_WATER_TEMPERATURE", "Water temperature must be between 0 and 60 °C when recorded.", "waterTemperatureC"));
   if (issues.length) return undefined;
   if (input.waterTemperatureC !== undefined && (input.waterTemperatureC < 15 || input.waterTemperatureC > 30)) issues.push(warning("TEMPERATURE_OUTSIDE_PH_REFERENCE", "Water temperature is outside the 15–30 °C reference band; record the instrument compensation condition." , "waterTemperatureC"));
-  const classification = input.measuredPh >= 5 && input.measuredPh <= 8.5 ? "Pass" : input.measuredPh >= 4.5 && input.measuredPh <= 9.5 ? "Warning" : "Fail";
+  issues.push(warning("ACCEPTANCE_CRITERIA_NOT_CONFIGURED", "The pH reading is recorded diagnostically; configure the adopted water standard, edition, and project acceptance criteria before assigning pass/fail."));
+  const classification = "Warning" as const;
   const trace: CalculationTraceStep[] = [
     { stepNumber: 1, label: "Measured water pH", formula: "direct calibrated pH-meter reading", substitution: `${input.measuredPh}`, result: input.measuredPh, unit: "pH", inputs: { measuredPh: input.measuredPh, waterTemperatureC: input.waterTemperatureC } }
   ];
