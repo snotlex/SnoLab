@@ -10,7 +10,7 @@ import {
 import { EngineeringMaterial } from "../types";
 import { assertCatalogTestScope } from "./laboratoryScopeGovernance";
 import { validateTestMaterialCompatibility, compatibilityMessage } from "./laboratoryMaterialCompatibility";
-import { executeConcreteLegacyTest } from "./concreteLaboratoryEngine";
+import { executeConcreteLegacyTest } from "./concreteLegacyAdapter";
 import type { TestExecutionResult } from "./laboratoryExecutionTypes";
 export type { TestExecutionResult } from "./laboratoryExecutionTypes";
 

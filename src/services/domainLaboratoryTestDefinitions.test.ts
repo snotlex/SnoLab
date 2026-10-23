@@ -1,10 +1,21 @@
 import { describe, expect, it } from "vitest";
 import { calculateSoilSieve, validateProctorInput, validateSoilSieveInput } from "./geotechnicalTestEngine";
 import { calculateFreshConcreteSlump, calculateFreshConcreteTemperature, validateFreshConcreteSlumpInput } from "./freshConcreteTestEngine";
-import { DOMAIN_LABORATORY_TEST_DEFINITIONS, GT_PROCTOR_DEFINITION } from "./domainLaboratoryTestDefinitions";
+import { CONCRETE_DOMAIN_TEST_DEFINITIONS, DOMAIN_LABORATORY_TEST_DEFINITIONS, GT_PROCTOR_DEFINITION } from "./domainLaboratoryTestDefinitions";
 import { evaluateAcceptance } from "./laboratoryAcceptanceEngine";
 
 describe("domain laboratory diagnostic engines", () => {
+  it("keeps the concrete and geotechnical domain definitions distinct and uniquely registered", () => {
+    expect(CONCRETE_DOMAIN_TEST_DEFINITIONS.map(definition => definition.id)).toEqual([
+      "FC_SLUMP",
+      "FC_TEMPERATURE",
+      "HC_COMPRESSIVE_STRENGTH",
+      "HC_SPLIT_TENSILE"
+    ]);
+    expect(DOMAIN_LABORATORY_TEST_DEFINITIONS.filter(definition => definition.domainId === "geotechnical")).toHaveLength(2);
+    expect(new Set(DOMAIN_LABORATORY_TEST_DEFINITIONS.map(definition => definition.id)).size).toBe(DOMAIN_LABORATORY_TEST_DEFINITIONS.length);
+  });
+
   it("calculates soil passing percentages and exposes mass-balance error", () => {
     const result = calculateSoilSieve({ totalSampleMassG: 1000, rows: [{ sieveMm: 2, retainedMassG: 200 }, { sieveMm: 0.063, retainedMassG: 700 }, { sieveMm: 0, retainedMassG: 100 }] });
     expect(result.rows[0].percentPassing).toBe(80);
