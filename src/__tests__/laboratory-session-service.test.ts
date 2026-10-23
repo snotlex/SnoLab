@@ -30,6 +30,19 @@ describe("Laboratory multi-test session service", () => {
     expect(validateLaboratorySession(session).valid).toBe(true);
   });
 
+  it("preserves the laboratory domain when governance snapshots are supplied", () => {
+    const session = createLaboratorySession({
+      domainId: "fresh_concrete",
+      requestNumber: "LAB-FRESH-GOVERNED",
+      governance: {
+        standardSnapshot: { id: "STD-1", organization: "EN", code: "EN 12350-2", version: "2026", status: "Active" },
+        equipmentIds: ["EQ-1"],
+        equipmentCalibrationSnapshots: [{ id: "EQ-1", equipmentId: "EQ-1", status: "Active" }]
+      }
+    });
+    expect(session.domainId).toBe("fresh_concrete");
+  });
+
   it("rejects duplicate sample and replicate identifiers", () => {
     let session = addSessionSample(createLaboratorySession(), baseSample);
     expect(() => addSessionSample(session, baseSample)).toThrow(/Duplicate sample/);

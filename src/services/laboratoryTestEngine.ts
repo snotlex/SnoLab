@@ -221,6 +221,7 @@ export function executeDefinedLaboratoryTest<TData extends Record<string, unknow
       operator: params.operator,
       rawData: params.rawData,
       calculationTrace: calculation.trace,
+      ...(calculation.details !== undefined ? { calculationDetails: calculation.details } : {}),
       equipmentCalibrationSnapshot,
       result: { value: calculation.result, unit: calculation.unit || definition.resultUnit },
       validation,

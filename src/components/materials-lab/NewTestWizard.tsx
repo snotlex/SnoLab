@@ -50,6 +50,8 @@ import { createSieveMaterialUpdateProposals, createSpecificGravityMaterialUpdate
 import { runAggregateSpecificGravityPhase2, runAggregateBulkDensityPhase2, runAggregateMoisturePhase2, runSandEquivalentPhase2, runSandBulkingPhase2, runLosAngelesPhase2, runMicroDevalPhase2, runFlakinessPhase2, runMethyleneBluePhase2, runCementSpecificGravityPhase2, runBlaineFinenessPhase2, runCementSettingTimePhase2, runCementSoundnessPhase2, runCementMortarStrengthPhase2, runCementNormalConsistencyPhase2 } from "../../services/laboratoryTestDefinitions";
 import { getCompatibleMaterials, validateTestMaterialCompatibility, compatibilityMessage } from "../../services/laboratoryMaterialCompatibility";
 import { createBlankLaboratoryInputs, getLaboratoryFieldLabel, getLaboratoryFieldUnit, localizeLaboratoryIssue, validateLaboratoryInputs } from "../../services/laboratoryInputValidation";
+import { catalogDefinitionDomain } from "../../services/laboratoryDomains";
+import type { LaboratoryDomainId } from "../../types/laboratoryDomain";
 
 interface NewTestWizardProps {
   isOpen: boolean;
@@ -60,6 +62,7 @@ interface NewTestWizardProps {
   initialMaterialId?: string;
   initialDraft?: MaterialTestRecord | null;
   existingTestRecords?: MaterialTestRecord[];
+  allowedDomainId?: LaboratoryDomainId;
   onNavigateToMaterialsLibrary?: () => void;
   onSaveTest: (testRecord: MaterialTestRecord, syncedProps: Record<string, any>) => void;
   language?: "ar" | "fr" | "en";
@@ -86,6 +89,7 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
   initialMaterialId,
   initialDraft,
   existingTestRecords = [],
+  allowedDomainId,
   onNavigateToMaterialsLibrary,
   onSaveTest,
   language = "ar"
@@ -105,6 +109,11 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
   const [matSearchQuery, setMatSearchQuery] = useState<string>("");
   const [matCategoryFilter, setMatCategoryFilter] = useState<string>("all");
   const [testSearchQuery, setTestSearchQuery] = useState<string>("");
+
+  const availableCatalog = useMemo(
+    () => allowedDomainId ? MASTER_TEST_CATALOG.filter(test => catalogDefinitionDomain(test) === allowedDomainId) : MASTER_TEST_CATALOG,
+    [allowedDomainId]
+  );
   
   // Test Metadata
   const [sampleId, setSampleId] = useState<string>(initialDraft?.sampleId || "");
@@ -119,8 +128,8 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
 
   // Test Definition
   const currentTestDef = useMemo(() => {
-    return MASTER_TEST_CATALOG.find(t => t.id === selectedTestDefId) || MASTER_TEST_CATALOG[0];
-  }, [selectedTestDefId]);
+    return availableCatalog.find(t => t.id === selectedTestDefId) || availableCatalog[0] || MASTER_TEST_CATALOG[0];
+  }, [availableCatalog, selectedTestDefId]);
 
   // Selected Material (Any material from the library)
   const currentMaterial = useMemo(() => materials.find(m => m.id === selectedMaterialId), [materials, selectedMaterialId]);
@@ -194,7 +203,7 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
 
   // Filter tests by category and search
   const filteredTests = useMemo(() => {
-    return MASTER_TEST_CATALOG.filter(t => {
+    return availableCatalog.filter(t => {
       if (selectedCategory !== "all" && t.category !== selectedCategory) return false;
       if (testSearchQuery.trim()) {
         const q = testSearchQuery.toLowerCase();
@@ -205,7 +214,7 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
       }
       return true;
     });
-  }, [selectedCategory, testSearchQuery]);
+  }, [availableCatalog, selectedCategory, testSearchQuery]);
 
   // Filter materials for picker
   const filteredMaterials = useMemo(() => {
@@ -672,6 +681,7 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
   const handleSave = () => {
     if (!hasRun || inputIssues.length > 0 || getSampleIssues().length > 0 || !currentMaterial || !compatibility.compatible) return;
     const testRecordId = initialDraft?.id || `TEST-${currentTestDef.category.toUpperCase().slice(0, 3)}-${Date.now().toString().slice(-6)}`;
+    const currentTestDomain = catalogDefinitionDomain(currentTestDef);
     const updateProposals = isBlockedOrFailed(calculationResult.status) ? [] : selectedTestDefId === "AGG_SIEVE" && sievePhase2Result
       ? createSieveMaterialUpdateProposals({
           material: currentMaterial,
@@ -777,7 +787,8 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
       testTitleFr: currentTestDef.titleFr,
       testTitleEn: currentTestDef.titleEn,
       category: currentTestDef.category,
-      laboratoryArea: "materials",
+      domainId: currentTestDomain,
+      laboratoryArea: currentTestDomain === "fresh_concrete" || currentTestDomain === "hardened_concrete" ? "concrete" : "materials",
       materialId: currentMaterial.id,
       materialName: currentMaterial.name,
       materialCategory: currentMaterial.category,
@@ -878,7 +889,7 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
                 }`}
               >
                 <span className="text-lg">🧪</span>
-                <span className="text-xs font-bold truncate">{labText(language, "جميع الاختبارات (28)", "Tous les essais (28)", "All tests (28)")}</span>
+                  <span className="text-xs font-bold truncate">{labText(language, `جميع الاختبارات (${availableCatalog.length})`, `Tous les essais (${availableCatalog.length})`, `All tests (${availableCatalog.length})`)}</span>
               </button>
 
               {(Object.keys(LAB_CATEGORIES_INFO) as LabCategory[]).map(catKey => {
@@ -890,7 +901,7 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
                     type="button"
                     onClick={() => {
                       setSelectedCategory(catKey);
-                      const firstTestInCat = MASTER_TEST_CATALOG.find(t => t.category === catKey);
+                      const firstTestInCat = availableCatalog.find(t => t.category === catKey);
                       if (firstTestInCat) {
                         handleSelectTest(firstTestInCat);
                       }
@@ -939,7 +950,7 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
               <select
                 value={selectedTestDefId}
                 onChange={(e) => {
-                  const found = MASTER_TEST_CATALOG.find(t => t.id === e.target.value);
+                  const found = availableCatalog.find(t => t.id === e.target.value);
                   if (found) handleSelectTest(found);
                 }}
                 className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-blue-500 focus:outline-none"

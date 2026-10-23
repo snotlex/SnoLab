@@ -17,7 +17,7 @@ import {
   SessionTestRunner,
   TEST_STATUS_TO_SESSION_STATUS
 } from "../types/laboratorySessionTypes";
-import type { LaboratoryIdentity } from "../types/laboratoryDomain";
+import type { LaboratoryIdentity, LaboratoryTestRun } from "../types/laboratoryDomain";
 import { evaluateLaboratorySessionGovernance } from "./laboratorySessionGovernance";
 
 const nowIso = () => new Date().toISOString();
@@ -162,7 +162,7 @@ export function recordLaboratoryTestResult(
   session: LaboratorySession,
   testId: string,
   replicateId: string,
-  result: { status: LaboratorySessionTestStatus; results?: MaterialTestRecord["results"]; score?: number; interpretation?: string; complianceDetails?: MaterialTestRecord["complianceDetails"] },
+  result: { status: LaboratorySessionTestStatus; results?: MaterialTestRecord["results"]; score?: number; numericResult?: number; domainRun?: LaboratoryTestRun<Record<string, unknown>>; interpretation?: string; complianceDetails?: MaterialTestRecord["complianceDetails"] },
   actor = "operator"
 ): LaboratorySession {
   const target = session.tests.find(test => test.id === testId);
@@ -175,17 +175,51 @@ export function recordLaboratoryTestResult(
     completedAt: nowIso(),
     completionPercent: 100,
     result: result.results,
+    ...(result.domainRun ? { domainRun: result.domainRun } : {}),
     notes: result.interpretation,
     replicates: test.replicates.map(replicate => replicate.id !== replicateId ? replicate : {
       ...replicate,
       status: valid ? "VALID" as const : "INVALID" as const,
       result: result.results,
-      numericResult: typeof result.score === "number" ? result.score : replicate.numericResult,
+      numericResult: typeof result.numericResult === "number" ? result.numericResult : typeof result.score === "number" ? result.score : replicate.numericResult,
+      ...(result.domainRun ? { domainRun: result.domainRun } : {}),
       completedAt: nowIso()
     }),
-    resultSummary: summarizeReplicates({ ...test, replicates: test.replicates.map(replicate => replicate.id !== replicateId ? replicate : { ...replicate, status: valid ? "VALID" as const : "INVALID" as const, numericResult: typeof result.score === "number" ? result.score : replicate.numericResult }) })
+    resultSummary: summarizeReplicates({ ...test, replicates: test.replicates.map(replicate => replicate.id !== replicateId ? replicate : { ...replicate, status: valid ? "VALID" as const : "INVALID" as const, numericResult: typeof result.numericResult === "number" ? result.numericResult : typeof result.score === "number" ? result.score : replicate.numericResult }) })
   });
   return touch({ ...session, tests, status: summarizeLaboratorySession({ ...session, tests }).status }, audit("TEST_RESULT_RECORDED", "test", testId, actor, result.interpretation, target, tests.find(test => test.id === testId)));
+}
+
+/** Persist a complete geotechnical LaboratoryTestRun without converting it to a legacy MaterialTestRecord. */
+export function recordGeotechnicalTestRun(
+  session: LaboratorySession,
+  testId: string,
+  replicateId: string,
+  run: LaboratoryTestRun<Record<string, unknown>>,
+  actor = "operator"
+): LaboratorySession {
+  const test = session.tests.find(item => item.id === testId);
+  if (session.domainId !== "geotechnical" || test?.domainId !== "geotechnical" || run.domainId !== "geotechnical") {
+    throw new Error("GEOTECHNICAL_SESSION_DOMAIN_MISMATCH");
+  }
+  if (!test || test.testType !== run.testDefinitionId || test.sampleId !== run.sampleId) {
+    throw new Error("GEOTECHNICAL_RUN_SESSION_REFERENCE_MISMATCH");
+  }
+  const sessionStatus: LaboratorySessionTestStatus = run.status === "Calculated" || run.status === "Warning" || run.status === "Under Review"
+    ? "WARNING"
+    : "BLOCKED";
+  const primaryValue = run.result?.value;
+  const numericResult = typeof primaryValue === "number" && Number.isFinite(primaryValue) ? primaryValue : undefined;
+  const interpretation = sessionStatus === "WARNING"
+    ? "Diagnostic calculation recorded. Acceptance is not assessed; the registered method remains draft/review-only."
+    : "Geotechnical calculation is invalid or blocked. No result is approved for acceptance or material sync.";
+  return recordLaboratoryTestResult(session, testId, replicateId, {
+    status: sessionStatus,
+    results: { value: primaryValue, unit: run.result?.unit },
+    numericResult,
+    domainRun: run,
+    interpretation
+  }, actor);
 }
 
 function validReplicates(test: LaboratorySessionTestItem): LaboratoryReplicate[] {

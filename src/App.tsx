@@ -859,10 +859,13 @@ export default function App() {
   }, []);
 
   const handleSaveTestRecord = (testRecord: MaterialTestRecord, _syncedProps?: Record<string, any>) => {
-    const isFreshConcreteExecution = testRecord.testType === "FC_SLUMP" || testRecord.testType === "FC_TEMPERATURE";
-    const isHardenedConcreteExecution = testRecord.testType === "HC_COMPRESSIVE_STRENGTH" || testRecord.testType === "HC_SPLIT_TENSILE";
+    const legacyFreshConcreteId = testRecord.testType === "FC_SLUMP" || testRecord.testType === "FC_TEMPERATURE";
+    const legacyHardenedConcreteId = testRecord.testType === "HC_COMPRESSIVE_STRENGTH" || testRecord.testType === "HC_SPLIT_TENSILE";
+    const resolvedDomain = testRecord.domainId || (legacyFreshConcreteId ? "fresh_concrete" : legacyHardenedConcreteId ? "hardened_concrete" : "civil_materials");
+    const isFreshConcreteExecution = resolvedDomain === "fresh_concrete";
+    const isHardenedConcreteExecution = resolvedDomain === "hardened_concrete";
     const concreteDomain = isHardenedConcreteExecution ? "hardened_concrete" : "fresh_concrete";
-    const recordWithDomain = { ...testRecord, domainId: testRecord.domainId || (isFreshConcreteExecution || isHardenedConcreteExecution ? concreteDomain : "civil_materials") };
+    const recordWithDomain = { ...testRecord, domainId: resolvedDomain };
     let linkedRecord = recordWithDomain;
     if ((isFreshConcreteExecution || isHardenedConcreteExecution) && ["PASS", "WARNING", "FAIL", "BLOCKED"].includes(testRecord.status) && activeProjectId && activeProject) {
       const existingSessions = activeProject.laboratorySessions || [];

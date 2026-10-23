@@ -1,9 +1,20 @@
 import type { LabCategory, LabTestDefinition, MaterialTestRecord } from "../types/laboratoryTypes";
 import type { LaboratoryDomainId } from "../types/laboratoryDomain";
+import type { LaboratorySession } from "../types/laboratorySessionTypes";
 import { OFFICIAL_CONCRETE_TEST_REGISTRY } from "./concreteLaboratoryRegistry";
 
 export type LaboratoryMaturity = "implemented" | "verified" | "planned" | "not_configured";
 export type LaboratoryPortalTab = "catalog" | "samples" | "sessions" | "results" | "equipment";
+export type LaboratoryWorkspaceId = "civil_materials" | "geotechnical" | "concrete";
+
+export interface LaboratoryWorkspaceDefinition {
+  id: LaboratoryWorkspaceId;
+  domainIds: readonly LaboratoryDomainId[];
+  label: { ar: string; en: string; fr: string };
+  description: { ar: string; en: string; fr: string };
+  accent: string;
+  icon: string;
+}
 
 export interface LaboratoryDomainDefinition {
   id: LaboratoryDomainId;
@@ -21,7 +32,7 @@ export const LABORATORY_DOMAINS: readonly LaboratoryDomainDefinition[] = [
     id: "civil_materials",
     label: { ar: "\u0645\u062e\u062a\u0628\u0631 \u0645\u0648\u0627\u062f \u0627\u0644\u0647\u0646\u062f\u0633\u0629 \u0627\u0644\u0645\u062f\u0646\u064a\u0629", en: "Civil Engineering Materials", fr: "Matériaux de génie civil" },
     shortLabel: { ar: "\u0645\u0648\u0627\u062f \u0645\u062f\u0646\u064a\u0629", en: "Civil materials", fr: "Matériaux civils" },
-    description: { ar: "\u0631\u0643\u0627\u0645\u060c \u0625\u0633\u0645\u0646\u062a\u060c \u0645\u0627\u0621\u060c \u0625\u0636\u0627\u0641\u0627\u062a\u060c \u0623\u0644\u064a\u0627\u0641\u060c \u0648\u062e\u0631\u0633\u0627\u0646\u0629 \u0645\u062a\u0635\u0644\u062f\u0629 \u0636\u0645\u0646 \u0627\u0644\u0643\u062a\u0627\u0644\u0648\u062c \u0627\u0644\u062d\u0627\u0644\u064a.", en: "Aggregates, cement, water, admixtures, fibers and hardened concrete in the current catalog.", fr: "Granulats, ciment, eau, adjuvants, fibres et béton durci du catalogue actuel." },
+    description: { ar: "\u0631\u0643\u0627\u0645\u060c \u0625\u0633\u0645\u0646\u062a\u060c \u0645\u0627\u0621\u060c \u0625\u0636\u0627\u0641\u0627\u062a \u0648\u0623\u0644\u064a\u0627\u0641 \u0645\u0648\u0627\u062f \u0627\u0644\u0628\u0646\u0627\u0621.", en: "Aggregate, cement, water, admixture and fiber material tests.", fr: "Essais des granulats, du ciment, de l'eau, des adjuvants et des fibres." },
     accent: "#2563eb",
     icon: "◈",
     categories: ["aggregates", "cement", "water", "admixtures", "additives", "fibers"],
@@ -67,13 +78,67 @@ export const LABORATORY_DOMAINS: readonly LaboratoryDomainDefinition[] = [
   }
 ];
 
+/**
+ * User-facing laboratories. The concrete workspace deliberately groups the
+ * existing fresh/hardened domain IDs instead of rewriting persisted IDs.
+ */
+export const LABORATORY_WORKSPACES: readonly LaboratoryWorkspaceDefinition[] = [
+  {
+    id: "civil_materials",
+    domainIds: ["civil_materials"],
+    label: { ar: "مختبر مواد الهندسة المدنية", en: "Civil Engineering Materials Laboratory", fr: "Laboratoire des matériaux de génie civil" },
+    description: { ar: "اختبارات الإسمنت والركام والماء والإضافات والألياف ومواد البناء.", en: "Testing cement, aggregates, water, admixtures, fibers and construction materials.", fr: "Essais du ciment, des granulats, de l'eau, des adjuvants, des fibres et des matériaux de construction." },
+    accent: "#2563eb",
+    icon: "◈"
+  },
+  {
+    id: "geotechnical",
+    domainIds: ["geotechnical"],
+    label: { ar: "مختبر الجيوتقني", en: "Geotechnical Laboratory", fr: "Laboratoire de géotechnique" },
+    description: { ar: "اختبارات التربة والتعرف والدمك والمقاومة والنفاذية.", en: "Soil identification, compaction, strength and permeability testing.", fr: "Identification, compactage, résistance et perméabilité des sols." },
+    accent: "#7c3aed",
+    icon: "◇"
+  },
+  {
+    id: "concrete",
+    domainIds: ["fresh_concrete", "hardened_concrete"],
+    label: { ar: "مختبر الخرسانة الطازجة والمتصلدة", en: "Fresh and Hardened Concrete Laboratory", fr: "Laboratoire du béton frais et durci" },
+    description: { ar: "مختبر واحد بقسمين مستقلين: الخرسانة الطازجة والخرسانة المتصلدة.", en: "One laboratory with separate fresh-concrete and hardened-concrete sections.", fr: "Un laboratoire avec deux sections distinctes : béton frais et béton durci." },
+    accent: "#0f766e",
+    icon: "▣"
+  }
+];
+
+export function getLaboratoryWorkspaceId(domainId: LaboratoryDomainId): LaboratoryWorkspaceId {
+  return LABORATORY_WORKSPACES.find(workspace => workspace.domainIds.includes(domainId))?.id || "civil_materials";
+}
+
+export function getLaboratoryWorkspace(workspaceId: LaboratoryWorkspaceId): LaboratoryWorkspaceDefinition {
+  return LABORATORY_WORKSPACES.find(workspace => workspace.id === workspaceId) || LABORATORY_WORKSPACES[0];
+}
+
 export function getLaboratoryDomain(domainId: LaboratoryDomainId): LaboratoryDomainDefinition {
   return LABORATORY_DOMAINS.find(domain => domain.id === domainId) || LABORATORY_DOMAINS[0];
 }
 
-export function inferLaboratoryDomain(value: Pick<MaterialTestRecord, "domainId" | "laboratoryArea" | "category"> | { domainId?: LaboratoryDomainId; category?: string }): LaboratoryDomainId {
+export function inferLaboratoryDomain(value: { domainId?: LaboratoryDomainId; laboratoryArea?: "materials" | "concrete"; category?: string; testType?: string }): LaboratoryDomainId {
   if (value.domainId) return value.domainId;
+  if (value.testType?.startsWith("FC_") || value.category === "workability" || value.category === "fresh_properties") return "fresh_concrete";
+  if (value.testType?.startsWith("HC_") || value.category === "hardened_mechanical") return "hardened_concrete";
   return "civil_materials";
+}
+
+export function inferLaboratorySessionDomain(session: Pick<LaboratorySession, "domainId" | "tests">): LaboratoryDomainId | undefined {
+  if (session.domainId) return session.domainId;
+  if (!session.tests.length) return "civil_materials";
+  const domains = new Set(session.tests.map(test => {
+    if (test.domainId) return test.domainId;
+    if (test.testType.startsWith("GT_")) return "geotechnical";
+    if (test.testType.startsWith("FC_")) return "fresh_concrete";
+    if (test.testType.startsWith("HC_")) return "hardened_concrete";
+    return "civil_materials";
+  }));
+  return domains.size === 1 ? [...domains][0] : undefined;
 }
 
 export function catalogDefinitionDomain(definition: Pick<LabTestDefinition, "domainId" | "laboratoryArea">): LaboratoryDomainId {
