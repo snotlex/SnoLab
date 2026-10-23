@@ -1,3 +1,4 @@
+export type LaboratoryDomainId = "civil_materials" | "geotechnical" | "fresh_concrete";
 export type LaboratoryResultStatus =
   | "Draft"
   | "Incomplete"
@@ -55,6 +56,7 @@ export interface LaboratoryStandardReference {
 
 export interface LaboratorySample {
   id: string;
+  domainId?: LaboratoryDomainId;
   sampleId: string;
   internalId: string;
   materialId: string;
@@ -133,6 +135,7 @@ export interface ValidationReport {
 
 export interface LaboratoryTestDefinition<TData extends Record<string, unknown> = Record<string, unknown>> {
   id: string;
+  domainId?: LaboratoryDomainId;
   names: { ar: string; fr: string; en: string };
   category: string;
   applicableMaterialTypes: string[];
@@ -154,6 +157,15 @@ export interface LaboratoryTestDefinition<TData extends Record<string, unknown> 
 
 export interface LaboratoryTestRun<TData extends Record<string, unknown> = Record<string, unknown>> {
   id: string;
+  domainId?: LaboratoryDomainId;
+  acceptanceProfileId?: string;
+  acceptanceEvaluation?: {
+    decision: "PASS" | "FAIL" | "WARNING" | "NOT_APPLICABLE" | "NEEDS_REVIEW";
+    observedValue: number | string;
+    expected?: string;
+    reason: string;
+    evaluatedAt: string;
+  };
   projectId?: string;
   materialId: string;
   sampleId: string;

@@ -45,6 +45,10 @@ import { LaboratorySessionPanel } from "./LaboratorySessionPanel";
 import type { LaboratorySession } from "../../types/laboratorySessionTypes";
 import type { RegisteredEquipment, RegisteredStandard } from "../../services/laboratoryRegistry";
 import { generateLabTestPdf } from "../../services/pdf/labTestPdfGenerator";
+import { LaboratoryDomainPortal } from "./LaboratoryDomainPortal";
+import { catalogDefinitionDomain } from "../../services/laboratoryDomains";
+import type { LaboratoryDomainId } from "../../types/laboratoryDomain";
+import type { AcceptanceProfile } from "../../services/laboratoryAcceptanceEngine";
 
 const labText = (language: string, ar: string, fr: string, en: string) => language === "ar" ? ar : language === "fr" ? fr : en;
 const TESTS_WITH_CHARTS = new Set(["AGG_SIEVE", "AGG_BULKING_SAND", "CEM_SETTING_TIME", "CEM_COMPRESSIVE_STRENGTH"]);
@@ -67,6 +71,11 @@ interface LaboratoryDashboardProps {
   onSessionsChange?: (sessions: LaboratorySession[]) => void;
   standardRegistry?: RegisteredStandard[];
   equipmentRegistry?: RegisteredEquipment[];
+  acceptanceProfiles?: AcceptanceProfile[];
+  onAcceptanceProfileSave?: (profile: AcceptanceProfile) => void;
+  onAcceptanceProfileReview?: (profileId: string) => void;
+  canReviewAcceptance?: boolean;
+  reviewerId?: string;
 }
 
 export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
@@ -81,7 +90,12 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
   projectSessions,
   onSessionsChange,
   standardRegistry,
-  equipmentRegistry
+  equipmentRegistry,
+  acceptanceProfiles = [],
+  onAcceptanceProfileSave,
+  onAcceptanceProfileReview,
+  canReviewAcceptance = false,
+  reviewerId
 }) => {
   // Navigation & Filter State
   const [activeCategory, setActiveCategory] = useState<LabCategory | "all">("all");
@@ -239,6 +253,28 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
 
   return (
     <div className="space-y-8 animate-fade-in text-slate-900 dark:text-slate-100" dir={language === "ar" ? "rtl" : "ltr"}>
+      <LaboratoryDomainPortal
+        materials={materials}
+        tests={laboratoryTests}
+        catalog={MASTER_TEST_CATALOG}
+        sessionsCount={projectSessions?.length || 0}
+        projectId={projectId}
+        acceptanceProfiles={acceptanceProfiles}
+        onAcceptanceProfileSave={onAcceptanceProfileSave}
+        onAcceptanceProfileReview={onAcceptanceProfileReview}
+        canReviewAcceptance={canReviewAcceptance}
+        reviewerId={reviewerId}
+        language={language}
+        onStartTest={(testId) => {
+          const definition = MASTER_TEST_CATALOG.find(item => item.id === testId);
+          if (definition && catalogDefinitionDomain(definition) === "civil_materials") {
+            handleLaunchTest(testId, definition.category, undefined);
+          }
+        }}
+        onDomainChange={(domainId: LaboratoryDomainId) => {
+          if (domainId === "civil_materials") setActiveCategory("all");
+        }}
+      />
       {/* 1. Header Banner & Identity */}
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-l from-blue-700 via-indigo-700 to-slate-900 text-white p-6 sm:p-8 shadow-xl border border-blue-500/20">
         <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />

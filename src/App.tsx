@@ -76,6 +76,8 @@ const LaboratoryDashboard = React.lazy(() => import("./components/materials-lab/
 const EngineeringAIAdvisor = React.lazy(() => import("./components/EngineeringAIAdvisor").then(m => ({ default: m.EngineeringAIAdvisor })));
 import { INITIAL_MATERIAL_TESTS } from "./data/seedMaterialTests";
 import { MaterialTestRecord, TestApprovalStatus } from "./types/laboratoryTypes";
+import type { AcceptanceProfile } from "./services/laboratoryAcceptanceEngine";
+import { reviewAcceptanceProfile } from "./services/laboratoryAcceptanceProfiles";
 import { applyTestToMaterial } from "./services/materialLabSync";
 import { evaluateProductionRelease } from "./services/productionReleaseGate";
 import { can, resolveUserRole, separationOfDuties, UserRole } from "./services/permissions";
@@ -763,11 +765,14 @@ export default function App() {
   const [materialTestRecords, setMaterialTestRecords] = useState<MaterialTestRecord[]>(() => {
     try {
       const saved = localStorage.getItem("snolab_material_tests_v1");
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return Array.isArray(parsed) ? parsed.map(record => ({ ...record, domainId: record.domainId || "civil_materials" })) : INITIAL_MATERIAL_TESTS;
+      }
     } catch (e) {
       console.error("Failed to load material tests:", e);
     }
-    return INITIAL_MATERIAL_TESTS;
+    return INITIAL_MATERIAL_TESTS.map(record => ({ ...record, domainId: record.domainId || "civil_materials" }));
   });
 
   useEffect(() => {
@@ -777,6 +782,34 @@ export default function App() {
       console.error("Failed to persist material tests:", e);
     }
   }, [materialTestRecords]);
+
+  const [acceptanceProfiles, setAcceptanceProfiles] = useState<AcceptanceProfile[]>(() => {
+    try {
+      const saved = localStorage.getItem("snolab_acceptance_profiles_v1");
+      const parsed = saved ? JSON.parse(saved) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      console.error("Failed to load laboratory acceptance profiles:", e);
+      return [];
+    }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("snolab_acceptance_profiles_v1", JSON.stringify(acceptanceProfiles)); }
+    catch (e) { console.error("Failed to persist laboratory acceptance profiles:", e); }
+  }, [acceptanceProfiles]);
+  const handleAcceptanceProfileSave = (profile: AcceptanceProfile) => {
+    setAcceptanceProfiles(prev => [...prev.filter(item => item.id !== profile.id), profile]);
+  };
+  const handleAcceptanceProfileReview = (profileId: string) => {
+    const profile = acceptanceProfiles.find(item => item.id === profileId);
+    if (!profile) return;
+    try {
+      const reviewed = reviewAcceptanceProfile(profile, user.uid, new Date().toISOString(), "Reviewed through laboratory governance workflow.");
+      setAcceptanceProfiles(prev => [...prev.filter(item => item.id !== reviewed.id), reviewed]);
+    } catch (error) {
+      setSaveError(localizedLabel("تعذر تفعيل ملف القبول؛ راجع المعيار والحدود ووثيقة المصدر.", "Impossible d'activer le profil; vérifiez la norme, les limites et le document source.", "Acceptance profile could not be activated; verify the standard, limits, and source document."));
+    }
+  };
 
   const [materialsDatabase, setMaterialsDatabase] = useState<EngineeringMaterial[]>(() => {
     let deletedMap: Record<string, number> = {};
@@ -825,14 +858,15 @@ export default function App() {
   }, []);
 
   const handleSaveTestRecord = (testRecord: MaterialTestRecord, _syncedProps?: Record<string, any>) => {
+    const recordWithDomain = { ...testRecord, domainId: testRecord.domainId || "civil_materials" };
     setMaterialTestRecords(prev => {
-      const existingIndex = prev.findIndex(t => t.id === testRecord.id);
+      const existingIndex = prev.findIndex(t => t.id === recordWithDomain.id);
       if (existingIndex >= 0) {
         const updated = [...prev];
-        updated[existingIndex] = testRecord;
+        updated[existingIndex] = recordWithDomain;
         return updated;
       }
-      return [testRecord, ...prev];
+      return [recordWithDomain, ...prev];
     });
 
     // Note: Laboratory test records are preserved exclusively in the lab archive/history
@@ -6773,6 +6807,11 @@ max="0.95"
                     nextCalibrationDate: device.calibrationDueAt,
                     certificateAttachmentId: device.calibrationCertificate
                   } as RegisteredEquipment))}
+                  acceptanceProfiles={acceptanceProfiles.filter(profile => !profile.projectId || profile.projectId === (activeProjectId || activeProject?.id))}
+                  onAcceptanceProfileSave={handleAcceptanceProfileSave}
+                  onAcceptanceProfileReview={handleAcceptanceProfileReview}
+                  canReviewAcceptance={can(currentUserRole, "approve-test")}
+                  reviewerId={user.uid}
                   language={language as "ar" | "fr" | "en"}
                 />
               </div>

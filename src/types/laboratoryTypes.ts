@@ -1,5 +1,5 @@
 import { EngineeringMaterial } from "../types";
-import type { MaterialUpdateProposal } from "./laboratoryDomain";
+import type { MaterialUpdateProposal, LaboratoryDomainId } from "./laboratoryDomain";
 
 export type LabCategory = 
   | "aggregates"
@@ -94,6 +94,7 @@ export interface MaterialPropertyHistoryEntry {
 
 export interface MaterialTestRecord {
   id: string; // e.g. "TEST-AGG-2026-001"
+  domainId?: LaboratoryDomainId;
   testType: string; // e.g. "AGG_SIEVE", "AGG_BULK_DENSITY", "CEM_SETTING_TIME", etc.
   testTitleAr: string;
   testTitleFr: string;
@@ -139,6 +140,7 @@ export interface MaterialTestRecord {
 
 export interface LabTestDefinition {
   id: string;
+  domainId?: LaboratoryDomainId;
   category: LabCategory;
   laboratoryArea?: LaboratoryArea;
   titleAr: string;

@@ -680,7 +680,7 @@ export const MASTER_TEST_CATALOG: LabTestDefinition[] = [
       fiberDiameterMm: 0.85
     }
   }
-];
+].map(definition => ({ ...definition, domainId: "civil_materials" as const } as LabTestDefinition));
 
 // ============================================================================
 // 2. DETERMINISTIC CALCULATION & VERIFICATION ENGINES

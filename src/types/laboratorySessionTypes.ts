@@ -1,6 +1,6 @@
 import type { EngineeringMaterial } from "../types";
 import type { MaterialTestRecord, TestStatus } from "./laboratoryTypes";
-import type { LaboratoryIdentity } from "./laboratoryDomain";
+import type { LaboratoryIdentity, LaboratoryDomainId } from "./laboratoryDomain";
 
 export type LaboratoryRequestStatus =
   | "DRAFT"
@@ -38,6 +38,7 @@ export interface LaboratoryCustodyEvent {
 
 export interface LaboratorySessionSample {
   id: string;
+  domainId?: LaboratoryDomainId;
   sampleNumber: string;
   materialId: string;
   materialName: string;
@@ -77,6 +78,7 @@ export interface LaboratoryReplicate {
 
 export interface LaboratorySessionTestItem {
   id: string;
+  domainId?: LaboratoryDomainId;
   sequence: number;
   testType: string;
   testTitleAr: string;
@@ -167,6 +169,7 @@ export interface LaboratorySessionSyncPlanItem {
 
 export interface LaboratorySession {
   id: string;
+  domainId?: LaboratoryDomainId;
   requestNumber: string;
   projectId?: string;
   projectName?: string;
