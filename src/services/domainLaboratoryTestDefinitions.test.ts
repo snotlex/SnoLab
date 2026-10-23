@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { calculateSoilSieve, validateProctorInput } from "./geotechnicalTestEngine";
-import { calculateFreshConcreteSlump, calculateFreshConcreteTemperature } from "./freshConcreteTestEngine";
+import { calculateSoilSieve, validateProctorInput, validateSoilSieveInput } from "./geotechnicalTestEngine";
+import { calculateFreshConcreteSlump, calculateFreshConcreteTemperature, validateFreshConcreteSlumpInput } from "./freshConcreteTestEngine";
 import { DOMAIN_LABORATORY_TEST_DEFINITIONS, GT_PROCTOR_DEFINITION } from "./domainLaboratoryTestDefinitions";
 import { evaluateAcceptance } from "./laboratoryAcceptanceEngine";
 
@@ -16,6 +16,12 @@ describe("domain laboratory diagnostic engines", () => {
     expect(validateProctorInput({ moldVolumeCm3: 1000, points: [{ waterContentPercent: 10, wetSampleMassG: 1800 }] }).some(issue => issue.code === "PROCTOR_POINTS_INSUFFICIENT")).toBe(true);
   });
 
+  it("rejects duplicate Proctor moisture points and impossible sieve mass balance", () => {
+    expect(validateProctorInput({ moldVolumeCm3: 1000, points: [{ waterContentPercent: 10, wetSampleMassG: 1800 }, { waterContentPercent: 10, wetSampleMassG: 1850 }, { waterContentPercent: 15, wetSampleMassG: 1900 }] }).some(issue => issue.code === "PROCTOR_DUPLICATE_WATER_CONTENT")).toBe(true);
+    expect(validateSoilSieveInput({ totalSampleMassG: 1000, rows: [{ sieveMm: 2, retainedMassG: 700 }, { sieveMm: 1, retainedMassG: 400 }] }).some(issue => issue.code === "SOIL_SIEVE_MASS_BALANCE_EXCEEDS_TOTAL")).toBe(true);
+    expect(validateSoilSieveInput({ totalSampleMassG: 1000, rows: [{ sieveMm: 2, retainedMassG: 300 }, { sieveMm: 2, retainedMassG: 200 }] }).some(issue => issue.code === "SOIL_SIEVE_DUPLICATE_APERTURE")).toBe(true);
+  });
+
   it("calculates Proctor peak without assigning a layer acceptance verdict", async () => {
     const definition = DOMAIN_LABORATORY_TEST_DEFINITIONS.find(item => item.id === "GT_PROCTOR");
     expect(definition?.domainId).toBe("geotechnical");
@@ -27,6 +33,15 @@ describe("domain laboratory diagnostic engines", () => {
   it("keeps fresh concrete measurements tied to a batch", () => {
     expect(calculateFreshConcreteTemperature({ measuredTemperatureC: 24, batchId: "B-001" }).temperatureC).toBe(24);
     expect(calculateFreshConcreteSlump({ slumpMm: 120, targetSlumpMm: 100, batchId: "B-001" }).deviationMm).toBe(20);
+  });
+
+  it("blocks physically impossible fresh concrete temperatures", () => {
+    expect(() => calculateFreshConcreteTemperature({ measuredTemperatureC: -1, batchId: "B-001" })).toThrow("FRESH_TEMPERATURE_OUT_OF_RANGE");
+    expect(() => calculateFreshConcreteTemperature({ measuredTemperatureC: 101, batchId: "B-001" })).toThrow("FRESH_TEMPERATURE_OUT_OF_RANGE");
+  });
+
+  it("blocks slump values above the standard cone height", () => {
+    expect(validateFreshConcreteSlumpInput({ slumpMm: 301, batchId: "B-001" }).some(issue => issue.code === "SLUMP_EXCEEDS_CONE_HEIGHT")).toBe(true);
   });
 
   it("does not invent an acceptance decision without an active profile", () => {

@@ -11,6 +11,7 @@ export function validateFreshConcreteTemperatureInput(input: FreshConcreteTemper
   const issues: ValidationIssue[] = [];
   if (!input.batchId?.trim()) issues.push(issue("FRESH_BATCH_ID_REQUIRED", "Batch identity is required.", "batchId"));
   if (!finite(input.measuredTemperatureC)) issues.push(issue("FRESH_TEMPERATURE_INVALID", "Measured temperature must be finite.", "measuredTemperatureC"));
+  if (finite(input.measuredTemperatureC) && (input.measuredTemperatureC < 0 || input.measuredTemperatureC > 100)) issues.push(issue("FRESH_TEMPERATURE_OUT_OF_RANGE", "Fresh concrete temperature must be within the physical screening range 0–100 °C.", "measuredTemperatureC"));
   if (input.ambientTemperatureC !== undefined && !finite(input.ambientTemperatureC)) issues.push(issue("AMBIENT_TEMPERATURE_INVALID", "Ambient temperature must be finite.", "ambientTemperatureC"));
   return issues;
 }
@@ -24,6 +25,7 @@ export function validateFreshConcreteSlumpInput(input: FreshConcreteSlumpInput):
   const issues: ValidationIssue[] = [];
   if (!input.batchId?.trim()) issues.push(issue("FRESH_BATCH_ID_REQUIRED", "Batch identity is required.", "batchId"));
   if (!finite(input.slumpMm) || input.slumpMm < 0) issues.push(issue("SLUMP_INVALID", "Slump must be finite and non-negative.", "slumpMm"));
+  if (finite(input.slumpMm) && input.slumpMm > 300) issues.push(issue("SLUMP_EXCEEDS_CONE_HEIGHT", "Standard Abrams-cone slump cannot exceed the 300 mm cone height; verify the method or use a flow test.", "slumpMm"));
   if (input.targetSlumpMm !== undefined && (!finite(input.targetSlumpMm) || input.targetSlumpMm < 0)) issues.push(issue("SLUMP_TARGET_INVALID", "Target slump must be finite and non-negative.", "targetSlumpMm"));
   if (input.toleranceMm !== undefined && (!finite(input.toleranceMm) || input.toleranceMm < 0)) issues.push(issue("SLUMP_TOLERANCE_INVALID", "Slump tolerance must be finite and non-negative.", "toleranceMm"));
   return issues;

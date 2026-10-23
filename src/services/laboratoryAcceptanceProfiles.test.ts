@@ -18,6 +18,8 @@ describe("laboratory acceptance profiles", () => {
   it("requires a documented source and complete active limits", () => {
     expect(validateAcceptanceProfile(profile({ sourceDocumentId: "" }))).toContain("ACCEPTANCE_SOURCE_DOCUMENT_REQUIRED");
     expect(validateAcceptanceProfile(profile({ operator: "min", lowerLimit: undefined }))).toContain("ACCEPTANCE_MIN_LIMIT_REQUIRED");
+    expect(validateAcceptanceProfile(profile({ operator: "between", lowerLimit: 3, upperLimit: 1 }))).toContain("ACCEPTANCE_BOUNDS_REVERSED");
+    expect(validateAcceptanceProfile(profile({ operator: "min", lowerLimit: Number.NaN }))).toContain("ACCEPTANCE_LOWERLIMIT_INVALID");
   });
   it("registers by project and profile id without duplicating revisions", () => {
     const first = profile();

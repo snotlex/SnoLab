@@ -28,6 +28,10 @@ export function validateAcceptanceProfile(profile: AcceptanceProfile): string[] 
   if (!profile.standardId.trim()) errors.push("ACCEPTANCE_STANDARD_REQUIRED");
   if (!profile.sourceDocumentId.trim()) errors.push("ACCEPTANCE_SOURCE_DOCUMENT_REQUIRED");
   if (!profile.unit.trim()) errors.push("ACCEPTANCE_UNIT_REQUIRED");
+  const numericFields = ["lowerLimit", "upperLimit", "targetValue", "tolerance"] as const;
+  for (const field of numericFields) if (profile[field] !== undefined && (typeof profile[field] !== "number" || !Number.isFinite(profile[field]))) errors.push(`ACCEPTANCE_${field.toUpperCase()}_INVALID`);
+  if (profile.tolerance !== undefined && profile.tolerance < 0) errors.push("ACCEPTANCE_TOLERANCE_NEGATIVE");
+  if (profile.lowerLimit !== undefined && profile.upperLimit !== undefined && profile.lowerLimit > profile.upperLimit) errors.push("ACCEPTANCE_BOUNDS_REVERSED");
   if (profile.status === "Active" && profile.operator !== "informational") {
     if (profile.operator === "min" && profile.lowerLimit === undefined) errors.push("ACCEPTANCE_MIN_LIMIT_REQUIRED");
     if (profile.operator === "max" && profile.upperLimit === undefined) errors.push("ACCEPTANCE_MAX_LIMIT_REQUIRED");

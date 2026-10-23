@@ -244,4 +244,27 @@ test.describe("SnoLab application smoke flow", () => {
     await panel.getByRole("button", { name: "Add replicate" }).first().click();
     await expect(panel).toContainText("1 replicates");
   });
+
+  test("shows a definition and purpose when selecting a test in each laboratory domain", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /🇺🇸 EN/ }).click();
+    await page.getByRole("button", { name: /Start New Project/ }).first().click();
+    await page.getByRole("button", { name: "Laboratory validation" }).click();
+    const portal = page.locator('[aria-label="Three-laboratory portal"]');
+
+    await expect(portal.getByRole("button", { name: "Show definition and purpose" }).first()).toBeVisible();
+    await portal.getByRole("button", { name: "Show definition and purpose" }).first().click();
+    await expect(portal).toContainText("Definition");
+    await expect(portal).toContainText("Purpose");
+
+    await portal.getByRole("button", { name: /Geotechnical Laboratory/ }).click();
+    await portal.getByRole("button", { name: "Show definition and purpose" }).first().click();
+    await expect(portal).toContainText("Geotechnical");
+    await expect(portal).toContainText("Purpose");
+
+    await portal.getByRole("button", { name: /Fresh Concrete Laboratory/ }).click();
+    await portal.getByRole("button", { name: "Show definition and purpose" }).first().click();
+    await expect(portal).toContainText("Fresh concrete");
+    await expect(portal).toContainText("Purpose");
+  });
 });

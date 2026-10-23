@@ -18,6 +18,11 @@ export function validateSoilSieveInput(input: SoilSieveInput): ValidationIssue[]
     if (!finite(row.sieveMm) || row.sieveMm < 0) issues.push(issue("SOIL_SIEVE_APERTURE_INVALID", "Sieve aperture must be finite and non-negative.", `rows.${index}.sieveMm`));
     if (!finite(row.retainedMassG) || row.retainedMassG < 0) issues.push(issue("SOIL_SIEVE_MASS_INVALID", "Retained mass must be finite and non-negative.", `rows.${index}.retainedMassG`));
   });
+  const apertures = input.rows?.map(row => row.sieveMm).filter(finite) || [];
+  if (new Set(apertures).size !== apertures.length) issues.push(issue("SOIL_SIEVE_DUPLICATE_APERTURE", "Each sieve aperture must appear only once.", "rows"));
+  const retainedTotal = input.rows?.reduce((sum, row) => sum + (finite(row.retainedMassG) ? row.retainedMassG : 0), 0) || 0;
+  const accountedMass = retainedTotal + (finite(input.washLossMassG) ? input.washLossMassG : 0);
+  if (finite(input.totalSampleMassG) && accountedMass > input.totalSampleMassG + 1e-9) issues.push(issue("SOIL_SIEVE_MASS_BALANCE_EXCEEDS_TOTAL", "Retained mass plus wash loss cannot exceed the total sample mass.", "rows"));
   if (input.washLossMassG !== undefined && (!finite(input.washLossMassG) || input.washLossMassG < 0)) issues.push(issue("SOIL_SIEVE_WASH_LOSS_INVALID", "Wash loss must be finite and non-negative.", "washLossMassG"));
   return issues;
 }
@@ -45,6 +50,8 @@ export function validateProctorInput(input: ProctorInput): ValidationIssue[] {
     if (!finite(point.waterContentPercent) || point.waterContentPercent < 0) issues.push(issue("PROCTOR_WATER_CONTENT_INVALID", "Water content must be finite and non-negative.", `points.${index}.waterContentPercent`));
     if (!finite(point.wetSampleMassG) || point.wetSampleMassG <= 0) issues.push(issue("PROCTOR_WET_MASS_INVALID", "Wet sample mass must be positive and finite.", `points.${index}.wetSampleMassG`));
   });
+  const moistureValues = input.points?.map(point => point.waterContentPercent).filter(finite) || [];
+  if (new Set(moistureValues).size !== moistureValues.length) issues.push(issue("PROCTOR_DUPLICATE_WATER_CONTENT", "Each Proctor moisture content must be unique.", "points"));
   return issues;
 }
 
