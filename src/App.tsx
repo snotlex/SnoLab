@@ -859,15 +859,18 @@ export default function App() {
   }, []);
 
   const handleSaveTestRecord = (testRecord: MaterialTestRecord, _syncedProps?: Record<string, any>) => {
-    const recordWithDomain = { ...testRecord, domainId: testRecord.domainId || (testRecord.testType === "FC_SLUMP" || testRecord.testType === "FC_TEMPERATURE" ? "fresh_concrete" : "civil_materials") };
+    const isFreshConcreteExecution = testRecord.testType === "FC_SLUMP" || testRecord.testType === "FC_TEMPERATURE";
+    const isHardenedConcreteExecution = testRecord.testType === "HC_COMPRESSIVE_STRENGTH" || testRecord.testType === "HC_SPLIT_TENSILE";
+    const concreteDomain = isHardenedConcreteExecution ? "hardened_concrete" : "fresh_concrete";
+    const recordWithDomain = { ...testRecord, domainId: testRecord.domainId || (isFreshConcreteExecution || isHardenedConcreteExecution ? concreteDomain : "civil_materials") };
     let linkedRecord = recordWithDomain;
-    if ((testRecord.testType === "FC_SLUMP" || testRecord.testType === "FC_TEMPERATURE") && ["PASS", "WARNING", "FAIL", "BLOCKED"].includes(testRecord.status) && activeProjectId && activeProject) {
+    if ((isFreshConcreteExecution || isHardenedConcreteExecution) && ["PASS", "WARNING", "FAIL", "BLOCKED"].includes(testRecord.status) && activeProjectId && activeProject) {
       const existingSessions = activeProject.laboratorySessions || [];
       const existingSession = existingSessions.find(session => session.tests.some(test => test.sourceRecordId === testRecord.id));
       if (!existingSession) {
-        let session = createLaboratorySession({ domainId: "fresh_concrete", requestNumber: `LAB-${testRecord.id}`, projectId: activeProject.id, projectName: activeProject.name, requestOwner: testRecord.operator });
-        session = addSessionSample(session, { domainId: "fresh_concrete", sampleNumber: testRecord.sampleId, sampleCode: testRecord.sampleId, materialId: testRecord.materialId, materialName: testRecord.materialName, materialCategory: testRecord.materialCategory, source: testRecord.sampleSource, description: testRecord.sampleDescription, collectedAt: testRecord.sampleDate, receivedAt: testRecord.sampleDate });
-        session = addSessionTest(session, { domainId: "fresh_concrete", testType: testRecord.testType, testTitleAr: testRecord.testTitleAr, testTitleFr: testRecord.testTitleFr, testTitleEn: testRecord.testTitleEn, standard: testRecord.standard, materialId: testRecord.materialId, sampleId: session.samples[0].id, sourceRecordId: testRecord.id, operator: testRecord.operator, status: "RUNNING", requiredReplicates: 1 });
+        let session = createLaboratorySession({ domainId: concreteDomain, requestNumber: `LAB-${testRecord.id}`, projectId: activeProject.id, projectName: activeProject.name, requestOwner: testRecord.operator });
+        session = addSessionSample(session, { domainId: concreteDomain, sampleNumber: testRecord.sampleId, sampleCode: testRecord.sampleId, materialId: testRecord.materialId, materialName: testRecord.materialName, materialCategory: testRecord.materialCategory, source: testRecord.sampleSource, description: testRecord.sampleDescription, collectedAt: testRecord.sampleDate, receivedAt: testRecord.sampleDate });
+        session = addSessionTest(session, { domainId: concreteDomain, testType: testRecord.testType, testTitleAr: testRecord.testTitleAr, testTitleFr: testRecord.testTitleFr, testTitleEn: testRecord.testTitleEn, standard: testRecord.standard, materialId: testRecord.materialId, sampleId: session.samples[0].id, sourceRecordId: testRecord.id, operator: testRecord.operator, status: "RUNNING", requiredReplicates: 1 });
         const sessionTest = session.tests[0];
         session = addTestReplicate(session, sessionTest.id, { sampleId: session.samples[0].id, status: "IN_PROGRESS", rawInputs: testRecord.inputs });
         const replicate = session.tests[0].replicates[0];

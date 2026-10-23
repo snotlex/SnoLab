@@ -11,6 +11,7 @@ import { EngineeringMaterial } from "../types";
 import { assertCatalogTestScope } from "./laboratoryScopeGovernance";
 import { validateTestMaterialCompatibility, compatibilityMessage } from "./laboratoryMaterialCompatibility";
 import { calculateFreshConcreteSlump, calculateFreshConcreteTemperature } from "./freshConcreteTestEngine";
+import { calculateHardenedConcreteCompressive, calculateHardenedConcreteSplitTensile } from "./hardenedConcreteTestEngine";
 
 // ============================================================================
 // 1. MASTER CATALOG OF LABORATORY TESTS (6 CATEGORIES)
@@ -114,6 +115,17 @@ export const LAB_CATEGORIES_INFO: Record<LabCategory, {
     descriptionEn: "Batch-linked fresh concrete temperature and site-condition records.",
     gradient: "from-red-500/10 to-orange-500/10 border-red-500/30 text-red-600",
     accentColor: "#dc2626"
+  },
+  hardened_mechanical: {
+    id: "hardened_mechanical",
+    nameAr: "المقاومة الميكانيكية للخرسانة المتصلدة",
+    nameFr: "Résistance mécanique du béton durci",
+    nameEn: "Hardened concrete mechanical strength",
+    icon: "◈",
+    descriptionAr: "اختبارات مقاومة الضغط والشد بالانشطار على عينات موثقة العمر والأبعاد.",
+    descriptionEn: "Compressive and splitting-tensile tests with documented specimen age and dimensions.",
+    gradient: "from-indigo-500/10 to-violet-500/10 border-indigo-500/30 text-indigo-600",
+    accentColor: "#4f46e5"
   }
 };
 
@@ -732,8 +744,38 @@ export const MASTER_TEST_CATALOG: LabTestDefinition[] = [
     unit: "°C",
     syncedPropertyKeys: ["temperatureC"],
     defaultInputs: { measuredTemperatureC: 22, ambientTemperatureC: 20, batchId: "", measuredAt: "" }
+  },
+  {
+    id: "HC_COMPRESSIVE_STRENGTH",
+    category: "hardened_mechanical",
+    titleAr: "مقاومة الضغط للخرسانة المتصلدة",
+    titleFr: "Résistance à la compression du béton durci",
+    titleEn: "Hardened concrete compressive strength",
+    shortDescAr: "حساب الإجهاد الأقصى من حمل الكسر ومساحة التحميل مع توثيق العمر.",
+    shortDescEn: "Calculate peak compressive stress from failure load and loaded area with specimen age traceability.",
+    standard: "EN 12390-3",
+    applicableMaterials: ["خرسانة", "CONCRETE", "Hardened concrete"],
+    icon: "▣",
+    unit: "MPa",
+    syncedPropertyKeys: ["compressiveStrengthMpa"],
+    defaultInputs: { failureLoadKN: 720, loadedAreaMm2: 22500, ageDays: 28, targetStrengthMpa: 30, specimenId: "", batchId: "" }
+  },
+  {
+    id: "HC_SPLIT_TENSILE",
+    category: "hardened_mechanical",
+    titleAr: "مقاومة الشد بالانشطار للخرسانة المتصلدة",
+    titleFr: "Résistance à la traction par fendage",
+    titleEn: "Hardened concrete splitting tensile strength",
+    shortDescAr: "حساب مقاومة الشد غير المباشرة من حمل الكسر وأبعاد الأسطوانة.",
+    shortDescEn: "Calculate indirect tensile strength from failure load and cylinder dimensions.",
+    standard: "EN 12390-6",
+    applicableMaterials: ["خرسانة", "CONCRETE", "Hardened concrete"],
+    icon: "╳",
+    unit: "MPa",
+    syncedPropertyKeys: ["splitTensileStrengthMpa"],
+    defaultInputs: { failureLoadKN: 177, cylinderDiameterMm: 150, cylinderLengthMm: 300, ageDays: 28, targetStrengthMpa: 2.5, specimenId: "", batchId: "" }
   }
-].map(definition => ({ ...definition, domainId: definition.id.startsWith("FC_") ? "fresh_concrete" as const : "civil_materials" as const } as LabTestDefinition));
+].map(definition => ({ ...definition, domainId: definition.id.startsWith("FC_") ? "fresh_concrete" as const : definition.id.startsWith("HC_") ? "hardened_concrete" as const : "civil_materials" as const } as LabTestDefinition));
 
 // ============================================================================
 // 2. DETERMINISTIC CALCULATION & VERIFICATION ENGINES
@@ -796,9 +838,21 @@ export function executeLaboratoryTest(
     };
   }
   const testDef = MASTER_TEST_CATALOG.find(t => t.id === testType);
-  if (testDef) assertCatalogTestScope(testDef, testDef.domainId === "fresh_concrete" ? "concrete" : "materials");
+  if (testDef) assertCatalogTestScope(testDef, testDef.domainId === "civil_materials" ? "materials" : "concrete");
 
   switch (testType) {
+    case "HC_COMPRESSIVE_STRENGTH": {
+      const result = calculateHardenedConcreteCompressive({ failureLoadKN: Number(inputs.failureLoadKN), loadedAreaMm2: Number(inputs.loadedAreaMm2), ageDays: Number(inputs.ageDays), targetStrengthMpa: inputs.targetStrengthMpa === undefined || inputs.targetStrengthMpa === "" ? undefined : Number(inputs.targetStrengthMpa), specimenId: String(inputs.specimenId || ""), batchId: String(inputs.batchId || "") });
+      const hasAcceptanceRule = inputs.targetStrengthMpa !== undefined && inputs.targetStrengthMpa !== "";
+      const status: TestStatus = hasAcceptanceRule ? result.strengthMpa >= Number(inputs.targetStrengthMpa) ? "PASS" : "FAIL" : "WARNING";
+      return { results: { compressiveStrengthMpa: result.strengthMpa, failureLoadKN: inputs.failureLoadKN, loadedAreaMm2: inputs.loadedAreaMm2, ageDays: inputs.ageDays, specimenId: inputs.specimenId, batchId: inputs.batchId }, status, score: status === "FAIL" ? 0 : 100, interpretation: hasAcceptanceRule ? (status === "PASS" ? "Compressive strength meets the supplied target." : "Compressive strength is below the supplied target.") : "Compressive strength calculated; acceptance remains under review because no project target was supplied.", complianceDetails: [{ parameter: "Compressive strength", measured: result.strengthMpa, unit: "MPa", limit: hasAcceptanceRule ? `Minimum ${inputs.targetStrengthMpa} MPa` : "Project acceptance profile required", status, note: hasAcceptanceRule ? "Compared with the supplied target." : "No acceptance decision is inferred without a project criterion." }], syncedProperties: { compressiveStrengthMpa: result.strengthMpa } };
+    }
+    case "HC_SPLIT_TENSILE": {
+      const result = calculateHardenedConcreteSplitTensile({ failureLoadKN: Number(inputs.failureLoadKN), cylinderDiameterMm: Number(inputs.cylinderDiameterMm), cylinderLengthMm: Number(inputs.cylinderLengthMm), ageDays: Number(inputs.ageDays), targetStrengthMpa: inputs.targetStrengthMpa === undefined || inputs.targetStrengthMpa === "" ? undefined : Number(inputs.targetStrengthMpa), specimenId: String(inputs.specimenId || ""), batchId: String(inputs.batchId || "") });
+      const hasAcceptanceRule = inputs.targetStrengthMpa !== undefined && inputs.targetStrengthMpa !== "";
+      const status: TestStatus = hasAcceptanceRule ? result.strengthMpa >= Number(inputs.targetStrengthMpa) ? "PASS" : "FAIL" : "WARNING";
+      return { results: { splitTensileStrengthMpa: result.strengthMpa, failureLoadKN: inputs.failureLoadKN, cylinderDiameterMm: inputs.cylinderDiameterMm, cylinderLengthMm: inputs.cylinderLengthMm, ageDays: inputs.ageDays, specimenId: inputs.specimenId, batchId: inputs.batchId }, status, score: status === "FAIL" ? 0 : 100, interpretation: hasAcceptanceRule ? (status === "PASS" ? "Splitting tensile strength meets the supplied target." : "Splitting tensile strength is below the supplied target.") : "Splitting tensile strength calculated; acceptance remains under review because no project target was supplied.", complianceDetails: [{ parameter: "Splitting tensile strength", measured: result.strengthMpa, unit: "MPa", limit: hasAcceptanceRule ? `Minimum ${inputs.targetStrengthMpa} MPa` : "Project acceptance profile required", status, note: hasAcceptanceRule ? "Compared with the supplied target." : "No acceptance decision is inferred without a project criterion." }], syncedProperties: { splitTensileStrengthMpa: result.strengthMpa } };
+    }
     case "FC_SLUMP": {
       const result = calculateFreshConcreteSlump({
         slumpMm: Number(inputs.slumpMm),

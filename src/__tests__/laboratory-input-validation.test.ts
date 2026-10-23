@@ -24,7 +24,7 @@ const collectFieldKeys = (value: any, keys = new Set<string>()): Set<string> => 
 
 describe("laboratory input safety and blank measurement templates", () => {
   it("removes all example measurements from every catalog test while retaining sieve apertures", () => {
-    expect(MASTER_TEST_CATALOG).toHaveLength(30);
+    expect(MASTER_TEST_CATALOG).toHaveLength(32);
     for (const test of MASTER_TEST_CATALOG) {
       const blank = createBlankLaboratoryInputs(test);
       for (const [path] of collectNumbers(test.defaultInputs)) {
@@ -196,19 +196,21 @@ describe("material sync safety", () => {
 
 describe("catalog execution coverage", () => {
   it("validates and executes all current catalog tests with compatible materials", () => {
-    expect(MASTER_TEST_CATALOG).toHaveLength(30);
+    expect(MASTER_TEST_CATALOG).toHaveLength(32);
     for (const test of MASTER_TEST_CATALOG) {
       const category = test.id.startsWith("AGG_")
         ? ["AGG_LOS_ANGELES", "AGG_MICRO_DEVAL", "AGG_SHAPE_FLAKINESS"].includes(test.id) ? "حصى" : "رمال"
         : test.id.startsWith("CEM_") ? "إسمنت"
           : test.id.startsWith("WATER_") ? "ماء"
             : test.id.startsWith("ADM_") ? "إضافات كيميائية"
-              : test.id.startsWith("SCM_") ? "إضافات معدنية" : test.id.startsWith("FC_") ? "CONCRETE" : "ألياف";
+              : test.id.startsWith("SCM_") ? "إضافات معدنية" : test.id.startsWith("FC_") || test.id.startsWith("HC_") ? "CONCRETE" : "ألياف";
       const material: any = { id: `material-${test.id}`, name: "Compatible fixture", category, type: category === "رمال" ? "sand" : category === "حصى" ? "gravel" : category };
       const inputs = structuredClone(test.defaultInputs);
       if (test.id === "AGG_MICRO_DEVAL") inputs.waterVolumeMl = 10000;
       if (test.id === "FC_SLUMP") Object.assign(inputs, { batchId: "B-001", placementLocation: "slab", measuredAt: "2026-10-23T10:00:00Z" });
       if (test.id === "FC_TEMPERATURE") Object.assign(inputs, { batchId: "B-001", measuredAt: "2026-10-23T10:00:00Z" });
+      if (test.id === "HC_COMPRESSIVE_STRENGTH") Object.assign(inputs, { specimenId: "C-001", batchId: "B-H-001" });
+      if (test.id === "HC_SPLIT_TENSILE") Object.assign(inputs, { specimenId: "T-001", batchId: "B-H-001" });
       expect(validateTestMaterialCompatibility(test.id, material).compatible, test.id).toBe(true);
       expect(validateLaboratoryInputs(test.id, test, inputs), test.id).toEqual([]);
       const result = executeLaboratoryTest(test.id, inputs, material);

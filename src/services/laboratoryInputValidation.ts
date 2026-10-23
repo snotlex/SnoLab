@@ -9,6 +9,8 @@ export interface LaboratoryInputIssue {
 const OPTIONAL_INPUTS: Record<string, string[]> = {
   FC_SLUMP: ["targetSlumpMm", "toleranceMm"],
   FC_TEMPERATURE: ["ambientTemperatureC"],
+  HC_COMPRESSIVE_STRENGTH: ["targetStrengthMpa"],
+  HC_SPLIT_TENSILE: ["targetStrengthMpa"],
   AGG_MOISTURE_CONTENT: ["absorptionPercent", "designAggregateDryMassKg", "designWaterKg"],
   AGG_LOS_ANGELES: ["finesMassG", "massBalanceToleranceG"],
   AGG_MICRO_DEVAL: ["abrasiveChargeG"],

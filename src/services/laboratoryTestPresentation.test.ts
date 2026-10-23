@@ -7,7 +7,7 @@ import { OFFICIAL_CONCRETE_TEST_REGISTRY } from "./concreteLaboratoryRegistry";
 describe("laboratory test presentation coverage", () => {
   it("has an explicit purpose for every civil and domain catalog test", () => {
     const ids = [
-      ...MASTER_TEST_CATALOG.filter(test => !["FC_SLUMP", "FC_TEMPERATURE"].includes(test.id)).map(test => test.id),
+      ...MASTER_TEST_CATALOG.filter(test => !["FC_SLUMP", "FC_TEMPERATURE", "HC_COMPRESSIVE_STRENGTH", "HC_SPLIT_TENSILE"].includes(test.id)).map(test => test.id),
       ...LABORATORY_DOMAINS.filter(domain => domain.id === "geotechnical").flatMap(domain => domain.plannedTests.map(test => test.id)),
       ...OFFICIAL_CONCRETE_TEST_REGISTRY.map(test => test.id),
     ];

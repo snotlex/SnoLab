@@ -110,7 +110,9 @@ export const TEST_COMPATIBILITY_REGISTRY: Readonly<Record<string, TestCompatibil
   FIBER_GEOMETRY: { testId: "FIBER_GEOMETRY", testName: "Fiber geometry", allowedMaterialCategories: ["FIBER"], requiredMaterialProperties: [], sampleType: "fiber sample", outputType: "geometry" },
   FIBER_DOSAGE_OPTIMIZATION: { testId: "FIBER_DOSAGE_OPTIMIZATION", testName: "Fiber dosage optimization", allowedMaterialCategories: ["FIBER"], requiredMaterialProperties: [], sampleType: "fiber-reinforced mix", outputType: "dosage" },
   FC_SLUMP: { testId: "FC_SLUMP", testName: "Fresh concrete slump", allowedMaterialCategories: ["CONCRETE"], requiredMaterialProperties: [], sampleType: "fresh concrete batch", outputType: "slump" },
-  FC_TEMPERATURE: { testId: "FC_TEMPERATURE", testName: "Fresh concrete temperature", allowedMaterialCategories: ["CONCRETE"], requiredMaterialProperties: [], sampleType: "fresh concrete batch", outputType: "temperature" }
+  FC_TEMPERATURE: { testId: "FC_TEMPERATURE", testName: "Fresh concrete temperature", allowedMaterialCategories: ["CONCRETE"], requiredMaterialProperties: [], sampleType: "fresh concrete batch", outputType: "temperature" },
+  HC_COMPRESSIVE_STRENGTH: { testId: "HC_COMPRESSIVE_STRENGTH", testName: "Hardened concrete compressive strength", allowedMaterialCategories: ["CONCRETE"], requiredMaterialProperties: [], sampleType: "hardened concrete specimen", outputType: "compressive strength" },
+  HC_SPLIT_TENSILE: { testId: "HC_SPLIT_TENSILE", testName: "Hardened concrete splitting tensile strength", allowedMaterialCategories: ["CONCRETE"], requiredMaterialProperties: [], sampleType: "hardened concrete cylinder", outputType: "splitting tensile strength" }
 };
 
 export function validateTestMaterialCompatibility(testId: string, material: EngineeringMaterial): CompatibilityResult {

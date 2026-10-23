@@ -88,7 +88,7 @@ export const LaboratorySessionPanel: React.FC<LaboratorySessionPanelProps> = ({ 
         setMessage(text(language, "المعيار المختار لا يغطي كل الاختبارات المحددة.", "La norme choisie ne couvre pas tous les essais sélectionnés.", "The selected standard does not cover every selected test."));
         return;
       }
-      const domainId = selectedTestIds.some(testId => testId === "FC_SLUMP" || testId === "FC_TEMPERATURE") ? "fresh_concrete" as const : undefined;
+      const domainId = selectedTestIds.some(testId => testId === "HC_COMPRESSIVE_STRENGTH" || testId === "HC_SPLIT_TENSILE") ? "hardened_concrete" as const : selectedTestIds.some(testId => testId === "FC_SLUMP" || testId === "FC_TEMPERATURE") ? "fresh_concrete" as const : undefined;
       let next = createLaboratorySession({ requestNumber, projectId, projectName, domainId });
       if (selectedStandard || selectedEquipmentIds.length) {
         next = createLaboratorySession({ requestNumber, projectId, projectName, governance: {
@@ -105,7 +105,7 @@ export const LaboratorySessionPanel: React.FC<LaboratorySessionPanelProps> = ({ 
         if (!definition) continue;
         next = addSessionTest(next, {
           testType: definition.id,
-          domainId: definition.id === "FC_SLUMP" || definition.id === "FC_TEMPERATURE" ? "fresh_concrete" : definition.domainId,
+          domainId: definition.id === "HC_COMPRESSIVE_STRENGTH" || definition.id === "HC_SPLIT_TENSILE" ? "hardened_concrete" : definition.id === "FC_SLUMP" || definition.id === "FC_TEMPERATURE" ? "fresh_concrete" : definition.domainId,
           testTitleAr: definition.titleAr,
           testTitleFr: definition.titleFr,
           testTitleEn: definition.titleEn,

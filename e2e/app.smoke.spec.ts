@@ -271,5 +271,6 @@ test.describe("SnoLab application smoke flow", () => {
     await portal.getByRole("button", { name: "Show definition and purpose" }).first().click();
     await expect(portal).toContainText("Hardened concrete");
     await expect(portal).toContainText("Purpose");
+    await expect(portal.getByRole("button", { name: "Start test" }).first()).toBeVisible();
   });
 });
