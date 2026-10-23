@@ -91,3 +91,152 @@ export function calculateProctor(input: ProctorInput): ProctorResult {
   const peak = points.reduce((best, point) => point.dryDensityGPerCm3 > best.dryDensityGPerCm3 ? point : best);
   return { points, maximumDryDensityGPerCm3: peak.dryDensityGPerCm3, optimumMoisturePercent: peak.waterContentPercent, trace: [{ stepNumber: 1, label: "Dry density", formula: "ρd = ρwet / (1 + w)", substitution: "one calculated point per measured moisture content", result: peak.dryDensityGPerCm3, unit: "g/cm³", inputs: { moldVolumeCm3: input.moldVolumeCm3 } }] };
 }
+
+
+export interface LiquidLimitPoint { blows: number; waterContentPercent: number; }
+export type DeterminationStatus = "measured" | "not_determined";
+export type AtterbergInput = Record<string, unknown> & {
+  liquidLimitStatus: DeterminationStatus;
+  liquidLimitPoints: LiquidLimitPoint[];
+  plasticLimitStatus: DeterminationStatus;
+  plasticLimitWaterContentsPercent: number[];
+  samplePassing425Micron: boolean;
+};
+export interface AtterbergResult {
+  liquidLimitPercent?: number;
+  plasticLimitPercent?: number;
+  plasticityIndex?: number;
+  plasticityStatus: "PLASTIC" | "NP";
+  nonPlasticReason?: "liquid_limit_not_determined" | "plastic_limit_not_determined" | "plastic_limit_ge_liquid_limit";
+  flowCurve: { intercept: number; slopePerLnBlow: number; rSquared: number; predictedWaterContentAt25Blows: number } | null;
+  trace: CalculationTraceStep[];
+}
+
+export interface CbrPenetrationPoint { penetrationMm: number; loadKN: number; }
+export type CbrCondition = "soaked" | "unsoaked" | "immediate";
+export type CbrInput = Record<string, unknown> & {
+  referenceMethod: "AASHTO_T193";
+  condition: CbrCondition;
+  penetrationPoints: CbrPenetrationPoint[];
+  pistonAreaMm2: number;
+  swellPercent?: number;
+  soakDurationHours?: number;
+  moldingWaterContentPercent: number;
+  dryDensityGPerCm3: number;
+};
+export interface CbrResult {
+  cbrAt254Percent: number;
+  cbrAt508Percent: number;
+  loadAt254KN: number;
+  loadAt508KN: number;
+  swellPercent?: number;
+  condition: CbrCondition;
+  trace: CalculationTraceStep[];
+}
+
+const validPercent = (value: unknown): value is number => finite(value) && value >= 0 && value <= 1000;
+
+export function validateAtterbergInput(input: AtterbergInput): ValidationIssue[] {
+  const candidate = input as Partial<AtterbergInput> | null | undefined;
+  const issues: ValidationIssue[] = [];
+  if (candidate?.samplePassing425Micron !== true) issues.push(issue("ATTERBERG_REQUIRES_425_MICRON_FRACTION", "Record that the tested specimen is the fraction passing the 0.425 mm (No. 40) sieve.", "samplePassing425Micron"));
+  if (candidate?.liquidLimitStatus !== "measured" && candidate?.liquidLimitStatus !== "not_determined") issues.push(issue("ATTERBERG_LL_STATUS_INVALID", "Liquid-limit determination status is required.", "liquidLimitStatus"));
+  if (candidate?.plasticLimitStatus !== "measured" && candidate?.plasticLimitStatus !== "not_determined") issues.push(issue("ATTERBERG_PL_STATUS_INVALID", "Plastic-limit determination status is required.", "plasticLimitStatus"));
+  const llPoints: unknown[] = Array.isArray(candidate?.liquidLimitPoints) ? candidate.liquidLimitPoints : [];
+  if (candidate?.liquidLimitStatus === "measured") {
+    if (llPoints.length < 3) issues.push(issue("ATTERBERG_LL_POINTS_INSUFFICIENT", "Multipoint liquid limit requires at least three measured points.", "liquidLimitPoints"));
+    const validPoints = llPoints.filter((point): point is LiquidLimitPoint => Boolean(point && typeof point === "object" && !Array.isArray(point)));
+    validPoints.forEach((point, index) => {
+      if (!finite(point.blows) || point.blows <= 0) issues.push(issue("ATTERBERG_BLOWS_INVALID", "Blow count must be positive and finite.", `liquidLimitPoints.${index}.blows`));
+      if (!validPercent(point.waterContentPercent)) issues.push(issue("ATTERBERG_WATER_CONTENT_INVALID", "Water content must be finite and non-negative.", `liquidLimitPoints.${index}.waterContentPercent`));
+    });
+    const blows = validPoints.map(point => point.blows).filter(finite);
+    if (new Set(blows).size !== blows.length) issues.push(issue("ATTERBERG_DUPLICATE_BLOW_COUNT", "Each liquid-limit point must have a distinct blow count.", "liquidLimitPoints"));
+    if (blows.length && (!blows.some(value => value < 25) || !blows.some(value => value > 25))) issues.push(issue("ATTERBERG_25_BLOWS_NOT_BRACKETED", "Multipoint data must include blow counts below and above 25 for a supported interpolation.", "liquidLimitPoints"));
+  }
+  const plValues: unknown[] = Array.isArray(candidate?.plasticLimitWaterContentsPercent) ? candidate.plasticLimitWaterContentsPercent : [];
+  if (candidate?.plasticLimitStatus === "measured") {
+    if (plValues.length < 2) issues.push(issue("ATTERBERG_PL_TRIALS_INSUFFICIENT", "At least two plastic-limit water-content determinations are required.", "plasticLimitWaterContentsPercent"));
+    plValues.forEach((value, index) => { if (!validPercent(value)) issues.push(issue("ATTERBERG_PL_WATER_CONTENT_INVALID", "Plastic-limit water content must be finite and non-negative.", `plasticLimitWaterContentsPercent.${index}`)); });
+  }
+  return issues;
+}
+
+export function calculateAtterberg(input: AtterbergInput): AtterbergResult {
+  const validation = validateAtterbergInput(input);
+  if (validation.length) throw new Error(validation.map(item => item.code).join(","));
+  let liquidLimitPercent: number | undefined;
+  let plasticLimitPercent: number | undefined;
+  let flowCurve: AtterbergResult["flowCurve"] = null;
+  const trace: CalculationTraceStep[] = [];
+  if (input.liquidLimitStatus === "measured") {
+    const points = input.liquidLimitPoints;
+    const x = points.map(point => Math.log(point.blows));
+    const y = points.map(point => point.waterContentPercent);
+    const meanX = x.reduce((sum, value) => sum + value, 0) / x.length;
+    const meanY = y.reduce((sum, value) => sum + value, 0) / y.length;
+    const denominator = x.reduce((sum, value) => sum + (value - meanX) ** 2, 0);
+    const slopePerLnBlow = x.reduce((sum, value, index) => sum + (value - meanX) * (y[index] - meanY), 0) / denominator;
+    const intercept = meanY - slopePerLnBlow * meanX;
+    liquidLimitPercent = intercept + slopePerLnBlow * Math.log(25);
+    const residualSum = y.reduce((sum, value, index) => sum + (value - (intercept + slopePerLnBlow * x[index])) ** 2, 0);
+    const totalSum = y.reduce((sum, value) => sum + (value - meanY) ** 2, 0);
+    const rSquared = totalSum === 0 ? 1 : 1 - residualSum / totalSum;
+    flowCurve = { intercept, slopePerLnBlow, rSquared, predictedWaterContentAt25Blows: liquidLimitPercent };
+    trace.push({ stepNumber: 1, label: "Liquid limit at 25 blows", formula: "LL = a + b·ln(25), where w = a + b·ln(N) is least-squares flow curve", substitution: `a=${intercept}; b=${slopePerLnBlow}`, result: liquidLimitPercent, unit: "%", inputs: { blowCount: 25, pointCount: points.length, rSquared } });
+  }
+  if (input.plasticLimitStatus === "measured") {
+    plasticLimitPercent = input.plasticLimitWaterContentsPercent.reduce((sum, value) => sum + value, 0) / input.plasticLimitWaterContentsPercent.length;
+    trace.push({ stepNumber: trace.length + 1, label: "Plastic limit mean", formula: "PL = Σwᵢ / n", substitution: `${input.plasticLimitWaterContentsPercent.join(" + ")} / ${input.plasticLimitWaterContentsPercent.length}`, result: plasticLimitPercent, unit: "%", inputs: { determinationCount: input.plasticLimitWaterContentsPercent.length } });
+  }
+  const nonPlasticReason = input.liquidLimitStatus !== "measured" ? "liquid_limit_not_determined" : input.plasticLimitStatus !== "measured" ? "plastic_limit_not_determined" : liquidLimitPercent !== undefined && plasticLimitPercent !== undefined && plasticLimitPercent >= liquidLimitPercent ? "plastic_limit_ge_liquid_limit" : undefined;
+  const nonPlastic = nonPlasticReason !== undefined;
+  const plasticityIndex = nonPlastic || liquidLimitPercent === undefined || plasticLimitPercent === undefined ? undefined : liquidLimitPercent - plasticLimitPercent;
+  if (plasticityIndex !== undefined) trace.push({ stepNumber: trace.length + 1, label: "Plasticity index", formula: "PI = LL − PL", substitution: `${liquidLimitPercent} − ${plasticLimitPercent}`, result: plasticityIndex, unit: "%", inputs: { liquidLimitPercent, plasticLimitPercent } });
+  return { ...(liquidLimitPercent === undefined ? {} : { liquidLimitPercent }), ...(plasticLimitPercent === undefined ? {} : { plasticLimitPercent }), ...(plasticityIndex === undefined ? {} : { plasticityIndex }), plasticityStatus: nonPlastic ? "NP" : "PLASTIC", ...(nonPlasticReason ? { nonPlasticReason } : {}), flowCurve, trace };
+}
+
+export function validateCbrInput(input: CbrInput): ValidationIssue[] {
+  const candidate = input as Partial<CbrInput> | null | undefined;
+  const issues: ValidationIssue[] = [];
+  if (candidate?.referenceMethod !== "AASHTO_T193") issues.push(issue("CBR_REFERENCE_METHOD_INVALID", "This diagnostic calculation currently implements the AASHTO T 193 reference-stress basis only.", "referenceMethod"));
+  if (!["soaked", "unsoaked", "immediate"].includes(candidate?.condition || "")) issues.push(issue("CBR_CONDITION_INVALID", "Record whether the specimen is soaked, unsoaked, or immediate CBR.", "condition"));
+  if (!finite(candidate?.pistonAreaMm2) || candidate.pistonAreaMm2 <= 0) issues.push(issue("CBR_PISTON_AREA_INVALID", "Piston area must be positive and finite.", "pistonAreaMm2"));
+  if (!validPercent(candidate?.moldingWaterContentPercent)) issues.push(issue("CBR_MOLDING_WATER_INVALID", "Molding water content must be finite and non-negative.", "moldingWaterContentPercent"));
+  if (!finite(candidate?.dryDensityGPerCm3) || candidate.dryDensityGPerCm3 <= 0) issues.push(issue("CBR_DRY_DENSITY_INVALID", "Dry density must be positive and finite.", "dryDensityGPerCm3"));
+  if (candidate?.soakDurationHours !== undefined && (!finite(candidate.soakDurationHours) || candidate.soakDurationHours < 0)) issues.push(issue("CBR_SOAK_DURATION_INVALID", "Soak duration must be finite and non-negative.", "soakDurationHours"));
+  if (candidate?.condition === "soaked" && (!finite(candidate.soakDurationHours) || candidate.soakDurationHours <= 0)) issues.push(issue("CBR_SOAK_DURATION_REQUIRED", "A soaked specimen requires a recorded positive soak duration.", "soakDurationHours"));
+  if (candidate?.condition === "soaked" && !validPercent(candidate.swellPercent)) issues.push(issue("CBR_SWELL_REQUIRED", "Record measured swell percent for a soaked specimen.", "swellPercent"));
+  if (candidate?.swellPercent !== undefined && !validPercent(candidate.swellPercent)) issues.push(issue("CBR_SWELL_INVALID", "Swell percent must be finite and non-negative.", "swellPercent"));
+  const rawPoints: unknown[] = Array.isArray(candidate?.penetrationPoints) ? candidate.penetrationPoints : [];
+  if (!Array.isArray(candidate?.penetrationPoints) || rawPoints.length < 2) issues.push(issue("CBR_PENETRATION_POINTS_INSUFFICIENT", "At least two penetration/load measurements are required.", "penetrationPoints"));
+  const points = rawPoints.filter((point): point is CbrPenetrationPoint => Boolean(point && typeof point === "object" && !Array.isArray(point)));
+  points.forEach((point, index) => {
+    if (!finite(point.penetrationMm) || point.penetrationMm < 0) issues.push(issue("CBR_PENETRATION_INVALID", "Penetration must be finite and non-negative.", `penetrationPoints.${index}.penetrationMm`));
+    if (!finite(point.loadKN) || point.loadKN < 0) issues.push(issue("CBR_LOAD_INVALID", "Load must be finite and non-negative.", `penetrationPoints.${index}.loadKN`));
+  });
+  const penetrations = points.map(point => point.penetrationMm).filter(finite);
+  if (new Set(penetrations).size !== penetrations.length) issues.push(issue("CBR_DUPLICATE_PENETRATION", "Penetration values must be unique.", "penetrationPoints"));
+  if (!penetrations.includes(2.54)) issues.push(issue("CBR_254MM_POINT_REQUIRED", "A measured load at 2.54 mm is required; interpolation is not performed.", "penetrationPoints"));
+  if (!penetrations.includes(5.08)) issues.push(issue("CBR_508MM_POINT_REQUIRED", "A measured load at 5.08 mm is required; interpolation is not performed.", "penetrationPoints"));
+  return issues;
+}
+
+export function calculateCbr(input: CbrInput): CbrResult {
+  const validation = validateCbrInput(input);
+  if (validation.length) throw new Error(validation.map(item => item.code).join(","));
+  const point254 = input.penetrationPoints.find(point => point.penetrationMm === 2.54)!;
+  const point508 = input.penetrationPoints.find(point => point.penetrationMm === 5.08)!;
+  const referenceStressAt254MPa = 6.895;
+  const referenceStressAt508MPa = 10.342;
+  const referenceLoadAt254KN = referenceStressAt254MPa * input.pistonAreaMm2 / 1000;
+  const referenceLoadAt508KN = referenceStressAt508MPa * input.pistonAreaMm2 / 1000;
+  const cbrAt254Percent = point254.loadKN / referenceLoadAt254KN * 100;
+  const cbrAt508Percent = point508.loadKN / referenceLoadAt508KN * 100;
+  const trace: CalculationTraceStep[] = [
+    { stepNumber: 1, label: "CBR at 2.54 mm", formula: "CBR₂.₅₄ = measured load / (6.895 MPa × piston area) × 100", substitution: `${point254.loadKN} / ${referenceLoadAt254KN}`, result: cbrAt254Percent, unit: "%", inputs: { penetrationMm: 2.54, loadKN: point254.loadKN, pistonAreaMm2: input.pistonAreaMm2, referenceStressMPa: referenceStressAt254MPa } },
+    { stepNumber: 2, label: "CBR at 5.08 mm", formula: "CBR₅.₀₈ = measured load / (10.342 MPa × piston area) × 100", substitution: `${point508.loadKN} / ${referenceLoadAt508KN}`, result: cbrAt508Percent, unit: "%", inputs: { penetrationMm: 5.08, loadKN: point508.loadKN, pistonAreaMm2: input.pistonAreaMm2, referenceStressMPa: referenceStressAt508MPa } }
+  ];
+  if (input.swellPercent !== undefined) trace.push({ stepNumber: 3, label: "Specimen swell", formula: "Recorded swell percent (not part of CBR ratio)", substitution: `condition=${input.condition}; soakHours=${input.soakDurationHours ?? "not applicable"}`, result: input.swellPercent, unit: "%", inputs: { swellPercent: input.swellPercent, soakDurationHours: input.soakDurationHours ?? "not applicable" } });
+  return { cbrAt254Percent, cbrAt508Percent, loadAt254KN: point254.loadKN, loadAt508KN: point508.loadKN, ...(input.swellPercent === undefined ? {} : { swellPercent: input.swellPercent }), condition: input.condition, trace };
+}

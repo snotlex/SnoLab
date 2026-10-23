@@ -58,4 +58,12 @@ describe("laboratory workspace separation", () => {
       expect(new Set(domain.plannedTests.map(test => test.id)).size).toBe(domain.plannedTests.length);
     }
   });
+
+  it("marks only the newly connected Atterberg and CBR runs as implemented maturity", () => {
+    const soilTests = LABORATORY_DOMAINS.find(domain => domain.id === "geotechnical")!.plannedTests;
+    expect(soilTests.find(test => test.id === "GT_ATTERBERG")?.maturity).toBe("implemented");
+    expect(soilTests.find(test => test.id === "GT_CBR")?.maturity).toBe("implemented");
+    expect(soilTests.find(test => test.id === "GT_HYDROMETER")?.maturity).toBe("planned");
+    expect(soilTests.find(test => test.id === "GT_DIRECT_SHEAR")?.maturity).toBe("planned");
+  });
 });

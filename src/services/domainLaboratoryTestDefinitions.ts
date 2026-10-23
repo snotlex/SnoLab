@@ -4,6 +4,8 @@ import { GEOTECHNICAL_TEST_DEFINITIONS } from "./geotechnicalLaboratoryTestDefin
 export {
   GT_SIEVE_SOIL_DEFINITION,
   GT_PROCTOR_DEFINITION,
+  GT_ATTERBERG_DEFINITION,
+  GT_CBR_DEFINITION,
   GEOTECHNICAL_TEST_DEFINITIONS
 } from "./geotechnicalLaboratoryTestDefinitions";
 export {

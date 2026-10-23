@@ -277,7 +277,7 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
         reviewerId={reviewerId}
         language={language}
         onStartTest={(testId) => {
-          if (testId === "GT_SIEVE_SOIL" || testId === "GT_PROCTOR") {
+          if (["GT_SIEVE_SOIL", "GT_PROCTOR", "GT_ATTERBERG", "GT_CBR"].includes(testId)) {
             setGeotechnicalInitialTestId(testId);
             setShowGeotechnicalWorkspace(true);
             return;

@@ -12,7 +12,7 @@ const runParams = {
 describe("geotechnical laboratory engine facade", () => {
   it("registers only geotechnical definitions and preserves the full soil sieve result", () => {
     const definitions = listGeotechnicalTestDefinitions();
-    expect(definitions.map(definition => definition.id).sort()).toEqual(["GT_PROCTOR", "GT_SIEVE_SOIL"]);
+    expect(definitions.map(definition => definition.id).sort()).toEqual(["GT_ATTERBERG", "GT_CBR", "GT_PROCTOR", "GT_SIEVE_SOIL"]);
     expect(definitions.every(definition => definition.domainId === "geotechnical")).toBe(true);
     expect(definitions.every(definition => definition.active && definition.standard?.status === "Draft")).toBe(true);
 

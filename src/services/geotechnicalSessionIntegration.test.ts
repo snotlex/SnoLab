@@ -12,16 +12,16 @@ const runParams = {
   rawData: {} as Record<string, unknown>
 };
 
-function createGeotechnicalReadySession(testType: "GT_SIEVE_SOIL" | "GT_PROCTOR", rawInputs: Record<string, unknown>): LaboratorySession {
+function createGeotechnicalReadySession(testType: "GT_SIEVE_SOIL" | "GT_PROCTOR" | "GT_ATTERBERG" | "GT_CBR", rawInputs: Record<string, unknown>): LaboratorySession {
   let session = createLaboratorySession({ domainId: "geotechnical", requestNumber: `REQ-${testType}`, projectId: "P-GT-1" });
   session = addSessionSample(session, { domainId: "geotechnical", sampleNumber: "SOIL-001", sampleCode: "SOIL-001-A", materialId: "SOIL-MAT-1", materialName: "Fill soil", materialCategory: "soil" });
   session = addSessionTest(session, {
     domainId: "geotechnical",
     testType,
-    testTitleAr: testType === "GT_SIEVE_SOIL" ? "التحليل المنخلي للتربة" : "اختبار بروكتور",
+    testTitleAr: ({ GT_SIEVE_SOIL: "التحليل المنخلي للتربة", GT_PROCTOR: "اختبار بروكتور", GT_ATTERBERG: "حدود أتربرغ", GT_CBR: "نسبة التحمل CBR" } as const)[testType],
     testTitleFr: testType,
     testTitleEn: testType,
-    standard: testType === "GT_SIEVE_SOIL" ? "SOIL_SIEVE_METHOD · Draft" : "PROCTOR_METHOD · Draft",
+    standard: ({ GT_SIEVE_SOIL: "SOIL_SIEVE_METHOD", GT_PROCTOR: "PROCTOR_METHOD", GT_ATTERBERG: "ATTERBERG_MULTIPOINT_METHOD", GT_CBR: "AASHTO_T193_CBR_REFERENCE_BASIS" } as const)[testType] + " · Draft",
     materialId: "SOIL-MAT-1",
     sampleId: session.samples[0].id,
     operator: "tech-1",
@@ -153,5 +153,27 @@ describe("geotechnical session integration", () => {
     });
     session = recordGeotechnicalTestRun(session, test.id, replicate.id, run);
     expect(() => recordGeotechnicalTestRun(session, test.id, replicate.id, { ...run, id: "GT-RUN-REPLACEMENT" })).toThrow("GEOTECHNICAL_REPLICATE_ALREADY_HAS_RUN");
+  });
+
+  it("persists Atterberg and CBR diagnostic measurements and traces without official acceptance", () => {
+    const cases: Array<["GT_ATTERBERG" | "GT_CBR", Record<string, unknown>]> = [
+      ["GT_ATTERBERG", { liquidLimitStatus: "measured", liquidLimitPoints: [15, 25, 35].map(blows => ({ blows, waterContentPercent: 60 - 10 * Math.log(blows) })), plasticLimitStatus: "measured", plasticLimitWaterContentsPercent: [19, 21], samplePassing425Micron: true }],
+      ["GT_CBR", { referenceMethod: "AASHTO_T193", condition: "soaked", penetrationPoints: [{ penetrationMm: 2.54, loadKN: 1935 * 6.895 / 1000 / 2 }, { penetrationMm: 5.08, loadKN: 1935 * 10.342 / 1000 / 2 }], pistonAreaMm2: 1935, soakDurationHours: 96, swellPercent: 0.4, moldingWaterContentPercent: 12, dryDensityGPerCm3: 1.82 }]
+    ];
+    for (const [testType, input] of cases) {
+      let session = createGeotechnicalReadySession(testType, input);
+      const test = session.tests[0];
+      const run = executeGeotechnicalLaboratoryTest(testType, { runId: `GT-SESSION-${testType}`, projectId: "P-GT-1", materialId: test.materialId, sampleId: test.sampleId, operator: "tech-1", rawData: input, now: "2026-10-23T12:00:00.000Z" });
+      session = recordGeotechnicalTestRun(session, test.id, test.replicates[0].id, run, "tech-1");
+      expect(session.tests[0].domainRun?.domainId).toBe("geotechnical");
+      expect(session.tests[0].domainRun?.calculationTrace.length).toBeGreaterThan(0);
+      expect(session.tests[0].replicates[0].rawInputs).toEqual(input);
+      expect(session.tests[0].replicates[0].domainRun?.result?.value).toBeDefined();
+      expect(session.tests[0].domainRun?.approval).toBeUndefined();
+      expect(canApproveLaboratorySession(session).allowed).toBe(false);
+      expect(buildLaboratorySessionSyncPlan(session)).toEqual([]);
+      const reloaded = JSON.parse(JSON.stringify(session)) as LaboratorySession;
+      expect(reloaded.tests[0].domainRun?.calculationDetails).toEqual(run.calculationDetails);
+    }
   });
 });
