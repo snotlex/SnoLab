@@ -84,7 +84,7 @@ import { can, resolveUserRole, separationOfDuties, UserRole } from "./services/p
 import { installOperationalErrorMonitoring } from "./services/operationalTelemetry";
 import type { CalibrationRecord, SampleRecord, TestDeviceRecord } from "./types/qualityDomain";
 import type { LaboratorySession } from "./types/laboratorySessionTypes";
-import { addSessionSample, addSessionTest, addTestReplicate, createLaboratorySession, recordLaboratoryTestResult } from "./services/laboratorySessionService";
+import { addSessionSample, addSessionTest, addTestReplicate, createLaboratorySession, recordConcreteTestRun, recordLaboratoryTestResult } from "./services/laboratorySessionService";
 import { LABORATORY_STANDARD_REGISTRY } from "./services/laboratoryStandardRegistry";
 import type { RegisteredEquipment } from "./services/laboratoryRegistry";
 const RecipeReport = React.lazy(() => import("./components/RecipeReport").then(m => ({ default: m.RecipeReport })));
@@ -870,18 +870,29 @@ export default function App() {
     if ((isFreshConcreteExecution || isHardenedConcreteExecution) && ["PASS", "WARNING", "FAIL", "BLOCKED"].includes(testRecord.status) && activeProjectId && activeProject) {
       const existingSessions = activeProject.laboratorySessions || [];
       const existingSession = existingSessions.find(session => session.tests.some(test => test.sourceRecordId === testRecord.id));
-      if (!existingSession) {
-        let session = createLaboratorySession({ domainId: concreteDomain, requestNumber: `LAB-${testRecord.id}`, projectId: activeProject.id, projectName: activeProject.name, requestOwner: testRecord.operator });
+      const existingSessionTest = existingSession?.tests.find(test => test.sourceRecordId === testRecord.id && test.testType === testRecord.testType);
+      const canAppendToExistingSession = Boolean(existingSession && existingSessionTest && existingSession.domainId === concreteDomain && ["DRAFT", "READY", "IN_PROGRESS", "PARTIALLY_COMPLETED", "UNDER_REVIEW"].includes(existingSession.status));
+      let session: LaboratorySession;
+      let sessionTest: LaboratorySession["tests"][number];
+      if (canAppendToExistingSession && existingSession && existingSessionTest) {
+        session = existingSession;
+        sessionTest = existingSessionTest;
+      } else {
+        session = createLaboratorySession({ domainId: concreteDomain, requestNumber: `LAB-${testRecord.id}-${testRecord.domainRun?.id || Date.now()}`, projectId: activeProject.id, projectName: activeProject.name, requestOwner: testRecord.operator });
         session = addSessionSample(session, { domainId: concreteDomain, sampleNumber: testRecord.sampleId, sampleCode: testRecord.sampleId, materialId: testRecord.materialId, materialName: testRecord.materialName, materialCategory: testRecord.materialCategory, source: testRecord.sampleSource, description: testRecord.sampleDescription, collectedAt: testRecord.sampleDate, receivedAt: testRecord.sampleDate });
         session = addSessionTest(session, { domainId: concreteDomain, testType: testRecord.testType, testTitleAr: testRecord.testTitleAr, testTitleFr: testRecord.testTitleFr, testTitleEn: testRecord.testTitleEn, standard: testRecord.standard, materialId: testRecord.materialId, sampleId: session.samples[0].id, sourceRecordId: testRecord.id, operator: testRecord.operator, status: "RUNNING", requiredReplicates: 1 });
-        const sessionTest = session.tests[0];
-        session = addTestReplicate(session, sessionTest.id, { sampleId: session.samples[0].id, status: "IN_PROGRESS", rawInputs: testRecord.inputs });
-        const replicate = session.tests[0].replicates[0];
-        session = recordLaboratoryTestResult(session, sessionTest.id, replicate.id, { status: testRecord.status, results: testRecord.results, score: testRecord.score, interpretation: testRecord.interpretation, complianceDetails: testRecord.complianceDetails }, testRecord.operator || "operator");
-        const savedTest = session.tests[0];
-        linkedRecord = { ...recordWithDomain, laboratorySessionId: session.id, laboratorySessionTestItemId: savedTest.id, laboratoryReplicateId: savedTest.replicates[0]?.id };
-        handleLaboratorySessionsChange([session, ...existingSessions]);
+        sessionTest = session.tests[0];
       }
+      const targetTestId = sessionTest.id;
+      session = addTestReplicate(session, targetTestId, { sampleId: sessionTest.sampleId, status: "IN_PROGRESS", rawInputs: testRecord.inputs });
+      const updatedTest = session.tests.find(test => test.id === targetTestId)!;
+      const replicate = updatedTest.replicates[updatedTest.replicates.length - 1];
+      session = testRecord.domainRun
+        ? recordConcreteTestRun(session, targetTestId, replicate.id, testRecord.domainRun, testRecord.operator || "operator")
+        : recordLaboratoryTestResult(session, targetTestId, replicate.id, { status: testRecord.status, results: testRecord.results, score: testRecord.score, interpretation: testRecord.interpretation, complianceDetails: testRecord.complianceDetails }, testRecord.operator || "operator");
+      const savedTest = session.tests.find(test => test.id === targetTestId)!;
+      linkedRecord = { ...recordWithDomain, laboratorySessionId: session.id, laboratorySessionTestItemId: savedTest.id, laboratoryReplicateId: replicate.id };
+      handleLaboratorySessionsChange(canAppendToExistingSession ? existingSessions.map(item => item.id === session.id ? session : item) : [session, ...existingSessions]);
     }
     setMaterialTestRecords(prev => {
       const existingIndex = prev.findIndex(t => t.id === linkedRecord.id);

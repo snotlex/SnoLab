@@ -249,6 +249,7 @@ export type SessionRunResult = {
   testId: string;
   status: LaboratorySessionTestStatus;
   record?: MaterialTestRecord;
+  domainRun?: LaboratoryTestRun<Record<string, unknown>>;
   error?: string;
 };
 

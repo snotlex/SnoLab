@@ -152,8 +152,9 @@ export function addTestReplicate(
   }
   if (!session.samples.some(sample => sample.id === input.sampleId)) throw new Error("Replicate must reference a sample in the same session.");
   const replicate: LaboratoryReplicate = { ...input, id: id("REP"), sequence: target.replicates.length + 1 };
+  const reopenForRun = target.status !== "RUNNING" && target.status !== "CANCELLED" && (replicate.status !== "EMPTY" || ["PASS", "WARNING", "FAIL", "BLOCKED"].includes(target.status));
   const tests = session.tests.map(test => test.id === testId
-    ? { ...test, replicates: [...test.replicates, replicate], status: test.status === "DRAFT" && replicate.status !== "EMPTY" ? "READY" as LaboratorySessionTestStatus : test.status }
+    ? { ...test, replicates: [...test.replicates, replicate], status: reopenForRun ? "READY" as LaboratorySessionTestStatus : test.status }
     : test);
   return touch({ ...session, tests }, audit("REPLICATE_ADDED", "replicate", replicate.id, actor, undefined, replicate));
 }
@@ -162,7 +163,7 @@ export function recordLaboratoryTestResult(
   session: LaboratorySession,
   testId: string,
   replicateId: string,
-  result: { status: LaboratorySessionTestStatus; results?: MaterialTestRecord["results"]; score?: number; numericResult?: number; domainRun?: LaboratoryTestRun<Record<string, unknown>>; interpretation?: string; complianceDetails?: MaterialTestRecord["complianceDetails"] },
+  result: { status: LaboratorySessionTestStatus; results?: MaterialTestRecord["results"]; score?: number; numericResult?: number; domainRun?: LaboratoryTestRun<Record<string, unknown>>; interpretation?: string; complianceDetails?: MaterialTestRecord["complianceDetails"]; preserveExistingNotes?: boolean; preserveExistingResult?: boolean },
   actor = "operator"
 ): LaboratorySession {
   const target = session.tests.find(test => test.id === testId);
@@ -174,13 +175,13 @@ export function recordLaboratoryTestResult(
     status: result.status,
     completedAt: nowIso(),
     completionPercent: 100,
-    result: result.results,
+    result: result.preserveExistingResult ? { ...(test.result || {}), ...(result.results || {}) } : result.results,
     ...(result.domainRun ? { domainRun: result.domainRun } : {}),
-    notes: result.interpretation,
+    notes: result.preserveExistingNotes ? test.notes : result.interpretation,
     replicates: test.replicates.map(replicate => replicate.id !== replicateId ? replicate : {
       ...replicate,
       status: valid ? "VALID" as const : "INVALID" as const,
-      result: result.results,
+      result: result.preserveExistingResult ? { ...(replicate.result || {}), ...(result.results || {}) } : result.results,
       numericResult: typeof result.numericResult === "number" ? result.numericResult : typeof result.score === "number" ? result.score : replicate.numericResult,
       ...(result.domainRun ? { domainRun: result.domainRun } : {}),
       completedAt: nowIso()
@@ -219,6 +220,49 @@ export function recordGeotechnicalTestRun(
     numericResult,
     domainRun: run,
     interpretation
+  }, actor);
+}
+
+/** Domain calculations are recorded as warnings/review items, never as a conformity verdict. */
+export function concreteLaboratoryRunSessionStatus(run: LaboratoryTestRun<Record<string, unknown>>): LaboratorySessionTestStatus {
+  return Boolean(run.acceptanceEvaluation || run.approval) || ["Draft", "Incomplete", "Invalid", "Failed", "Rejected", "Blocked", "Passed", "Approved", "Archived", "Superseded"].includes(run.status)
+    ? "BLOCKED"
+    : "WARNING";
+}
+
+/** Persist the full concrete run on both test and replicate without allowing material sync. */
+export function recordConcreteTestRun(
+  session: LaboratorySession,
+  testId: string,
+  replicateId: string,
+  run: LaboratoryTestRun<Record<string, unknown>>,
+  actor = "operator"
+): LaboratorySession {
+  const test = session.tests.find(item => item.id === testId);
+  const isConcreteDomain = run.domainId === "fresh_concrete" || run.domainId === "hardened_concrete";
+  if (!isConcreteDomain || session.domainId !== run.domainId || test?.domainId !== run.domainId) {
+    throw new Error("CONCRETE_SESSION_DOMAIN_MISMATCH");
+  }
+  const sample = test ? session.samples.find(item => item.id === test.sampleId) : undefined;
+  const replicate = test?.replicates.find(item => item.id === replicateId);
+  const runSampleId = run.sampleId.trim();
+  const sampleReferenceMatches = Boolean(sample && (runSampleId === test?.sampleId.trim() || runSampleId === sample.sampleNumber.trim() || runSampleId === sample.sampleCode?.trim()));
+  if (!test || test.testType !== run.testDefinitionId || test.materialId !== run.materialId || sample?.materialId !== run.materialId || !sampleReferenceMatches || !replicate || replicate.sampleId !== test.sampleId) {
+    throw new Error("CONCRETE_RUN_SESSION_REFERENCE_MISMATCH");
+  }
+  const status = concreteLaboratoryRunSessionStatus(run);
+  const primaryValue = run.result?.value;
+  const numericResult = typeof primaryValue === "number" && Number.isFinite(primaryValue) ? primaryValue : undefined;
+  const interpretation = "Concrete calculation recorded for diagnostic review. Acceptance is not assessed and no material property is eligible for synchronization.";
+  const latestResults = { ...(test.result || {}), ...(primaryValue === undefined ? {} : { value: primaryValue, unit: run.result?.unit }) };
+  return recordLaboratoryTestResult(session, testId, replicateId, {
+    status,
+    results: latestResults,
+    numericResult,
+    domainRun: run,
+    interpretation,
+    preserveExistingNotes: true,
+    preserveExistingResult: true
   }, actor);
 }
 
@@ -334,6 +378,7 @@ export function buildLaboratorySessionSyncPlan(session: LaboratorySession): Labo
   const plan: LaboratorySessionSyncPlanItem[] = [];
   for (const test of session.tests) {
     if (!["PASS", "WARNING"].includes(test.status)) continue;
+    if (test.domainRun?.domainId === "fresh_concrete" || test.domainRun?.domainId === "hardened_concrete") continue;
     const result = test.result || {};
     for (const propertyKey of test.sourceProperties || []) {
       const value = result[propertyKey];
@@ -381,9 +426,10 @@ export async function runReadyLaboratoryTests(session: LaboratorySession, runner
           ...next,
           tests: next.tests.map(test => test.id !== item.id ? test : {
             ...test,
-            result: result.record?.results,
+            result: result.record?.results || (result.domainRun?.result ? { ...(test.result || {}), value: result.domainRun.result.value, unit: result.domainRun.result.unit } : test.result),
+            ...(result.domainRun ? { domainRun: result.domainRun } : {}),
             replicates: test.replicates.map(current => current.id === replicate.id
-              ? { ...current, status: result.status === "PASS" || result.status === "WARNING" ? "VALID" : "INVALID", completedAt: nowIso(), result: result.record?.results, numericResult: typeof result.record?.score === "number" ? result.record.score : current.numericResult }
+              ? { ...current, status: result.status === "PASS" || result.status === "WARNING" ? "VALID" : "INVALID", completedAt: nowIso(), result: result.record?.results || (result.domainRun?.result ? { ...(current.result || {}), value: result.domainRun.result.value, unit: result.domainRun.result.unit } : current.result), numericResult: typeof result.domainRun?.result?.value === "number" ? result.domainRun.result.value : typeof result.record?.score === "number" ? result.record.score : current.numericResult, ...(result.domainRun ? { domainRun: result.domainRun } : {}) }
               : current)
           })
         };

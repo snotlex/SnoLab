@@ -1,4 +1,5 @@
 import type { ComplianceDetail, TestStatus } from "../types/laboratoryTypes";
+import type { LaboratoryTestRun } from "../types/laboratoryDomain";
 import type { TestExecutionResult } from "./laboratoryExecutionTypes";
 import { calculateFreshConcreteSlump, calculateFreshConcreteTemperature } from "./freshConcreteTestEngine";
 import { calculateHardenedConcreteCompressive, calculateHardenedConcreteSplitTensile } from "./hardenedConcreteTestEngine";
@@ -87,4 +88,49 @@ export function executeConcreteLegacyTest(testType: string, inputs: Record<strin
     default:
       return undefined;
   }
+}
+
+/** Display-only compatibility projection. The full LaboratoryTestRun remains the source of truth. */
+export function concreteDomainRunToWizardResult(run: LaboratoryTestRun<Record<string, unknown>>): TestExecutionResult {
+  const value = run.result?.value;
+  const raw = run.rawData;
+  const details = run.calculationDetails as { deviationMm?: unknown } | undefined;
+  let results: Record<string, unknown> = { value, unit: run.result?.unit };
+  switch (run.testDefinitionId) {
+    case "FC_SLUMP":
+      results = { slumpMm: value, targetSlumpMm: raw.targetSlumpMm, toleranceMm: raw.toleranceMm, deviationMm: details?.deviationMm, batchId: raw.batchId };
+      break;
+    case "FC_TEMPERATURE":
+      results = { temperatureC: value, ambientTemperatureC: raw.ambientTemperatureC, batchId: raw.batchId };
+      break;
+    case "HC_COMPRESSIVE_STRENGTH":
+      results = { compressiveStrengthMpa: value, failureLoadKN: raw.failureLoadKN, loadedAreaMm2: raw.loadedAreaMm2, ageDays: raw.ageDays, specimenId: raw.specimenId, batchId: raw.batchId };
+      break;
+    case "HC_SPLIT_TENSILE":
+      results = { splitTensileStrengthMpa: value, failureLoadKN: raw.failureLoadKN, cylinderDiameterMm: raw.cylinderDiameterMm, cylinderLengthMm: raw.cylinderLengthMm, ageDays: raw.ageDays, specimenId: raw.specimenId, batchId: raw.batchId };
+      break;
+  }
+
+  const blocked = !run.validation.valid || Boolean(run.acceptanceEvaluation || run.approval) || ["Draft", "Incomplete", "Invalid", "Failed", "Rejected", "Blocked", "Passed", "Approved", "Archived", "Superseded"].includes(run.status);
+  const status: TestStatus = blocked ? "BLOCKED" : "WARNING";
+  const complianceDetails: ComplianceDetail[] = run.validation.issues.map(issue => ({
+    parameter: issue.field || issue.code,
+    measured: issue.field ? String(raw[issue.field] ?? "—") : "—",
+    unit: undefined,
+    limit: "Calculation validation only; acceptance is not evaluated.",
+    status: issue.severity === "error" ? "BLOCKED" : "WARNING",
+    note: issue.message
+  }));
+  if (!complianceDetails.length) complianceDetails.push({ parameter: "Acceptance", measured: value ?? "—", unit: run.result?.unit, limit: "Not assessed", status: "WARNING", note: "No conformity verdict is produced by this diagnostic calculation." });
+
+  return {
+    results,
+    status,
+    score: blocked ? 0 : 100,
+    interpretation: blocked
+      ? "Concrete domain run is invalid or blocked. No acceptance decision or material update is available."
+      : "Concrete domain calculation completed for diagnostic review. Acceptance is not assessed; no material properties are synchronized.",
+    complianceDetails,
+    syncedProperties: {}
+  };
 }
