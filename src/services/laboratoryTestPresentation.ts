@@ -1,3 +1,5 @@
+import { OFFICIAL_CONCRETE_TEST_REGISTRY } from "./concreteLaboratoryRegistry";
+
 export interface LaboratoryTestPurpose {
   ar: string;
   fr: string;
@@ -52,5 +54,7 @@ export const LABORATORY_TEST_PURPOSES: Record<string, LaboratoryTestPurpose> = {
 export function getLaboratoryTestPurpose(testId: string, language: "ar" | "fr" | "en"): string {
   const purpose = LABORATORY_TEST_PURPOSES[testId];
   if (purpose) return purpose[language];
+  const officialConcreteTest = OFFICIAL_CONCRETE_TEST_REGISTRY.find(test => test.id === testId);
+  if (officialConcreteTest) return officialConcreteTest.purpose[language];
   return language === "ar" ? "توضيح هدف الاختبار قبل تشغيله." : language === "fr" ? "Clarifier l'objectif de l'essai avant son exécution." : "Clarify the test purpose before execution.";
 }

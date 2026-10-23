@@ -10,6 +10,7 @@ import {
 import { EngineeringMaterial } from "../types";
 import { assertCatalogTestScope } from "./laboratoryScopeGovernance";
 import { validateTestMaterialCompatibility, compatibilityMessage } from "./laboratoryMaterialCompatibility";
+import { calculateFreshConcreteSlump, calculateFreshConcreteTemperature } from "./freshConcreteTestEngine";
 
 // ============================================================================
 // 1. MASTER CATALOG OF LABORATORY TESTS (6 CATEGORIES)
@@ -91,6 +92,28 @@ export const LAB_CATEGORIES_INFO: Record<LabCategory, {
     descriptionEn: "Steel and synthetic fibers: aspect ratio (L/d), tensile strength, modulus, and optimum dosage.",
     gradient: "from-rose-500/10 to-pink-500/10 border-rose-500/30 text-rose-600",
     accentColor: "#f43f5e"
+  },
+  workability: {
+    id: "workability",
+    nameAr: "قابلية تشغيل الخرسانة الطازجة",
+    nameFr: "Ouvrabilité du béton frais",
+    nameEn: "Fresh concrete workability",
+    icon: "↕",
+    descriptionAr: "اختبارات الهبوط والانتشار والخصائص الريولوجية للخرسانة قبل التصلب.",
+    descriptionEn: "Slump, flow and rheology-related tests before hardening.",
+    gradient: "from-orange-500/10 to-amber-500/10 border-orange-500/30 text-orange-600",
+    accentColor: "#ea580c"
+  },
+  fresh_properties: {
+    id: "fresh_properties",
+    nameAr: "خصائص الخرسانة الطازجة",
+    nameFr: "Propriétés du béton frais",
+    nameEn: "Fresh concrete properties",
+    icon: "℃",
+    descriptionAr: "تسجيل حرارة الخرسانة الطازجة وربطها بالدفعة والعينة وظروف الموقع.",
+    descriptionEn: "Batch-linked fresh concrete temperature and site-condition records.",
+    gradient: "from-red-500/10 to-orange-500/10 border-red-500/30 text-red-600",
+    accentColor: "#dc2626"
   }
 };
 
@@ -679,8 +702,38 @@ export const MASTER_TEST_CATALOG: LabTestDefinition[] = [
       fiberLengthMm: 50.0,
       fiberDiameterMm: 0.85
     }
+  },
+  {
+    id: "FC_SLUMP",
+    category: "workability",
+    titleAr: "اختبار الهبوط بمخروط أبرامز",
+    titleFr: "Affaissement au cône d’Abrams",
+    titleEn: "Abrams slump test",
+    shortDescAr: "قياس هبوط الخرسانة الطازجة وربطه بالدفعة والهدف الاختباري.",
+    shortDescEn: "Measure fresh-concrete slump and link it to the batch and project target.",
+    standard: "SLUMP_METHOD",
+    applicableMaterials: ["خرسانة", "CONCRETE", "Fresh concrete"],
+    icon: "↕",
+    unit: "mm",
+    syncedPropertyKeys: ["slumpMm"],
+    defaultInputs: { slumpMm: 120, targetSlumpMm: 120, toleranceMm: 25, batchId: "", placementLocation: "", measuredAt: "" }
+  },
+  {
+    id: "FC_TEMPERATURE",
+    category: "fresh_properties",
+    titleAr: "درجة حرارة الخرسانة الطازجة",
+    titleFr: "Température du béton frais",
+    titleEn: "Fresh concrete temperature",
+    shortDescAr: "تسجيل حرارة الخرسانة الطازجة مع رقم الدفعة ودرجة حرارة الجو.",
+    shortDescEn: "Record fresh-concrete temperature with batch identity and ambient temperature.",
+    standard: "FRESH_TEMPERATURE_METHOD",
+    applicableMaterials: ["خرسانة", "CONCRETE", "Fresh concrete"],
+    icon: "℃",
+    unit: "°C",
+    syncedPropertyKeys: ["temperatureC"],
+    defaultInputs: { measuredTemperatureC: 22, ambientTemperatureC: 20, batchId: "", measuredAt: "" }
   }
-].map(definition => ({ ...definition, domainId: "civil_materials" as const } as LabTestDefinition));
+].map(definition => ({ ...definition, domainId: definition.id.startsWith("FC_") ? "fresh_concrete" as const : "civil_materials" as const } as LabTestDefinition));
 
 // ============================================================================
 // 2. DETERMINISTIC CALCULATION & VERIFICATION ENGINES
@@ -743,9 +796,40 @@ export function executeLaboratoryTest(
     };
   }
   const testDef = MASTER_TEST_CATALOG.find(t => t.id === testType);
-  if (testDef) assertCatalogTestScope(testDef, "materials");
+  if (testDef) assertCatalogTestScope(testDef, testDef.domainId === "fresh_concrete" ? "concrete" : "materials");
 
   switch (testType) {
+    case "FC_SLUMP": {
+      const result = calculateFreshConcreteSlump({
+        slumpMm: Number(inputs.slumpMm),
+        targetSlumpMm: inputs.targetSlumpMm === undefined || inputs.targetSlumpMm === "" ? undefined : Number(inputs.targetSlumpMm),
+        toleranceMm: inputs.toleranceMm === undefined || inputs.toleranceMm === "" ? undefined : Number(inputs.toleranceMm),
+        batchId: String(inputs.batchId || ""),
+        placementLocation: inputs.placementLocation ? String(inputs.placementLocation) : undefined,
+        measuredAt: inputs.measuredAt ? String(inputs.measuredAt) : undefined
+      });
+      const hasAcceptanceRule = result.deviationMm !== undefined && inputs.toleranceMm !== undefined && inputs.toleranceMm !== "";
+      const status: TestStatus = hasAcceptanceRule ? Math.abs(result.deviationMm as number) <= Number(inputs.toleranceMm) ? "PASS" : "FAIL" : "WARNING";
+      return {
+        results: { slumpMm: result.slumpMm, targetSlumpMm: inputs.targetSlumpMm, toleranceMm: inputs.toleranceMm, deviationMm: result.deviationMm, batchId: inputs.batchId },
+        status,
+        score: status === "FAIL" ? 0 : 100,
+        interpretation: hasAcceptanceRule ? (status === "PASS" ? "Slump is within the supplied project tolerance." : "Slump is outside the supplied project tolerance.") : "Slump measured; acceptance remains under review because a complete project acceptance rule was not supplied.",
+        complianceDetails: [{ parameter: "Slump", measured: result.slumpMm, unit: "mm", limit: hasAcceptanceRule ? `Target ${inputs.targetSlumpMm} ± ${inputs.toleranceMm} mm` : "Project acceptance profile required", status, note: hasAcceptanceRule ? "Measured against the supplied target and tolerance." : "No PASS decision is inferred without a complete acceptance profile." }],
+        syncedProperties: { slumpMm: result.slumpMm }
+      };
+    }
+    case "FC_TEMPERATURE": {
+      const result = calculateFreshConcreteTemperature({ measuredTemperatureC: Number(inputs.measuredTemperatureC), ambientTemperatureC: inputs.ambientTemperatureC === undefined || inputs.ambientTemperatureC === "" ? undefined : Number(inputs.ambientTemperatureC), batchId: String(inputs.batchId || ""), measuredAt: inputs.measuredAt ? String(inputs.measuredAt) : undefined });
+      return {
+        results: { temperatureC: result.temperatureC, ambientTemperatureC: inputs.ambientTemperatureC, batchId: inputs.batchId },
+        status: "WARNING",
+        score: 100,
+        interpretation: "Fresh concrete temperature recorded; acceptance remains under review until a project acceptance profile is active.",
+        complianceDetails: [{ parameter: "Fresh concrete temperature", measured: result.temperatureC, unit: "°C", limit: "Project acceptance profile required", status: "WARNING", note: "The physical screening range passed; no project limit was inferred." }],
+        syncedProperties: { temperatureC: result.temperatureC }
+      };
+    }
     // ------------------------------------------------------------------------
     // AGGREGATES
     // ------------------------------------------------------------------------

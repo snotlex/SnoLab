@@ -84,6 +84,7 @@ import { can, resolveUserRole, separationOfDuties, UserRole } from "./services/p
 import { installOperationalErrorMonitoring } from "./services/operationalTelemetry";
 import type { CalibrationRecord, SampleRecord, TestDeviceRecord } from "./types/qualityDomain";
 import type { LaboratorySession } from "./types/laboratorySessionTypes";
+import { addSessionSample, addSessionTest, addTestReplicate, createLaboratorySession, recordLaboratoryTestResult } from "./services/laboratorySessionService";
 import { LABORATORY_STANDARD_REGISTRY } from "./services/laboratoryStandardRegistry";
 import type { RegisteredEquipment } from "./services/laboratoryRegistry";
 const RecipeReport = React.lazy(() => import("./components/RecipeReport").then(m => ({ default: m.RecipeReport })));
@@ -858,15 +859,32 @@ export default function App() {
   }, []);
 
   const handleSaveTestRecord = (testRecord: MaterialTestRecord, _syncedProps?: Record<string, any>) => {
-    const recordWithDomain = { ...testRecord, domainId: testRecord.domainId || "civil_materials" };
+    const recordWithDomain = { ...testRecord, domainId: testRecord.domainId || (testRecord.testType === "FC_SLUMP" || testRecord.testType === "FC_TEMPERATURE" ? "fresh_concrete" : "civil_materials") };
+    let linkedRecord = recordWithDomain;
+    if ((testRecord.testType === "FC_SLUMP" || testRecord.testType === "FC_TEMPERATURE") && ["PASS", "WARNING", "FAIL", "BLOCKED"].includes(testRecord.status) && activeProjectId && activeProject) {
+      const existingSessions = activeProject.laboratorySessions || [];
+      const existingSession = existingSessions.find(session => session.tests.some(test => test.sourceRecordId === testRecord.id));
+      if (!existingSession) {
+        let session = createLaboratorySession({ domainId: "fresh_concrete", requestNumber: `LAB-${testRecord.id}`, projectId: activeProject.id, projectName: activeProject.name, requestOwner: testRecord.operator });
+        session = addSessionSample(session, { domainId: "fresh_concrete", sampleNumber: testRecord.sampleId, sampleCode: testRecord.sampleId, materialId: testRecord.materialId, materialName: testRecord.materialName, materialCategory: testRecord.materialCategory, source: testRecord.sampleSource, description: testRecord.sampleDescription, collectedAt: testRecord.sampleDate, receivedAt: testRecord.sampleDate });
+        session = addSessionTest(session, { domainId: "fresh_concrete", testType: testRecord.testType, testTitleAr: testRecord.testTitleAr, testTitleFr: testRecord.testTitleFr, testTitleEn: testRecord.testTitleEn, standard: testRecord.standard, materialId: testRecord.materialId, sampleId: session.samples[0].id, sourceRecordId: testRecord.id, operator: testRecord.operator, status: "RUNNING", requiredReplicates: 1 });
+        const sessionTest = session.tests[0];
+        session = addTestReplicate(session, sessionTest.id, { sampleId: session.samples[0].id, status: "IN_PROGRESS", rawInputs: testRecord.inputs });
+        const replicate = session.tests[0].replicates[0];
+        session = recordLaboratoryTestResult(session, sessionTest.id, replicate.id, { status: testRecord.status, results: testRecord.results, score: testRecord.score, interpretation: testRecord.interpretation, complianceDetails: testRecord.complianceDetails }, testRecord.operator || "operator");
+        const savedTest = session.tests[0];
+        linkedRecord = { ...recordWithDomain, laboratorySessionId: session.id, laboratorySessionTestItemId: savedTest.id, laboratoryReplicateId: savedTest.replicates[0]?.id };
+        handleLaboratorySessionsChange([session, ...existingSessions]);
+      }
+    }
     setMaterialTestRecords(prev => {
-      const existingIndex = prev.findIndex(t => t.id === recordWithDomain.id);
+      const existingIndex = prev.findIndex(t => t.id === linkedRecord.id);
       if (existingIndex >= 0) {
         const updated = [...prev];
-        updated[existingIndex] = recordWithDomain;
+        updated[existingIndex] = linkedRecord;
         return updated;
       }
-      return [recordWithDomain, ...prev];
+      return [linkedRecord, ...prev];
     });
 
     // Note: Laboratory test records are preserved exclusively in the lab archive/history

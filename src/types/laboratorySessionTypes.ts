@@ -197,6 +197,7 @@ export interface LaboratorySession {
 
 export interface LaboratorySessionCreateInput {
   id?: string;
+  domainId?: LaboratoryDomainId;
   requestNumber?: string;
   projectId?: string;
   projectName?: string;

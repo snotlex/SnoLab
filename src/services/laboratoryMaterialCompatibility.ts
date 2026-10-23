@@ -108,7 +108,9 @@ export const TEST_COMPATIBILITY_REGISTRY: Readonly<Record<string, TestCompatibil
   SCM_ACTIVITY_INDEX: { testId: "SCM_ACTIVITY_INDEX", testName: "Mineral addition activity index", allowedMaterialCategories: ["MINERAL_ADDITION"], requiredMaterialProperties: [], sampleType: "mineral addition mortar", outputType: "activity index" },
   SCM_LOSS_ON_IGNITION: { testId: "SCM_LOSS_ON_IGNITION", testName: "Mineral addition loss on ignition", allowedMaterialCategories: ["MINERAL_ADDITION"], requiredMaterialProperties: [], sampleType: "mineral addition", outputType: "loss on ignition" },
   FIBER_GEOMETRY: { testId: "FIBER_GEOMETRY", testName: "Fiber geometry", allowedMaterialCategories: ["FIBER"], requiredMaterialProperties: [], sampleType: "fiber sample", outputType: "geometry" },
-  FIBER_DOSAGE_OPTIMIZATION: { testId: "FIBER_DOSAGE_OPTIMIZATION", testName: "Fiber dosage optimization", allowedMaterialCategories: ["FIBER"], requiredMaterialProperties: [], sampleType: "fiber-reinforced mix", outputType: "dosage" }
+  FIBER_DOSAGE_OPTIMIZATION: { testId: "FIBER_DOSAGE_OPTIMIZATION", testName: "Fiber dosage optimization", allowedMaterialCategories: ["FIBER"], requiredMaterialProperties: [], sampleType: "fiber-reinforced mix", outputType: "dosage" },
+  FC_SLUMP: { testId: "FC_SLUMP", testName: "Fresh concrete slump", allowedMaterialCategories: ["CONCRETE"], requiredMaterialProperties: [], sampleType: "fresh concrete batch", outputType: "slump" },
+  FC_TEMPERATURE: { testId: "FC_TEMPERATURE", testName: "Fresh concrete temperature", allowedMaterialCategories: ["CONCRETE"], requiredMaterialProperties: [], sampleType: "fresh concrete batch", outputType: "temperature" }
 };
 
 export function validateTestMaterialCompatibility(testId: string, material: EngineeringMaterial): CompatibilityResult {

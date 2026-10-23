@@ -21,9 +21,13 @@ describe("Laboratory scope governance", () => {
 
   it("keeps every existing Materials Lab catalog test in the materials area", () => {
     expect(MASTER_TEST_CATALOG.length).toBeGreaterThan(0);
-    for (const definition of MASTER_TEST_CATALOG) {
+    for (const definition of MASTER_TEST_CATALOG.filter(item => item.domainId === "civil_materials")) {
       expect(getCatalogTestArea(definition)).toBe("materials");
       expect(() => assertCatalogTestScope(definition, "materials")).not.toThrow();
+    }
+    for (const definition of MASTER_TEST_CATALOG.filter(item => item.domainId === "fresh_concrete")) {
+      expect(getCatalogTestArea(definition)).toBe("concrete");
+      expect(() => assertCatalogTestScope(definition, "concrete")).not.toThrow();
     }
   });
 

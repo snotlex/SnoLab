@@ -1,4 +1,4 @@
-export type LaboratoryDomainId = "civil_materials" | "geotechnical" | "fresh_concrete";
+export type LaboratoryDomainId = "civil_materials" | "geotechnical" | "fresh_concrete" | "hardened_concrete";
 export type LaboratoryResultStatus =
   | "Draft"
   | "Incomplete"

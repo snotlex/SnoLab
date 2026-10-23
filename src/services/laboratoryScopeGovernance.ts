@@ -103,7 +103,7 @@ export const BOUNDARY_PLACEMENT_RULES: readonly BoundaryPlacementRule[] = [
 ];
 
 const MATERIAL_CATEGORY_TO_AREA: Readonly<Record<LabCategory, LaboratoryArea>> = {
-  aggregates: "materials", cement: "materials", water: "materials", admixtures: "materials", additives: "materials", fibers: "materials"
+  aggregates: "materials", cement: "materials", water: "materials", admixtures: "materials", additives: "materials", fibers: "materials", workability: "concrete", fresh_properties: "concrete"
 };
 
 export function getCatalogTestArea(definition: Pick<LabTestDefinition, "category"> | { category: string }): LaboratoryArea {

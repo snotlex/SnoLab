@@ -250,7 +250,7 @@ test.describe("SnoLab application smoke flow", () => {
     await page.getByRole("button", { name: /🇺🇸 EN/ }).click();
     await page.getByRole("button", { name: /Start New Project/ }).first().click();
     await page.getByRole("button", { name: "Laboratory validation" }).click();
-    const portal = page.locator('[aria-label="Three-laboratory portal"]');
+    const portal = page.locator('[aria-label="Concrete and materials laboratory portal"]');
 
     await expect(portal.getByRole("button", { name: "Show definition and purpose" }).first()).toBeVisible();
     await portal.getByRole("button", { name: "Show definition and purpose" }).first().click();
@@ -265,6 +265,11 @@ test.describe("SnoLab application smoke flow", () => {
     await portal.getByRole("button", { name: /Fresh Concrete Laboratory/ }).click();
     await portal.getByRole("button", { name: "Show definition and purpose" }).first().click();
     await expect(portal).toContainText("Fresh concrete");
+    await expect(portal).toContainText("Purpose");
+
+    await portal.getByRole("button", { name: /Hardened Concrete Laboratory/ }).click();
+    await portal.getByRole("button", { name: "Show definition and purpose" }).first().click();
+    await expect(portal).toContainText("Hardened concrete");
     await expect(portal).toContainText("Purpose");
   });
 });

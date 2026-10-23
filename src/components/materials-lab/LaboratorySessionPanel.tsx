@@ -26,6 +26,7 @@ interface LaboratorySessionPanelProps {
   projectId?: string;
   projectName?: string;
   onOpenTest?: (testId: string, category: any, materialId?: string) => void;
+  initialTestId?: string;
   projectSessions?: LaboratorySession[];
   onSessionsChange?: (sessions: LaboratorySession[]) => void;
   standardRegistry?: RegisteredStandard[];
@@ -35,7 +36,7 @@ interface LaboratorySessionPanelProps {
 const text = (language: string, ar: string, fr: string, en: string) => language === "ar" ? ar : language === "fr" ? fr : en;
 const STORAGE_KEY = "snolab_laboratory_sessions_v1";
 
-export const LaboratorySessionPanel: React.FC<LaboratorySessionPanelProps> = ({ materials, legacyTests, language = "ar", projectId, projectName, onOpenTest, projectSessions, onSessionsChange, standardRegistry = [], equipmentRegistry = [] }) => {
+export const LaboratorySessionPanel: React.FC<LaboratorySessionPanelProps> = ({ materials, legacyTests, language = "ar", projectId, projectName, onOpenTest, initialTestId, projectSessions, onSessionsChange, standardRegistry = [], equipmentRegistry = [] }) => {
   const storageKey = `${STORAGE_KEY}:${projectId || "global"}`;
   const [sessions, setSessions] = useState<LaboratorySession[]>(() => {
     if (projectSessions) return projectSessions;
@@ -51,7 +52,7 @@ export const LaboratorySessionPanel: React.FC<LaboratorySessionPanelProps> = ({ 
   const [sampleNumber, setSampleNumber] = useState("");
   const [sampleCode, setSampleCode] = useState("");
   const [materialId, setMaterialId] = useState(materials[0]?.id || "");
-  const [selectedTestIds, setSelectedTestIds] = useState<string[]>([]);
+  const [selectedTestIds, setSelectedTestIds] = useState<string[]>(initialTestId ? [initialTestId] : []);
   const [selectedStandardId, setSelectedStandardId] = useState("");
   const [selectedEquipmentIds, setSelectedEquipmentIds] = useState<string[]>([]);
   const [running, setRunning] = useState(false);
@@ -87,7 +88,8 @@ export const LaboratorySessionPanel: React.FC<LaboratorySessionPanelProps> = ({ 
         setMessage(text(language, "المعيار المختار لا يغطي كل الاختبارات المحددة.", "La norme choisie ne couvre pas tous les essais sélectionnés.", "The selected standard does not cover every selected test."));
         return;
       }
-      let next = createLaboratorySession({ requestNumber, projectId, projectName });
+      const domainId = selectedTestIds.some(testId => testId === "FC_SLUMP" || testId === "FC_TEMPERATURE") ? "fresh_concrete" as const : undefined;
+      let next = createLaboratorySession({ requestNumber, projectId, projectName, domainId });
       if (selectedStandard || selectedEquipmentIds.length) {
         next = createLaboratorySession({ requestNumber, projectId, projectName, governance: {
           standardId: selectedStandard?.id,
@@ -96,13 +98,14 @@ export const LaboratorySessionPanel: React.FC<LaboratorySessionPanelProps> = ({ 
           equipmentCalibrationSnapshots: selectedEquipmentIds.map(id => equipmentRegistry.find(device => device.id === id || device.equipmentId === id)).filter(Boolean).map(device => ({ id: device!.id, equipmentId: device!.equipmentId, serialNumber: device!.serialNumber, calibrationDate: device!.calibrationDate, nextCalibrationDate: device!.nextCalibrationDate, status: device!.status, location: device!.location }))
         }});
       }
-      next = addSessionSample(next, { sampleNumber, sampleCode, materialId: selectedMaterial.id, materialName: selectedMaterial.name, materialCategory: selectedMaterial.category });
+      next = addSessionSample(next, { domainId, sampleNumber, sampleCode, materialId: selectedMaterial.id, materialName: selectedMaterial.name, materialCategory: selectedMaterial.category });
       const sampleId = next.samples[0].id;
       for (const testId of selectedTestIds) {
         const definition = MASTER_TEST_CATALOG.find(test => test.id === testId);
         if (!definition) continue;
         next = addSessionTest(next, {
           testType: definition.id,
+          domainId: definition.id === "FC_SLUMP" || definition.id === "FC_TEMPERATURE" ? "fresh_concrete" : definition.domainId,
           testTitleAr: definition.titleAr,
           testTitleFr: definition.titleFr,
           testTitleEn: definition.titleEn,

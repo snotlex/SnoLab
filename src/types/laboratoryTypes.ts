@@ -7,7 +7,9 @@ export type LabCategory =
   | "water"
   | "admixtures"
   | "additives"
-  | "fibers";
+  | "fibers"
+  | "workability"
+  | "fresh_properties";
 export type LaboratoryArea = "materials" | "concrete";
 
 // Keep legacy verdicts compatible while separating readiness and compatibility

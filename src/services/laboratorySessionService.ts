@@ -43,6 +43,7 @@ export function createLaboratorySession(input: LaboratorySessionCreateInput = {}
   const requestNumber = input.requestNumber?.trim() || `LAB-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
   return {
     id: sessionId,
+    domainId: input.domainId,
     requestNumber,
     projectId: input.projectId,
     projectName: input.projectName,
@@ -155,6 +156,36 @@ export function addTestReplicate(
     ? { ...test, replicates: [...test.replicates, replicate], status: test.status === "DRAFT" && replicate.status !== "EMPTY" ? "READY" as LaboratorySessionTestStatus : test.status }
     : test);
   return touch({ ...session, tests }, audit("REPLICATE_ADDED", "replicate", replicate.id, actor, undefined, replicate));
+}
+
+export function recordLaboratoryTestResult(
+  session: LaboratorySession,
+  testId: string,
+  replicateId: string,
+  result: { status: LaboratorySessionTestStatus; results?: MaterialTestRecord["results"]; score?: number; interpretation?: string; complianceDetails?: MaterialTestRecord["complianceDetails"] },
+  actor = "operator"
+): LaboratorySession {
+  const target = session.tests.find(test => test.id === testId);
+  if (!target) throw new Error(`Unknown test item: ${testId}`);
+  if (!target.replicates.some(replicate => replicate.id === replicateId)) throw new Error(`Unknown replicate: ${replicateId}`);
+  const valid = result.status === "PASS" || result.status === "WARNING";
+  const tests = session.tests.map(test => test.id !== testId ? test : {
+    ...test,
+    status: result.status,
+    completedAt: nowIso(),
+    completionPercent: 100,
+    result: result.results,
+    notes: result.interpretation,
+    replicates: test.replicates.map(replicate => replicate.id !== replicateId ? replicate : {
+      ...replicate,
+      status: valid ? "VALID" as const : "INVALID" as const,
+      result: result.results,
+      numericResult: typeof result.score === "number" ? result.score : replicate.numericResult,
+      completedAt: nowIso()
+    }),
+    resultSummary: summarizeReplicates({ ...test, replicates: test.replicates.map(replicate => replicate.id !== replicateId ? replicate : { ...replicate, status: valid ? "VALID" as const : "INVALID" as const, numericResult: typeof result.score === "number" ? result.score : replicate.numericResult }) })
+  });
+  return touch({ ...session, tests, status: summarizeLaboratorySession({ ...session, tests }).status }, audit("TEST_RESULT_RECORDED", "test", testId, actor, result.interpretation, target, tests.find(test => test.id === testId)));
 }
 
 function validReplicates(test: LaboratorySessionTestItem): LaboratoryReplicate[] {
@@ -316,6 +347,7 @@ export async function runReadyLaboratoryTests(session: LaboratorySession, runner
           ...next,
           tests: next.tests.map(test => test.id !== item.id ? test : {
             ...test,
+            result: result.record?.results,
             replicates: test.replicates.map(current => current.id === replicate.id
               ? { ...current, status: result.status === "PASS" || result.status === "WARNING" ? "VALID" : "INVALID", completedAt: nowIso(), result: result.record?.results, numericResult: typeof result.record?.score === "number" ? result.record.score : current.numericResult }
               : current)
@@ -339,6 +371,7 @@ export function legacyRecordToLaboratorySession(record: MaterialTestRecord): Lab
   const timestamp = record.updatedAt || nowIso();
   const sample: LaboratorySessionSample = {
     id: `LEGACY-SAMPLE-${record.id}`,
+    domainId: record.domainId,
     sampleNumber: record.sampleId || `LEGACY-${record.id}`,
     sampleCode: record.sampleId || `LEGACY-${record.id}`,
     materialId: record.materialId,
@@ -351,6 +384,7 @@ export function legacyRecordToLaboratorySession(record: MaterialTestRecord): Lab
   };
   const sessionTest: LaboratorySessionTestItem = {
     id: `LEGACY-TEST-${record.id}`,
+    domainId: record.domainId,
     sequence: 1,
     testType: record.testType,
     testTitleAr: record.testTitleAr,
@@ -379,6 +413,7 @@ export function legacyRecordToLaboratorySession(record: MaterialTestRecord): Lab
   };
   return {
     id: `LEGACY-SESSION-${record.id}`,
+    domainId: record.domainId,
     requestNumber: `LEGACY-${record.id}`,
     projectId: record.projectId,
     projectName: record.projectName,

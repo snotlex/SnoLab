@@ -1,5 +1,6 @@
 import type { LabCategory, LabTestDefinition, MaterialTestRecord } from "../types/laboratoryTypes";
 import type { LaboratoryDomainId } from "../types/laboratoryDomain";
+import { OFFICIAL_CONCRETE_TEST_REGISTRY } from "./concreteLaboratoryRegistry";
 
 export type LaboratoryMaturity = "implemented" | "verified" | "planned" | "not_configured";
 export type LaboratoryPortalTab = "catalog" | "samples" | "sessions" | "results" | "equipment";
@@ -12,7 +13,7 @@ export interface LaboratoryDomainDefinition {
   accent: string;
   icon: string;
   categories: string[];
-  plannedTests: Array<{ id: string; title: { ar: string; en: string; fr: string }; category: string; maturity: LaboratoryMaturity; specimen: string; note: string }>;
+  plannedTests: Array<{ id: string; title: { ar: string; en: string; fr: string }; category: string; maturity: LaboratoryMaturity; specimen: string; note: string; purpose?: { ar: string; en: string; fr: string } }>;
 }
 
 export const LABORATORY_DOMAINS: readonly LaboratoryDomainDefinition[] = [
@@ -46,21 +47,23 @@ export const LABORATORY_DOMAINS: readonly LaboratoryDomainDefinition[] = [
   },
   {
     id: "fresh_concrete",
-    label: { ar: "\u0645\u062e\u062a\u0628\u0631 \u0627\u0644\u062e\u0631\u0633\u0627\u0646\u0629 \u0627\u0644\u0637\u0627\u0632\u062c\u0629", en: "Fresh Concrete Laboratory", fr: "Laboratoire du béton frais" },
-    shortLabel: { ar: "\u062e\u0631\u0633\u0627\u0646\u0629 \u0637\u0627\u0632\u062c\u0629", en: "Fresh concrete", fr: "Béton frais" },
-    description: { ar: "\u0647\u0648\u064a\u0629 \u0627\u0644\u062e\u0644\u0637\u0629 \u0648\u0627\u0644\u062f\u0641\u0639\u0629 \u0648\u0645\u0648\u0642\u0639 \u0627\u0644\u0635\u0628\u060c \u0627\u0644\u0642\u0648\u0627\u0645\u060c \u0627\u0644\u062d\u0631\u0627\u0631\u0629\u060c \u0627\u0644\u0647\u0648\u0627\u0621 \u0648\u0627\u0644\u0643\u062b\u0627\u0641\u0629 \u0648\u0627\u0644\u062a\u062c\u0627\u0646\u0633.", en: "Mix/batch identity, placement context, workability, temperature, air, density and uniformity.", fr: "Identité de gâchée, contexte de coulage, ouvrabilité, température, air, masse volumique et homogénéité." },
+    label: { ar: "مختبر الخرسانة الطازجة", en: "Fresh Concrete Laboratory", fr: "Laboratoire du béton frais" },
+    shortLabel: { ar: "خرسانة طازجة", en: "Fresh concrete", fr: "Béton frais" },
+    description: { ar: "اختبارات القوام والانتشار والاستقرار والكتلة الحجمية والهواء والحرارة والمردود للخرسانة قبل التصلب.", en: "Workability, flow, stability, density, air, temperature and yield before hardening.", fr: "Ouvrabilité, étalement, stabilité, masse volumique, air, température et rendement avant durcissement." },
     accent: "#ea580c",
     icon: "▱",
-    categories: ["identity", "workability", "fresh_properties", "scc"],
-    plannedTests: [
-      ["FC_SLUMP", "\u0627\u062e\u062a\u0628\u0627\u0631 \u0627\u0644\u0647\u0628\u0648\u0637", "Slump", "Affaissement", "workability", "\u062e\u0631\u0633\u0627\u0646\u0629 \u0637\u0627\u0632\u062c\u0629", "planned — \u064a\u062c\u0628 \u0631\u0628\u0637 \u0627\u0644\u062e\u0644\u0637\u0629 \u0648\u0627\u0644\u062f\u0641\u0639\u0629 \u0648\u0648\u0642\u062a \u0627\u0644\u0642\u064a\u0627\u0633"],
-      ["FC_SLUMP_FLOW", "\u0627\u0646\u062a\u0634\u0627\u0631 \u0627\u0644\u0647\u0628\u0648\u0637 \u0648T500", "Slump flow and T500", "Étalement et T500", "workability", "\u062e\u0631\u0633\u0627\u0646\u0629 \u0630\u0627\u062a\u064a\u0629 \u0627\u0644\u062f\u0645\u0643", "planned — \u0645\u062c\u0645\u0648\u0639\u0629 \u0642\u064a\u0627\u0633\u0627\u062a \u0632\u0645\u0646\u064a\u0629 \u0648\u0644\u064a\u0633\u062a \u0642\u064a\u0645\u0629 \u0648\u062d\u064a\u062f\u0629"],
-      ["FC_TEMPERATURE", "\u062f\u0631\u062c\u0629 \u062d\u0631\u0627\u0631\u0629 \u0627\u0644\u062e\u0631\u0633\u0627\u0646\u0629 \u0627\u0644\u0637\u0627\u0632\u062c\u0629", "Fresh concrete temperature", "Température du béton frais", "fresh_properties", "\u062e\u0631\u0633\u0627\u0646\u0629 \u0637\u0627\u0632\u062c\u0629", "planned — \u064a\u0633\u062c\u0644 \u062d\u0631\u0627\u0631\u0629 \u0627\u0644\u062c\u0648 \u0648\u0627\u0644\u062e\u0631\u0633\u0627\u0646\u0629"],
-      ["FC_AIR_CONTENT", "\u0645\u062d\u062a\u0648\u0649 \u0627\u0644\u0647\u0648\u0627\u0621", "Air content", "Teneur en air", "fresh_properties", "\u062e\u0631\u0633\u0627\u0646\u0629 \u0637\u0627\u0632\u062c\u0629", "planned — \u0627\u0644\u0637\u0631\u064a\u0642\u0629 \u0648\u0627\u0644\u062c\u0647\u0627\u0632 \u063a\u064a\u0631 \u0645\u0647\u064a\u0626\u064a\u0646"],
-      ["FC_DENSITY_YIELD", "\u0627\u0644\u0643\u062b\u0627\u0641\u0629 \u0648\u0627\u0644\u0639\u0627\u0626\u062f/\u0627\u0644\u0645\u0631\u062f\u0648\u062f", "Density and yield", "Masse volumique et rendement", "fresh_properties", "\u062e\u0631\u0633\u0627\u0646\u0629 \u0637\u0627\u0632\u062c\u0629", "planned — \u0644\u0627 \u062a\u0633\u062a\u062e\u062f\u0645 \u0643\u062b\u0627\u0641\u0629 \u0627\u0644\u0631\u0643\u0627\u0645 \u0643\u0628\u062f\u064a\u0644"],
-      ["FC_BLEEDING", "\u0627\u0644\u0646\u0632\u0641 \u0648\u0645\u0639\u062f\u0644 \u0627\u0644\u0646\u0632\u0641", "Bleeding rate", "Ressuage", "fresh_properties", "\u062e\u0631\u0633\u0627\u0646\u0629 \u0637\u0627\u0632\u062c\u0629", "planned — \u064a\u0644\u0632\u0645 \u0633\u062c\u0644 \u0632\u0645\u0646\u064a \u0644\u0644\u062d\u062c\u0645"],
-      ["FC_SCC_JRING", "\u0627\u062e\u062a\u0628\u0627\u0631 J-Ring", "J-Ring", "J-Ring", "scc", "\u062e\u0631\u0633\u0627\u0646\u0629 \u0630\u0627\u062a\u064a\u0629 \u0627\u0644\u062f\u0645\u0643", "planned — \u0637\u0631\u064a\u0642\u0629 \u0645\u062e\u062a\u0627\u0631\u0629 \u063a\u064a\u0631 \u0645\u0648\u0635\u0648\u0644\u0629"]
-    ].map(([id, ar, en, fr, category, specimen, note]) => ({ id, title: { ar, en, fr }, category, maturity: ["FC_TEMPERATURE", "FC_SLUMP"].includes(id) ? "implemented" : "planned", specimen, note }))
+    categories: ["workability", "scc", "stability", "fresh_properties", "composition"],
+    plannedTests: OFFICIAL_CONCRETE_TEST_REGISTRY.filter(test => test.domainId === "fresh_concrete")
+  },
+  {
+    id: "hardened_concrete",
+    label: { ar: "مختبر الخرسانة المتصلدة", en: "Hardened Concrete Laboratory", fr: "Laboratoire du béton durci" },
+    shortLabel: { ar: "خرسانة متصلدة", en: "Hardened concrete", fr: "Béton durci" },
+    description: { ar: "اختبارات المقاومة والخصائص الفيزيائية والمتانة والفحص غير المتلف والتحليل المجهري والكيميائي.", en: "Strength, physical properties, durability, NDT, microscopy and chemical analysis.", fr: "Résistance, propriétés physiques, durabilité, CND, microscopie et analyses chimiques." },
+    accent: "#0f766e",
+    icon: "▣",
+    categories: ["mechanical", "physical", "durability", "ndt", "microchemical"],
+    plannedTests: OFFICIAL_CONCRETE_TEST_REGISTRY.filter(test => test.domainId === "hardened_concrete")
   }
 ];
 
