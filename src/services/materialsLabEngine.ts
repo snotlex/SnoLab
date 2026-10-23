@@ -10,8 +10,9 @@ import {
 import { EngineeringMaterial } from "../types";
 import { assertCatalogTestScope } from "./laboratoryScopeGovernance";
 import { validateTestMaterialCompatibility, compatibilityMessage } from "./laboratoryMaterialCompatibility";
-import { calculateFreshConcreteSlump, calculateFreshConcreteTemperature } from "./freshConcreteTestEngine";
-import { calculateHardenedConcreteCompressive, calculateHardenedConcreteSplitTensile } from "./hardenedConcreteTestEngine";
+import { executeConcreteLegacyTest } from "./concreteLegacyAdapter";
+import type { TestExecutionResult } from "./laboratoryExecutionTypes";
+export type { TestExecutionResult } from "./laboratoryExecutionTypes";
 
 // ============================================================================
 // 1. MASTER CATALOG OF LABORATORY TESTS (6 CATEGORIES)
@@ -781,17 +782,6 @@ export const MASTER_TEST_CATALOG: LabTestDefinition[] = [
 // 2. DETERMINISTIC CALCULATION & VERIFICATION ENGINES
 // ============================================================================
 
-export interface TestExecutionResult {
-  results: Record<string, any>;
-  status: TestStatus;
-  score: number;
-  interpretation: string;
-  complianceDetails: ComplianceDetail[];
-  chartData?: any;
-  granulometricCurve?: GranulometricCurveData;
-  syncedProperties: Record<string, any>;
-}
-
 function containsNonFiniteNumber(value: unknown): boolean {
   if (typeof value === "number") return !Number.isFinite(value);
   if (Array.isArray(value)) return value.some(containsNonFiniteNumber);
@@ -804,6 +794,23 @@ export function executeLaboratoryTest(
   inputs: Record<string, any>,
   material: EngineeringMaterial
 ): TestExecutionResult {
+  const hasLegacyDefinition = MASTER_TEST_CATALOG.some(test => test.id === testType);
+  if (!hasLegacyDefinition && /^(GT_|FC_|HC_)/.test(testType)) {
+    return {
+      results: {},
+      status: "BLOCKED",
+      score: 0,
+      interpretation: "هذا المعرف تابع لمحرك مجال مستقل أو لا يملك تعريفًا تنفيذيًا في الواجهة القديمة؛ لم يُنتج أي حساب.",
+      complianceDetails: [{
+        parameter: "Domain engine routing",
+        measured: testType,
+        limit: "Registered executable definition in the owning laboratory engine",
+        status: "BLOCKED",
+        note: "استخدم dispatcher المختبر المختص؛ لا تُعامل بطاقة الكتالوج أو الاختبار المخطط كحساب مكتمل."
+      }],
+      syncedProperties: {}
+    };
+  }
   const compatibility = validateTestMaterialCompatibility(testType, material);
   if (!compatibility.compatible) {
     return {
@@ -840,50 +847,10 @@ export function executeLaboratoryTest(
   const testDef = MASTER_TEST_CATALOG.find(t => t.id === testType);
   if (testDef) assertCatalogTestScope(testDef, testDef.domainId === "civil_materials" ? "materials" : "concrete");
 
+  const concreteResult = executeConcreteLegacyTest(testType, inputs);
+  if (concreteResult) return concreteResult;
+
   switch (testType) {
-    case "HC_COMPRESSIVE_STRENGTH": {
-      const result = calculateHardenedConcreteCompressive({ failureLoadKN: Number(inputs.failureLoadKN), loadedAreaMm2: Number(inputs.loadedAreaMm2), ageDays: Number(inputs.ageDays), targetStrengthMpa: inputs.targetStrengthMpa === undefined || inputs.targetStrengthMpa === "" ? undefined : Number(inputs.targetStrengthMpa), specimenId: String(inputs.specimenId || ""), batchId: String(inputs.batchId || "") });
-      const hasAcceptanceRule = inputs.targetStrengthMpa !== undefined && inputs.targetStrengthMpa !== "";
-      const status: TestStatus = hasAcceptanceRule ? result.strengthMpa >= Number(inputs.targetStrengthMpa) ? "PASS" : "FAIL" : "WARNING";
-      return { results: { compressiveStrengthMpa: result.strengthMpa, failureLoadKN: inputs.failureLoadKN, loadedAreaMm2: inputs.loadedAreaMm2, ageDays: inputs.ageDays, specimenId: inputs.specimenId, batchId: inputs.batchId }, status, score: status === "FAIL" ? 0 : 100, interpretation: hasAcceptanceRule ? (status === "PASS" ? "Compressive strength meets the supplied target." : "Compressive strength is below the supplied target.") : "Compressive strength calculated; acceptance remains under review because no project target was supplied.", complianceDetails: [{ parameter: "Compressive strength", measured: result.strengthMpa, unit: "MPa", limit: hasAcceptanceRule ? `Minimum ${inputs.targetStrengthMpa} MPa` : "Project acceptance profile required", status, note: hasAcceptanceRule ? "Compared with the supplied target." : "No acceptance decision is inferred without a project criterion." }], syncedProperties: { compressiveStrengthMpa: result.strengthMpa } };
-    }
-    case "HC_SPLIT_TENSILE": {
-      const result = calculateHardenedConcreteSplitTensile({ failureLoadKN: Number(inputs.failureLoadKN), cylinderDiameterMm: Number(inputs.cylinderDiameterMm), cylinderLengthMm: Number(inputs.cylinderLengthMm), ageDays: Number(inputs.ageDays), targetStrengthMpa: inputs.targetStrengthMpa === undefined || inputs.targetStrengthMpa === "" ? undefined : Number(inputs.targetStrengthMpa), specimenId: String(inputs.specimenId || ""), batchId: String(inputs.batchId || "") });
-      const hasAcceptanceRule = inputs.targetStrengthMpa !== undefined && inputs.targetStrengthMpa !== "";
-      const status: TestStatus = hasAcceptanceRule ? result.strengthMpa >= Number(inputs.targetStrengthMpa) ? "PASS" : "FAIL" : "WARNING";
-      return { results: { splitTensileStrengthMpa: result.strengthMpa, failureLoadKN: inputs.failureLoadKN, cylinderDiameterMm: inputs.cylinderDiameterMm, cylinderLengthMm: inputs.cylinderLengthMm, ageDays: inputs.ageDays, specimenId: inputs.specimenId, batchId: inputs.batchId }, status, score: status === "FAIL" ? 0 : 100, interpretation: hasAcceptanceRule ? (status === "PASS" ? "Splitting tensile strength meets the supplied target." : "Splitting tensile strength is below the supplied target.") : "Splitting tensile strength calculated; acceptance remains under review because no project target was supplied.", complianceDetails: [{ parameter: "Splitting tensile strength", measured: result.strengthMpa, unit: "MPa", limit: hasAcceptanceRule ? `Minimum ${inputs.targetStrengthMpa} MPa` : "Project acceptance profile required", status, note: hasAcceptanceRule ? "Compared with the supplied target." : "No acceptance decision is inferred without a project criterion." }], syncedProperties: { splitTensileStrengthMpa: result.strengthMpa } };
-    }
-    case "FC_SLUMP": {
-      const result = calculateFreshConcreteSlump({
-        slumpMm: Number(inputs.slumpMm),
-        targetSlumpMm: inputs.targetSlumpMm === undefined || inputs.targetSlumpMm === "" ? undefined : Number(inputs.targetSlumpMm),
-        toleranceMm: inputs.toleranceMm === undefined || inputs.toleranceMm === "" ? undefined : Number(inputs.toleranceMm),
-        batchId: String(inputs.batchId || ""),
-        placementLocation: inputs.placementLocation ? String(inputs.placementLocation) : undefined,
-        measuredAt: inputs.measuredAt ? String(inputs.measuredAt) : undefined
-      });
-      const hasAcceptanceRule = result.deviationMm !== undefined && inputs.toleranceMm !== undefined && inputs.toleranceMm !== "";
-      const status: TestStatus = hasAcceptanceRule ? Math.abs(result.deviationMm as number) <= Number(inputs.toleranceMm) ? "PASS" : "FAIL" : "WARNING";
-      return {
-        results: { slumpMm: result.slumpMm, targetSlumpMm: inputs.targetSlumpMm, toleranceMm: inputs.toleranceMm, deviationMm: result.deviationMm, batchId: inputs.batchId },
-        status,
-        score: status === "FAIL" ? 0 : 100,
-        interpretation: hasAcceptanceRule ? (status === "PASS" ? "Slump is within the supplied project tolerance." : "Slump is outside the supplied project tolerance.") : "Slump measured; acceptance remains under review because a complete project acceptance rule was not supplied.",
-        complianceDetails: [{ parameter: "Slump", measured: result.slumpMm, unit: "mm", limit: hasAcceptanceRule ? `Target ${inputs.targetSlumpMm} ± ${inputs.toleranceMm} mm` : "Project acceptance profile required", status, note: hasAcceptanceRule ? "Measured against the supplied target and tolerance." : "No PASS decision is inferred without a complete acceptance profile." }],
-        syncedProperties: { slumpMm: result.slumpMm }
-      };
-    }
-    case "FC_TEMPERATURE": {
-      const result = calculateFreshConcreteTemperature({ measuredTemperatureC: Number(inputs.measuredTemperatureC), ambientTemperatureC: inputs.ambientTemperatureC === undefined || inputs.ambientTemperatureC === "" ? undefined : Number(inputs.ambientTemperatureC), batchId: String(inputs.batchId || ""), measuredAt: inputs.measuredAt ? String(inputs.measuredAt) : undefined });
-      return {
-        results: { temperatureC: result.temperatureC, ambientTemperatureC: inputs.ambientTemperatureC, batchId: inputs.batchId },
-        status: "WARNING",
-        score: 100,
-        interpretation: "Fresh concrete temperature recorded; acceptance remains under review until a project acceptance profile is active.",
-        complianceDetails: [{ parameter: "Fresh concrete temperature", measured: result.temperatureC, unit: "°C", limit: "Project acceptance profile required", status: "WARNING", note: "The physical screening range passed; no project limit was inferred." }],
-        syncedProperties: { temperatureC: result.temperatureC }
-      };
-    }
     // ------------------------------------------------------------------------
     // AGGREGATES
     // ------------------------------------------------------------------------

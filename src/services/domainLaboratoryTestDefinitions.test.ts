@@ -1,10 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { calculateSoilSieve, validateProctorInput, validateSoilSieveInput } from "./geotechnicalTestEngine";
+import { calculateAtterberg, calculateCbr, calculateSoilSieve, validateCbrInput, validateProctorInput, validateSoilSieveInput } from "./geotechnicalTestEngine";
 import { calculateFreshConcreteSlump, calculateFreshConcreteTemperature, validateFreshConcreteSlumpInput } from "./freshConcreteTestEngine";
-import { DOMAIN_LABORATORY_TEST_DEFINITIONS, GT_PROCTOR_DEFINITION } from "./domainLaboratoryTestDefinitions";
+import { CONCRETE_DOMAIN_TEST_DEFINITIONS, DOMAIN_LABORATORY_TEST_DEFINITIONS, GT_ATTERBERG_DEFINITION, GT_CBR_DEFINITION, GT_PROCTOR_DEFINITION } from "./domainLaboratoryTestDefinitions";
 import { evaluateAcceptance } from "./laboratoryAcceptanceEngine";
 
 describe("domain laboratory diagnostic engines", () => {
+  it("keeps the concrete and geotechnical domain definitions distinct and uniquely registered", () => {
+    expect(CONCRETE_DOMAIN_TEST_DEFINITIONS.map(definition => definition.id)).toEqual([
+      "FC_SLUMP",
+      "FC_TEMPERATURE",
+      "HC_COMPRESSIVE_STRENGTH",
+      "HC_SPLIT_TENSILE"
+    ]);
+    expect(DOMAIN_LABORATORY_TEST_DEFINITIONS.filter(definition => definition.domainId === "geotechnical").map(definition => definition.id).sort()).toEqual(["GT_ATTERBERG", "GT_CBR", "GT_PROCTOR", "GT_SIEVE_SOIL"]);
+    expect(new Set(DOMAIN_LABORATORY_TEST_DEFINITIONS.map(definition => definition.id)).size).toBe(DOMAIN_LABORATORY_TEST_DEFINITIONS.length);
+  });
+
   it("calculates soil passing percentages and exposes mass-balance error", () => {
     const result = calculateSoilSieve({ totalSampleMassG: 1000, rows: [{ sieveMm: 2, retainedMassG: 200 }, { sieveMm: 0.063, retainedMassG: 700 }, { sieveMm: 0, retainedMassG: 100 }] });
     expect(result.rows[0].percentPassing).toBe(80);
@@ -14,6 +25,25 @@ describe("domain laboratory diagnostic engines", () => {
 
   it("requires multiple measured Proctor points", () => {
     expect(validateProctorInput({ moldVolumeCm3: 1000, points: [{ waterContentPercent: 10, wetSampleMassG: 1800 }] }).some(issue => issue.code === "PROCTOR_POINTS_INSUFFICIENT")).toBe(true);
+  });
+
+  it("fits the multipoint liquid-limit curve at 25 blows, averages PL trials, and calculates PI", () => {
+    const result = calculateAtterberg({ liquidLimitStatus: "measured", liquidLimitPoints: [15, 25, 35].map(blows => ({ blows, waterContentPercent: 60 - 10 * Math.log(blows) })), plasticLimitStatus: "measured", plasticLimitWaterContentsPercent: [19, 21], samplePassing425Micron: true });
+    expect(result.liquidLimitPercent).toBeCloseTo(60 - 10 * Math.log(25), 8);
+    expect(result.plasticLimitPercent).toBe(20);
+    expect(result.plasticityIndex).toBeCloseTo(60 - 10 * Math.log(25) - 20, 8);
+    expect(result.plasticityStatus).toBe("PLASTIC");
+    expect(GT_ATTERBERG_DEFINITION.calculate({ liquidLimitStatus: "not_determined", liquidLimitPoints: [], plasticLimitStatus: "not_determined", plasticLimitWaterContentsPercent: [], samplePassing425Micron: true }).result).toBe("NP");
+  });
+
+  it("calculates separate CBR ratios at exact measured penetrations and rejects missing reference points", () => {
+    const input = { referenceMethod: "AASHTO_T193" as const, condition: "soaked" as const, penetrationPoints: [{ penetrationMm: 2.54, loadKN: 1935 * 6.895 / 1000 / 2 }, { penetrationMm: 5.08, loadKN: 1935 * 10.342 / 1000 / 2 }], pistonAreaMm2: 1935, soakDurationHours: 96, swellPercent: 0.4, moldingWaterContentPercent: 12, dryDensityGPerCm3: 1.82 };
+    const result = calculateCbr(input);
+    expect(result.cbrAt254Percent).toBeCloseTo(50, 8);
+    expect(result.cbrAt508Percent).toBeCloseTo(50, 8);
+    expect(result.swellPercent).toBe(0.4);
+    expect(validateCbrInput({ ...input, penetrationPoints: [{ penetrationMm: 2.54, loadKN: 4 }, { penetrationMm: 4, loadKN: 5 }] }).some(issue => issue.code === "CBR_508MM_POINT_REQUIRED")).toBe(true);
+    expect(GT_CBR_DEFINITION.calculate(input).trace).toHaveLength(3);
   });
 
   it("rejects duplicate Proctor moisture points and impossible sieve mass balance", () => {

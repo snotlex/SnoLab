@@ -122,13 +122,13 @@ export const TestReportModal: React.FC<TestReportModalProps> = ({
                 <div>
                   <span className="text-[10px] font-mono uppercase tracking-widest text-blue-600 dark:text-blue-400 font-black flex items-center gap-1.5">
                     <Award className="w-3 h-3 text-amber-500" />
-                    SNOLAB ISO/IEC 17025 QUALITY CONTROL & MATERIAL TESTING
+                    {record.domainRun ? "SNOLAB • DOMAIN CALCULATION REPORT" : "SNOLAB ISO/IEC 17025 QUALITY CONTROL & MATERIAL TESTING"}
                   </span>
                   <h1 className="text-xl font-black text-slate-900 dark:text-white mt-0.5">
                     {record.laboratoryName || "مخبر سنولاب المركزي لمراقبة جودة المواد والخرسانة"}
                   </h1>
                   <p className="text-xs text-slate-500">
-                    معتمد لجميع الفحوصات الفيزيائية والميكانيكية والمطابقة الهندسية (EN / ASTM / NF Standards)
+                    {record.domainRun ? "نتيجة تشغيل تشخيصي؛ لا تمثل شهادة مطابقة أو اعتمادًا رسميًا." : "معتمد لجميع الفحوصات الفيزيائية والميكانيكية والمطابقة الهندسية (EN / ASTM / NF Standards)"}
                   </p>
                 </div>
               </div>
@@ -141,11 +141,11 @@ export const TestReportModal: React.FC<TestReportModalProps> = ({
                   ? "border-amber-500 text-amber-600 bg-amber-50/50 dark:bg-amber-950/30"
                   : "border-rose-500 text-rose-600 bg-rose-50/50 dark:bg-rose-950/30"
               }`}>
-                <span className="text-[9px] font-black uppercase tracking-widest block">QC VERDICT • نتيجة المطابقة</span>
+                <span className="text-[9px] font-black uppercase tracking-widest block">{record.domainRun ? "DIAGNOSTIC RUN • NOT ACCEPTANCE" : "QC VERDICT • نتيجة المطابقة"}</span>
                 <span className="text-base font-black tracking-wider block mt-0.5">
-                  {record.status === "PASS" ? "مطابق (PASS)" : record.status === "WARNING" ? "مشروط (WARNING)" : "مرفوض (FAIL)"}
+                  {record.domainRun ? !record.domainRun.validation.valid || ["Invalid", "Incomplete", "Blocked", "Rejected", "Failed", "Passed", "Approved"].includes(record.domainRun.status) || Boolean(record.domainRun.acceptanceEvaluation || record.domainRun.approval) ? "تشغيل محظور — تحقق مطلوب" : "حساب تشخيصي — القبول غير مُقيّم" : record.status === "PASS" ? "مطابق (PASS)" : record.status === "WARNING" ? "مشروط (WARNING)" : "مرفوض (FAIL)"}
                 </span>
-                <span className="text-[10px] font-mono opacity-80 block mt-0.5">Score: {record.score || 95}%</span>
+                <span className="text-[10px] font-mono opacity-80 block mt-0.5">{record.domainRun ? "Acceptance score: NOT ASSESSED" : `Score: ${record.score || 95}%`}</span>
               </div>
             </div>
 

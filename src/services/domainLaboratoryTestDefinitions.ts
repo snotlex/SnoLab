@@ -1,25 +1,23 @@
-import type { LaboratoryTestDefinition } from "../types/laboratoryDomain";
-import { calculateSoilSieve, validateSoilSieveInput, type SoilSieveInput } from "./geotechnicalTestEngine";
-import { calculateProctor, validateProctorInput, type ProctorInput } from "./geotechnicalTestEngine";
-import { calculateFreshConcreteTemperature, validateFreshConcreteTemperatureInput, type FreshConcreteTemperatureInput } from "./freshConcreteTestEngine";
-import { calculateFreshConcreteSlump, validateFreshConcreteSlumpInput, type FreshConcreteSlumpInput } from "./freshConcreteTestEngine";
+import { CONCRETE_DOMAIN_TEST_DEFINITIONS } from "./concreteLaboratoryTestDefinitions";
+import { GEOTECHNICAL_TEST_DEFINITIONS } from "./geotechnicalLaboratoryTestDefinitions";
 
-const draftStandard = (code: string) => ({ organization: "Other" as const, code, version: "configured by laboratory", status: "Draft" as const, source: "Project or laboratory standard profile required before official acceptance." });
+export {
+  GT_SIEVE_SOIL_DEFINITION,
+  GT_PROCTOR_DEFINITION,
+  GT_ATTERBERG_DEFINITION,
+  GT_CBR_DEFINITION,
+  GEOTECHNICAL_TEST_DEFINITIONS
+} from "./geotechnicalLaboratoryTestDefinitions";
+export {
+  CONCRETE_DOMAIN_TEST_DEFINITIONS,
+  FC_SLUMP_DEFINITION,
+  FC_TEMPERATURE_DEFINITION,
+  HC_COMPRESSIVE_STRENGTH_DEFINITION,
+  HC_SPLIT_TENSILE_DEFINITION
+} from "./concreteLaboratoryTestDefinitions";
 
-export const GT_SIEVE_SOIL_DEFINITION: LaboratoryTestDefinition<SoilSieveInput> = {
-  id: "GT_SIEVE_SOIL", domainId: "geotechnical", names: { ar: "التحليل المنخلي للتربة", fr: "Analyse granulométrique des sols", en: "Soil sieve analysis" }, category: "identification", applicableMaterialTypes: ["soil", "fill", "subgrade", "aggregate"], description: "Computes retained and passing percentages with an explicit mass-balance diagnostic; it does not assign a soil class automatically.", standard: draftStandard("SOIL_SIEVE_METHOD"), inputs: [{ key: "totalSampleMassG", label: "Total soil sample mass", unit: "g", required: true, numeric: true, min: 0.000001, dimension: "mass" }, { key: "rows", label: "Sieve retained-mass rows", required: true }, { key: "washLossMassG", label: "Wash loss mass", unit: "g", required: false, numeric: true, min: 0, dimension: "mass" }], resultUnit: "% passing", revision: 1, active: true, validateEngineering: data => validateSoilSieveInput(data), calculate: data => { const result = calculateSoilSieve(data); return { result: result.finesPercent ?? "not_measured", unit: "% passing at 0.063 mm", trace: result.trace }; }
-};
-
-export const GT_PROCTOR_DEFINITION: LaboratoryTestDefinition<ProctorInput> = {
-  id: "GT_PROCTOR", domainId: "geotechnical", names: { ar: "اختبار بروكتور", fr: "Essai Proctor", en: "Proctor compaction test" }, category: "compaction", applicableMaterialTypes: ["soil", "fill", "subgrade", "subbase"], description: "Computes dry-density points and identifies the measured peak; it does not decide layer compliance without a project profile.", standard: draftStandard("PROCTOR_METHOD"), inputs: [{ key: "points", label: "Moisture-density points", required: true }, { key: "moldVolumeCm3", label: "Mold volume", unit: "cm³", required: true, numeric: true, min: 0.000001, dimension: "volume" }], resultUnit: "g/cm³", revision: 1, active: true, validateEngineering: data => validateProctorInput(data), calculate: data => { const result = calculateProctor(data); return { result: result.maximumDryDensityGPerCm3, unit: "g/cm³", trace: result.trace }; }
-};
-
-export const FC_TEMPERATURE_DEFINITION: LaboratoryTestDefinition<FreshConcreteTemperatureInput> = {
-  id: "FC_TEMPERATURE", domainId: "fresh_concrete", names: { ar: "درجة حرارة الخرسانة الطازجة", fr: "Température du béton frais", en: "Fresh concrete temperature" }, category: "fresh_properties", applicableMaterialTypes: ["fresh_concrete", "concrete_batch"], description: "Records a batch-linked fresh concrete temperature measurement; acceptance is profile-driven.", standard: draftStandard("FRESH_TEMPERATURE_METHOD"), inputs: [{ key: "measuredTemperatureC", label: "Measured fresh concrete temperature", unit: "°C", required: true, numeric: true, dimension: "temperature" }, { key: "ambientTemperatureC", label: "Ambient temperature", unit: "°C", required: false, numeric: true, dimension: "temperature" }, { key: "batchId", label: "Batch identity", required: true }], resultUnit: "°C", revision: 1, active: true, validateEngineering: data => validateFreshConcreteTemperatureInput(data), calculate: data => { const result = calculateFreshConcreteTemperature(data); return { result: result.temperatureC, unit: "°C", trace: result.trace }; }
-};
-
-export const FC_SLUMP_DEFINITION: LaboratoryTestDefinition<FreshConcreteSlumpInput> = {
-  id: "FC_SLUMP", domainId: "fresh_concrete", names: { ar: "اختبار الهبوط", fr: "Affaissement", en: "Slump test" }, category: "workability", applicableMaterialTypes: ["fresh_concrete", "concrete_batch"], description: "Records slump and optional target deviation; acceptance is not inferred when target or tolerance is absent.", standard: draftStandard("SLUMP_METHOD"), inputs: [{ key: "slumpMm", label: "Measured slump", unit: "mm", required: true, numeric: true, min: 0, dimension: "length" }, { key: "targetSlumpMm", label: "Target slump", unit: "mm", required: false, numeric: true, min: 0, dimension: "length" }, { key: "toleranceMm", label: "Project tolerance", unit: "mm", required: false, numeric: true, min: 0, dimension: "length" }, { key: "batchId", label: "Batch identity", required: true }], resultUnit: "mm", revision: 1, active: true, validateEngineering: data => validateFreshConcreteSlumpInput(data), calculate: data => { const result = calculateFreshConcreteSlump(data); return { result: result.slumpMm, unit: "mm", trace: result.trace }; }
-};
-
-export const DOMAIN_LABORATORY_TEST_DEFINITIONS = [GT_SIEVE_SOIL_DEFINITION, GT_PROCTOR_DEFINITION, FC_TEMPERATURE_DEFINITION, FC_SLUMP_DEFINITION] as const;
+/** Compatibility aggregate for consumers that still enumerate definitions across domains. */
+export const DOMAIN_LABORATORY_TEST_DEFINITIONS = [
+  ...GEOTECHNICAL_TEST_DEFINITIONS,
+  ...CONCRETE_DOMAIN_TEST_DEFINITIONS
+] as const;

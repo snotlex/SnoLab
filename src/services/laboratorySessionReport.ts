@@ -55,6 +55,7 @@ export interface LaboratorySessionReport {
     operator?: string;
     requiredReplicates?: number;
     result?: LaboratorySessionTestItem["result"];
+    domainRun?: LaboratorySessionTestItem["domainRun"];
     resultSummary?: LaboratorySessionTestItem["resultSummary"];
     replicates: LaboratorySessionTestItem["replicates"];
     notes?: string;
@@ -128,7 +129,7 @@ export function buildLaboratorySessionReport(session: LaboratorySession, options
     metadata: { reportId: `LAB-RPT-${session.requestNumber}-${integrityHash.slice(-8)}`, reportType: "laboratory-session", requestNumber: session.requestNumber, projectId: session.projectId, projectName: session.projectName, language, direction: language === "ar" ? "rtl" : "ltr", generatedAt, generatedBy: options.generatedBy || "SnoLab", status: session.status, reviewDecision: session.review, integrityHash, formats: ["pdf", "html", "json", "csv"] },
     summary,
     samples: session.samples,
-    tests: session.tests.map(test => ({ id: test.id, sequence: test.sequence, testType: test.testType, title: { ar: test.testTitleAr, fr: test.testTitleFr, en: test.testTitleEn }, standard: test.standard, materialId: test.materialId, sampleId: test.sampleId, sampleCode: session.samples.find(sample => sample.id === test.sampleId)?.sampleCode, status: test.status, operator: test.operator, requiredReplicates: test.requiredReplicates, result: test.result, resultSummary: test.resultSummary, replicates: test.replicates, notes: test.notes })), calibrationEvidence, auditHistory: session.auditLog, findings
+    tests: session.tests.map(test => ({ id: test.id, sequence: test.sequence, testType: test.testType, title: { ar: test.testTitleAr, fr: test.testTitleFr, en: test.testTitleEn }, standard: test.standard, materialId: test.materialId, sampleId: test.sampleId, sampleCode: session.samples.find(sample => sample.id === test.sampleId)?.sampleCode, status: test.status, operator: test.operator, requiredReplicates: test.requiredReplicates, result: test.result, domainRun: test.domainRun, resultSummary: test.resultSummary, replicates: test.replicates, notes: test.notes })), calibrationEvidence, auditHistory: session.auditLog, findings
   };
 }
 

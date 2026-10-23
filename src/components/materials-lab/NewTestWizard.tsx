@@ -50,6 +50,11 @@ import { createSieveMaterialUpdateProposals, createSpecificGravityMaterialUpdate
 import { runAggregateSpecificGravityPhase2, runAggregateBulkDensityPhase2, runAggregateMoisturePhase2, runSandEquivalentPhase2, runSandBulkingPhase2, runLosAngelesPhase2, runMicroDevalPhase2, runFlakinessPhase2, runMethyleneBluePhase2, runCementSpecificGravityPhase2, runBlaineFinenessPhase2, runCementSettingTimePhase2, runCementSoundnessPhase2, runCementMortarStrengthPhase2, runCementNormalConsistencyPhase2 } from "../../services/laboratoryTestDefinitions";
 import { getCompatibleMaterials, validateTestMaterialCompatibility, compatibilityMessage } from "../../services/laboratoryMaterialCompatibility";
 import { createBlankLaboratoryInputs, getLaboratoryFieldLabel, getLaboratoryFieldUnit, localizeLaboratoryIssue, validateLaboratoryInputs } from "../../services/laboratoryInputValidation";
+import { catalogDefinitionDomain } from "../../services/laboratoryDomains";
+import type { LaboratoryDomainId } from "../../types/laboratoryDomain";
+import { executeConcreteLaboratoryTest } from "../../services/concreteLaboratoryEngine";
+import { concreteDomainRunToWizardResult } from "../../services/concreteLegacyAdapter";
+import type { LaboratoryTestRun } from "../../types/laboratoryDomain";
 
 interface NewTestWizardProps {
   isOpen: boolean;
@@ -60,6 +65,7 @@ interface NewTestWizardProps {
   initialMaterialId?: string;
   initialDraft?: MaterialTestRecord | null;
   existingTestRecords?: MaterialTestRecord[];
+  allowedDomainId?: LaboratoryDomainId;
   onNavigateToMaterialsLibrary?: () => void;
   onSaveTest: (testRecord: MaterialTestRecord, syncedProps: Record<string, any>) => void;
   language?: "ar" | "fr" | "en";
@@ -69,6 +75,7 @@ const labText = (language: "ar" | "fr" | "en", ar: string, fr: string, en: strin
   language === "ar" ? ar : language === "fr" ? fr : en;
 
 const isBlockedOrFailed = (status: TestStatus) => status === "FAIL" || status === "BLOCKED";
+const CONCRETE_DOMAIN_TEST_IDS = new Set(["FC_SLUMP", "FC_TEMPERATURE", "HC_COMPRESSIVE_STRENGTH", "HC_SPLIT_TENSILE"]);
 
 function blankFromExample(value: any): any {
   if (Array.isArray(value)) return [];
@@ -86,6 +93,7 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
   initialMaterialId,
   initialDraft,
   existingTestRecords = [],
+  allowedDomainId,
   onNavigateToMaterialsLibrary,
   onSaveTest,
   language = "ar"
@@ -105,6 +113,11 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
   const [matSearchQuery, setMatSearchQuery] = useState<string>("");
   const [matCategoryFilter, setMatCategoryFilter] = useState<string>("all");
   const [testSearchQuery, setTestSearchQuery] = useState<string>("");
+
+  const availableCatalog = useMemo(
+    () => allowedDomainId ? MASTER_TEST_CATALOG.filter(test => catalogDefinitionDomain(test) === allowedDomainId) : MASTER_TEST_CATALOG,
+    [allowedDomainId]
+  );
   
   // Test Metadata
   const [sampleId, setSampleId] = useState<string>(initialDraft?.sampleId || "");
@@ -119,8 +132,8 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
 
   // Test Definition
   const currentTestDef = useMemo(() => {
-    return MASTER_TEST_CATALOG.find(t => t.id === selectedTestDefId) || MASTER_TEST_CATALOG[0];
-  }, [selectedTestDefId]);
+    return availableCatalog.find(t => t.id === selectedTestDefId) || availableCatalog[0] || MASTER_TEST_CATALOG[0];
+  }, [availableCatalog, selectedTestDefId]);
 
   // Selected Material (Any material from the library)
   const currentMaterial = useMemo(() => materials.find(m => m.id === selectedMaterialId), [materials, selectedMaterialId]);
@@ -194,7 +207,7 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
 
   // Filter tests by category and search
   const filteredTests = useMemo(() => {
-    return MASTER_TEST_CATALOG.filter(t => {
+    return availableCatalog.filter(t => {
       if (selectedCategory !== "all" && t.category !== selectedCategory) return false;
       if (testSearchQuery.trim()) {
         const q = testSearchQuery.toLowerCase();
@@ -205,7 +218,7 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
       }
       return true;
     });
-  }, [selectedCategory, testSearchQuery]);
+  }, [availableCatalog, selectedCategory, testSearchQuery]);
 
   // Filter materials for picker
   const filteredMaterials = useMemo(() => {
@@ -459,6 +472,19 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
     }
   }, [selectedTestDefId, inputsState, hasRun]);
 
+  const concreteDomainRun = useMemo<LaboratoryTestRun<Record<string, unknown>> | undefined>(() => {
+    if (!CONCRETE_DOMAIN_TEST_IDS.has(selectedTestDefId) || !hasRun || inputIssues.length > 0 || !currentMaterial || !compatibility.compatible) return undefined;
+    return executeConcreteLaboratoryTest(selectedTestDefId, {
+      runId: `CONCRETE-${selectedTestDefId}-${Date.now()}`,
+      projectId: initialDraft?.projectId,
+      materialId: currentMaterial.id,
+      sampleId: sampleId.trim(),
+      operator: operator.trim(),
+      rawData: inputsState,
+      official: false
+    });
+  }, [selectedTestDefId, hasRun, inputIssues.length, currentMaterial, compatibility.compatible, initialDraft?.projectId, sampleId, operator, inputsState]);
+
   // Execute Calculation Real-time
   const calculationResult: TestExecutionResult = useMemo(() => {
     if (!hasRun || inputIssues.length > 0 || !currentMaterial || !compatibility.compatible) {
@@ -469,6 +495,13 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
         interpretation: language === "ar" ? "أكمل القياسات المطلوبة واختر مادة متوافقة ثم شغّل الاختبار لعرض نتيجة محسوبة." : language === "fr" ? "Complétez les mesures requises, choisissez un matériau compatible, puis lancez l'essai." : "Complete the required measurements, select a compatible material, then run the test to calculate a result.",
         complianceDetails: [],
         syncedProperties: {}
+      };
+    }
+    if (CONCRETE_DOMAIN_TEST_IDS.has(selectedTestDefId)) {
+      return concreteDomainRun ? concreteDomainRunToWizardResult(concreteDomainRun) : {
+        results: {}, status: "BLOCKED", score: 0,
+        interpretation: "Concrete domain engine did not return a run; no legacy calculation fallback was attempted.",
+        complianceDetails: [], syncedProperties: {}
       };
     }
     const legacyResult = executeLaboratoryTest(selectedTestDefId, inputsState, currentMaterial);
@@ -625,7 +658,7 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
       };
     }
     return legacyResult;
-  }, [hasRun, inputIssues, compatibility.compatible, language, selectedTestDefId, inputsState, currentMaterial, sievePhase2Result, specificGravityPhase2Result, bulkDensityPhase2Result, moisturePhase2Result, sandEquivalentPhase2Result, sandBulkingPhase2Result, losAngelesPhase2Result, microDevalPhase2Result, flakinessPhase2Result, methyleneBluePhase2Result, cementSpecificGravityPhase2Result, blainePhase2Result, cementSettingTimePhase2Result, cementSoundnessPhase2Result, cementMortarStrengthPhase2Result, cementNormalConsistencyPhase2Result]);
+  }, [hasRun, inputIssues, compatibility.compatible, language, selectedTestDefId, inputsState, currentMaterial, concreteDomainRun, sievePhase2Result, specificGravityPhase2Result, bulkDensityPhase2Result, moisturePhase2Result, sandEquivalentPhase2Result, sandBulkingPhase2Result, losAngelesPhase2Result, microDevalPhase2Result, flakinessPhase2Result, methyleneBluePhase2Result, cementSpecificGravityPhase2Result, blainePhase2Result, cementSettingTimePhase2Result, cementSoundnessPhase2Result, cementMortarStrengthPhase2Result, cementNormalConsistencyPhase2Result]);
 
   if (!isOpen) return null;
 
@@ -672,7 +705,8 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
   const handleSave = () => {
     if (!hasRun || inputIssues.length > 0 || getSampleIssues().length > 0 || !currentMaterial || !compatibility.compatible) return;
     const testRecordId = initialDraft?.id || `TEST-${currentTestDef.category.toUpperCase().slice(0, 3)}-${Date.now().toString().slice(-6)}`;
-    const updateProposals = isBlockedOrFailed(calculationResult.status) ? [] : selectedTestDefId === "AGG_SIEVE" && sievePhase2Result
+    const currentTestDomain = catalogDefinitionDomain(currentTestDef);
+    const updateProposals = concreteDomainRun || isBlockedOrFailed(calculationResult.status) ? [] : selectedTestDefId === "AGG_SIEVE" && sievePhase2Result
       ? createSieveMaterialUpdateProposals({
           material: currentMaterial,
           testRunId: testRecordId,
@@ -777,7 +811,9 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
       testTitleFr: currentTestDef.titleFr,
       testTitleEn: currentTestDef.titleEn,
       category: currentTestDef.category,
-      laboratoryArea: "materials",
+      domainId: currentTestDomain,
+      domainRun: concreteDomainRun,
+      laboratoryArea: currentTestDomain === "fresh_concrete" || currentTestDomain === "hardened_concrete" ? "concrete" : "materials",
       materialId: currentMaterial.id,
       materialName: currentMaterial.name,
       materialCategory: currentMaterial.category,
@@ -788,11 +824,11 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
       operator,
       laboratoryName: labName,
       date: testDate,
-      standard: currentTestDef.standard,
+      standard: concreteDomainRun?.standard ? `${concreteDomainRun.standard.code}${concreteDomainRun.standard.version ? `:${concreteDomainRun.standard.version}` : ""} · ${concreteDomainRun.standard.status}` : currentTestDef.standard,
       inputs: inputsState,
       results: calculationResult.results,
       status: calculationResult.status,
-      approvalStatus: isBlockedOrFailed(calculationResult.status) ? "Rejected" : "Pending Review",
+      approvalStatus: concreteDomainRun ? "Pending Review" : isBlockedOrFailed(calculationResult.status) ? "Rejected" : "Pending Review",
       score: calculationResult.score,
       interpretation: calculationResult.interpretation,
       complianceDetails: calculationResult.complianceDetails,
@@ -878,7 +914,7 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
                 }`}
               >
                 <span className="text-lg">🧪</span>
-                <span className="text-xs font-bold truncate">{labText(language, "جميع الاختبارات (28)", "Tous les essais (28)", "All tests (28)")}</span>
+                  <span className="text-xs font-bold truncate">{labText(language, `جميع الاختبارات (${availableCatalog.length})`, `Tous les essais (${availableCatalog.length})`, `All tests (${availableCatalog.length})`)}</span>
               </button>
 
               {(Object.keys(LAB_CATEGORIES_INFO) as LabCategory[]).map(catKey => {
@@ -890,7 +926,7 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
                     type="button"
                     onClick={() => {
                       setSelectedCategory(catKey);
-                      const firstTestInCat = MASTER_TEST_CATALOG.find(t => t.category === catKey);
+                      const firstTestInCat = availableCatalog.find(t => t.category === catKey);
                       if (firstTestInCat) {
                         handleSelectTest(firstTestInCat);
                       }
@@ -939,7 +975,7 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
               <select
                 value={selectedTestDefId}
                 onChange={(e) => {
-                  const found = MASTER_TEST_CATALOG.find(t => t.id === e.target.value);
+                  const found = availableCatalog.find(t => t.id === e.target.value);
                   if (found) handleSelectTest(found);
                 }}
                 className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-blue-500 focus:outline-none"
@@ -959,7 +995,7 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
                   </span>
                 </div>
                 <div className="text-[10px] text-slate-400">
-                  {labText(language, "خصائص مقترحة للمراجعة: ", "Propriétés proposées à examiner : ", "Proposed properties for review: ")}<strong className="text-blue-600 dark:text-blue-400 font-mono">{currentTestDef.syncedPropertyKeys.join(", ")}</strong>
+                  {CONCRETE_DOMAIN_TEST_IDS.has(selectedTestDefId) ? labText(language, "تشغيل تشخيصي فقط؛ لا تُقترح مزامنة خصائص إلى المادة.", "Calcul diagnostique uniquement ; aucune propriété ne sera synchronisée.", "Diagnostic calculation only; no material-property synchronization is proposed.") : <>{labText(language, "خصائص مقترحة للمراجعة: ", "Propriétés proposées à examiner : ", "Proposed properties for review: ")}<strong className="text-blue-600 dark:text-blue-400 font-mono">{currentTestDef.syncedPropertyKeys.join(", ")}</strong></>}
                 </div>
               </div>
             </div>
@@ -1462,11 +1498,11 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
           </div>
 
           {wizardStep === 3 && <section className="space-y-4 rounded-2xl border border-blue-200 bg-blue-50/60 p-4 dark:border-blue-900 dark:bg-blue-950/20">
-            <div className="flex items-center justify-between gap-3"><div><h4 className="text-sm font-black">{labText(language, "مراجعة التنفيذ قبل الحفظ", "Vérification avant enregistrement", "Review before saving")}</h4><p className="text-xs text-slate-500">{language === "ar" ? currentTestDef.titleAr : language === "fr" ? currentTestDef.titleFr : currentTestDef.titleEn} · {currentTestDef.standard}</p></div><button type="button" onClick={() => setWizardStep(2)} className="rounded-lg border border-blue-300 px-3 py-1.5 text-xs font-bold text-blue-700 dark:border-blue-800 dark:text-blue-300">{labText(language, "تعديل المدخلات", "Modifier les mesures", "Edit measurements")}</button></div>
+            <div className="flex items-center justify-between gap-3"><div><h4 className="text-sm font-black">{labText(language, "مراجعة التنفيذ قبل الحفظ", "Vérification avant enregistrement", "Review before saving")}</h4><p className="text-xs text-slate-500">{language === "ar" ? currentTestDef.titleAr : language === "fr" ? currentTestDef.titleFr : currentTestDef.titleEn} · {concreteDomainRun?.standard ? `${concreteDomainRun.standard.code} · ${concreteDomainRun.standard.status}` : currentTestDef.standard}</p></div><button type="button" onClick={() => setWizardStep(2)} className="rounded-lg border border-blue-300 px-3 py-1.5 text-xs font-bold text-blue-700 dark:border-blue-800 dark:text-blue-300">{labText(language, "تعديل المدخلات", "Modifier les mesures", "Edit measurements")}</button></div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs"><div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900"><span className="block text-slate-500">{labText(language, "المادة", "Matériau", "Material")}</span><strong>{currentMaterial?.name} · {currentMaterial?.category}</strong></div><div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900"><span className="block text-slate-500">{labText(language, "العينة", "Échantillon", "Sample")}</span><strong>{sampleId} · {sampleDate}</strong></div><div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900"><span className="block text-slate-500">{labText(language, "المصدر / الفني", "Source / opérateur", "Source / operator")}</span><strong>{sampleSource} · {operator}</strong></div><div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900"><span className="block text-slate-500">{labText(language, "تاريخ الاختبار", "Date de l'essai", "Test date")}</span><strong>{testDate}</strong></div></div>
             <details className="rounded-xl bg-white/80 p-3 text-xs dark:bg-slate-900"><summary className="cursor-pointer font-bold">{language === "ar" ? "عرض جميع المدخلات الخام" : language === "fr" ? "Afficher toutes les données brutes" : "Show all raw inputs"}</summary><pre className="mt-2 overflow-x-auto whitespace-pre-wrap break-words font-mono text-[11px]">{JSON.stringify(inputsState, null, 2)}</pre></details>
             <div className="overflow-x-auto rounded-xl border border-blue-200 dark:border-blue-900"><table className="min-w-full text-xs"><thead className="bg-white/80 dark:bg-slate-900"><tr><th className="p-2 text-start">{labText(language, "الخاصية المقترحة", "Propriété proposée", "Proposed property")}</th><th className="p-2 text-start">{labText(language, "القيمة الحالية", "Valeur actuelle", "Current value")}</th><th className="p-2 text-start">{labText(language, "قيمة الاختبار", "Valeur mesurée", "Test value")}</th></tr></thead><tbody>{Object.entries(calculationResult.syncedProperties).map(([key, value]) => <tr key={key} className="border-t border-blue-100 dark:border-blue-900"><td className="p-2 font-bold">{key}</td><td className="p-2 font-mono">{currentMaterial?.[key as keyof EngineeringMaterial] === undefined ? "—" : String(currentMaterial?.[key as keyof EngineeringMaterial])}</td><td className="p-2 font-mono">{typeof value === "object" ? JSON.stringify(value) : String(value)}</td></tr>)}</tbody></table>{Object.keys(calculationResult.syncedProperties).length === 0 && <p className="p-3 text-xs text-slate-600">{labText(language, "لا توجد خاصية قابلة للتحديث المقترح لهذه النتيجة.", "Aucune propriété à proposer pour cette analyse.", "No material property is eligible for a proposed update from this result.")}</p>}</div>
-            <p className="text-[11px] text-slate-600 dark:text-slate-400">{language === "ar" ? "الحفظ يضيف النتيجة إلى سجل المشروع ويضع أي تحديث مقترح قيد المراجعة؛ لا تُعدّل مكتبة المواد من هذه الشاشة." : language === "fr" ? "L'enregistrement ajoute le résultat à l'historique et soumet les changements proposés à examen ; la bibliothèque n'est pas modifiée ici." : "Saving archives the result and records any proposed update for review; this screen does not mutate the material library."}</p>
+            <p className="text-[11px] text-slate-600 dark:text-slate-400">{concreteDomainRun ? labText(language, "سيُحفظ التشغيل الكامل للتشخيص والمراجعة؛ القبول غير مُقيّم ولا تُزامن أي خاصية إلى المادة.", "Le calcul complet sera archivé pour diagnostic ; la conformité n'est pas évaluée et aucune propriété ne sera synchronisée.", "The complete run will be saved for diagnostic review; acceptance is not assessed and no material property will be synchronized.") : language === "ar" ? "الحفظ يضيف النتيجة إلى سجل المشروع ويضع أي تحديث مقترح قيد المراجعة؛ لا تُعدّل مكتبة المواد من هذه الشاشة." : language === "fr" ? "L'enregistrement ajoute le résultat à l'historique et soumet les changements proposés à examen ; la bibliothèque n'est pas modifiée ici." : "Saving archives the result and records any proposed update for review; this screen does not mutate the material library."}</p>
           </section>}
 
           {/* 5. Results & Compliance / Quality Control Gauge */}
@@ -1477,7 +1513,7 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
                 <div className="flex items-center justify-between">
                   <h4 className="text-xs font-black text-slate-800 dark:text-slate-200 flex items-center gap-2">
                     <Sparkles className="w-4 h-4 text-amber-500" />
-                    {labText(language, "النتائج والخواص الفيزيائية المحسوبة", "Résultats et propriétés calculées", "Calculated results and engineering properties")}
+                    {concreteDomainRun ? labText(language, "نتيجة حساب تشخيصي — القبول غير مقيّم", "Résultat diagnostique — conformité non évaluée", "Diagnostic calculation — acceptance not assessed") : labText(language, "النتائج والخواص الفيزيائية المحسوبة", "Résultats et propriétés calculées", "Calculated results and engineering properties")}
                   </h4>
                   <span className={`px-2.5 py-1 text-xs font-black rounded-full flex items-center gap-1 ${
                     calculationResult.status === "PASS"
@@ -1489,7 +1525,7 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
                     {calculationResult.status === "PASS" && <CheckCircle2 className="w-3.5 h-3.5" />}
                     {calculationResult.status === "WARNING" && <AlertTriangle className="w-3.5 h-3.5" />}
                     {(calculationResult.status === "FAIL" || calculationResult.status === "BLOCKED") && <XCircle className="w-3.5 h-3.5" />}
-                    {calculationResult.status === "PASS" ? labText(language, "مطابق للمواصفة", "Conforme", "Compliant") : calculationResult.status === "WARNING" ? labText(language, "تنبيه وتحذير", "Avertissement", "Warning") : calculationResult.status === "BLOCKED" ? labText(language, "محظور لعدم توافق المادة", "Bloqué : matériau incompatible", "Blocked: incompatible material") : labText(language, "مرفوض غير مطابق", "Non conforme", "Non-compliant")} ({calculationResult.status})
+                    {concreteDomainRun ? concreteDomainRun.status === "Blocked" || concreteDomainRun.status === "Invalid" || concreteDomainRun.status === "Incomplete" ? labText(language, "التشغيل محظور/غير مكتمل", "Exécution bloquée/incomplète", "Run blocked/incomplete") : labText(language, "تشخيصي — القبول غير مقيّم", "Diagnostic — conformité non évaluée", "Diagnostic — acceptance not assessed") : calculationResult.status === "PASS" ? labText(language, "مطابق للمواصفة", "Conforme", "Compliant") : calculationResult.status === "WARNING" ? labText(language, "تنبيه وتحذير", "Avertissement", "Warning") : calculationResult.status === "BLOCKED" ? labText(language, "محظور لعدم توافق المادة", "Bloqué : matériau incompatible", "Blocked: incompatible material") : labText(language, "مرفوض غير مطابق", "Non conforme", "Non-compliant")} ({concreteDomainRun?.status || calculationResult.status})
                   </span>
                 </div>
 
@@ -1515,7 +1551,7 @@ export const NewTestWizard: React.FC<NewTestWizardProps> = ({
               {/* Compliance Checklist */}
               <div className="space-y-2">
                 <h5 className="text-[11px] font-black text-slate-500 uppercase tracking-wider">
-                  {labText(language, "جدول التحقق من الحدود المعيارية والمطابقة:", "Vérification des seuils normatifs et de la conformité :", "Standard limits & compliance check:")}
+                  {concreteDomainRun ? labText(language, "تحقق البيانات والحساب فقط — لا يوجد حكم مطابقة:", "Validation des données uniquement — aucune conformité décidée :", "Input/calculation validation only — no conformity verdict:") : labText(language, "جدول التحقق من الحدود المعيارية والمطابقة:", "Vérification des seuils normatifs et de la conformité :", "Standard limits & compliance check:")}
                 </h5>
                 <div className="space-y-1.5">
                   {calculationResult.complianceDetails.map((c, i) => (

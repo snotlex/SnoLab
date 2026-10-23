@@ -1,6 +1,6 @@
 import type { EngineeringMaterial } from "../types";
 import type { MaterialTestRecord, TestStatus } from "./laboratoryTypes";
-import type { LaboratoryIdentity, LaboratoryDomainId } from "./laboratoryDomain";
+import type { LaboratoryIdentity, LaboratoryDomainId, LaboratoryTestRun } from "../types/laboratoryDomain";
 
 export type LaboratoryRequestStatus =
   | "DRAFT"
@@ -70,6 +70,7 @@ export interface LaboratoryReplicate {
   readings?: Array<{ id: string; label: string; value?: number | string; unit?: string; takenAt?: string }>;
   numericResult?: number;
   result?: Record<string, unknown>;
+  domainRun?: LaboratoryTestRun<Record<string, unknown>>;
   notes?: string;
   excludedReason?: string;
   startedAt?: string;
@@ -98,6 +99,7 @@ export interface LaboratorySessionTestItem {
   completionPercent: number;
   replicates: LaboratoryReplicate[];
   result?: MaterialTestRecord["results"];
+  domainRun?: LaboratoryTestRun<Record<string, unknown>>;
   resultSummary?: {
     individualValues: number[];
     validCount: number;
@@ -247,6 +249,7 @@ export type SessionRunResult = {
   testId: string;
   status: LaboratorySessionTestStatus;
   record?: MaterialTestRecord;
+  domainRun?: LaboratoryTestRun<Record<string, unknown>>;
   error?: string;
 };
 

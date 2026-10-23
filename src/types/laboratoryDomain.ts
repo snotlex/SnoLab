@@ -152,7 +152,8 @@ export interface LaboratoryTestDefinition<TData extends Record<string, unknown> 
     result: number | string;
     unit?: string;
     trace: CalculationTraceStep[];
-  };
+    details?: unknown;
+  }
 }
 
 export interface LaboratoryTestRun<TData extends Record<string, unknown> = Record<string, unknown>> {
@@ -180,6 +181,7 @@ export interface LaboratoryTestRun<TData extends Record<string, unknown> = Recor
   createdByIdentity?: LaboratoryIdentity;
   rawData: TData;
   calculationTrace: CalculationTraceStep[];
+  calculationDetails?: unknown;
   result?: { value: number | string; unit?: string };
   validation: ValidationReport;
   status: LaboratoryResultStatus;

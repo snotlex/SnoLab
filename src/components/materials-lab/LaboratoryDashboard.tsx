@@ -46,7 +46,8 @@ import type { LaboratorySession } from "../../types/laboratorySessionTypes";
 import type { RegisteredEquipment, RegisteredStandard } from "../../services/laboratoryRegistry";
 import { generateLabTestPdf } from "../../services/pdf/labTestPdfGenerator";
 import { LaboratoryDomainPortal } from "./LaboratoryDomainPortal";
-import { catalogDefinitionDomain } from "../../services/laboratoryDomains";
+import { GeotechnicalTestWorkspace } from "./GeotechnicalTestWorkspace";
+import { catalogDefinitionDomain, inferLaboratoryDomain, inferLaboratorySessionDomain } from "../../services/laboratoryDomains";
 import type { LaboratoryDomainId } from "../../types/laboratoryDomain";
 import type { AcceptanceProfile } from "../../services/laboratoryAcceptanceEngine";
 
@@ -99,6 +100,7 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
 }) => {
   // Navigation & Filter State
   const [activeCategory, setActiveCategory] = useState<LabCategory | "all">("all");
+  const [activeLaboratoryDomain, setActiveLaboratoryDomain] = useState<LaboratoryDomainId>("civil_materials");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<TestStatus | "ALL">("ALL");
   const [dateFilter, setDateFilter] = useState<"all" | "30d" | "90d">("all");
@@ -107,6 +109,8 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
   const [recordMaterialFilter, setRecordMaterialFilter] = useState("all");
   const [sampleIdFilter, setSampleIdFilter] = useState("");
   const [showSessionCenter, setShowSessionCenter] = useState(false);
+  const [showGeotechnicalWorkspace, setShowGeotechnicalWorkspace] = useState(false);
+  const [geotechnicalInitialTestId, setGeotechnicalInitialTestId] = useState("GT_SIEVE_SOIL");
 
   // Modals
   const [isWizardOpen, setIsWizardOpen] = useState<boolean>(false);
@@ -139,26 +143,31 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
   const [materialSearchQuery, setMaterialSearchQuery] = useState<string>("");
   const [materialCategoryFilter, setMaterialCategoryFilter] = useState<string>("all");
 
-  // Statistics
+  const scopedLaboratoryTests = useMemo(
+    () => laboratoryTests.filter(test => inferLaboratoryDomain(test) === activeLaboratoryDomain),
+    [laboratoryTests, activeLaboratoryDomain]
+  );
+
+  // Statistics are scoped to the selected laboratory domain; project data remains intact.
   const stats = useMemo(() => {
-    const total = laboratoryTests.length;
-    const passed = laboratoryTests.filter(t => t.status === "PASS").length;
-    const warnings = laboratoryTests.filter(t => t.status === "WARNING").length;
-    const failed = laboratoryTests.filter(t => t.status === "FAIL").length;
-    const blocked = laboratoryTests.filter(t => t.status === "BLOCKED").length;
-    const drafts = laboratoryTests.filter(t => t.status === "DRAFT").length;
-    const ready = laboratoryTests.filter(t => t.status === "READY").length;
+    const total = scopedLaboratoryTests.length;
+    const passed = scopedLaboratoryTests.filter(t => t.status === "PASS").length;
+    const warnings = scopedLaboratoryTests.filter(t => t.status === "WARNING").length;
+    const failed = scopedLaboratoryTests.filter(t => t.status === "FAIL").length;
+    const blocked = scopedLaboratoryTests.filter(t => t.status === "BLOCKED").length;
+    const drafts = scopedLaboratoryTests.filter(t => t.status === "DRAFT").length;
+    const ready = scopedLaboratoryTests.filter(t => t.status === "READY").length;
     const completed = passed + warnings + failed;
-    const pendingReview = laboratoryTests.filter(t => t.status !== "FAIL" && t.status !== "BLOCKED" && t.status !== "DRAFT" && t.status !== "READY" && t.approvalStatus !== "Approved" && t.approvalStatus !== "Validated").length;
+    const pendingReview = scopedLaboratoryTests.filter(t => t.status !== "FAIL" && t.status !== "BLOCKED" && t.status !== "DRAFT" && t.status !== "READY" && t.approvalStatus !== "Approved" && t.approvalStatus !== "Validated").length;
     const passRate = completed > 0 ? Math.round((passed / completed) * 100) : 0;
 
     // Materials tested
-    const testedMaterialIds = new Set(laboratoryTests.filter(t => t.status !== "DRAFT" && t.materialId).map(t => t.materialId));
+    const testedMaterialIds = new Set(scopedLaboratoryTests.filter(t => t.status !== "DRAFT" && t.materialId).map(t => t.materialId));
     const testedMaterialsCount = materials.filter(m => testedMaterialIds.has(m.id)).length;
     const unapprovedMaterials = materials.filter(m => m.approvalStatus !== "Approved" && m.approvalStatus !== "Validated").length;
     const materialsCoveragePct = materials.length > 0 ? Math.round((testedMaterialsCount / materials.length) * 100) : 0;
     const activeCutoff = Date.now() - 90 * 24 * 60 * 60 * 1000;
-    const activeSamples = new Set(laboratoryTests.filter(t => t.sampleId.trim() && Date.parse(t.date) >= activeCutoff).map(t => t.sampleId)).size;
+    const activeSamples = new Set(scopedLaboratoryTests.filter(t => t.sampleId.trim() && Date.parse(t.date) >= activeCutoff).map(t => t.sampleId)).size;
 
     return {
       total,
@@ -177,11 +186,12 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
       totalMaterials: materials.length,
       materialsCoveragePct
     };
-  }, [laboratoryTests, materials]);
+  }, [scopedLaboratoryTests, materials]);
 
   // Filtered Test Catalog
   const displayedCatalog = useMemo(() => {
     return MASTER_TEST_CATALOG.filter(test => {
+      if (catalogDefinitionDomain(test) !== activeLaboratoryDomain) return false;
       if (activeCategory !== "all" && test.category !== activeCategory) return false;
       if (catalogMaterialFilter !== "all" && !test.applicableMaterials.some(value => value.toLowerCase().includes(catalogMaterialFilter.toLowerCase()))) return false;
       if (standardFilter !== "all" && test.standard !== standardFilter) return false;
@@ -193,11 +203,12 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
       }
       return true;
     });
-  }, [activeCategory, searchQuery, catalogMaterialFilter, standardFilter]);
+  }, [activeLaboratoryDomain, activeCategory, searchQuery, catalogMaterialFilter, standardFilter]);
 
   // Filtered Test History Records
   const displayedRecords = useMemo(() => {
     return laboratoryTests.filter(rec => {
+      if (inferLaboratoryDomain(rec) !== activeLaboratoryDomain) return false;
       if (activeCategory !== "all" && rec.category !== activeCategory) return false;
       if (statusFilter !== "ALL" && rec.status !== statusFilter) return false;
       if (recordMaterialFilter !== "all" && rec.materialId !== recordMaterialFilter) return false;
@@ -216,8 +227,8 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
       }
       return true;
     });
-  }, [laboratoryTests, activeCategory, statusFilter, searchQuery, dateFilter, recordMaterialFilter, sampleIdFilter]);
-  const latestTests = useMemo(() => [...laboratoryTests].sort((a, b) => (Date.parse(b.date) || 0) - (Date.parse(a.date) || 0)).slice(0, 5), [laboratoryTests]);
+  }, [laboratoryTests, activeLaboratoryDomain, activeCategory, statusFilter, searchQuery, dateFilter, recordMaterialFilter, sampleIdFilter]);
+  const latestTests = useMemo(() => [...scopedLaboratoryTests].sort((a, b) => (Date.parse(b.date) || 0) - (Date.parse(a.date) || 0)).slice(0, 5), [scopedLaboratoryTests]);
 
   // Filtered Materials for Verification Matrix
   const filteredMatrixMaterials = useMemo(() => {
@@ -257,7 +268,7 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
         materials={materials}
         tests={laboratoryTests}
         catalog={MASTER_TEST_CATALOG}
-        sessionsCount={projectSessions?.length || 0}
+        sessionsCount={projectSessions?.filter(session => inferLaboratorySessionDomain(session) === activeLaboratoryDomain).length || 0}
         projectId={projectId}
         acceptanceProfiles={acceptanceProfiles}
         onAcceptanceProfileSave={onAcceptanceProfileSave}
@@ -266,15 +277,30 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
         reviewerId={reviewerId}
         language={language}
         onStartTest={(testId) => {
+          if (["GT_SIEVE_SOIL", "GT_PROCTOR", "GT_ATTERBERG", "GT_CBR"].includes(testId)) {
+            setGeotechnicalInitialTestId(testId);
+            setShowGeotechnicalWorkspace(true);
+            return;
+          }
           const definition = MASTER_TEST_CATALOG.find(item => item.id === testId);
-          if (definition && catalogDefinitionDomain(definition) === "civil_materials") {
+          if (definition && catalogDefinitionDomain(definition) === activeLaboratoryDomain) {
             handleLaunchTest(testId, definition.category, undefined);
           }
         }}
         onDomainChange={(domainId: LaboratoryDomainId) => {
-          if (domainId === "civil_materials") setActiveCategory("all");
+          setActiveLaboratoryDomain(domainId);
+          setActiveCategory("all");
         }}
       />
+      {showGeotechnicalWorkspace && activeLaboratoryDomain === "geotechnical" && <GeotechnicalTestWorkspace
+        language={language}
+        projectId={projectId}
+        projectName={projectName}
+        projectSessions={projectSessions}
+        onSessionsChange={onSessionsChange}
+        initialTestId={geotechnicalInitialTestId}
+        onClose={() => setShowGeotechnicalWorkspace(false)}
+      />}
       {/* 1. Header Banner & Identity */}
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-l from-blue-700 via-indigo-700 to-slate-900 text-white p-6 sm:p-8 shadow-xl border border-blue-500/20">
         <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
@@ -298,7 +324,17 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
           <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
             <button
               type="button"
-              onClick={() => handleLaunchTest("AGG_SIEVE", "aggregates")}
+              onClick={() => {
+                if (activeLaboratoryDomain === "geotechnical") {
+                  setGeotechnicalInitialTestId("GT_SIEVE_SOIL");
+                  setShowGeotechnicalWorkspace(true);
+                  return;
+                }
+                const defaultTestId = activeLaboratoryDomain === "civil_materials" ? "AGG_SIEVE" : activeLaboratoryDomain === "fresh_concrete" ? "FC_SLUMP" : activeLaboratoryDomain === "hardened_concrete" ? "HC_COMPRESSIVE_STRENGTH" : undefined;
+                const definition = defaultTestId ? MASTER_TEST_CATALOG.find(test => test.id === defaultTestId) : undefined;
+                if (definition) handleLaunchTest(definition.id, definition.category);
+              }}
+              title={activeLaboratoryDomain === "geotechnical" ? labText(language, "تشغيل تشخيصي فقط؛ لا يصدر قبولًا رسميًا.", "Diagnostic uniquement; aucune approbation officielle.", "Diagnostic only; no official acceptance is issued.") : undefined}
               className="flex items-center gap-2 px-5 py-3 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black rounded-2xl text-xs shadow-lg shadow-emerald-500/30 transition-all transform active:scale-95 cursor-pointer"
             >
               <Plus className="w-4 h-4 text-slate-950 stroke-[3]" />
@@ -827,6 +863,7 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
       {showSessionCenter && <LaboratorySessionPanel
         materials={materials}
         legacyTests={laboratoryTests}
+        activeDomainId={activeLaboratoryDomain}
         projectId={projectId}
         projectName={projectName}
         language={language}
@@ -851,6 +888,7 @@ export const LaboratoryDashboard: React.FC<LaboratoryDashboardProps> = ({
           initialMaterialId={wizardInitialMaterialId}
           initialDraft={wizardInitialDraft}
           existingTestRecords={laboratoryTests}
+          allowedDomainId={activeLaboratoryDomain}
           onNavigateToMaterialsLibrary={onNavigateToMaterialsLibrary}
           onSaveTest={onSaveTestRecord}
           language={language}
