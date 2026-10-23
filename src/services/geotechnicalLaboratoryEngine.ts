@@ -1,10 +1,9 @@
 import type { LaboratoryTestDefinition, LaboratoryTestRun } from "../types/laboratoryDomain";
-import { DOMAIN_LABORATORY_TEST_DEFINITIONS } from "./domainLaboratoryTestDefinitions";
+import { GEOTECHNICAL_TEST_DEFINITIONS } from "./geotechnicalLaboratoryTestDefinitions";
 import { executeDefinedLaboratoryTest } from "./laboratoryTestEngine";
 
 const GEOTECHNICAL_DEFINITIONS = new Map<string, LaboratoryTestDefinition<Record<string, unknown>>>(
-  DOMAIN_LABORATORY_TEST_DEFINITIONS
-    .filter(definition => definition.domainId === "geotechnical")
+  GEOTECHNICAL_TEST_DEFINITIONS
     .map(definition => [definition.id, definition as unknown as LaboratoryTestDefinition<Record<string, unknown>>])
 );
 

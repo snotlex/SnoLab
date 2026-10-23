@@ -14,6 +14,7 @@ describe("geotechnical laboratory engine facade", () => {
     const definitions = listGeotechnicalTestDefinitions();
     expect(definitions.map(definition => definition.id).sort()).toEqual(["GT_PROCTOR", "GT_SIEVE_SOIL"]);
     expect(definitions.every(definition => definition.domainId === "geotechnical")).toBe(true);
+    expect(definitions.every(definition => definition.active && definition.standard?.status === "Draft")).toBe(true);
 
     const run = executeGeotechnicalLaboratoryTest("GT_SIEVE_SOIL", {
       ...runParams,
@@ -53,6 +54,17 @@ describe("geotechnical laboratory engine facade", () => {
     });
     expect(run.status).toBe("Invalid");
     expect(run.validation.valid).toBe(false);
+    expect(run.calculationTrace).toEqual([]);
+  });
+
+  it("returns an Invalid run for malformed row arrays instead of throwing out of the engine", () => {
+    const run = executeGeotechnicalLaboratoryTest("GT_SIEVE_SOIL", {
+      ...runParams,
+      rawData: { totalSampleMassG: 100, rows: "not-an-array" }
+    });
+    expect(run.status).toBe("Invalid");
+    expect(run.validation.valid).toBe(false);
+    expect(run.validation.issues.map(issue => issue.code)).toContain("SOIL_SIEVE_ROWS_INSUFFICIENT");
     expect(run.calculationTrace).toEqual([]);
   });
 

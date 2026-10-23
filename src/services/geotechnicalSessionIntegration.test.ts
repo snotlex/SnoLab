@@ -1,8 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { executeGeotechnicalLaboratoryTest } from "./geotechnicalLaboratoryEngine";
 import { buildLaboratorySessionReport } from "./laboratorySessionReport";
-import { addSessionSample, addSessionTest, addTestReplicate, createLaboratorySession, recordGeotechnicalTestRun } from "./laboratorySessionService";
+import { addSessionSample, addSessionTest, addTestReplicate, buildLaboratorySessionSyncPlan, canApproveLaboratorySession, createLaboratorySession, recordGeotechnicalTestRun } from "./laboratorySessionService";
 import type { LaboratorySession } from "../types/laboratorySessionTypes";
+
+const runParams = {
+  runId: "GT-INTEGRATION-RUN",
+  materialId: "SOIL-MAT-1",
+  sampleId: "SAMPLE-1",
+  operator: "tech-1",
+  rawData: {} as Record<string, unknown>
+};
 
 function createGeotechnicalReadySession(testType: "GT_SIEVE_SOIL" | "GT_PROCTOR", rawInputs: Record<string, unknown>): LaboratorySession {
   let session = createLaboratorySession({ domainId: "geotechnical", requestNumber: `REQ-${testType}`, projectId: "P-GT-1" });
@@ -43,6 +51,9 @@ describe("geotechnical session integration", () => {
     expect(session.tests[0].replicates[0].status).toBe("VALID");
     expect(session.tests[0].resultSummary?.mean).toBe(10);
     expect(session.tests[0].domainRun?.approval).toBeUndefined();
+    const approval = canApproveLaboratorySession(session);
+    expect(approval.allowed).toBe(false);
+    expect(approval.reasons.join(" ")).toContain("active geotechnical standard and explicit acceptance evaluation are required");
 
     const reloaded = JSON.parse(JSON.stringify(session)) as LaboratorySession;
     expect(reloaded.tests[0].domainRun?.calculationDetails).toEqual(session.tests[0].domainRun?.calculationDetails);
@@ -70,5 +81,77 @@ describe("geotechnical session integration", () => {
     const session = createLaboratorySession({ domainId: "civil_materials", requestNumber: "REQ-CIVIL" });
     const run = executeGeotechnicalLaboratoryTest("GT_SIEVE_SOIL", { runId: "GT-SESSION-RUN-3", materialId: "M-1", sampleId: "S-1", operator: "tech-1", rawData: input });
     expect(() => recordGeotechnicalTestRun(session, "test-unknown", "rep-unknown", run)).toThrow("GEOTECHNICAL_SESSION_DOMAIN_MISMATCH");
+  });
+
+  it("rejects mismatched material, sample, and replicate references", () => {
+    const input = { totalSampleMassG: 1000, rows: [{ sieveMm: 2, retainedMassG: 200 }, { sieveMm: 1, retainedMassG: 800 }] };
+    const session = createGeotechnicalReadySession("GT_SIEVE_SOIL", input);
+    const test = session.tests[0];
+    const replicate = test.replicates[0];
+    const run = executeGeotechnicalLaboratoryTest("GT_SIEVE_SOIL", {
+      ...runParams,
+      materialId: test.materialId,
+      sampleId: test.sampleId,
+      rawData: input
+    });
+
+    expect(() => recordGeotechnicalTestRun(session, test.id, replicate.id, { ...run, materialId: "OTHER-MATERIAL" })).toThrow("GEOTECHNICAL_RUN_SESSION_REFERENCE_MISMATCH");
+    expect(() => recordGeotechnicalTestRun(session, test.id, replicate.id, { ...run, sampleId: "OTHER-SAMPLE" })).toThrow("GEOTECHNICAL_RUN_SESSION_REFERENCE_MISMATCH");
+    expect(() => recordGeotechnicalTestRun(session, test.id, "MISSING-REPLICATE", run)).toThrow("GEOTECHNICAL_RUN_SESSION_REFERENCE_MISMATCH");
+  });
+
+  it("blocks acceptance-bearing runs and prevents geotechnical material-sync plans", () => {
+    const input = { totalSampleMassG: 1000, rows: [{ sieveMm: 2, retainedMassG: 200 }, { sieveMm: 1, retainedMassG: 800 }] };
+    let session = createGeotechnicalReadySession("GT_SIEVE_SOIL", input);
+    const test = session.tests[0];
+    const run = executeGeotechnicalLaboratoryTest("GT_SIEVE_SOIL", {
+      ...runParams,
+      materialId: test.materialId,
+      sampleId: test.sampleId,
+      rawData: input
+    });
+    const acceptanceBearingRun = {
+      ...run,
+      acceptanceEvaluation: {
+        decision: "PASS" as const,
+        observedValue: run.result?.value ?? 0,
+        reason: "Synthetic guard test only",
+        evaluatedAt: run.createdAt
+      }
+    };
+    const blockedSession = recordGeotechnicalTestRun(session, test.id, test.replicates[0].id, acceptanceBearingRun);
+    expect(blockedSession.tests[0].status).toBe("BLOCKED");
+    expect(blockedSession.tests[0].replicates[0].status).toBe("INVALID");
+
+    const syncSession = recordGeotechnicalTestRun(session, test.id, test.replicates[0].id, run);
+    const forgedSyncShape = {
+      ...syncSession,
+      tests: syncSession.tests.map(item => ({
+        ...item,
+        sourceProperties: ["compactionDensity"],
+        result: { compactionDensity: 1.9 }
+      }))
+    };
+    expect(buildLaboratorySessionSyncPlan(forgedSyncShape)).toEqual([]);
+    const legacyShapedRun = {
+      ...forgedSyncShape,
+      tests: forgedSyncShape.tests.map(item => ({ ...item, domainId: undefined, domainRun: undefined }))
+    };
+    expect(buildLaboratorySessionSyncPlan(legacyShapedRun)).toEqual([]);
+  });
+
+  it("does not overwrite an existing geotechnical run on the same replicate", () => {
+    const input = { totalSampleMassG: 1000, rows: [{ sieveMm: 2, retainedMassG: 200 }, { sieveMm: 1, retainedMassG: 800 }] };
+    let session = createGeotechnicalReadySession("GT_SIEVE_SOIL", input);
+    const test = session.tests[0];
+    const replicate = test.replicates[0];
+    const run = executeGeotechnicalLaboratoryTest("GT_SIEVE_SOIL", {
+      ...runParams,
+      materialId: test.materialId,
+      sampleId: test.sampleId,
+      rawData: input
+    });
+    session = recordGeotechnicalTestRun(session, test.id, replicate.id, run);
+    expect(() => recordGeotechnicalTestRun(session, test.id, replicate.id, { ...run, id: "GT-RUN-REPLACEMENT" })).toThrow("GEOTECHNICAL_REPLICATE_ALREADY_HAS_RUN");
   });
 });

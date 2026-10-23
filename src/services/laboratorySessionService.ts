@@ -203,10 +203,13 @@ export function recordGeotechnicalTestRun(
   if (session.domainId !== "geotechnical" || test?.domainId !== "geotechnical" || run.domainId !== "geotechnical") {
     throw new Error("GEOTECHNICAL_SESSION_DOMAIN_MISMATCH");
   }
-  if (!test || test.testType !== run.testDefinitionId || test.sampleId !== run.sampleId) {
+  const sample = test ? session.samples.find(item => item.id === test.sampleId) : undefined;
+  const replicate = test?.replicates.find(item => item.id === replicateId);
+  if (!test || test.testType !== run.testDefinitionId || test.sampleId !== run.sampleId || test.materialId !== run.materialId || sample?.materialId !== run.materialId || !replicate || replicate.sampleId !== test.sampleId) {
     throw new Error("GEOTECHNICAL_RUN_SESSION_REFERENCE_MISMATCH");
   }
-  const sessionStatus: LaboratorySessionTestStatus = run.status === "Calculated" || run.status === "Warning" || run.status === "Under Review"
+  if (replicate.domainRun) throw new Error("GEOTECHNICAL_REPLICATE_ALREADY_HAS_RUN");
+  const sessionStatus: LaboratorySessionTestStatus = !run.acceptanceEvaluation && !run.approval && (run.status === "Calculated" || run.status === "Warning" || run.status === "Under Review")
     ? "WARNING"
     : "BLOCKED";
   const primaryValue = run.result?.value;
@@ -348,6 +351,12 @@ export function canApproveLaboratorySession(session: LaboratorySession): { allow
   const reasons: string[] = [];
   for (const test of session.tests) {
     if (!["PASS", "WARNING"].includes(test.status)) reasons.push(`${test.testType}: status ${test.status} is not approvable.`);
+    const isGeotechnical = test.domainId === "geotechnical" || test.domainRun?.domainId === "geotechnical" || test.testType.startsWith("GT_");
+    const acceptanceDecision = test.domainRun?.acceptanceEvaluation?.decision;
+    const acceptanceResolved = acceptanceDecision === "PASS" || acceptanceDecision === "FAIL" || acceptanceDecision === "WARNING";
+    if (isGeotechnical && (test.domainRun?.standard?.status !== "Active" || !acceptanceResolved)) {
+      reasons.push(`${test.testType}: an active geotechnical standard and explicit acceptance evaluation are required.`);
+    }
     if (test.replicates.some(replicate => replicate.status === "INVALID")) reasons.push(`${test.testType}: invalid replicate data.`);
     if (test.requiredReplicates && validReplicates(test).length < test.requiredReplicates) reasons.push(`${test.testType}: required replicate count not met.`);
   }
@@ -378,6 +387,7 @@ export function buildLaboratorySessionSyncPlan(session: LaboratorySession): Labo
   const plan: LaboratorySessionSyncPlanItem[] = [];
   for (const test of session.tests) {
     if (!["PASS", "WARNING"].includes(test.status)) continue;
+    if (test.domainId === "geotechnical" || test.domainRun?.domainId === "geotechnical" || test.testType.startsWith("GT_")) continue;
     if (test.domainRun?.domainId === "fresh_concrete" || test.domainRun?.domainId === "hardened_concrete") continue;
     const result = test.result || {};
     for (const propertyKey of test.sourceProperties || []) {

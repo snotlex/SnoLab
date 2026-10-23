@@ -11,19 +11,32 @@ const finite = (value: unknown): value is number => typeof value === "number" &&
 const issue = (code: string, message: string, field?: string): ValidationIssue => ({ level: "data", severity: "error", code, message, field });
 
 export function validateSoilSieveInput(input: SoilSieveInput): ValidationIssue[] {
+  const candidate = input as Partial<SoilSieveInput> | null | undefined;
+  const rawRows = candidate?.rows;
+  const rows: unknown[] = Array.isArray(rawRows) ? rawRows : [];
+  const totalSampleMassG = candidate?.totalSampleMassG;
+  const washLossMassG = candidate?.washLossMassG;
   const issues: ValidationIssue[] = [];
-  if (!finite(input.totalSampleMassG) || input.totalSampleMassG <= 0) issues.push(issue("SOIL_SIEVE_TOTAL_MASS_INVALID", "Total soil sample mass must be positive and finite.", "totalSampleMassG"));
-  if (!Array.isArray(input.rows) || input.rows.length < 2) issues.push(issue("SOIL_SIEVE_ROWS_INSUFFICIENT", "At least two sieve rows are required.", "rows"));
-  input.rows?.forEach((row, index) => {
+  if (!finite(totalSampleMassG) || totalSampleMassG <= 0) issues.push(issue("SOIL_SIEVE_TOTAL_MASS_INVALID", "Total soil sample mass must be positive and finite.", "totalSampleMassG"));
+  if (!Array.isArray(rawRows) || rows.length < 2) issues.push(issue("SOIL_SIEVE_ROWS_INSUFFICIENT", "At least two sieve rows are required.", "rows"));
+  const validRows: SoilSievePoint[] = [];
+  for (let index = 0; index < rows.length; index += 1) {
+    const value = rows[index];
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      issues.push(issue("SOIL_SIEVE_ROW_INVALID", "Each sieve row must be an object.", `rows.${index}`));
+      continue;
+    }
+    const row = value as SoilSievePoint;
+    validRows.push(row);
     if (!finite(row.sieveMm) || row.sieveMm < 0) issues.push(issue("SOIL_SIEVE_APERTURE_INVALID", "Sieve aperture must be finite and non-negative.", `rows.${index}.sieveMm`));
     if (!finite(row.retainedMassG) || row.retainedMassG < 0) issues.push(issue("SOIL_SIEVE_MASS_INVALID", "Retained mass must be finite and non-negative.", `rows.${index}.retainedMassG`));
-  });
-  const apertures = input.rows?.map(row => row.sieveMm).filter(finite) || [];
+  }
+  const apertures = validRows.map(row => row.sieveMm).filter(finite);
   if (new Set(apertures).size !== apertures.length) issues.push(issue("SOIL_SIEVE_DUPLICATE_APERTURE", "Each sieve aperture must appear only once.", "rows"));
-  const retainedTotal = input.rows?.reduce((sum, row) => sum + (finite(row.retainedMassG) ? row.retainedMassG : 0), 0) || 0;
-  const accountedMass = retainedTotal + (finite(input.washLossMassG) ? input.washLossMassG : 0);
-  if (finite(input.totalSampleMassG) && accountedMass > input.totalSampleMassG + 1e-9) issues.push(issue("SOIL_SIEVE_MASS_BALANCE_EXCEEDS_TOTAL", "Retained mass plus wash loss cannot exceed the total sample mass.", "rows"));
-  if (input.washLossMassG !== undefined && (!finite(input.washLossMassG) || input.washLossMassG < 0)) issues.push(issue("SOIL_SIEVE_WASH_LOSS_INVALID", "Wash loss must be finite and non-negative.", "washLossMassG"));
+  const retainedTotal = validRows.reduce((sum, row) => sum + (finite(row.retainedMassG) ? row.retainedMassG : 0), 0);
+  const accountedMass = retainedTotal + (finite(washLossMassG) ? washLossMassG : 0);
+  if (finite(totalSampleMassG) && accountedMass > totalSampleMassG + 1e-9) issues.push(issue("SOIL_SIEVE_MASS_BALANCE_EXCEEDS_TOTAL", "Retained mass plus wash loss cannot exceed the total sample mass.", "rows"));
+  if (washLossMassG !== undefined && (!finite(washLossMassG) || washLossMassG < 0)) issues.push(issue("SOIL_SIEVE_WASH_LOSS_INVALID", "Wash loss must be finite and non-negative.", "washLossMassG"));
   return issues;
 }
 
@@ -43,14 +56,26 @@ export function calculateSoilSieve(input: SoilSieveInput): SoilSieveResult {
 }
 
 export function validateProctorInput(input: ProctorInput): ValidationIssue[] {
+  const candidate = input as Partial<ProctorInput> | null | undefined;
+  const rawPoints = candidate?.points;
+  const points: unknown[] = Array.isArray(rawPoints) ? rawPoints : [];
+  const moldVolumeCm3 = candidate?.moldVolumeCm3;
   const issues: ValidationIssue[] = [];
-  if (!finite(input.moldVolumeCm3) || input.moldVolumeCm3 <= 0) issues.push(issue("PROCTOR_MOLD_VOLUME_INVALID", "Mold volume must be positive and finite.", "moldVolumeCm3"));
-  if (!Array.isArray(input.points) || input.points.length < 3) issues.push(issue("PROCTOR_POINTS_INSUFFICIENT", "At least three moisture-density points are required.", "points"));
-  input.points?.forEach((point, index) => {
+  if (!finite(moldVolumeCm3) || moldVolumeCm3 <= 0) issues.push(issue("PROCTOR_MOLD_VOLUME_INVALID", "Mold volume must be positive and finite.", "moldVolumeCm3"));
+  if (!Array.isArray(rawPoints) || points.length < 3) issues.push(issue("PROCTOR_POINTS_INSUFFICIENT", "At least three moisture-density points are required.", "points"));
+  const validPoints: ProctorPoint[] = [];
+  for (let index = 0; index < points.length; index += 1) {
+    const value = points[index];
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      issues.push(issue("PROCTOR_POINT_INVALID", "Each Proctor point must be an object.", `points.${index}`));
+      continue;
+    }
+    const point = value as ProctorPoint;
+    validPoints.push(point);
     if (!finite(point.waterContentPercent) || point.waterContentPercent < 0) issues.push(issue("PROCTOR_WATER_CONTENT_INVALID", "Water content must be finite and non-negative.", `points.${index}.waterContentPercent`));
     if (!finite(point.wetSampleMassG) || point.wetSampleMassG <= 0) issues.push(issue("PROCTOR_WET_MASS_INVALID", "Wet sample mass must be positive and finite.", `points.${index}.wetSampleMassG`));
-  });
-  const moistureValues = input.points?.map(point => point.waterContentPercent).filter(finite) || [];
+  }
+  const moistureValues = validPoints.map(point => point.waterContentPercent).filter(finite);
   if (new Set(moistureValues).size !== moistureValues.length) issues.push(issue("PROCTOR_DUPLICATE_WATER_CONTENT", "Each Proctor moisture content must be unique.", "points"));
   return issues;
 }
